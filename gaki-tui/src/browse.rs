@@ -545,25 +545,6 @@ pub struct Browser {
     /// prompting).
     pub collections_input: Option<String>,
 
-    // --- Runtime plugins overlay (umu / luxtorpeda / steam-runtime) ---
-    /// Whether the runtime-plugins overlay is open.
-    pub show_engine: bool,
-    /// umu-launcher plugin status.
-    pub engine_umu: Option<aurelia::PluginStatusJson>,
-    /// luxtorpeda plugin status.
-    pub engine_lux: Option<aurelia::PluginStatusJson>,
-    /// Steam Linux Runtime status.
-    pub engine_steam_runtime: Option<aurelia::SteamRuntimeStatusJson>,
-    /// The highlighted plugin row (0 = umu, 1 = luxtorpeda, 2 = steam-runtime).
-    pub engine_index: usize,
-    /// A transient status line for the plugins overlay.
-    pub engine_status: String,
-    /// Shared cell for an in-flight plugin install/update/repair, run on a worker
-    /// thread so the long network download doesn't freeze the TUI (mirrors
-    /// `proton_status` / `versions_busy`). Holds `"working…"` while running, then
-    /// a terminal `"Done."`/`"Failed: …"` that [`Browser::poll_engine`] adopts.
-    pub engine_busy: Arc<Mutex<Option<GameStatus>>>,
-
     // --- Launch targets overlay ("Play as…") ---
     /// Whether the launch-targets overlay is open.
     pub show_launch_targets: bool,
@@ -592,7 +573,6 @@ pub enum Action {
     Branches,
     GameSettings,
     Proton,
-    Engine,
     LaunchOptions,
     Dlc,
     Workshop,
@@ -772,13 +752,6 @@ impl Browser {
             collections_status: String::new(),
             collections_app_id: 0,
             collections_input: None,
-            show_engine: false,
-            engine_umu: None,
-            engine_lux: None,
-            engine_steam_runtime: None,
-            engine_index: 0,
-            engine_status: String::new(),
-            engine_busy: Arc::new(Mutex::new(None)),
             show_launch_targets: false,
             launch_targets: Vec::new(),
             launch_targets_index: 0,
@@ -1102,15 +1075,15 @@ impl Browser {
         }
     }
 
-    /// Whether the highlighted runtime can be uninstalled (an installed custom
-    /// GE runtime). Drives whether the uninstall key/confirm is offered.
+    /// Whether the highlighted runtime can be uninstalled (an installed official
+    /// build). Drives whether the uninstall key/confirm is offered.
     pub fn selected_proton_uninstallable(&self) -> bool {
         self.selected_proton()
             .map(|p| p.uninstallable())
             .unwrap_or(false)
     }
 
-    /// Uninstall the highlighted custom (GE) runtime and refresh the list. A
+    /// Uninstall the highlighted official runtime and refresh the list. A
     /// no-op unless the highlighted runtime is uninstallable.
     pub fn do_proton_uninstall(&mut self) -> Result<(), STError> {
         let name = match self.selected_proton() {
@@ -2972,12 +2945,6 @@ impl Browser {
             key: "P",
         });
         rows.push(ActionRow {
-            action: Action::Engine,
-            category: RT,
-            label: "Runtime plugins (umu / lux)",
-            key: "E",
-        });
-        rows.push(ActionRow {
             action: Action::LaunchOptions,
             category: RT,
             label: "Launch options",
@@ -3333,9 +3300,9 @@ impl Browser {
 
     // --- Game settings overlay (per-game config overrides + launch script) ---
 
-    /// Number of editable rows in the game-settings overlay: Runner, Forced
-    /// Proton, Platform, Steam runtime, Steam prefix, Launch script.
-    pub const GAME_CONFIG_ROWS: usize = 6;
+    /// Number of editable rows in the game-settings overlay: Forced Proton,
+    /// Platform, Launch script.
+    pub const GAME_CONFIG_ROWS: usize = 3;
 
     /// Fetch the game's per-game config, launch-script state, and the installed
     /// Proton list (for cycling the forced runtime) and open the overlay.
@@ -3386,28 +3353,8 @@ impl Browser {
     pub fn game_config_activate(&mut self) {
         let id = self.game_config_app_id;
         match self.game_config_index {
-            // Runner: auto → umu → luxtorpeda → auto.
-            0 => {
-                let cur = self
-                    .game_config
-                    .as_ref()
-                    .map(|c| c.runner.as_str())
-                    .unwrap_or("auto");
-                let res = match cur {
-                    "umu" => {
-                        let _ = aurelia::config_game_set_umu(id, false);
-                        aurelia::config_game_set_native_engine(id, true)
-                    }
-                    "luxtorpeda" => aurelia::config_game_set_native_engine(id, false),
-                    _ => aurelia::config_game_set_umu(id, true),
-                };
-                self.game_config_status = match res {
-                    Ok(()) => "Runner updated.".to_string(),
-                    Err(e) => format!("Failed: {e}"),
-                };
-            }
             // Forced Proton: cycle installed runtimes, then wrap to cleared.
-            1 => {
+            0 => {
                 let cur = self
                     .game_config
                     .as_ref()
@@ -3435,7 +3382,7 @@ impl Browser {
                 };
             }
             // Platform: auto → windows → linux → auto.
-            2 => {
+            1 => {
                 let cur = self
                     .game_config
                     .as_ref()
@@ -3447,38 +3394,6 @@ impl Browser {
                 };
                 self.game_config_status = match res {
                     Ok(()) => format!("Platform set to {next}."),
-                    Err(e) => format!("Failed: {e}"),
-                };
-            }
-            // Steam runtime: auto → on → off → auto.
-            3 => {
-                let cur = self
-                    .game_config
-                    .as_ref()
-                    .and_then(|c| c.steam_runtime_policy.clone());
-                let next = match cur.as_deref() {
-                    Some("Enabled") => "off",
-                    Some("Disabled") => "auto",
-                    _ => "on",
-                };
-                self.game_config_status = match aurelia::config_game_set_steam_runtime(id, next) {
-                    Ok(()) => format!("Steam runtime set to {next}."),
-                    Err(e) => format!("Failed: {e}"),
-                };
-            }
-            // Steam prefix: toggle shared ↔ per-game.
-            4 => {
-                let cur = self
-                    .game_config
-                    .as_ref()
-                    .and_then(|c| c.steam_prefix_mode.clone());
-                let next = match cur.as_deref() {
-                    Some("PerGame") => "shared",
-                    _ => "per-game",
-                };
-                self.game_config_status = match aurelia::config_game_set_steam_prefix_mode(id, next)
-                {
-                    Ok(()) => format!("Steam prefix set to {next}."),
                     Err(e) => format!("Failed: {e}"),
                 };
             }
@@ -3653,144 +3568,6 @@ impl Browser {
             Err(e) => format!("Failed: {e}"),
         };
         self.refresh_collections();
-    }
-
-    // --- Runtime plugins overlay (umu / luxtorpeda / steam-runtime) ---
-
-    /// Number of plugin rows: umu, luxtorpeda, steam-runtime.
-    pub const ENGINE_ROWS: usize = 3;
-
-    /// Fetch the status of all three runtime plugins and open the overlay.
-    pub fn open_engine(&mut self) {
-        self.engine_umu = aurelia::umu_status().ok();
-        self.engine_lux = aurelia::lux_status().ok();
-        self.engine_steam_runtime = aurelia::steam_runtime_status().ok();
-        self.engine_index = 0;
-        self.engine_status.clear();
-        self.show_engine = true;
-    }
-
-    pub fn close_engine(&mut self) {
-        self.show_engine = false;
-        self.engine_umu = None;
-        self.engine_lux = None;
-        self.engine_steam_runtime = None;
-        self.engine_index = 0;
-    }
-
-    pub fn engine_next(&mut self) {
-        self.engine_index = (self.engine_index + 1) % Self::ENGINE_ROWS;
-    }
-
-    pub fn engine_previous(&mut self) {
-        self.engine_index = if self.engine_index == 0 {
-            Self::ENGINE_ROWS - 1
-        } else {
-            self.engine_index - 1
-        };
-    }
-
-    fn refresh_engine(&mut self) {
-        self.engine_umu = aurelia::umu_status().ok();
-        self.engine_lux = aurelia::lux_status().ok();
-        self.engine_steam_runtime = aurelia::steam_runtime_status().ok();
-    }
-
-    /// Run a plugin action on the highlighted row. `key` is the in-overlay key
-    /// pressed: e enable, d disable, i install, U update, x uninstall (umu/lux);
-    /// i install, r repair (steam-runtime). Unsupported combos are ignored.
-    ///
-    /// Enable/disable/uninstall are instant config/fs writes, done synchronously.
-    /// Install/update/repair download payloads over the network, so they run on a
-    /// worker thread (streaming into `engine_busy`, adopted by [`Self::poll_engine`]) —
-    /// the overlay shows `working…` and the TUI stays responsive. A second action
-    /// is ignored while one is in flight.
-    pub fn engine_action(&mut self, key: char) {
-        if self.engine_busy.lock().unwrap().is_some() {
-            return;
-        }
-
-        // Instant, synchronous verbs.
-        let sync_res: Option<Result<(), STError>> = match (self.engine_index, key) {
-            (0, 'e') => Some(aurelia::umu_enable()),
-            (0, 'd') => Some(aurelia::umu_disable()),
-            (0, 'x') => Some(aurelia::umu_uninstall()),
-            (1, 'e') => Some(aurelia::lux_enable()),
-            (1, 'd') => Some(aurelia::lux_disable()),
-            (1, 'x') => Some(aurelia::lux_uninstall()),
-            _ => None,
-        };
-        if let Some(r) = sync_res {
-            self.engine_status = match r {
-                Ok(()) => "Done.".to_string(),
-                Err(e) => format!("Failed: {e}"),
-            };
-            self.refresh_engine();
-            return;
-        }
-
-        // Long, network-bound verbs: run off the UI thread.
-        type Op = fn() -> Result<(), STError>;
-        let op: Option<Op> = match (self.engine_index, key) {
-            (0, 'i') => Some(aurelia::umu_install),
-            (0, 'U') => Some(aurelia::umu_update),
-            (1, 'i') => Some(aurelia::lux_install),
-            (1, 'U') => Some(aurelia::lux_update),
-            (2, 'i') => Some(aurelia::steam_runtime_install),
-            (2, 'r') => Some(aurelia::steam_runtime_repair),
-            _ => None,
-        };
-        if let Some(op) = op {
-            let busy = Arc::clone(&self.engine_busy);
-            *busy.lock().unwrap() = Some(GameStatus {
-                state: "working…".to_string(),
-                installdir: String::new(),
-                size: 0.0,
-            });
-            self.engine_status.clear();
-            thread::spawn(move || {
-                let state = match op() {
-                    Ok(()) => "Done.".to_string(),
-                    Err(e) => format!("Failed: {e}"),
-                };
-                *busy.lock().unwrap() = Some(GameStatus {
-                    state,
-                    installdir: String::new(),
-                    size: 0.0,
-                });
-            });
-        }
-    }
-
-    /// The in-flight plugin-worker status (`working…`), if one is running.
-    pub fn engine_busy_text(&self) -> Option<String> {
-        self.engine_busy
-            .lock()
-            .unwrap()
-            .as_ref()
-            .filter(|s| s.state == "working…")
-            .map(|s| s.state.clone())
-    }
-
-    /// Adopt a finished plugin worker's result: once `engine_busy` holds a
-    /// terminal status (not `working…`), move it to `engine_status`, clear the
-    /// cell, and re-fetch the plugin statuses. Called once per event loop.
-    pub fn poll_engine(&mut self) {
-        if !self.show_engine {
-            return;
-        }
-        let terminal = {
-            let guard = self.engine_busy.lock().unwrap();
-            match guard.as_ref() {
-                Some(s) if s.state != "working…" => Some(s.state.clone()),
-                _ => None,
-            }
-        };
-        if let Some(state) = terminal {
-            self.engine_status = state;
-            *self.engine_busy.lock().unwrap() = None;
-            self.refresh_engine();
-        }
     }
 }
 

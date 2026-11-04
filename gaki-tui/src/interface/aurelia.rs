@@ -18,6 +18,7 @@ use crate::app::worker;
 use crate::interface::game_status::GameStatus;
 use crate::util::error::STError;
 use crate::util::log::log;
+use libgaki::ops::config::{Change, GameSettingsChange};
 
 /// The `gaki-cli` binary to invoke.
 ///
@@ -125,10 +126,9 @@ impl AccountJson {
     }
 }
 
-/// The launcher configuration, from `aurelia config show --json` (the
-/// serialized `LauncherConfig`). Only the human-relevant top-level scalars are
-/// captured; nested maps (per-game configs, launch options) are skipped. Every
-/// field is `#[serde(default)]` so a missing/renamed key never breaks parsing.
+/// The launcher configuration: the human-relevant top-level scalars of
+/// `LauncherConfig`. Every field is `#[serde(default)]`, so a config without
+/// one still reads.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ConfigJson {
     /// The Steam library path games install into.
@@ -137,24 +137,12 @@ pub struct ConfigJson {
     /// The default Proton/Wine runtime.
     #[serde(default)]
     pub proton_version: Option<String>,
-    /// Friends/chat presence the daemon announces (`"online"` / `"offline"`).
+    /// Friends/chat presence (`"online"` / `"offline"`).
     #[serde(default)]
     pub chat_presence: Option<String>,
-    /// How per-game Wine prefixes / compat data are laid out (e.g. `"Shared"`).
-    #[serde(default)]
-    pub steam_prefix_mode: Option<String>,
-    /// Default Steam API language for achievements (`None` = English).
-    #[serde(default)]
-    pub language: Option<String>,
     /// Whether Steam Cloud save sync is enabled.
     #[serde(default)]
     pub enable_cloud_sync: bool,
-    /// Whether games share a single compat-data prefix.
-    #[serde(default)]
-    pub use_shared_compat_data: bool,
-    /// Whether the optional luxtorpeda native-engine plugin is enabled.
-    #[serde(default)]
-    pub luxtorpeda_enabled: bool,
 }
 
 impl ConfigJson {
@@ -1015,56 +1003,26 @@ struct MyMarketStateJson {
     buy_orders: Vec<MyBuyOrderJson>,
 }
 
-/// One Proton/Wine runtime, surfaced from `aurelia proton list --json`. The CLI
-/// emits a wrapping object (`{ available: [..], installed: [..], default }`);
-/// `proton_list` flattens it into one list, computing the `installed`/`is_default`
-/// markers per entry. Every field is `#[serde(default)]` so a partial line parses.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One Proton/Wine runtime: an official build Steam can install, or a runtime
+/// found on disk (custom builds such as GE come from the package manager).
+#[derive(Debug, Clone, Default)]
 pub struct ProtonJson {
-    /// The runtime name, used to install/select it (e.g. `Proton 9.0`, `GE-Proton10-34`).
-    #[serde(default)]
+    /// The runtime name, used to select it (e.g. `Proton 9.0`, `GE-Proton10-34`).
     pub name: String,
-    /// Human label for the source family (`Valve`, `Proton-GE`, `Wine-GE`).
-    #[serde(default)]
-    pub label: String,
-    /// Download size in bytes (`0` when unknown).
-    #[serde(default)]
-    pub size: u64,
-    /// Whether this runtime is present on disk (computed by `proton_list`).
-    #[serde(default)]
+    /// Whether this is an official build, installed and removed through Steam.
+    pub official: bool,
+    /// Whether this runtime is present on disk.
     pub installed: bool,
-    /// Whether this runtime is the configured global default (computed by `proton_list`).
-    #[serde(default)]
+    /// Whether this runtime is the configured global default.
     pub is_default: bool,
 }
 
 impl ProtonJson {
-    /// Whether this runtime can be uninstalled: only an installed *custom* (GE)
-    /// runtime qualifies. Valve runtimes are managed by Steam and cannot be
-    /// removed here; nothing that isn't on disk can be uninstalled.
+    /// Whether this runtime can be uninstalled here: only an installed official
+    /// build. Custom builds belong to the package manager.
     pub fn uninstallable(&self) -> bool {
-        self.installed && !self.label.eq_ignore_ascii_case("Valve")
+        self.installed && self.official
     }
-}
-
-/// An entry of the `installed` array from `aurelia proton list --json`
-/// (`{ name, location, path }`); only the name is surfaced.
-#[derive(Debug, Clone, Default, Deserialize)]
-struct InstalledProtonJson {
-    #[serde(default)]
-    name: String,
-}
-
-/// The top-level object from `aurelia proton list --json`: the installable
-/// runtimes, what's on disk, and the configured default version name.
-#[derive(Debug, Clone, Default, Deserialize)]
-struct ProtonListResponse {
-    #[serde(default)]
-    available: Vec<ProtonJson>,
-    #[serde(default)]
-    installed: Vec<InstalledProtonJson>,
-    #[serde(default)]
-    default: String,
 }
 
 /// One running game, from `aurelia running --json` (an item of the response's
@@ -1809,144 +1767,69 @@ pub fn set_branch(app_id: i32, branch: &str) -> Result<(), STError> {
     Ok(())
 }
 
-/// List the Proton/Wine runtimes (`aurelia proton list --json`). The CLI returns
-/// a wrapping object with separate `available`/`installed` arrays and a `default`
-/// version name; this flattens them into one list, marking each entry's
-/// `installed` and `is_default` state (matched case-insensitively by name).
+/// List the Proton/Wine runtimes: every official build, marked installed and
+/// default as they are, then any other runtime found on disk.
 pub fn proton_list() -> Result<Vec<ProtonJson>, STError> {
-    let value = run_json(&["proton", "list"])?;
-    let parsed: ProtonListResponse = serde_json::from_value(value)?;
-
-    let is_installed = |name: &str| {
-        parsed
-            .installed
-            .iter()
-            .any(|i| i.name.eq_ignore_ascii_case(name))
-    };
-    let is_default = |name: &str| name.eq_ignore_ascii_case(&parsed.default);
-
-    let mut protons: Vec<ProtonJson> = parsed
+    let listing = in_process(libgaki::ops::proton::listing())?;
+    let is_default = |name: &str| name.eq_ignore_ascii_case(&listing.default);
+    let mut protons: Vec<ProtonJson> = listing
         .available
-        .into_iter()
-        .map(|mut p| {
-            p.installed = is_installed(&p.name);
-            p.is_default = is_default(&p.name);
-            p
+        .iter()
+        .map(|p| ProtonJson {
+            name: p.name.clone(),
+            official: true,
+            installed: listing.is_installed(&p.name),
+            is_default: is_default(&p.name),
         })
         .collect();
-
-    // Surface any installed runtime missing from the available list (e.g. an old
-    // GE build no longer published) so everything on disk is still shown.
-    for inst in &parsed.installed {
+    // Everything else on disk (custom builds, older releases) is listed too.
+    for inst in &listing.installed {
         if !protons
             .iter()
             .any(|p| p.name.eq_ignore_ascii_case(&inst.name))
         {
             protons.push(ProtonJson {
                 name: inst.name.clone(),
-                label: "(local)".to_string(),
-                size: 0,
+                official: false,
                 installed: true,
                 is_default: is_default(&inst.name),
             });
         }
     }
-
     Ok(protons)
 }
 
-/// Make `version` the global default Proton/Wine runtime
-/// (`aurelia proton default <version> --json`). The returned value is ignored;
-/// only errors are propagated.
+/// Make `version` the global default Proton/Wine runtime.
 pub fn proton_default(version: &str) -> Result<(), STError> {
-    run_json(&["proton", "default", version])?;
-    Ok(())
+    in_process(libgaki::ops::proton::set_default(version)).map(drop)
 }
 
-/// Download and install a Proton/Wine runtime by name
-/// (`aurelia proton install <name> --json`), streaming progress into the shared
-/// status cell. Blocks until the download/install finishes; intended to be run
-/// on a dedicated thread (mirrors [`install`]).
+/// Install an official Proton build through Steam and make it the default,
+/// streaming progress into the shared status cell. Blocks until done; intended
+/// to be run on a dedicated thread (mirrors [`install`]).
 pub fn proton_install(name: String, status: Arc<Mutex<Option<GameStatus>>>) {
     set_status(&status, "processing...");
-
-    let spawned = process::Command::new(bin())
-        .args(["proton", "install", &name, "--json"])
-        .stdin(process::Stdio::null())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(err) => {
-            set_status(&status, &format!("Failed: {}", err));
-            log!("Failed to spawn aurelia proton install", name, err);
-            return;
+    let outcome = worker::global().block_on(async {
+        let package = libgaki::ops::proton::find(&name)?;
+        let client = worker::global().session().authed().await?;
+        let rx = libgaki::ops::proton::start_install(&client, &package).await?;
+        if !drive_progress(rx, &status, ProgressLabel::Install).await? {
+            anyhow::bail!("the install of {} stopped before it finished", package.name);
         }
-    };
-
-    // Drain stdout (the small terminal result object) on a helper thread so the
-    // child never blocks writing it while we consume the larger stderr stream.
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
-        }
-        buf
+        libgaki::ops::proton::set_default(&package.name).await?;
+        Ok(())
     });
-
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<ProgressJson>(line)
-                && event.event.as_deref() == Some("progress")
-            {
-                let label = match event.state.as_deref() {
-                    Some("extracting") => "extracting",
-                    Some("verifying") => "verifying",
-                    _ => "downloading",
-                };
-                set_status(
-                    &status,
-                    &format!(
-                        "{} {:.1}%{}",
-                        label,
-                        event.percent.unwrap_or(0.0),
-                        eta_suffix(event.eta_seconds)
-                    ),
-                );
-            }
-        }
-    }
-
-    let result = result_handle.join().unwrap_or_default();
-    let _ = child.wait();
-
-    match serde_json::from_str::<serde_json::Value>(result.trim()) {
-        Ok(value) => {
-            if let Some(err) = json_error(&value) {
-                set_status(&status, &format!("Failed: {}", err));
-            } else {
-                set_status(&status, "Installed!");
-            }
-        }
-        // No parseable result line: fall back on the exit status we already waited on.
-        Err(_) => set_status(&status, "Installed!"),
-    }
+    finish(&status, outcome, "Installed!");
 }
 
-/// Uninstall an installed custom (GE) Proton/Wine runtime
-/// (`aurelia proton uninstall <name> --json`). Blocks until the CLI reports the
-/// result (a fast local removal from `compatibilitytools.d`); the parsed value
-/// is ignored beyond error detection.
+/// Uninstall an official Proton build through Steam.
 pub fn proton_uninstall(name: &str) -> Result<(), STError> {
-    run_json(&["proton", "uninstall", name])?;
-    Ok(())
+    in_process(async {
+        let package = libgaki::ops::proton::find(name)?;
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::proton::uninstall(&client, &package).await
+    })
+    .map(drop)
 }
 
 /// The games gaki launched that are still running (stale records are dropped).
@@ -2377,11 +2260,8 @@ pub fn play(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
 }
 
 // ===========================================================================
-// Extended CLI surface (added for the UI to call later): version pinning +
-// downgrade, launch scripts, collections, runtime plugins (umu / luxtorpeda /
-// steam-runtime), per-game config overrides, and extended `play` flags. Purely
-// additive: wrappers over `run_json` (or the streaming pattern for `downgrade`)
-// plus the JSON structs they deserialize into.
+// Version pinning + downgrade, launch scripts, collections, per-game config
+// overrides, and launch targets.
 // ===========================================================================
 
 /// One depot's current manifest id on a branch, from `aurelia manifests <id>
@@ -2430,21 +2310,8 @@ pub struct PinJson {
     pub manifests: std::collections::BTreeMap<String, u64>,
 }
 
-/// One launch-script entry, from `aurelia scripts list --json` (the `scripts`
-/// array). `path` is the resolved script path, or `None` when unresolved.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct ScriptEntryJson {
-    #[serde(default)]
-    pub app_id: u32,
-    #[serde(default)]
-    pub name: Option<String>,
-    #[serde(default)]
-    pub path: Option<String>,
-}
-
-/// A launch script's resolved path and contents, from `aurelia scripts show <id>
-/// --json`. When no script resolves, the CLI omits `contents` and reports
-/// `exists:false` with a null `path`.
+/// A game's resolved launch script. With no script, `exists` is false and
+/// `path` is `None`.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct ScriptShowJson {
     #[serde(default)]
@@ -2479,87 +2346,13 @@ pub struct CollectionJson {
     pub app_ids: Vec<u32>,
 }
 
-/// A runtime plugin's on-disk install (the `installed` field of a plugin
-/// `status` object). `null` when nothing is installed. Mirrors the CLI's
-/// `InstalledUmu`/`InstalledLux` structs (`version`, `root`, `entry`).
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct PluginInstalledJson {
-    #[serde(default)]
-    pub version: String,
-    #[serde(default)]
-    pub root: Option<String>,
-    #[serde(default)]
-    pub entry: Option<String>,
-}
-
-/// The status of an optional runtime plugin, from `aurelia umu status --json` or
-/// `aurelia luxtorpeda status --json`. `installed` is an object (or `null`)
-/// describing the on-disk payload.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct PluginStatusJson {
-    #[serde(default)]
-    pub enabled: bool,
-    /// An externally-managed install path, if the user configured one.
-    #[serde(default)]
-    pub custom_path: Option<String>,
-    #[serde(default)]
-    pub installed: Option<PluginInstalledJson>,
-    /// Whether the host is Linux (the plugins only run there).
-    #[serde(default)]
-    pub linux: bool,
-}
-
-impl PluginStatusJson {
-    /// Whether the plugin's payload is present on disk.
-    pub fn is_installed(&self) -> bool {
-        self.installed.is_some()
-    }
-}
-
-/// The master Windows Steam runtime prefix status, from
-/// `aurelia steam-runtime status --json`. Paths arrive as strings; every field
-/// is `#[serde(default)]` so a missing/renamed key never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
-pub struct SteamRuntimeStatusJson {
-    #[serde(default)]
-    pub root_dir: Option<String>,
-    #[serde(default)]
-    pub wine_prefix: Option<String>,
-    /// Prefix layout, `"root"` or `"pfx"`.
-    #[serde(default)]
-    pub layout_kind: String,
-    #[serde(default)]
-    pub steam_exe: Option<String>,
-    #[serde(default)]
-    pub steam_exe_present: bool,
-    #[serde(default)]
-    pub steam_runtime_runner: Option<String>,
-    #[serde(default)]
-    pub steam_runtime_runner_configured: bool,
-}
-
-/// A game's per-game launch settings, from `aurelia config game <id> --json`.
-/// `runner` is one of `"auto"`, `"luxtorpeda"`, or `"umu"`. Note the CLI keys are
-/// `forced_proton_version` / `platform_preference` / `runner` / `launch_script`
-/// (there is no `pinned`/`pinned_manifests` here — use [`available`] for those).
-#[derive(Debug, Clone, Default, Deserialize)]
+/// A game's per-game launch settings.
+#[derive(Debug, Clone, Default)]
 pub struct GameConfigJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub forced_proton_version: Option<String>,
-    #[serde(default)]
     pub platform_preference: Option<String>,
-    #[serde(default)]
-    pub runner: String,
-    #[serde(default)]
     pub launch_script: Option<String>,
-    /// Per-game Steam-runtime policy: `"Auto"`, `"Enabled"` or `"Disabled"`.
-    #[serde(default)]
-    pub steam_runtime_policy: Option<String>,
-    /// How the master Steam prefix backs this game: `"Shared"` or `"PerGame"`.
-    #[serde(default)]
-    pub steam_prefix_mode: Option<String>,
 }
 
 /// Extra launch options for [`play_with`].
@@ -2610,7 +2403,6 @@ impl LaunchTargetJson {
     pub fn label(&self) -> String {
         match (self.platform.as_str(), self.steam_mode.as_deref()) {
             ("linux", _) => "Linux (native)".to_string(),
-            ("windows", Some("runtime")) => "Windows · Steam runtime (in Wine)".to_string(),
             ("windows", Some("host")) => "Windows · host Steam".to_string(),
             ("windows", Some("none")) => "Windows · standalone".to_string(),
             (p, Some(m)) => format!("{p} · {m}"),
@@ -2804,59 +2596,35 @@ pub fn downgrade(
     }
 }
 
-/// Print the resolved launch-script directory (`aurelia scripts dir --json`).
-pub fn scripts_dir() -> Result<String, STError> {
-    let value = run_json(&["scripts", "dir"])?;
-    Ok(value
-        .get("script_dir")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string())
-}
-
-/// List app ids that have a launch script and their resolved paths
-/// (`aurelia scripts list --json`). The CLI wraps the list under a `scripts` key;
-/// accept a bare array too. An empty/null result yields an empty `Vec`.
-pub fn scripts_list() -> Result<Vec<ScriptEntryJson>, STError> {
-    let value = run_json(&["scripts", "list"])?;
-    let list = match value.get("scripts") {
-        Some(scripts) => scripts.clone(),
-        None => value,
-    };
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
-}
-
-/// Show a game's resolved launch-script path and contents
-/// (`aurelia scripts show <id> --json`).
+/// A game's resolved launch script and its contents.
 pub fn scripts_show(app_id: i32) -> Result<ScriptShowJson, STError> {
-    let value = run_json(&["scripts", "show", &app_id.to_string()])?;
-    Ok(serde_json::from_value(value)?)
+    let view = in_process(libgaki::ops::scripts::show(app_id as u32))?;
+    Ok(match view {
+        Some(view) => ScriptShowJson {
+            app_id: app_id as u32,
+            path: Some(view.path.display().to_string()),
+            exists: view.contents.is_some(),
+            contents: view.contents,
+        },
+        None => ScriptShowJson {
+            app_id: app_id as u32,
+            ..Default::default()
+        },
+    })
 }
 
-/// Scaffold a launch script for a game (`aurelia scripts new <id> [--force]
-/// --json`), returning the created script's path.
+/// Scaffold a launch script for a game, returning its path. Refuses to
+/// overwrite an existing one unless `force`.
 pub fn scripts_new(app_id: i32, force: bool) -> Result<String, STError> {
-    let id = app_id.to_string();
-    let mut args: Vec<&str> = vec!["scripts", "new", &id];
-    if force {
-        args.push("--force");
-    }
-    let value = run_json(&args)?;
-    Ok(value
-        .get("path")
-        .and_then(|v| v.as_str())
-        .unwrap_or_default()
-        .to_string())
+    let path = in_process(libgaki::ops::scripts::create(app_id as u32, force))?;
+    Ok(path.display().to_string())
 }
 
-/// Delete the dir-based launch script for a game (`aurelia scripts remove <id>
-/// --json`). The result is ignored beyond error detection.
+/// Delete a game's dir-based launch script; a missing one is not an error.
 pub fn scripts_remove(app_id: i32) -> Result<(), STError> {
-    run_json(&["scripts", "remove", &app_id.to_string()])?;
-    Ok(())
+    libgaki::ops::scripts::remove(app_id as u32)
+        .map(drop)
+        .map_err(|e| STError::Problem(format!("{e:#}")))
 }
 
 /// List all library collections (`aurelia collections list --json`). The CLI
@@ -2945,215 +2713,93 @@ pub fn collection_sync() -> Result<(), STError> {
     Ok(())
 }
 
-/// Report the umu-launcher plugin status (`aurelia umu status --json`).
-pub fn umu_status() -> Result<PluginStatusJson, STError> {
-    let value = run_json(&["umu", "status"])?;
-    Ok(serde_json::from_value(value)?)
+/// Apply a change to one game's launch settings and return them.
+fn update_game_config(
+    app_id: i32,
+    change: libgaki::ops::config::GameSettingsChange,
+) -> Result<GameConfigJson, STError> {
+    let (settings, _) = in_process(libgaki::ops::config::update_game(app_id as u32, change))?;
+    Ok(GameConfigJson {
+        app_id: settings.app_id,
+        forced_proton_version: settings.forced_proton_version,
+        platform_preference: settings.platform_preference,
+        launch_script: settings.launch_script,
+    })
 }
 
-/// Enable the umu-launcher plugin master toggle (`aurelia umu enable --json`).
-pub fn umu_enable() -> Result<(), STError> {
-    run_json(&["umu", "enable"])?;
-    Ok(())
-}
-
-/// Disable the umu-launcher plugin master toggle (`aurelia umu disable --json`).
-pub fn umu_disable() -> Result<(), STError> {
-    run_json(&["umu", "disable"])?;
-    Ok(())
-}
-
-/// Download/refresh the umu-launcher payload (`aurelia umu install --json`).
-/// Blocks until the download completes (no progress stream in `--json` mode);
-/// run on a dedicated thread. The result is ignored beyond error detection.
-pub fn umu_install() -> Result<(), STError> {
-    run_json(&["umu", "install"])?;
-    Ok(())
-}
-
-/// Re-fetch the latest umu-launcher payload (`aurelia umu update --json`). Blocks
-/// until done (no progress stream in `--json` mode); run on a dedicated thread.
-pub fn umu_update() -> Result<(), STError> {
-    run_json(&["umu", "update"])?;
-    Ok(())
-}
-
-/// Remove the downloaded umu-launcher payload (`aurelia umu uninstall --json`).
-pub fn umu_uninstall() -> Result<(), STError> {
-    run_json(&["umu", "uninstall"])?;
-    Ok(())
-}
-
-/// Report the luxtorpeda plugin status (`aurelia luxtorpeda status --json`).
-pub fn lux_status() -> Result<PluginStatusJson, STError> {
-    let value = run_json(&["luxtorpeda", "status"])?;
-    Ok(serde_json::from_value(value)?)
-}
-
-/// Enable the luxtorpeda plugin master toggle
-/// (`aurelia luxtorpeda enable --json`).
-pub fn lux_enable() -> Result<(), STError> {
-    run_json(&["luxtorpeda", "enable"])?;
-    Ok(())
-}
-
-/// Disable the luxtorpeda plugin master toggle
-/// (`aurelia luxtorpeda disable --json`).
-pub fn lux_disable() -> Result<(), STError> {
-    run_json(&["luxtorpeda", "disable"])?;
-    Ok(())
-}
-
-/// Download/refresh the luxtorpeda payload (`aurelia luxtorpeda install --json`).
-/// Blocks until done (no progress stream in `--json` mode); run on a thread.
-pub fn lux_install() -> Result<(), STError> {
-    run_json(&["luxtorpeda", "install"])?;
-    Ok(())
-}
-
-/// Re-fetch the latest luxtorpeda payload (`aurelia luxtorpeda update --json`).
-/// Blocks until done (no progress stream in `--json` mode); run on a thread.
-pub fn lux_update() -> Result<(), STError> {
-    run_json(&["luxtorpeda", "update"])?;
-    Ok(())
-}
-
-/// Remove the downloaded luxtorpeda payload
-/// (`aurelia luxtorpeda uninstall --json`).
-pub fn lux_uninstall() -> Result<(), STError> {
-    run_json(&["luxtorpeda", "uninstall"])?;
-    Ok(())
-}
-
-/// Report the master Windows Steam runtime prefix status
-/// (`aurelia steam-runtime status --json`).
-pub fn steam_runtime_status() -> Result<SteamRuntimeStatusJson, STError> {
-    let value = run_json(&["steam-runtime", "status"])?;
-    Ok(serde_json::from_value(value)?)
-}
-
-/// Install Steam into the master Windows prefix
-/// (`aurelia steam-runtime install --json`). Blocks until the install finishes
-/// (no progress stream in `--json` mode); run on a dedicated thread. Requires a
-/// configured `steam_runtime_runner`.
-pub fn steam_runtime_install() -> Result<(), STError> {
-    run_json(&["steam-runtime", "install"])?;
-    Ok(())
-}
-
-/// Back up the master prefix and reinstall Steam into it
-/// (`aurelia steam-runtime repair --json`). Blocks until done (no progress stream
-/// in `--json` mode); run on a dedicated thread.
-pub fn steam_runtime_repair() -> Result<(), STError> {
-    run_json(&["steam-runtime", "repair"])?;
-    Ok(())
-}
-
-/// Show a game's per-game launch settings (`aurelia config game <id> --json`).
-/// Called with no mutating flags, it just prints the current config.
+/// Show a game's per-game launch settings.
 pub fn config_game_show(app_id: i32) -> Result<GameConfigJson, STError> {
-    let value = run_json(&["config", "game", &app_id.to_string()])?;
-    Ok(serde_json::from_value(value)?)
+    update_game_config(app_id, Default::default())
 }
 
-/// Set a game's forced Proton/Wine version
-/// (`aurelia config game <id> --proton <v> --json`).
+/// Set a game's forced Proton/Wine version.
 pub fn config_game_set_proton(app_id: i32, version: &str) -> Result<(), STError> {
-    run_json(&["config", "game", &app_id.to_string(), "--proton", version])?;
-    Ok(())
+    update_game_config(
+        app_id,
+        GameSettingsChange {
+            proton: Change::Set(version.to_string()),
+            ..Default::default()
+        },
+    )
+    .map(drop)
 }
 
-/// Clear a game's forced Proton/Wine version, reverting to the global default
-/// (`aurelia config game <id> --clear-proton --json`).
+/// Clear a game's forced Proton/Wine version, reverting to the global default.
 pub fn config_game_clear_proton(app_id: i32) -> Result<(), STError> {
-    run_json(&["config", "game", &app_id.to_string(), "--clear-proton"])?;
-    Ok(())
+    update_game_config(
+        app_id,
+        GameSettingsChange {
+            proton: Change::Clear,
+            ..Default::default()
+        },
+    )
+    .map(drop)
 }
 
-/// Set a game's platform target, `"windows"` or `"linux"`
-/// (`aurelia config game <id> --platform <p> --json`).
+/// Set a game's platform target, `"windows"` or `"linux"`.
 pub fn config_game_set_platform(app_id: i32, platform: &str) -> Result<(), STError> {
-    run_json(&[
-        "config",
-        "game",
-        &app_id.to_string(),
-        "--platform",
-        platform,
-    ])?;
-    Ok(())
-}
-
-/// Clear a game's platform preference, back to auto-detection
-/// (`aurelia config game <id> --no-platform --json`, v0.1.40).
-pub fn config_game_clear_platform(app_id: i32) -> Result<(), STError> {
-    run_json(&["config", "game", &app_id.to_string(), "--no-platform"])?;
-    Ok(())
-}
-
-/// Set a game's Steam-runtime policy, `"auto"`, `"on"` or `"off"`
-/// (`aurelia config game <id> --steam-runtime <p> --json`, v0.1.40).
-pub fn config_game_set_steam_runtime(app_id: i32, policy: &str) -> Result<(), STError> {
-    run_json(&[
-        "config",
-        "game",
-        &app_id.to_string(),
-        "--steam-runtime",
-        policy,
-    ])?;
-    Ok(())
-}
-
-/// Set how the master Steam prefix backs a game, `"shared"` or `"per-game"`
-/// (`aurelia config game <id> --steam-prefix-mode <m> --json`, v0.1.40).
-pub fn config_game_set_steam_prefix_mode(app_id: i32, mode: &str) -> Result<(), STError> {
-    run_json(&[
-        "config",
-        "game",
-        &app_id.to_string(),
-        "--steam-prefix-mode",
-        mode,
-    ])?;
-    Ok(())
-}
-
-/// Route a game through the luxtorpeda native-engine plugin, or clear that
-/// routing (`aurelia config game <id> --native-engine|--no-native-engine --json`).
-pub fn config_game_set_native_engine(app_id: i32, on: bool) -> Result<(), STError> {
-    let flag = if on {
-        "--native-engine"
-    } else {
-        "--no-native-engine"
+    use libgaki::core::models::DepotPlatform;
+    let platform = match platform {
+        "windows" => DepotPlatform::Windows,
+        "linux" => DepotPlatform::Linux,
+        other => {
+            return Err(STError::Problem(format!(
+                "unknown platform '{other}' (expected windows or linux)"
+            )));
+        }
     };
-    run_json(&["config", "game", &app_id.to_string(), flag])?;
-    Ok(())
+    update_game_config(
+        app_id,
+        GameSettingsChange {
+            platform: Change::Set(platform),
+            ..Default::default()
+        },
+    )
+    .map(drop)
 }
 
-/// Route a game through the umu-launcher plugin, or clear that routing
-/// (`aurelia config game <id> --umu|--no-umu --json`).
-pub fn config_game_set_umu(app_id: i32, on: bool) -> Result<(), STError> {
-    let flag = if on { "--umu" } else { "--no-umu" };
-    run_json(&["config", "game", &app_id.to_string(), flag])?;
-    Ok(())
+/// Clear a game's platform preference, back to auto-detection.
+pub fn config_game_clear_platform(app_id: i32) -> Result<(), STError> {
+    update_game_config(
+        app_id,
+        GameSettingsChange {
+            platform: Change::Clear,
+            ..Default::default()
+        },
+    )
+    .map(drop)
 }
 
-/// Set a game's per-game launch script
-/// (`aurelia config game <id> --launch-script <path> --json`).
-pub fn config_game_set_launch_script(app_id: i32, path: &str) -> Result<(), STError> {
-    run_json(&[
-        "config",
-        "game",
-        &app_id.to_string(),
-        "--launch-script",
-        path,
-    ])?;
-    Ok(())
-}
-
-/// Clear a game's per-game launch script, falling back to the auto-detected one
-/// (`aurelia config game <id> --no-launch-script --json`).
+/// Clear a game's per-game launch script, falling back to the auto-detected one.
 pub fn config_game_clear_launch_script(app_id: i32) -> Result<(), STError> {
-    run_json(&["config", "game", &app_id.to_string(), "--no-launch-script"])?;
-    Ok(())
+    update_game_config(
+        app_id,
+        GameSettingsChange {
+            launch_script: Change::Clear,
+            ..Default::default()
+        },
+    )
+    .map(drop)
 }
 
 /// Launch a game with extra options and wait for it to exit, reporting each

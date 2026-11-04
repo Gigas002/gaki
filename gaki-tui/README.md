@@ -97,7 +97,7 @@ version. Press `?` any time for the full key list.
 | `U` / `v` / `x` | Update, verify, or uninstall |
 | `V` | Versions & pinning (downgrade to a manifest) |
 | `b` / `o` / `D` | Beta branches, depots, DLC |
-| `P` / `E` | Proton runtimes, runtime plugins (umu / luxtorpeda / Steam runtime) |
+| `P` | Proton runtimes |
 | `C` / `W` / `a` / `I` | Cloud saves, Workshop, achievements, inventory |
 | `M` / `K` / `N` / `O` | Move, relink, import an install; collections |
 | `m` / `S` / `w` | Market listings, market search, wallet |
@@ -115,12 +115,11 @@ version. Press `?` any time for the full key list.
 selected game — type to narrow it, `Enter` to run. Two entries live only here:
 
 - **Play as…** lists every way the game can be started (`aurelia
-  launch-targets`): the native Linux build, or the Windows build with the in-Wine
-  Steam runtime, the host Steam client, or no Steam. Launching one applies to that
+  launch-targets`): the native Linux build, or the Windows build with the host
+  Steam client or without Steam. Launching one applies to that
   run only; unavailable targets say what's missing.
-- **Game settings** holds the per-game overrides: runner (auto / umu /
-  luxtorpeda), forced Proton, platform (auto / windows / linux), Steam runtime
-  (auto / on / off), Steam prefix (shared / per-game), and launch script.
+- **Game settings** holds the per-game overrides: forced Proton, platform
+  (auto / windows / linux), and launch script.
 
 Selecting a game fetches its details lazily — developer/publisher metadata
 (`aurelia info`), the ProtonDB compatibility tier, and cover art all load in the

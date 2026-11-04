@@ -14,7 +14,6 @@ pub mod confirm;
 pub mod depots;
 pub mod detail;
 pub mod dlc;
-pub mod engine;
 pub mod friend_add;
 pub mod friends;
 pub mod game_config;

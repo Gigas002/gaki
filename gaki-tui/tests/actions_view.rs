@@ -7,7 +7,7 @@
 use gaki_tui::browse::{Action, Browser};
 use gaki_tui::interface::aurelia::{
     AvailableJson, CollectionJson, ConfigJson, DepotManifestInfo, GameConfigJson, LaunchTargetJson,
-    LibraryGameJson, PluginStatusJson, ProxyJson,
+    LibraryGameJson, ProxyJson,
 };
 use gaki_tui::interface::game::Game;
 use gaki_tui::ui;
@@ -87,7 +87,6 @@ fn action_candidates_depend_on_install_state() {
         "Versions & pinning listed"
     );
     assert!(actions.contains(&Action::Collections), "Collections listed");
-    assert!(actions.contains(&Action::Engine), "Runtime plugins listed");
     assert!(
         actions.contains(&Action::GameSettings),
         "Game settings listed"
@@ -197,10 +196,7 @@ fn game_settings_overlay_renders_rows() {
         app_id: 1,
         forced_proton_version: Some("GE-Proton9".to_string()),
         platform_preference: Some("windows".to_string()),
-        runner: "umu".to_string(),
         launch_script: None,
-        steam_runtime_policy: Some("Enabled".to_string()),
-        steam_prefix_mode: Some("PerGame".to_string()),
     });
     let text = render(70, 12, |f| {
         f.render_widget(
@@ -208,18 +204,15 @@ fn game_settings_overlay_renders_rows() {
             Rect::new(0, 0, 70, 12),
         );
     });
-    assert!(text.contains("Runner"), "runner row renders");
-    assert!(text.contains("umu"), "current runner value renders");
-    assert!(text.contains("GE-Proton9"), "forced proton value renders");
-    assert!(text.contains("Platform"), "platform row renders");
     assert!(
-        text.contains("Steam runtime: on"),
-        "steam runtime policy renders"
+        text.contains("Forced Proton: GE-Proton9"),
+        "forced proton renders"
     );
-    assert!(
-        text.contains("Steam prefix: per-game"),
-        "steam prefix mode renders"
-    );
+    assert!(text.contains("Platform: windows"), "platform renders");
+    assert!(text.contains("Launch script: (none)"), "script row renders");
+    for gone in ["Runner", "Steam runtime", "Steam prefix"] {
+        assert!(!text.contains(gone), "{gone} row is gone");
+    }
 }
 
 #[test]
@@ -312,29 +305,6 @@ fn collections_overlay_renders_list() {
     assert!(text.contains("Collections"), "overlay title renders");
     assert!(text.contains("Favourites"), "collection name renders");
     assert!(text.contains("7 games"), "collection count renders");
-}
-
-#[test]
-fn engine_overlay_renders_plugin_status() {
-    isolate_config();
-    let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
-    browser.show_engine = true;
-    browser.engine_umu = Some(PluginStatusJson {
-        enabled: true,
-        custom_path: None,
-        installed: None,
-        linux: false,
-    });
-    let text = render(70, 12, |f| {
-        f.render_widget(ui::engine::engine(&browser), Rect::new(0, 0, 70, 12));
-    });
-    assert!(text.contains("umu-launcher"), "umu row renders");
-    assert!(text.contains("luxtorpeda"), "luxtorpeda row renders");
-    assert!(
-        text.contains("Steam Linux Runtime"),
-        "steam runtime row renders"
-    );
-    assert!(text.contains("enabled"), "umu enabled status renders");
 }
 
 #[test]

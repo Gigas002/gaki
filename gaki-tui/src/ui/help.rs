@@ -69,7 +69,6 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("Enter", "Actions menu (all)"),
         Entry::Binding("V", "versions & pinning"),
         Entry::Binding("O", "collections"),
-        Entry::Binding("E", "runtime plugins"),
         Entry::Binding("a", "achievements"),
         Entry::Binding("I", "inventory"),
         Entry::Binding("m", "market listings"),

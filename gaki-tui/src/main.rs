@@ -455,13 +455,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                     frame.render_widget(ui::collections::collections(&browser), area);
                 }
 
-                // Runtime plugins overlay floats above everything.
-                if browser.show_engine {
-                    let area = ui::centered_rect(62, 45, frame.area());
-                    frame.render_widget(Clear, area);
-                    frame.render_widget(ui::engine::engine(&browser), area);
-                }
-
                 // Launch targets ("Play as…") overlay floats above everything.
                 if browser.show_launch_targets {
                     let area = ui::centered_rect(58, 40, frame.area());
@@ -734,7 +727,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                                             Action::Proton => {
                                                 let _ = browser.open_proton();
                                             }
-                                            Action::Engine => browser.open_engine(),
                                             Action::LaunchOptions => browser.open_launch(game.id),
                                             Action::Dlc => {
                                                 let _ = browser.open_dlc(game.id);
@@ -853,19 +845,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                                 KeyCode::Char('S') => browser.collections_sync(),
                                 _ => {}
                             }
-                        }
-                    } else if browser.show_engine {
-                        match input {
-                            KeyCode::Esc | KeyCode::Char('q') => browser.close_engine(),
-                            KeyCode::Down | KeyCode::Char('j') => browser.engine_next(),
-                            KeyCode::Up | KeyCode::Char('k') => browser.engine_previous(),
-                            KeyCode::Char('e') => browser.engine_action('e'),
-                            KeyCode::Char('d') => browser.engine_action('d'),
-                            KeyCode::Char('i') => browser.engine_action('i'),
-                            KeyCode::Char('U') => browser.engine_action('U'),
-                            KeyCode::Char('x') => browser.engine_action('x'),
-                            KeyCode::Char('r') => browser.engine_action('r'),
-                            _ => {}
                         }
                     } else if browser.show_cloud {
                         // Steam Cloud overlay: Esc/q close, s syncs both ways,
@@ -1206,7 +1185,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                                     }
                             }
                             KeyCode::Char('u')
-                                // Only custom (installed GE) runtimes are removable.
+                                // Only installed official runtimes are removable.
                                 if browser.selected_proton_uninstallable() => {
                                     browser.confirm_proton_uninstall = true;
                                 }
@@ -1403,7 +1382,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                                     browser.open_collections(game.id);
                                 }
                             }
-                            KeyCode::Char('E') => browser.open_engine(),
                             KeyCode::Char('d') => {
                                 if let Some(game) = browser.selected() {
                                     // Choose the install location first; fall back
@@ -1732,8 +1710,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
         // download), and `poll` adopts a completed download.
         // Adopt any completed market search / price result published off-thread.
         browser.poll_market();
-        // Adopt a finished runtime-plugin worker (install/update/repair).
-        browser.poll_engine();
 
         if app.mode == Mode::Browse
             && !browser.show_help
@@ -1766,7 +1742,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
             && !browser.show_game_config
             && !browser.show_launch_targets
             && !browser.show_collections
-            && !browser.show_engine
         {
             let selected = browser.selected();
             let cur_sel = selected.as_ref().map(|g| g.id);

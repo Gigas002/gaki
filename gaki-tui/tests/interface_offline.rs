@@ -37,6 +37,9 @@ fn logged_out_session_is_reported_not_fetched() {
     assert!(!aurelia::health().unwrap().logged_in);
 
     settings_round_trip();
+    game_settings_round_trip();
+    scripts_round_trip();
+    proton_default_is_saved();
 }
 
 /// Presence and proxy edits land in the launcher config and read back.
@@ -70,4 +73,70 @@ fn settings_round_trip() {
     aurelia::config_proxy_clear().unwrap();
     let proxy = aurelia::config_proxy_show().unwrap();
     assert_eq!((proxy.url, proxy.no_proxy), (None, None));
+}
+
+/// Per-game overrides set, read back, and clear.
+fn game_settings_round_trip() {
+    let id = 945360;
+    let cfg = aurelia::config_game_show(id).unwrap();
+    assert_eq!(cfg.forced_proton_version, None);
+    assert_eq!(cfg.platform_preference, None);
+
+    aurelia::config_game_set_proton(id, "Proton 9.0").unwrap();
+    aurelia::config_game_set_platform(id, "windows").unwrap();
+    let cfg = aurelia::config_game_show(id).unwrap();
+    assert_eq!(cfg.forced_proton_version.as_deref(), Some("Proton 9.0"));
+    assert_eq!(cfg.platform_preference.as_deref(), Some("windows"));
+
+    assert!(aurelia::config_game_set_platform(id, "macos").is_err());
+
+    aurelia::config_game_clear_proton(id).unwrap();
+    aurelia::config_game_clear_platform(id).unwrap();
+    let cfg = aurelia::config_game_show(id).unwrap();
+    assert_eq!(cfg.forced_proton_version, None);
+    assert_eq!(cfg.platform_preference, None);
+}
+
+/// A scaffolded launch script shows up, refuses a second scaffold, and goes
+/// away again.
+fn scripts_round_trip() {
+    let id = 945360;
+    assert!(!aurelia::scripts_show(id).unwrap().exists);
+
+    let path = aurelia::scripts_new(id, false).unwrap();
+    let shown = aurelia::scripts_show(id).unwrap();
+    assert!(shown.exists);
+    assert_eq!(shown.path.as_deref(), Some(path.as_str()));
+    assert!(shown.contents.unwrap_or_default().contains("945360"));
+    assert!(
+        aurelia::scripts_new(id, false).is_err(),
+        "no silent overwrite"
+    );
+
+    aurelia::scripts_remove(id).unwrap();
+    assert!(!aurelia::scripts_show(id).unwrap().exists);
+    aurelia::scripts_remove(id).expect("removing nothing is fine");
+}
+
+/// The official builds are always listed, and a new default is marked.
+fn proton_default_is_saved() {
+    let protons = aurelia::proton_list().unwrap();
+    let official = protons
+        .iter()
+        .find(|p| p.official)
+        .expect("official builds are listed")
+        .name
+        .clone();
+    aurelia::proton_default(&official).unwrap();
+    let marked: Vec<_> = aurelia::proton_list()
+        .unwrap()
+        .into_iter()
+        .filter(|p| p.is_default)
+        .map(|p| p.name)
+        .collect();
+    assert_eq!(marked, [official]);
+    assert_eq!(
+        aurelia::config_show().unwrap().proton_version.as_deref(),
+        Some(marked[0].as_str())
+    );
 }

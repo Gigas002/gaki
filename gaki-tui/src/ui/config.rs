@@ -48,11 +48,7 @@ pub fn config(browser: &Browser) -> Table<'static> {
             row("Presence", opt(&info.chat_presence)),
             row("Proton", opt(&info.proton_version)),
             row("Library", opt(&info.steam_library_path)),
-            row("Prefix mode", opt(&info.steam_prefix_mode)),
-            row("Language", opt(&info.language)),
             row("Cloud sync", yes_no(info.enable_cloud_sync)),
-            row("Shared compat data", yes_no(info.use_shared_compat_data)),
-            row("Luxtorpeda", yes_no(info.luxtorpeda_enabled)),
             row("Proxy", proxy_value(browser)),
             row(
                 "Proxy bypass",

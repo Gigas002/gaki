@@ -1,6 +1,6 @@
 //! The per-game settings overlay (modal popup): a game's config overrides —
-//! runner (auto/umu/luxtorpeda), forced Proton, platform, Steam runtime policy,
-//! Steam prefix mode, and launch script — each a selectable row that Enter cycles.
+//! forced Proton, platform, and launch script — each a selectable row that
+//! Enter cycles.
 
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -10,41 +10,24 @@ use crate::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
 /// Build the game-settings overlay from the browser's open game-config state.
-/// Six rows (Runner, Forced Proton, Platform, Steam runtime, Steam prefix,
-/// Launch script) show the current value; the highlighted row gets a selection bar. A status/hint line closes it.
+/// Three rows (Forced Proton, Platform, Launch script) show the current value;
+/// the highlighted row gets a selection bar. A status/hint line closes it.
 pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     let cfg = browser.game_config.as_ref();
-    let runner = cfg
-        .map(|c| c.runner.clone())
-        .unwrap_or_else(|| "auto".to_string());
     let proton = cfg
         .and_then(|c| c.forced_proton_version.clone())
         .unwrap_or_else(|| "(default)".to_string());
     let platform = cfg
         .and_then(|c| c.platform_preference.clone())
         .unwrap_or_else(|| "(auto)".to_string());
-    let steam_runtime = match cfg.and_then(|c| c.steam_runtime_policy.as_deref()) {
-        Some("Enabled") => "on",
-        Some("Disabled") => "off",
-        _ => "auto",
-    }
-    .to_string();
-    let steam_prefix = match cfg.and_then(|c| c.steam_prefix_mode.as_deref()) {
-        Some("PerGame") => "per-game",
-        _ => "shared",
-    }
-    .to_string();
     let script = match browser.game_script.as_ref() {
         Some(s) if s.exists => s.path.clone().unwrap_or_else(|| "(set)".to_string()),
         _ => "(none)".to_string(),
     };
 
-    let rows: [(&str, String); 6] = [
-        ("Runner", runner),
+    let rows: [(&str, String); 3] = [
         ("Forced Proton", proton),
         ("Platform", platform),
-        ("Steam runtime", steam_runtime),
-        ("Steam prefix", steam_prefix),
         ("Launch script", script),
     ];
 

@@ -677,6 +677,21 @@ I make the changes, and you review, commit, and push.
     logged in, instead of after a daemon restart. The QR flow now gets
     challenge URLs straight from `libgaki`; its rendering bug is 4.3.
   - [ ] The rest
+    - [x] Local settings: per-game config, Proton, launch scripts. Removed
+      what Phase 1 had already dropped from the CLI, which the TUI still
+      called and which failed at runtime: the runtime-plugins overlay
+      (umu, luxtorpeda, Steam runtime; `ui/engine.rs`, the `E` key), the
+      Runner, Steam runtime and Steam prefix rows of Game settings, the
+      Prefix mode, Language, Shared compat data and Luxtorpeda settings
+      rows, and the "Steam runtime (in Wine)" launch-target label. Proton
+      matches 1.5: official builds install and uninstall through Steam and
+      become the default; custom builds are listed but only the package
+      manager removes them. The unused `scripts_dir`/`scripts_list` and
+      `config_game_set_launch_script` wrappers are gone.
+    - [ ] Per-game Steam data: DLC, branches, depots, achievements, launch
+      options, manifests, pinning, downgrade
+    - [ ] Social and market: friends, chat, wallet, inventory, market, workshop
+    - [ ] Collections
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
   `libgaki` auth flow directly, rather than scraping it from CLI output, which
   is the most likely cause of the bug. Add a render test.

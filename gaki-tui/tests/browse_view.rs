@@ -337,11 +337,10 @@ fn cover_and_detail_do_not_overlap() {
     );
 }
 
-fn proton(name: &str, label: &str, installed: bool) -> ProtonJson {
+fn proton(name: &str, official: bool, installed: bool) -> ProtonJson {
     ProtonJson {
         name: name.to_string(),
-        label: label.to_string(),
-        size: 0,
+        official,
         installed,
         is_default: false,
     }
@@ -366,34 +365,38 @@ fn render_proton(browser: &Browser) -> String {
         .join("\n")
 }
 
-/// Only an installed custom (GE) runtime is uninstallable; the overlay surfaces
-/// the [u] uninstall hint exactly then, and always offers [i] install.
+/// Only an installed official runtime is uninstallable (Steam removes it;
+/// custom builds belong to the package manager). The overlay surfaces the [u]
+/// uninstall hint exactly then, and always offers [i] install.
 #[test]
 fn proton_overlay_offers_install_and_guards_uninstall() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
     browser.protons = vec![
-        proton("Proton 9.0", "Valve", true), // installed but not removable
-        proton("GE-Proton11-1", "Proton-GE", false), // available, not installed
-        proton("GE-Proton10-34", "Proton-GE", true), // installed custom -> removable
+        proton("GE-Proton10-34", false, true), // installed custom: not removable
+        proton("Proton 9.0", true, false),     // official, not installed
+        proton("Proton 10.0", true, true),     // installed official: removable
     ];
 
-    // Highlight the Valve runtime: install is always offered, uninstall is not.
+    // Highlight the custom runtime: install is always offered, uninstall is not.
     browser.proton_index = 0;
     assert!(!browser.selected_proton_uninstallable());
-    let valve = render_proton(&browser);
-    assert!(valve.contains("[i] install"), "install hint always present");
+    let custom = render_proton(&browser);
     assert!(
-        !valve.contains("[u] uninstall"),
-        "Valve runtime must not offer uninstall"
+        custom.contains("[i] install"),
+        "install hint always present"
+    );
+    assert!(
+        !custom.contains("[u] uninstall"),
+        "custom runtime must not offer uninstall"
     );
 
-    // Highlight the installed GE runtime: uninstall is offered.
+    // Highlight the installed official runtime: uninstall is offered.
     browser.proton_index = 2;
     assert!(browser.selected_proton_uninstallable());
     assert!(
         render_proton(&browser).contains("[u] uninstall"),
-        "installed custom runtime offers uninstall"
+        "installed official runtime offers uninstall"
     );
 
     // A not-installed runtime is never uninstallable.
@@ -406,7 +409,7 @@ fn proton_overlay_offers_install_and_guards_uninstall() {
 fn proton_overlay_shows_install_status() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
-    browser.protons = vec![proton("GE-Proton11-1", "Proton-GE", false)];
+    browser.protons = vec![proton("Proton 9.0", true, false)];
     *browser.proton_status.lock().unwrap() = Some(
         gaki_tui::interface::game_status::GameStatus::msg(&None, "downloading 42.0%"),
     );
