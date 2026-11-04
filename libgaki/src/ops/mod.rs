@@ -4,6 +4,7 @@
 //! here prints, prompts or parses CLI flags, so `gaki-cli` and `gaki-tui` can
 //! share the same behaviour and differ only in presentation.
 
+pub mod auth;
 pub mod config;
 pub mod install;
 pub mod library;

@@ -8,9 +8,10 @@ use crate::commands::common::*;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use libgaki::core::config::{experimental_enabled, load_session, save_session};
+use libgaki::core::config::experimental_enabled;
 use libgaki::core::error::{ErrorKind, Reported, TypedError, classify};
 use libgaki::core::models::QrEvent;
+use libgaki::ops::auth::{LoginStep, PasswordLogin, StoredSession};
 use libgaki::steam_client::SteamClient;
 
 /// Refuse an experimental command unless experimental features are enabled.
@@ -33,86 +34,9 @@ pub(crate) async fn require_experimental(what: &str) -> Result<()> {
     )
 }
 
-/// Encrypt the freshly saved session and persist the persona name.
-///
-/// Called after a successful login. The key comes from the OS keyring
-/// (created on demand) — never from the login credentials, and never via
-/// a prompt. The daemon resolves the same keyring key itself. Best-effort
-/// — a failure here must not undo a login that already succeeded.
-async fn secure_session(client: &SteamClient) {
-    use libgaki::core::config::{load_launcher_config, save_launcher_config};
-
-    let persona = client.own_persona_name().await;
-    let result = async {
-        let mut config = load_launcher_config().await?;
-        if !config.encrypt_session {
-            config.encrypt_session = true;
-            save_launcher_config(&config).await?;
-        }
-        let mut session = load_session().await?;
-        if persona.is_some() {
-            session.persona_name = persona;
-        }
-        save_session(&session).await
-    }
-    .await;
-    if let Err(e) = result {
-        tracing::warn!("could not encrypt session.json: {e:#}");
-    }
-}
-
-/// The stored session, peeked without prompting.
-enum StoredSession {
-    /// No usable session on disk.
-    None,
-    /// Session exists; account name unknown.
-    Unknown,
-    /// Session exists for this account.
-    Account(String),
-}
-
-/// Peek at the stored session; never decrypts.
-///
-/// Encrypted sessions are identified by their plaintext display-name hint,
-/// so this stays cheap and free of keyring round trips.
-async fn peek_stored_session() -> StoredSession {
-    use libgaki::core::models::SessionState;
-    use libgaki::core::session_crypto::EncryptedSession;
-
-    let Ok(path) = libgaki::core::config::session_path() else {
-        return StoredSession::None;
-    };
-    let Ok(raw) = tokio::fs::read_to_string(&path).await else {
-        return StoredSession::None;
-    };
-    let session: SessionState = if let Some(envelope) = EncryptedSession::from_json(&raw) {
-        return match envelope.display_name.filter(|n| !n.trim().is_empty()) {
-            Some(name) => StoredSession::Account(name),
-            None => StoredSession::Unknown,
-        };
-    } else {
-        match serde_json::from_str(&raw) {
-            Ok(session) => session,
-            Err(_) => return StoredSession::None,
-        }
-    };
-    // Persona (display) name first, account name second.
-    let name = session
-        .persona_name
-        .filter(|n| !n.trim().is_empty())
-        .or_else(|| session.account_name.filter(|n| !n.trim().is_empty()));
-    if let Some(name) = name {
-        return StoredSession::Account(name);
-    }
-    if session.refresh_token.is_some() || session.web_token.is_some() {
-        return StoredSession::Unknown;
-    }
-    StoredSession::None
-}
-
 /// Warn (on stderr) when a session already exists.
 async fn warn_if_already_logged_in() {
-    match peek_stored_session().await {
+    match libgaki::ops::auth::stored_session().await {
         StoredSession::Account(name) => cli_eprintln!(
             "Warning: already logged in as {name} — logging in again replaces that session."
         ),
@@ -177,50 +101,37 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
     };
 
     let mut client = SteamClient::new()?;
-    // `--code` (alias `--pin`) reads the Steam Guard code interactively from stdin
-    // (handled inside `login`); otherwise we wait for mobile-app approval and only
-    // prompt for a code on the retry path below.
-    let attempt = client
-        .login(username.clone(), password.clone(), guard.clone(), code)
-        .await;
-
-    match attempt {
-        Ok(_) => {
-            secure_session(&client).await;
-            report_login_success(&account, json);
-            Ok(())
-        }
-        Err(err) => {
-            // If Steam asked for a Guard code and we don't have one yet, prompt and retry once.
-            let needs_code = guard.is_none()
-                && client.pending_confirmations().iter().any(|p| {
-                    use libgaki::core::models::SteamGuardReq::{DeviceCode, EmailCode};
-                    matches!(p.requirement, EmailCode { .. } | DeviceCode)
-                });
-
-            if needs_code {
-                tracing::info!("Login method awaited: Steam Guard code");
-                let code = prompt_line("Steam Guard code: ")?;
-                client
-                    .login(username, password.clone(), Some(code), false)
-                    .await
-                    .context("login failed after providing Steam Guard code")?;
-                secure_session(&client).await;
-                report_login_success(&account, json);
-                Ok(())
-            } else if client.pending_confirmations().iter().any(|p| {
-                matches!(
-                    p.requirement,
-                    libgaki::core::models::SteamGuardReq::DeviceConfirmation
-                )
-            }) {
-                tracing::info!("Login method awaited: Steam Mobile app approval");
-                bail!("approve this login in the Steam Mobile app, then run `aurelia login` again")
-            } else {
-                Err(err).context("login failed")
+    // `--code` (alias `--pin`) lets the Steam client read the Guard code from
+    // stdin itself; otherwise we wait for Mobile-app approval and only prompt
+    // for a code when Steam asks for one.
+    let mut request = PasswordLogin {
+        username,
+        password,
+        guard_code: guard,
+        read_code_from_stdin: code,
+        timeout: None,
+    };
+    match libgaki::ops::auth::login(&mut client, &request).await? {
+        LoginStep::LoggedIn => {}
+        LoginStep::CodeRequired(_) => {
+            tracing::info!("Login method awaited: Steam Guard code");
+            request.guard_code = Some(prompt_line("Steam Guard code: ")?);
+            request.read_code_from_stdin = false;
+            match libgaki::ops::auth::login(&mut client, &request)
+                .await
+                .context("login failed after providing Steam Guard code")?
+            {
+                LoginStep::LoggedIn => {}
+                _ => bail!("login failed after providing Steam Guard code"),
             }
         }
+        LoginStep::ApprovalRequired => {
+            tracing::info!("Login method awaited: Steam Mobile app approval");
+            bail!("approve this login in the Steam Mobile app, then run `aurelia login` again")
+        }
     }
+    report_login_success(&account, json);
+    Ok(())
 }
 
 /// Log in by scanning a QR code with the Steam Mobile app.
@@ -231,41 +142,34 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
 ///
 /// `--json`: exactly one typed result line.
 pub(crate) async fn cmd_login_qr(timeout: Option<u64>, json: bool) -> Result<()> {
-    let timeout = Duration::from_secs(timeout.unwrap_or(QR_DEFAULT_TIMEOUT_SECS));
+    let timeout = timeout
+        .map(Duration::from_secs)
+        .unwrap_or(libgaki::ops::auth::QR_DEFAULT_TIMEOUT);
     let mut client = SteamClient::new()?;
     if !json {
-        let session = client
-            .login_qr(timeout, render_login_qr)
-            .await
-            .context("QR login failed")?;
-        secure_session(&client).await;
+        let session = libgaki::ops::auth::login_qr(&mut client, timeout, render_login_qr).await?;
         report_login_success(&session.account_name.unwrap_or_default(), false);
         return Ok(());
     }
 
     let outcome = race_control(
-        client.login_qr(timeout, emit_qr_challenge_json),
+        libgaki::ops::auth::login_qr(&mut client, timeout, emit_qr_challenge_json),
         watch_control(output::read_line_opt),
     )
     .await;
     match outcome {
         Ok(session) => {
-            secure_session(&client).await;
             let account = session.account_name.clone().unwrap_or_default();
             report_login_success(&account, true);
             print_result_line(qr_result_ok(&account, session.steam_id));
             Ok(())
         }
         Err(err) => {
-            let err = err.context("QR login failed");
             print_result_line(qr_result_err(&err));
             Err(anyhow!(Reported(err)))
         }
     }
 }
-
-/// Seconds a QR login waits by default.
-const QR_DEFAULT_TIMEOUT_SECS: u64 = 600;
 
 /// Run `work` unless the driver stops first.
 async fn race_control<T>(
@@ -340,7 +244,7 @@ fn qr_result_err(err: &anyhow::Error) -> serde_json::Value {
 /// In `--json` mode the sign-in URL is streamed as `{event:"openid_challenge",url}`
 /// (the driver opens/renders it); otherwise the default browser is opened.
 pub(crate) async fn cmd_login_openid(json: bool) -> Result<()> {
-    let steam_id = libgaki::web::openid::verify_identity_via_browser(|url| {
+    let identity = libgaki::ops::auth::verify_openid(|url| {
         if json {
             eprint_json_line(&serde_json::json!({ "event": "openid_challenge", "url": url }));
         } else {
@@ -352,16 +256,9 @@ pub(crate) async fn cmd_login_openid(json: bool) -> Result<()> {
             }
         }
     })
-    .await
-    .context("browser (OpenID) sign-in failed")?;
-
-    // Cross-check against the persisted session, if any, so a mismatch between
-    // the browser account and the stored client session is surfaced.
-    let matches_session = load_session()
-        .await
-        .ok()
-        .and_then(|s| s.steam_id)
-        .map(|stored| stored == steam_id);
+    .await?;
+    let steam_id = identity.steam_id;
+    let matches_session = identity.matches_stored_session;
 
     if json {
         print_json(&serde_json::json!({
@@ -431,56 +328,26 @@ pub(crate) async fn cmd_login_web_token(pasted: Option<String>, json: bool) -> R
         }
     };
 
-    // The stored session's SteamID doubles as the identity for bare opaque
-    // tokens, which carry none of their own.
-    let mut session = load_session().await.unwrap_or_default();
-    let info = libgaki::web::web_token::parse_web_token(&raw, session.steam_id)?;
-    let now = libgaki::web::web_token::now_unix();
-    if info.expires_at.is_some_and(|exp| exp <= now) {
-        bail!(
-            "this web token already expired — reload the clientjstoken page in a signed-in \
-             browser and paste the fresh JSON"
-        );
-    }
-
-    // Never let a web token silently operate a different account than the one
-    // the stored session belongs to.
-    if let Some(stored) = session.steam_id
-        && stored != info.steam_id
-    {
-        bail!(
-            "this web token belongs to SteamID {} but the stored session is for {stored} — \
-             run `aurelia logout` first if you really want to switch accounts",
-            info.steam_id
-        );
-    }
-    session.web_token = Some(info.token.clone());
-    if session.steam_id.is_none() {
-        session.steam_id = Some(info.steam_id);
-    }
-    if session.account_name.is_none() {
-        session.account_name = info.account_name.clone();
-    }
-    let full_session = session.refresh_token.is_some();
-    save_session(&session).await?;
+    let saved = libgaki::ops::auth::store_web_token(&raw).await?;
+    let full_session = saved.full_session;
 
     if json {
         print_json(&serde_json::json!({
             "web_token_saved": true,
-            "steam_id": info.steam_id,
-            "account": info.account_name,
+            "steam_id": saved.steam_id,
+            "account": saved.account,
             // null for opaque (non-JWT) tokens — only Steam knows their expiry.
-            "expires_at": info.expires_at,
+            "expires_at": saved.expires_at,
             // Web-audience token: the web commands work, CM commands do not.
             "logged_in": full_session,
         }));
     } else {
         cli_println!("Web token saved.");
-        if let Some(account) = &info.account_name {
+        if let Some(account) = &saved.account {
             cli_println!("Account   : {account}");
         }
-        cli_println!("SteamID64 : {}", info.steam_id);
-        match info.expires_at {
+        cli_println!("SteamID64 : {}", saved.steam_id);
+        match saved.expires_at {
             Some(exp) => cli_println!(
                 "Expires   : {} UTC",
                 crate::commands::common::format_unix_timestamp(exp)
@@ -498,34 +365,6 @@ pub(crate) async fn cmd_login_web_token(pasted: Option<String>, json: bool) -> R
     Ok(())
 }
 
-/// How long to wait for a single Steam login attempt before giving up. The login
-/// call blocks inside steam-vent while it waits for a Steam Guard code or for the
-/// user to approve the login in the Steam Mobile app; this bounds that wait so a
-/// `--json` driver never hangs indefinitely.
-pub(crate) const LOGIN_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(120);
-
-/// Run one `login` attempt with [`LOGIN_TIMEOUT`]. On timeout, returns a clear
-/// error (so a `--json` driver gets `{ "error": ... }` rather than hanging).
-pub(crate) async fn login_with_timeout(
-    client: &mut SteamClient,
-    username: &str,
-    password: &str,
-    guard: Option<String>,
-) -> Result<libgaki::core::models::SessionState> {
-    match tokio::time::timeout(
-        LOGIN_TIMEOUT,
-        client.login(username.to_string(), password.to_string(), guard, false),
-    )
-    .await
-    {
-        Ok(login_result) => login_result,
-        Err(_) => bail!(
-            "login timed out after {}s waiting for a Steam Guard code or Steam Mobile app approval",
-            LOGIN_TIMEOUT.as_secs()
-        ),
-    }
-}
-
 /// Non-interactive password login for `--json` drivers (e.g. Heroic). Credentials
 /// come from flags or `AURELIA_PASSWORD`. To keep the driver informed (and never
 /// silent), it emits:
@@ -538,7 +377,7 @@ pub(crate) async fn login_with_timeout(
 ///   accounts;
 /// - finally `{logged_in:true,...}` or `{error:...}`.
 ///
-/// Each login attempt is bounded by [`LOGIN_TIMEOUT`].
+/// Each login attempt is bounded by [`libgaki::ops::auth::LOGIN_TIMEOUT`].
 pub(crate) async fn cmd_login_json(
     username: Option<String>,
     password: Option<String>,
@@ -552,64 +391,49 @@ pub(crate) async fn cmd_login_json(
 
     let mut client = SteamClient::new()?;
 
-    // The login call below blocks inside steam-vent while it waits for the Guard
-    // code / mobile confirmation. Emit this first so the driver can immediately
-    // tell the user to approve the login (otherwise it sees no output until the
-    // attempt completes or times out).
+    // The login call below blocks while Steam waits for the Guard code / mobile
+    // confirmation. Emit this first so the driver can immediately tell the user
+    // to approve the login (otherwise it sees no output until the attempt
+    // completes or times out).
     eprint_json_line(&serde_json::json!({
         "event": "awaiting_confirmation",
         "message": "Signing in — if prompted, approve this login in your Steam Mobile app."
     }));
 
-    match login_with_timeout(&mut client, &username, &password, guard.clone()).await {
-        Ok(_) => {
-            secure_session(&client).await;
-            report_login_success(&account, true);
-            Ok(())
-        }
-        Err(err) => {
-            use libgaki::core::models::SteamGuardReq::{DeviceCode, DeviceConfirmation, EmailCode};
-
-            // A typed Steam Guard code is needed (email or authenticator).
-            let code_kind = guard
-                .is_none()
-                .then(|| {
-                    client
-                        .pending_confirmations()
-                        .iter()
-                        .find_map(|p| match p.requirement {
-                            EmailCode { .. } => Some("email"),
-                            DeviceCode => Some("device"),
-                            _ => None,
-                        })
-                })
-                .flatten();
-
-            if let Some(kind) = code_kind {
-                eprint_json_line(&serde_json::json!({ "event": "guard_required", "type": kind }));
-                let code = read_stdin_line()
-                    .await
-                    .context("failed reading Steam Guard code from stdin")?;
-                login_with_timeout(&mut client, &username, &password, Some(code))
-                    .await
-                    .context("login failed after providing Steam Guard code")?;
-                secure_session(&client).await;
-                report_login_success(&account, true);
-                Ok(())
-            } else if client
-                .pending_confirmations()
-                .iter()
-                .any(|p| matches!(p.requirement, DeviceConfirmation))
+    let mut request = PasswordLogin {
+        username,
+        password,
+        guard_code: guard,
+        read_code_from_stdin: false,
+        timeout: Some(libgaki::ops::auth::LOGIN_TIMEOUT),
+    };
+    match libgaki::ops::auth::login(&mut client, &request).await? {
+        LoginStep::LoggedIn => {}
+        LoginStep::CodeRequired(kind) => {
+            eprint_json_line(
+                &serde_json::json!({ "event": "guard_required", "type": kind.as_str() }),
+            );
+            let code = read_stdin_line()
+                .await
+                .context("failed reading Steam Guard code from stdin")?;
+            request.guard_code = Some(code);
+            match libgaki::ops::auth::login(&mut client, &request)
+                .await
+                .context("login failed after providing Steam Guard code")?
             {
-                eprint_json_line(
-                    &serde_json::json!({ "event": "guard_required", "type": "device_confirmation" }),
-                );
-                bail!("approve this login in the Steam Mobile app, then run login again")
-            } else {
-                Err(err).context("login failed")
+                LoginStep::LoggedIn => {}
+                _ => bail!("login failed after providing Steam Guard code"),
             }
         }
+        LoginStep::ApprovalRequired => {
+            eprint_json_line(
+                &serde_json::json!({ "event": "guard_required", "type": "device_confirmation" }),
+            );
+            bail!("approve this login in the Steam Mobile app, then run login again")
+        }
     }
+    report_login_success(&account, true);
+    Ok(())
 }
 
 /// Emit a QR login challenge URL as one NDJSON line
@@ -683,19 +507,7 @@ pub(crate) async fn cmd_login_health(json: bool) -> Result<()> {
         daemon::session_status().await
     } else {
         let client = restored_client().await?;
-        let session = load_session().await.ok();
-        daemon::SessionStatus {
-            authenticated: client.is_authenticated(),
-            account: session.as_ref().and_then(|s| s.account_name.clone()),
-            // Fall back to the persisted SteamID so a web-token-only session
-            // (no live connection) still reports who is signed in.
-            steam_id: client
-                .steam_id()
-                .or(session.as_ref().and_then(|s| s.steam_id)),
-            web_token: session
-                .as_ref()
-                .is_some_and(|s| s.web_token.as_deref().is_some_and(|t| !t.is_empty())),
-        }
+        libgaki::ops::auth::session_status(Some(&client)).await
     };
     report_session_status(&status, via_daemon, json);
     Ok(())
@@ -715,8 +527,12 @@ pub(crate) async fn cmd_login_reconnect(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// Print a [`daemon::SessionStatus`] for `--health`/`--reconnect`.
-pub(crate) fn report_session_status(status: &daemon::SessionStatus, via_daemon: bool, json: bool) {
+/// Print a session status for `--health`/`--reconnect`.
+pub(crate) fn report_session_status(
+    status: &libgaki::ops::auth::SessionStatus,
+    via_daemon: bool,
+    json: bool,
+) {
     if json {
         print_json(&serde_json::json!({
             "logged_in": status.authenticated,

@@ -440,7 +440,21 @@ I make the changes, and you review, commit, and push.
     walk) moved from `commands/library.rs` to `libgaki::library::platform`,
     with tests, because `config game` needs it. `--json` output keeps its
     keys. Added 10 tests.
-  - [ ] **2.3c** `auth.rs`: login flows, logout, health.
+  - [x] **2.3c** `auth.rs`: login flows, logout, health. New `ops::auth`:
+    - `login(client, &PasswordLogin)` makes one attempt and returns
+      `LoginStep::{LoggedIn, CodeRequired(Email|Device), ApprovalRequired}`
+      instead of the CLI inspecting `pending_confirmations`. Its timeout is
+      now a typed `Timeout` error.
+    - `login_qr`, and `secure_session` (run after every successful login).
+    - `stored_session` (the encrypted-aware peek), `session_status` (shared
+      with the daemon, whose `SessionStatus` is now this type),
+      `verify_openid` and `store_web_token` (expiry and account-mismatch
+      checks are typed `InvalidInput`).
+
+    The CLI keeps prompts, the `AURELIA_PASSWORD`/`AURELIA_WEB_TOKEN`
+    sources, the NDJSON driver events and cancel watching, QR rendering,
+    the experimental gate message, and `--reconnect` (daemon-only). Added 5
+    tests.
   - [ ] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
   - [ ] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
     move/relink/import, DLC, downgrade.
