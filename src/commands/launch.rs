@@ -58,7 +58,7 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
         &launcher_config,
         steam,
     );
-    let mut targets = aurelia::steam_client::launch_targets(
+    let targets = aurelia::steam_client::launch_targets(
         &options,
         &game,
         aurelia::core::utils::get_master_steam_config()
@@ -69,15 +69,6 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
         default_entry,
         default_mode,
     );
-    // Off Linux neither the native Linux build nor the in-Wine runtime can run.
-    if !aurelia::core::utils::PROTON_SUPPORTED {
-        targets.retain(|t| t.id != "linux" && t.id != "windows-runtime");
-        if !targets.iter().any(|t| t.default) {
-            if let Some(first) = targets.iter_mut().find(|t| t.available) {
-                first.default = true;
-            }
-        }
-    }
 
     if json {
         let arr: Vec<_> = targets
@@ -139,26 +130,6 @@ pub(crate) async fn cmd_play(
         Some(SteamModeArg::None) => false,
         _ => steam,
     };
-    if native_engine && !cfg!(target_os = "linux") {
-        anyhow::bail!("--native-engine (luxtorpeda) is only available on Linux");
-    }
-    if umu && !cfg!(target_os = "linux") {
-        anyhow::bail!("--umu (umu-launcher) is only available on Linux");
-    }
-    if proton.is_some() && !cfg!(target_os = "linux") {
-        bail!("--proton is only available on Linux");
-    }
-    if linux_target && !cfg!(target_os = "linux") {
-        bail!("--platform linux runs the native Linux build, which only runs on Linux");
-    }
-    if matches!(target.steam_mode, Some(SteamModeArg::Runtime))
-        && !aurelia::core::utils::STEAM_RUNTIME_SUPPORTED
-    {
-        bail!(
-            "--steam-mode runtime: {}",
-            aurelia::core::utils::steam_runtime_unsupported_msg()
-        );
-    }
     let mut client = authed_client().await?;
     let mut game = find_game(&mut client, app_id).await?;
 

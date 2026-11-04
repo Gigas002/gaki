@@ -394,15 +394,10 @@ fn probe_for_libraries(dir: &Path, depth: usize, found: &mut Vec<PathBuf>) {
     }
 }
 
-/// Roots of the volumes that could hold a Steam library.
-fn volume_roots() -> Vec<PathBuf> {
-    mounted_volume_roots()
-}
-
 /// Roots of mounted, real (non-pseudo) filesystems that could hold a Steam
 /// library: every disk-backed mount point from `/proc/self/mounts`, plus the
-/// conventional removable-media parents for hosts without `/proc` (macOS).
-fn mounted_volume_roots() -> Vec<PathBuf> {
+/// conventional removable-media parents.
+fn volume_roots() -> Vec<PathBuf> {
     // Filesystems that can hold a game install. Everything else a Linux box
     // mounts (proc, sysfs, cgroup, tmpfs, overlay, …) cannot, and walking them
     // just costs syscalls.
@@ -430,9 +425,9 @@ fn mounted_volume_roots() -> Vec<PathBuf> {
     }
 
     // Removable volumes are conventionally mounted one or two levels under
-    // these (`/media/<label>`, `/run/media/<user>/<label>`, `/Volumes/<label>`).
-    // Redundant with /proc on Linux; the only source on macOS.
-    for parent in ["/Volumes", "/run/media", "/media", "/mnt"] {
+    // these (`/media/<label>`, `/run/media/<user>/<label>`); usually redundant
+    // with /proc, but cheap.
+    for parent in ["/run/media", "/media", "/mnt"] {
         let Ok(entries) = std::fs::read_dir(parent) else {
             continue;
         };
@@ -522,8 +517,6 @@ pub fn steam_root_candidates() -> Vec<PathBuf> {
             ".var/app/com.valvesoftware.Steam/.steam/steam",
             "snap/steam/common/.local/share/Steam",
             "snap/steam/common/.steam/steam",
-            // macOS.
-            "Library/Application Support/Steam",
         ] {
             roots.push(home.join(relative));
         }

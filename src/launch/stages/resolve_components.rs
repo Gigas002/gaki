@@ -56,7 +56,6 @@ impl Runner for NativeRunner {
         let mut env = self.build_env(ctx).await?;
 
         // 32-bit natives need scout runtime libraries.
-        #[cfg(target_os = "linux")]
         if needs_scout_libs(&program, std::path::Path::new(install_path)) {
             if let Some(libs) = scout_library_path() {
                 let existing = env
@@ -131,7 +130,6 @@ impl Runner for NativeRunner {
 }
 
 /// First `n` bytes of the file.
-#[cfg(target_os = "linux")]
 fn file_head(path: &std::path::Path, n: usize) -> Option<Vec<u8>> {
     use std::io::Read;
     let mut buf = vec![0u8; n];
@@ -140,7 +138,6 @@ fn file_head(path: &std::path::Path, n: usize) -> Option<Vec<u8>> {
 }
 
 /// Is the file a 32-bit ELF?
-#[cfg(target_os = "linux")]
 fn is_elf32(path: &std::path::Path) -> bool {
     file_head(path, 5).is_some_and(|h| h[..4] == *b"\x7fELF" && h[4] == 1)
 }
@@ -149,7 +146,6 @@ fn is_elf32(path: &std::path::Path) -> bool {
 ///
 /// True for a 32-bit ELF program, or a shell-script program (like GoldSrc's
 /// `hl.sh`) whose install directory carries a 32-bit ELF at the top level.
-#[cfg(target_os = "linux")]
 fn needs_scout_libs(program: &std::path::Path, install_dir: &std::path::Path) -> bool {
     if is_elf32(program) {
         return true;
@@ -168,7 +164,6 @@ fn needs_scout_libs(program: &std::path::Path, install_dir: &std::path::Path) ->
 }
 
 /// The scout runtime's library search path, when installed.
-#[cfg(target_os = "linux")]
 fn scout_library_path() -> Option<String> {
     let runtime = crate::library::steam_root_candidates()
         .into_iter()
@@ -242,26 +237,19 @@ impl PipelineStage for ResolveComponentsStage {
         use crate::steam_client::LaunchTarget;
 
         if ctx.runner.is_none() {
-            // The luxtorpeda native-engine plugin is Linux-only. Route through it when the
-            // launch was explicitly forced (`--native-engine`) or the game is pinned to it
-            // and the feature is enabled.
-            if cfg!(target_os = "linux") && wants_luxtorpeda(ctx) {
+            // Route through the luxtorpeda native-engine plugin when the launch was
+            // explicitly forced (`--native-engine`) or the game is pinned to it and the
+            // feature is enabled.
+            if wants_luxtorpeda(ctx) {
                 ctx.runner = Some(Box::new(LuxtorpedaRunner) as Box<dyn Runner>);
                 return Ok(());
             }
 
             // The umu-launcher plugin *wraps* Proton rather than replacing the runner:
-            // it is Linux-only and, when active, we keep the normal Proton/Wine runner
-            // but resolve the `umu-run` entry point (downloading on first use) so the
-            // runner spawns the game through umu. A one-off `--umu` on a non-Linux host
-            // is a hard error, matching the `--native-engine` guard.
-            if ctx.force_umu && !cfg!(target_os = "linux") {
-                return Err(LaunchError::new(
-                    LaunchErrorKind::Validation,
-                    "umu-launcher (`--umu`) is only available on Linux",
-                ));
-            }
-            if cfg!(target_os = "linux") && wants_umu(ctx) {
+            // when active, we keep the normal Proton/Wine runner but resolve the
+            // `umu-run` entry point (downloading on first use) so the runner spawns the
+            // game through umu.
+            if wants_umu(ctx) {
                 let custom = ctx
                     .launcher_config
                     .as_ref()

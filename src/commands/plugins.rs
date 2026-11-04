@@ -108,9 +108,6 @@ async fn plugin_toggle(p: &PluginCmd, enable: bool, json: bool) -> Result<()> {
                 p.slug
             ),
         }
-        if !cfg!(target_os = "linux") {
-            cli_println!("Note: {} only runs on Linux.", p.project);
-        }
     } else {
         cli_println!(
             "{} disabled. Pinned games fall back to native/Proton launch.",
@@ -123,12 +120,6 @@ async fn plugin_toggle(p: &PluginCmd, enable: bool, json: bool) -> Result<()> {
 /// `<plugin> install|update`: download latest release.
 async fn plugin_install(p: &PluginCmd, json: bool) -> Result<()> {
     let cfg = load_launcher_config().await?;
-    if !aurelia::core::utils::PROTON_SUPPORTED {
-        anyhow::bail!(
-            "{} Nothing to install.",
-            aurelia::core::utils::linux_only_msg(p.project)
-        );
-    }
     if let Some(path) = (p.path_of)(&cfg) {
         anyhow::bail!(
             "a custom {} path is configured ({path}); Aurelia uses that install and \
@@ -176,7 +167,6 @@ async fn plugin_status(p: &PluginCmd, json: bool) -> Result<()> {
             "enabled": (p.enabled)(&cfg),
             "custom_path": custom_path,
             "installed": installed,
-            "linux": cfg!(target_os = "linux"),
         }));
         return Ok(());
     }
@@ -196,9 +186,7 @@ async fn plugin_status(p: &PluginCmd, json: bool) -> Result<()> {
         }
         None => cli_println!("  Installed: no (run `aurelia {} install`)", p.slug),
     }
-    if !cfg!(target_os = "linux") {
-        cli_println!("  Note     : {} only runs on Linux.", p.project);
-    } else if let Some(note) = p.linux_note {
+    if let Some(note) = p.linux_note {
         cli_println!("  Note     : {note}");
     }
     Ok(())

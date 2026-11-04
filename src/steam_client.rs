@@ -1333,17 +1333,8 @@ fn parse_launch_info_from_vdf(appid: u32, raw_vdf: &str) -> Result<Vec<LaunchInf
             }
         } else if exe.ends_with(".exe") || exe.ends_with(".bat") {
             LaunchTarget::WindowsProton
-        } else if exe.contains("linux") || exe.ends_with(".sh") {
-            LaunchTarget::NativeLinux
         } else {
-            #[cfg(target_os = "linux")]
-            {
-                LaunchTarget::NativeLinux
-            }
-            #[cfg(not(target_os = "linux"))]
-            {
-                LaunchTarget::WindowsProton
-            }
+            LaunchTarget::NativeLinux
         };
 
         options.push(LaunchInfo {

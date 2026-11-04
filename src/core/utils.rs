@@ -298,42 +298,6 @@ pub(crate) fn validate_steam_runtime_runner_path(path: &Path) -> Result<()> {
     }
 }
 
-/// Whether this build can host the self-contained Windows Steam runtime. It runs
-/// `steam.exe` under a Proton/Wine runner, and those ship Linux (ELF) binaries:
-/// Windows rejects them with OS error 193 ("not a valid Win32 application").
-pub const STEAM_RUNTIME_SUPPORTED: bool = cfg!(target_os = "linux");
-
-/// Why the Windows Steam runtime is unavailable on this platform, with the
-/// alternative to use instead.
-pub fn steam_runtime_unsupported_msg() -> String {
-    let alternative = "Run Aurelia on Linux to use it.";
-    format!(
-        "the self-contained Windows Steam runtime is only supported on Linux: it runs \
-         Steam under a Proton/Wine runner, whose binaries are Linux executables and \
-         cannot be started on {}. {alternative}",
-        std::env::consts::OS
-    )
-}
-
-/// Whether Proton/Wine runners, and the plugins built on them (umu, luxtorpeda),
-/// can run on this platform. Same reason as [`STEAM_RUNTIME_SUPPORTED`].
-pub const PROTON_SUPPORTED: bool = cfg!(target_os = "linux");
-
-/// "`what` only runs on Linux" with what to do instead, for errors and notes.
-pub fn linux_only_msg(what: &str) -> String {
-    let os = std::env::consts::OS;
-    format!("{what} only runs on Linux, not on {os}.")
-}
-
-/// Fail early, before downloading or touching a prefix, when the Windows Steam
-/// runtime can't run on this platform.
-pub fn ensure_steam_runtime_supported() -> Result<()> {
-    if STEAM_RUNTIME_SUPPORTED {
-        return Ok(());
-    }
-    bail!("{}", steam_runtime_unsupported_msg())
-}
-
 /// Actionable message for when `steam_runtime_runner` is unset. `action` is the verb
 /// phrase for the failing operation, e.g. "installing" / "repairing". Kept in one place
 /// so every entry point tells the user the same concrete next steps: which runtimes are
@@ -540,7 +504,6 @@ pub fn host_steam_client_path() -> Option<PathBuf> {
 /// the `steam` or `steamwebhelper` processes. Detection must be reliable: a
 /// false negative would make [`ensure_steam_running`] run `steam` again, which only
 /// brings the already-open client to the foreground (the opposite of `-silent`).
-#[cfg(target_os = "linux")]
 pub fn is_steam_running() -> bool {
     // ~/.steam/steam.pid holds the running client's PID.
     if let Ok(home) = std::env::var("HOME") {
@@ -571,16 +534,10 @@ pub fn is_steam_running() -> bool {
     false
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn is_steam_running() -> bool {
-    false
-}
-
 /// Start the host's Steam client minimised to the tray (`steam -silent`) if it
 /// isn't already running, so Steamworks/Family-Sharing has a client to talk to.
 /// Fully detached (its own session, no stdio) so it outlives this launch and never
 /// blocks it. Best-effort: a failure to start is logged, not fatal.
-#[cfg(target_os = "linux")]
 pub fn ensure_steam_running() {
     if is_steam_running() {
         tracing::info!("Steam client already running; not starting it");
@@ -610,7 +567,6 @@ pub fn ensure_steam_running() {
 }
 
 /// Latest logged-on state in connection-log text.
-#[cfg(target_os = "linux")]
 fn connection_log_logged_on(text: &str) -> Option<bool> {
     let mut state = None;
     for line in text.lines() {
@@ -624,7 +580,6 @@ fn connection_log_logged_on(text: &str) -> Option<bool> {
 }
 
 /// Read the final `max_bytes` of a file.
-#[cfg(target_os = "linux")]
 fn read_tail(path: &Path, max_bytes: u64) -> Option<String> {
     use std::io::{Read, Seek, SeekFrom};
     let mut f = std::fs::File::open(path).ok()?;
@@ -637,7 +592,6 @@ fn read_tail(path: &Path, max_bytes: u64) -> Option<String> {
 }
 
 /// Host Steam finished logging on.
-#[cfg(target_os = "linux")]
 pub fn steam_is_logged_on() -> bool {
     let Some(root) = crate::core::config::detect_steam_path() else {
         return false;
@@ -649,13 +603,7 @@ pub fn steam_is_logged_on() -> bool {
     connection_log_logged_on(&text).unwrap_or(false)
 }
 
-#[cfg(not(target_os = "linux"))]
-pub fn steam_is_logged_on() -> bool {
-    true
-}
-
 /// Wait until host Steam is logged on.
-#[cfg(target_os = "linux")]
 pub async fn wait_for_steam_logged_on(timeout: std::time::Duration) -> bool {
     let start = std::time::Instant::now();
     let mut announced = false;
@@ -672,11 +620,6 @@ pub async fn wait_for_steam_logged_on(timeout: std::time::Duration) -> bool {
         }
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
     }
-}
-
-#[cfg(not(target_os = "linux"))]
-pub async fn wait_for_steam_logged_on(_timeout: std::time::Duration) -> bool {
-    true
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -1763,6 +1706,6 @@ mod runner_classification_tests;
 #[path = "utils_safe_dir_name_tests.rs"]
 mod safe_dir_name_tests;
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(test)]
 #[path = "utils_steam_logon_tests.rs"]
 mod steam_logon_tests;

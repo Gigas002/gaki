@@ -111,11 +111,10 @@ where
 /// Best-effort: open `url` in the user's default browser. Returns whether a
 /// launcher process could be spawned (the URL is always also printed).
 pub fn open_in_browser(url: &str) -> bool {
-    #[cfg(target_os = "macos")]
-    let spawned = std::process::Command::new("open").arg(url).spawn();
-    #[cfg(all(unix, not(target_os = "macos")))]
-    let spawned = std::process::Command::new("xdg-open").arg(url).spawn();
-    spawned.is_ok()
+    std::process::Command::new("xdg-open")
+        .arg(url)
+        .spawn()
+        .is_ok()
 }
 
 /// Build the `checkid_setup` URL the browser is sent to on `steamcommunity.com`.

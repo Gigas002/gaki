@@ -245,7 +245,6 @@ impl SteamClient {
         // With Steam integration the game talks to the host Steam client; make sure
         // one is running (start it silently if not) so Steamworks/Family-Sharing can
         // initialise. Best-effort.
-        #[cfg(target_os = "linux")]
         if steam_enabled {
             crate::core::utils::ensure_steam_running();
             // Avoid racing a cold client.

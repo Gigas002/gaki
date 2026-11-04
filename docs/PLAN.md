@@ -247,7 +247,15 @@ I make the changes, and you review, commit, and push.
   Still deferred: `windows_steam_discovery_enabled`, which scans the *in-Wine*
   Steam, goes in 1.4. The keyring `apple-native` feature and the
   `target_os = "linux"` gates go in 1.2.
-- [ ] **1.2** Drop macOS (D1): the 7 `target_os = "macos"` sites.
+- [x] **1.2** Drop macOS (D1): the 7 `target_os = "macos"` sites.
+  *Done.* Also removed every `target_os = "linux"` gate (code kept) and its
+  `not(linux)` fallback. Removed the `PROTON_SUPPORTED`/`STEAM_RUNTIME_SUPPORTED`
+  constants, `linux_only_msg`, `steam_runtime_unsupported_msg`, and
+  `ensure_steam_runtime_supported`, together with every "only runs on Linux"
+  guard and note in the commands. The JSON fields `steam_runtime_supported`,
+  `supported`, and the plugins `linux` field are gone. Also removed the
+  keyring `apple-native` feature and the macOS Steam root and `/Volumes`
+  probes. macOS *game* builds are still recognised and skipped.
 - [ ] **1.3** Drop launch plugins (R2): `compat/{umu,luxtorpeda,plugin}.rs`,
   `infra/runners/luxtorpeda.rs`, the `umu`/`luxtorpeda`/`plugins` commands, and
   the related config fields and tests. Answers Q7.
