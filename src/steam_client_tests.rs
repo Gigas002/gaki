@@ -130,7 +130,6 @@ async fn test_legacy_path_blocks_windows_proton() {
         is_family_shared: false,
         online_required: None,
         platform: None,
-        from_windows_steam: false,
     };
     let launch_info = LaunchInfo {
         app_id: 123,
@@ -404,7 +403,6 @@ fn select_launch_entry_prefers_installed_platform() {
         is_family_shared: false,
         online_required: None,
         platform: Some("linux".to_string()),
-        from_windows_steam: false,
     };
 
     // Installed platform wins over declared order and stale files.
@@ -465,7 +463,6 @@ fn select_launch_entry_matches_executable_case_insensitively() {
         is_family_shared: false,
         online_required: None,
         platform: Some("linux".to_string()),
-        from_windows_steam: false,
     };
 
     // Proton request finds the lowercase exe.
@@ -565,7 +562,6 @@ fn sanitize_install_dir_never_escapes_common() {
 
 #[test]
 fn launch_targets_lists_installed_builds_and_steam_modes() {
-    use crate::infra::runners::SteamMode;
     let tmp = tempfile::tempdir().unwrap();
     std::fs::create_dir_all(tmp.path().join("bin/x64")).unwrap();
     std::fs::write(tmp.path().join("bin/x64/factorio.exe"), "x").unwrap();
@@ -599,7 +595,6 @@ fn launch_targets_lists_installed_builds_and_steam_modes() {
         is_family_shared: false,
         online_required: None,
         platform: Some("linux".to_string()),
-        from_windows_steam: false,
     };
 
     let ids = |targets: &[LaunchTargetChoice]| targets.iter().map(|t| t.id).collect::<Vec<_>>();
@@ -609,91 +604,52 @@ fn launch_targets_lists_installed_builds_and_steam_modes() {
         |targets: &[LaunchTargetChoice]| targets.iter().map(|t| t.missing).collect::<Vec<_>>();
 
     // Everything available, native default.
-    let targets = launch_targets(
-        &options,
-        &app,
-        true,
-        true,
-        false,
-        Some(LaunchTarget::NativeLinux),
-        SteamMode::Standalone,
-    );
-    assert_eq!(
-        ids(&targets),
-        [
-            "linux",
-            "windows-runtime",
-            "windows-host",
-            "windows-standalone"
-        ]
-    );
+    let targets = launch_targets(&options, &app, true, false, Some(LaunchTarget::NativeLinux));
+    assert_eq!(ids(&targets), ["linux", "windows-host", "windows"]);
     assert!(targets.iter().all(|t| t.available));
     assert_eq!(default_id(&targets), Some("linux"));
-    assert_eq!(
-        targets[2].flags,
-        ["--platform", "windows", "--steam-mode", "host"]
-    );
+    assert_eq!(targets[1].flags, ["--platform", "windows", "--steam"]);
+    assert_eq!(targets[2].flags, ["--platform", "windows"]);
 
-    // Missing Steam installs are flagged.
+    // A missing host Steam is flagged; the default falls back to what can run.
     let targets = launch_targets(
         &options,
         &app,
         false,
-        false,
         true,
         Some(LaunchTarget::WindowsProton),
-        SteamMode::Standalone,
     );
-    assert_eq!(
-        missing(&targets),
-        [None, Some("steam-runtime"), Some("host-steam"), None]
-    );
-    assert_eq!(default_id(&targets), Some("windows-standalone"));
+    assert_eq!(missing(&targets), [None, Some("host-steam"), None]);
+    assert_eq!(default_id(&targets), Some("linux"));
     assert_eq!(targets[0].flags, ["--platform", "linux", "--steam"]);
 
-    // Windows default follows Steam mode.
+    // The Windows default follows `--steam`.
     let targets = launch_targets(
         &options,
         &app,
         true,
         true,
+        Some(LaunchTarget::WindowsProton),
+    );
+    assert_eq!(default_id(&targets), Some("windows-host"));
+    let targets = launch_targets(
+        &options,
+        &app,
+        true,
         false,
         Some(LaunchTarget::WindowsProton),
-        SteamMode::InWineRuntime,
     );
-    assert_eq!(default_id(&targets), Some("windows-runtime"));
+    assert_eq!(default_id(&targets), Some("windows"));
 
     // Missing build flags every target.
     std::fs::remove_file(tmp.path().join("bin/x64/factorio")).unwrap();
-    let targets = launch_targets(
-        &options,
-        &app,
-        false,
-        true,
-        false,
-        None,
-        SteamMode::Standalone,
-    );
-    assert_eq!(
-        missing(&targets),
-        [Some("build"), Some("steam-runtime"), None, None]
-    );
+    let targets = launch_targets(&options, &app, true, false, None);
+    assert_eq!(missing(&targets), [Some("build"), None, None]);
     assert_eq!(default_id(&targets), Some("windows-host"));
 
     // Unoffered platforms aren't listed.
-    let targets = launch_targets(
-        &options[..2],
-        &app,
-        true,
-        true,
-        false,
-        None,
-        SteamMode::Standalone,
-    );
-    assert_eq!(
-        ids(&targets),
-        ["windows-runtime", "windows-host", "windows-standalone"]
-    );
+    let targets = launch_targets(&options[..2], &app, true, false, None);
+    assert_eq!(ids(&targets), ["windows-host", "windows"]);
 }
 
 #[test]

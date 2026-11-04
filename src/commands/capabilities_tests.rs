@@ -137,10 +137,10 @@ fn detail_reaches_nested_commands() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|f| f["long"] == "--steam-prefix-mode")
+        .find(|f| f["long"] == "--platform")
         .unwrap();
-    assert_eq!(mode["short"], "-m");
-    assert_eq!(mode["values"], json!(["shared", "per-game"]));
+    assert_eq!(mode["short"], "-t");
+    assert_eq!(mode["values"], json!(["windows", "linux"]));
 }
 
 #[test]

@@ -267,10 +267,26 @@ I make the changes, and you review, commit, and push.
   extraction, which only umu used. Old config files that still contain these
   keys keep loading, because serde ignores unknown fields; a regression test
   covers this.
-- [ ] **1.4** Drop the self-contained Windows Steam runtime (R21): the
+- [x] **1.4** Drop the self-contained Windows Steam runtime (R21): the
   `steam-runtime` command, `SteamRuntimePolicy`, the `steam_runtime_*` config,
   and `tests/steam_runtime_*.rs`. Treat a missing host Steam installation as a
   hard error with a clear message. Answers Q4 (see Phase 7 docs).
+  *Done.* Removed the `steam-runtime` command and the master Wine Steam
+  install/repair/login/stop code (`launch/mod.rs` now only declares modules),
+  `config steam-runtime-runner|steam-runtime-policy`, `play --steam-mode`, and
+  `config game --steam-runtime|--steam-prefix-mode`. Removed the config fields
+  `steam_runtime_runner`, `steam_prefix_mode`, `use_shared_compat_data`,
+  `windows_steam_discovery_enabled` and `steam_runtime_policy`, the per-game
+  `use_steam_runtime`/`steam_runtime_policy`/`steam_prefix_mode`/`steam_launch_config`,
+  Windows-Steam library discovery (`from_windows_steam`), and the dead
+  launch-verification fields. Every Proton/Wine game now runs in its own
+  `compatdata/<appid>/pfx` (`proton_compat_prefix`), and cloud sync and `stop`
+  use the same path. The Wine runner has two Steam modes: `HostBridge` (when
+  `--steam` is given or host Steam is running) and `Standalone` (fake-Steam
+  trap). `--steam` without a host Steam install is a hard error. Launch target
+  ids are now `windows-host` and `windows`. You can no longer force standalone
+  while host Steam is running; that becomes a profile setting in 5.6. The
+  README still describes the runtime; Phase 7 rewrites it.
 - [ ] **1.5** Restrict runtime downloads to official Proton (R22). Remove the
   Wine-TKG/GE downloaders (`infra/runners/wine_tkg.rs` and the related parts of
   `commands/runtimes.rs`) and the `tar`/`xz2`/`flate2` dependencies if nothing
@@ -363,10 +379,13 @@ I make the changes, and you review, commit, and push.
 - [ ] **5.5** Add a named `script` path per game, with a fallback to
   `scripts/<appid>.sh` (R30/Q8), and game `name` aliases accepted wherever the
   CLI takes an app id.
-- [ ] **5.6** CLI: rewrite the `config` subcommand for the new model and add a
+- [ ] **5.6** Add a per-profile/per-game Steam integration mode (`host`,
+  `none`, `auto`), replacing the dropped `--steam-mode`. `auto` keeps today's
+  behaviour: bridge to host Steam when it is running or `--steam` is given.
+- [ ] **5.7** CLI: rewrite the `config` subcommand for the new model and add a
   `profiles list|show` command. TUI: wire `ui/game_config.rs` to profile
   selection and per-game overrides.
-- [ ] **5.7** Remove the JSON config code paths. Caches can stay JSON, because
+- [ ] **5.8** Remove the JSON config code paths. Caches can stay JSON, because
   ARCHITECTURE requires TOML only for user configuration files. Confirm that
   this split is fine.
 

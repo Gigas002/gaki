@@ -154,7 +154,6 @@ async fn test_preflight_native_game_self_heals_exec_bit() {
         is_family_shared: false,
         online_required: None,
         platform: None,
-        from_windows_steam: false,
     });
     ctx.launch_info = Some(LaunchInfo {
         app_id: 123,
@@ -207,7 +206,6 @@ async fn test_preflight_native_ignores_path_like_argument() {
         is_family_shared: false,
         online_required: None,
         platform: None,
-        from_windows_steam: false,
     });
     ctx.launch_info = Some(LaunchInfo {
         app_id: 123,

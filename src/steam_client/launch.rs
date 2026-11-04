@@ -79,13 +79,14 @@ pub struct LaunchTargetChoice {
     pub id: &'static str,
     /// `linux` or `windows`.
     pub platform: &'static str,
-    /// `runtime`, `host` or `none`.
+    /// `host` (bridge to host Steam) or `auto` (bridge a running host Steam, else
+    /// standalone).
     pub steam_mode: Option<&'static str>,
     /// `aurelia play` flags selecting it.
     pub flags: Vec<String>,
     /// Launchable right now.
     pub available: bool,
-    /// `build`, `steam-runtime` or `host-steam`.
+    /// `build` or `host-steam`.
     pub missing: Option<&'static str>,
     /// What plain `play` picks.
     pub default: bool,
@@ -93,17 +94,14 @@ pub struct LaunchTargetChoice {
 
 /// List every build/Steam combination the game offers.
 ///
-/// `default_entry` and `default_mode` mirror `play`.
+/// `default_entry` and `steam_flag` mirror `play`.
 pub fn launch_targets(
     launch_options: &[LaunchInfo],
     app: &LibraryGame,
-    runtime_installed: bool,
     host_installed: bool,
     steam_flag: bool,
     default_entry: Option<LaunchTarget>,
-    default_mode: crate::infra::runners::SteamMode,
 ) -> Vec<LaunchTargetChoice> {
-    use crate::infra::runners::SteamMode;
     let flags = |extra: &[&str]| extra.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     let offers = |target: LaunchTarget| launch_options.iter().any(|o| o.target == target);
     let mut targets = Vec::new();
@@ -130,20 +128,21 @@ pub fn launch_targets(
         let default_windows = installed && default_entry == Some(LaunchTarget::WindowsProton);
         let modes = [
             (
-                "windows-runtime",
-                "runtime",
-                SteamMode::InWineRuntime,
-                (!runtime_installed).then_some("steam-runtime"),
-            ),
-            (
                 "windows-host",
                 "host",
-                SteamMode::HostBridge,
+                &["--platform", "windows", "--steam"][..],
                 (!host_installed).then_some("host-steam"),
+                steam_flag,
             ),
-            ("windows-standalone", "none", SteamMode::Standalone, None),
+            (
+                "windows",
+                "auto",
+                &["--platform", "windows"][..],
+                None,
+                !steam_flag,
+            ),
         ];
-        for (id, mode, steam_mode, steam_missing) in modes {
+        for (id, mode, mode_flags, steam_missing, is_default_mode) in modes {
             // Missing build outranks missing Steam.
             let missing = if installed {
                 steam_missing
@@ -154,10 +153,10 @@ pub fn launch_targets(
                 id,
                 platform: "windows",
                 steam_mode: Some(mode),
-                flags: flags(&["--platform", "windows", "--steam-mode", mode]),
+                flags: flags(mode_flags),
                 available: missing.is_none(),
                 missing,
-                default: default_windows && missing.is_none() && default_mode == steam_mode,
+                default: default_windows && missing.is_none() && is_default_mode,
             });
         }
     }
@@ -313,13 +312,11 @@ impl SteamClient {
             let remote_root = default_cloud_root(client.steam_id(), app.app_id)?.join("remote");
             // `%Win*%` cloud roots point inside the game's Proton prefix; without it
             // every Auto-Cloud save of a Windows game would be silently skipped.
-            let cloud_user_configs = crate::core::config::load_user_configs().await?;
             let resolver =
                 CloudPathResolver::new(remote_root, app.install_path.as_ref().map(PathBuf::from))
-                    .with_wine_prefix(Some(crate::core::utils::game_save_prefix(
+                    .with_wine_prefix(Some(crate::core::utils::proton_compat_prefix(
                         &launcher_config,
                         app.app_id,
-                        &cloud_user_configs,
                     )));
             tracing::info!(appid = app.app_id, "Syncing Cloud...");
             // Conflict-safe: a divergent save is left untouched (never clobbered),
@@ -392,17 +389,10 @@ impl SteamClient {
 
         // Record the launch so a separate `aurelia stop <app_id>` invocation can
         // find and terminate the process while we block on `wait()` below.
-        let wineprefix = {
-            let user_configs = crate::core::config::load_user_configs().await?;
-            let pfx = crate::core::utils::steam_wineprefix_for_game(
-                &launcher_config,
-                app.app_id,
-                &user_configs,
-            );
-            // Only record a per-game (compatdata) prefix — sweeping the shared
-            // master prefix on stop would also kill the Steam client inside it.
-            pfx.to_string_lossy().contains("compatdata").then_some(pfx)
-        };
+        let wineprefix = Some(crate::core::utils::proton_compat_prefix(
+            &launcher_config,
+            app.app_id,
+        ));
         let record = crate::compat::running::RunningGame::new(
             app.app_id,
             app.name.clone(),

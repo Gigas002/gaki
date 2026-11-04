@@ -67,11 +67,7 @@ impl PipelineStage for ResolveDllProvidersStage {
 
         // Resolve WINEPREFIX for component detection
         let wineprefix = if let (Some(config), Some(app)) = (&ctx.launcher_config, &ctx.app) {
-            Some(crate::core::utils::wineprefix_for_game(
-                config,
-                app.app_id,
-                ctx.user_config.as_ref(),
-            ))
+            Some(crate::core::utils::proton_compat_prefix(config, app.app_id))
         } else {
             None
         };

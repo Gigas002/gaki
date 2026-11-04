@@ -204,77 +204,6 @@ pub(crate) async fn cmd_config_proxy(
     Ok(())
 }
 
-/// `config steam-runtime-runner [<name>]`: view or set the Wine/Proton runner that
-/// hosts the Windows Steam runtime (`steam-runtime install`/`repair`). Pass an empty
-/// string to clear it. On set, the value is resolved against the installed runtimes so
-/// a typo is caught immediately rather than at install time.
-pub(crate) async fn cmd_config_steam_runtime_runner(
-    runner: Option<String>,
-    json: bool,
-) -> Result<()> {
-    use std::path::PathBuf;
-
-    let mut config = load_launcher_config().await?;
-    let changed = runner.is_some();
-
-    if let Some(runner) = runner {
-        let value = runner.trim();
-        config.steam_runtime_runner = PathBuf::from(value);
-        save_launcher_config(&config).await?;
-    }
-
-    let current = config.steam_runtime_runner.to_string_lossy().to_string();
-    let configured = !current.is_empty();
-
-    // Soft validation: resolve the saved name to a bare Wine binary so the user learns
-    // now (not at install time) whether it points at something usable. `resolve_steam_
-    // runtime_wine` resolves quietly (no stray log) and returns Err when the name matches
-    // no installed runtime — mirroring how `proton default` warns on an uninstalled pick.
-    let library_root = PathBuf::from(&config.steam_library_path);
-    let resolved = if configured {
-        aurelia::core::utils::resolve_steam_runtime_wine(&current, &library_root).ok()
-    } else {
-        None
-    };
-
-    if json {
-        print_json(&serde_json::json!({
-            "steam_runtime_runner": configured.then(|| current.clone()),
-            "resolved_wine": resolved.as_ref().map(|p: &PathBuf| p.display().to_string()),
-        }));
-        return Ok(());
-    }
-    match (configured, &resolved) {
-        (false, _) => {
-            cli_println!("Steam runtime runner: (unset)");
-            cli_println!(
-                "Set one with `aurelia config steam-runtime-runner <NAME>` — see \
-                 `aurelia proton list` for installed runtime names (e.g. GE-Proton9-20)."
-            );
-        }
-        (true, Some(wine)) => {
-            cli_println!("Steam runtime runner: {current}");
-            cli_println!("Resolves to bare Wine   : {}", wine.display());
-        }
-        (true, None) => {
-            cli_println!("Steam runtime runner: {current}");
-            cli_eprintln!(
-                "Warning: '{current}' does not resolve to an installed Wine/Proton runtime yet. \
-                 Install it (`aurelia proton install {current}`) or pick another — \
-                 see `aurelia proton list`."
-            );
-        }
-    }
-    if changed {
-        cli_println!("Saved.");
-    }
-    Ok(())
-}
-
-/// `config steam-runtime-policy [auto|on|off]`: view or set the global default
-/// Steam-integration policy applied when a game's own policy is `auto`. Governs how
-/// `aurelia play --steam` provides Steam DRM/Steamworks (host client vs the in-Wine
-/// Steam runtime). See [`crate::cli::ConfigCommand::SteamRuntimePolicy`].
 /// `config install-resume [manual|auto]`.
 pub(crate) async fn cmd_config_install_resume(
     mode: Option<InstallResumeArg>,
@@ -295,35 +224,6 @@ pub(crate) async fn cmd_config_install_resume(
     cli_println!("Install resume: {label}");
     if changed {
         cli_println!("Saved. Applies the next time the daemon starts.");
-    }
-    Ok(())
-}
-
-pub(crate) async fn cmd_config_steam_runtime_policy(
-    policy: Option<SteamRuntimeArg>,
-    json: bool,
-) -> Result<()> {
-    use aurelia::core::models::SteamRuntimePolicy;
-
-    let (config, changed) =
-        view_or_set(policy, |c, arg| c.steam_runtime_policy = arg.into()).await?;
-
-    let label = match config.steam_runtime_policy {
-        SteamRuntimePolicy::Auto => {
-            "auto (host Steam preferred; in-Wine runtime used under --steam when no host Steam)"
-        }
-        SteamRuntimePolicy::Enabled => "on (always use the in-Wine Steam runtime)",
-        SteamRuntimePolicy::Disabled => "off (host Steam only; never the in-Wine runtime)",
-    };
-    if json {
-        print_json(&serde_json::json!({
-            "steam_runtime_policy": config.steam_runtime_policy,
-        }));
-    } else {
-        cli_println!("Steam runtime policy (global default): {label}");
-        if changed {
-            cli_println!("Saved. Applies to games whose own policy is `auto`.");
-        }
     }
     Ok(())
 }
@@ -435,32 +335,17 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         clear,
         launch_script,
         no_launch_script,
-        steam_runtime,
-        steam_prefix_mode,
     } = args;
-    use aurelia::core::models::{SteamPrefixMode, SteamRuntimePolicy};
 
-    // The Steam-runtime knobs live in a separate per-game store (user_apps.json) from the
-    // GameConfig fields above (config.json). Update whichever store each flag targets.
-    let mut user_configs = aurelia::core::config::load_user_configs().await?;
-    let mut user_changed = false;
+    // `--clear` also resets the per-game launch tweaks kept in the separate store
+    // (user_apps.json: env, launch options, graphics layers).
     if clear {
-        user_changed = user_configs.remove(&app_id).is_some();
-    } else {
-        let ua = user_configs.entry(app_id).or_default();
-        if let Some(sr) = steam_runtime {
-            ua.steam_runtime_policy = sr.into();
-            user_changed = true;
+        let mut user_configs = aurelia::core::config::load_user_configs().await?;
+        if user_configs.remove(&app_id).is_some() {
+            aurelia::core::config::save_user_configs(&user_configs)
+                .await
+                .context("failed saving per-game config")?;
         }
-        if let Some(pm) = steam_prefix_mode {
-            ua.steam_prefix_mode = pm.into();
-            user_changed = true;
-        }
-    }
-    if user_changed {
-        aurelia::core::config::save_user_configs(&user_configs)
-            .await
-            .context("failed saving per-game Steam-runtime config")?;
     }
 
     let mut cfg = load_launcher_config().await?;
@@ -502,7 +387,6 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
     }
 
     let entry = cfg.game_configs.get(&app_id).cloned().unwrap_or_default();
-    let ua = user_configs.get(&app_id).cloned().unwrap_or_default();
     let platforms = installed_platform_set(app_id).await;
     let platform_resolved = match platforms {
         Some((true, true)) => "linux + windows installed",
@@ -519,32 +403,12 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         (Some((false, true)), _) => "Proton via Wine-TKG",
         _ => "resolved at launch",
     };
-    let steam_runtime_label = match ua.steam_runtime_policy {
-        SteamRuntimePolicy::Auto if ua.use_steam_runtime => {
-            "auto (on: legacy per-game flag)".to_string()
-        }
-        SteamRuntimePolicy::Auto => match cfg.steam_runtime_policy {
-            SteamRuntimePolicy::Enabled => "auto (on, from global)".to_string(),
-            SteamRuntimePolicy::Disabled => "auto (off, from global)".to_string(),
-            SteamRuntimePolicy::Auto => {
-                "auto (global auto: bridges host Steam if running, else standalone)".to_string()
-            }
-        },
-        SteamRuntimePolicy::Enabled => "on".to_string(),
-        SteamRuntimePolicy::Disabled => "off".to_string(),
-    };
-    let prefix_mode_label = match ua.steam_prefix_mode {
-        SteamPrefixMode::Shared => "shared",
-        SteamPrefixMode::PerGame => "per-game",
-    };
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
             "forced_proton_version": entry.forced_proton_version,
             "platform_preference": entry.platform_preference,
             "launch_script": entry.launch_script,
-            "steam_runtime_policy": ua.steam_runtime_policy,
-            "steam_prefix_mode": ua.steam_prefix_mode,
         }));
     } else {
         cli_println!("App {app_id}:");
@@ -572,8 +436,6 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
                 .as_deref()
                 .unwrap_or("(auto-detected / none)")
         );
-        cli_println!("  Steam runtime: {steam_runtime_label}");
-        cli_println!("  Prefix mode  : {prefix_mode_label}");
     }
     Ok(())
 }

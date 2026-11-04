@@ -4,52 +4,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
-pub enum SteamPrefixMode {
-    #[default]
-    Shared, // use master_steam_prefix WINEPREFIX directly
-    PerGame, // copy/symlink Steam into game's own compatdata prefix
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub enum SteamRuntimePolicy {
-    #[default]
-    Auto,
-    Enabled,
-    Disabled,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SteamLaunchConfig {
-    #[serde(default = "default_true")]
-    pub no_browser: bool, // kill CEF/steamwebhelper entirely
-    #[serde(default = "default_true")]
-    pub no_friends_ui: bool, // no friends list window
-    #[serde(default = "default_true")]
-    pub no_overlay: bool, // no in-game overlay
-    #[serde(default = "default_true")]
-    pub no_chat_ui: bool, // no chat popups
-    #[serde(default)]
-    pub no_vr: bool, // no OpenVR/SteamVR
-    #[serde(default)]
-    pub big_picture: bool, // force Big Picture (lighter than desktop UI)
-}
-
 pub fn default_true() -> bool {
     true
-}
-
-impl Default for SteamLaunchConfig {
-    fn default() -> Self {
-        Self {
-            no_browser: true,
-            no_friends_ui: true,
-            no_overlay: true,
-            no_chat_ui: true,
-            no_vr: false,
-            big_picture: false,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -113,13 +69,6 @@ impl Default for GraphicsLayerConfig {
 pub struct UserAppConfig {
     pub launch_options: String,                 // e.g. "-novid -console"
     pub env_variables: HashMap<String, String>, // e.g. {"MANGOHUD": "1"}
-    pub use_steam_runtime: bool,                // DEPRECATED: use steam_runtime_policy instead
-    #[serde(default)]
-    pub steam_runtime_policy: SteamRuntimePolicy,
-    #[serde(default)]
-    pub steam_prefix_mode: SteamPrefixMode,
-    #[serde(default)]
-    pub steam_launch_config: SteamLaunchConfig,
     #[serde(default)]
     pub graphics_layers: GraphicsLayerConfig,
     #[serde(default)]
@@ -199,14 +148,6 @@ pub struct LibraryGame {
     /// through Proton) without re-deriving it.
     #[serde(default)]
     pub platform: Option<String>,
-    /// Whether the only local copy lives in the **in-Wine Steam runtime's** own
-    /// library (inside the master prefix) rather than Aurelia's library — i.e. it was
-    /// installed through the in-Wine Steam client itself (the only route for
-    /// Family-Shared titles Aurelia can't download). Such games are launched by
-    /// handing them to the in-Wine Steam (`steam.exe -applaunch`), not the Proton
-    /// pipeline. Defaults to `false`.
-    #[serde(default)]
-    pub from_windows_steam: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

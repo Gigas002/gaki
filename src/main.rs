@@ -90,24 +90,6 @@ fn must_run_locally(cli: &Cli) -> bool {
         })
     );
 
-    // The Steam-runtime install/repair/login flows spawn the Windows Steam installer
-    // and the Steam **client GUI** under Wine. Those must inherit the user's *live*
-    // session — DISPLAY/WAYLAND_DISPLAY/XAUTHORITY/XDG_RUNTIME_DIR and per-invocation
-    // env like AURELIA_DIAGNOSE_INSTALL — so the window actually appears. A long-lived
-    // daemon has a stale/absent display env, so a forwarded launch spawns Steam
-    // headless (no window) or attached to the wrong session. Run them locally.
-    // (`status` reads config only and may still forward.)
-    let steam_runtime_gui = matches!(
-        cli.command,
-        Command::SteamRuntime {
-            command: SteamRuntimeCommand::Install { .. }
-                | SteamRuntimeCommand::Repair
-                | SteamRuntimeCommand::Uninstall
-                | SteamRuntimeCommand::Login
-                | SteamRuntimeCommand::Stop,
-        }
-    );
-
     // `duplicates` only reads appmanifests off disk — no Steam session, nothing the
     // daemon holds. Forwarding it would gain nothing and cost accuracy: a long-lived
     // daemon answers from the code it was started with, so a freshly fixed scan would
@@ -116,7 +98,6 @@ fn must_run_locally(cli: &Cli) -> bool {
 
     interactive_login
         || web_token_login
-        || steam_runtime_gui
         || local_disk_scan
         || matches!(
             cli.command,
@@ -384,15 +365,10 @@ async fn run(cli: Cli) -> Result<()> {
             no_script,
             steam,
             platform,
-            steam_mode,
             no_update,
         } => {
-            let target = PlayTarget {
-                platform,
-                steam_mode,
-            };
             cmd_play(
-                app_id, proton, script, no_script, steam, target, no_update, json,
+                app_id, proton, script, no_script, steam, platform, no_update, json,
             )
             .await
         }
@@ -489,13 +465,7 @@ async fn run(cli: Cli) -> Result<()> {
             ConfigCommand::Language { lang } => cmd_config_language(lang, json).await,
             ConfigCommand::Country { country } => cmd_config_country(country, json).await,
             ConfigCommand::Experimental { enabled } => cmd_config_experimental(enabled, json).await,
-            ConfigCommand::SteamRuntimePolicy { policy } => {
-                cmd_config_steam_runtime_policy(policy, json).await
-            }
             ConfigCommand::InstallResume { mode } => cmd_config_install_resume(mode, json).await,
-            ConfigCommand::SteamRuntimeRunner { runner } => {
-                cmd_config_steam_runtime_runner(runner, json).await
-            }
             ConfigCommand::Proxy {
                 url,
                 no_proxy,
@@ -553,16 +523,6 @@ async fn run(cli: Cli) -> Result<()> {
             ProtonCommand::Install { version } => cmd_proton_install(version, json).await,
             ProtonCommand::Uninstall { version } => cmd_proton_uninstall(version, json).await,
             ProtonCommand::Default { version } => cmd_proton_default(version, json).await,
-        },
-        Command::SteamRuntime { command } => match command {
-            SteamRuntimeCommand::Install { reinstall } => {
-                cmd_steam_runtime_install(reinstall, json).await
-            }
-            SteamRuntimeCommand::Repair => cmd_steam_runtime_repair(json).await,
-            SteamRuntimeCommand::Uninstall => cmd_steam_runtime_uninstall(json).await,
-            SteamRuntimeCommand::Login => cmd_steam_runtime_login(json).await,
-            SteamRuntimeCommand::Stop => cmd_steam_runtime_stop(json).await,
-            SteamRuntimeCommand::Status => cmd_steam_runtime_status(json).await,
         },
         Command::Scripts { command } => match command {
             ScriptsCommand::Dir => cmd_scripts_dir(json).await,

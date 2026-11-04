@@ -26,11 +26,8 @@ impl PipelineStage for PreparePrefixStage {
 
         // Post-runner prefix preparation: handle symlinks
         let app_id = runner_ctx.app.app_id;
-        let prefix_path = crate::core::utils::wineprefix_for_game(
-            &runner_ctx.launcher_config,
-            app_id,
-            ctx.user_config.as_ref(),
-        );
+        let prefix_path =
+            crate::core::utils::proton_compat_prefix(&runner_ctx.launcher_config, app_id);
 
         if !use_symlinks {
             // Cleanup if it was previously enabled

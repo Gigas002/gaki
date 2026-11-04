@@ -65,26 +65,11 @@ pub struct LaunchVerification {
     pub steam_client_exposed: bool,
     pub last_successful_startup_milestone: String,
     pub dependency_families_detected: Vec<String>,
-    pub steam_runtime_exe: Option<String>,
-    pub steam_runtime_args: Vec<String>,
-    pub steam_runtime_exit_code: Option<i32>,
-    pub steam_runtime_lifetime_ms: Option<u64>,
-    pub steam_runtime_milestone: String,
-    pub steam_running_before_launch: bool,
-    pub steam_auto_start_attempted: bool,
-    pub steam_auto_start_failed: bool,
     pub steam_api_initialized: Option<bool>,
     pub steam_ownership_confirmed: Option<bool>,
-    pub steam_client_artifact: Option<String>, // "local", "windows", "host"
-    pub effective_game_wineprefix: Option<String>,
-    pub effective_steam_wineprefix: Option<String>,
+    pub steam_client_artifact: Option<String>, // "local", "windows", "host" (from log evidence)
     pub steam_client_install_path_exposed_to_game: Option<String>,
     pub steam_client_install_path_source: Option<String>, // "real" vs "fake_trap"
-    pub per_game_prefix_requested: bool,
-    pub per_game_prefix_honored: bool,
-    pub steam_runtime_policy: String,
-    pub steam_runtime_source: String, // "default", "auto", "override"
-    pub windows_steam_discovery_enabled: bool,
     pub log_head: Vec<String>,
     pub log_tail: Vec<String>,
 }

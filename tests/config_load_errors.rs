@@ -20,7 +20,6 @@ const CORRUPT: &str = r#"{
   "steam_library_path": "/mnt/games/SteamLibrary",
   "proton_version": "GE-Proton9-20",
   "enable_cloud_sync": yes,
-  "steam_runtime_runner": "wine-tkg-9.0",
   "preferred_launch_options": { "570": "-novid -high" },
   "language": "german"
 }"#;
@@ -61,18 +60,14 @@ fn corrupt_config_is_not_overwritten_by_a_saving_command() {
     );
 }
 
-/// The papercut from issue #2's review: an unparseable config surfaced as
-/// "no Steam Runtime Runner is configured" instead of a parse error.
+/// An unparseable config must surface as a parse error, not as some downstream
+/// symptom of the defaults it would otherwise have been replaced with.
 #[test]
-fn corrupt_config_reports_a_parse_error_not_a_missing_runner() {
+fn corrupt_config_reports_a_parse_error() {
     let tmp = with_corrupt_config();
-    let err = stderr(&aurelia(tmp.path(), &["steam-runtime", "install"]));
+    let err = stderr(&aurelia(tmp.path(), &["proton", "default", "Proton 9.0"]));
 
     assert!(err.contains("invalid launcher config"), "got: {err}");
-    assert!(
-        !err.contains("no Steam Runtime Runner is configured"),
-        "corruption was misreported as an unset runner: {err}"
-    );
 }
 
 #[test]
@@ -93,8 +88,7 @@ fn corrupt_config_fails_every_reading_command() {
     let tmp = with_corrupt_config();
     for args in [
         vec!["config", "show"],
-        vec!["steam-runtime", "status"],
-        vec!["steam-runtime", "install"],
+        vec!["proton", "default", "Proton 9.0"],
         vec!["proton", "list"],
     ] {
         let out = aurelia(tmp.path(), &args);

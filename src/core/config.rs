@@ -1,4 +1,4 @@
-use crate::core::models::{OwnedGame, SessionState, SteamPrefixMode, UserConfigStore};
+use crate::core::models::{OwnedGame, SessionState, UserConfigStore};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -94,15 +94,7 @@ pub struct LauncherConfig {
     // (default: offline).
     #[serde(default)]
     pub chat_presence: ChatPresence,
-    #[serde(default)]
-    pub steam_runtime_runner: PathBuf,
-    #[serde(default)]
-    pub steam_prefix_mode: SteamPrefixMode,
     pub enable_cloud_sync: bool,
-    #[serde(default)]
-    pub use_shared_compat_data: bool,
-    #[serde(default = "crate::core::models::default_true")]
-    pub windows_steam_discovery_enabled: bool,
     #[serde(default)]
     pub preferred_launch_options: HashMap<u32, String>,
     #[serde(default)]
@@ -118,13 +110,6 @@ pub struct LauncherConfig {
     /// connection). Applied process-wide at startup; see [`crate::core::net`].
     #[serde(default)]
     pub proxy: ProxyConfig,
-    /// Global default Steam-integration policy for game launches, applied when a
-    /// game's own `steam_runtime_policy` is `Auto`. `Auto` (default) prefers the host
-    /// Steam client and falls back to the in-Wine Steam runtime when `--steam` is used
-    /// and no host Steam is installed; `Enabled` always uses the in-Wine runtime;
-    /// `Disabled` never does. Set with `aurelia config steam-runtime-policy`.
-    #[serde(default)]
-    pub steam_runtime_policy: crate::core::models::SteamRuntimePolicy,
     /// Whether the daemon resumes interrupted installs on start.
     #[serde(default)]
     pub install_resume: crate::library::backlog::InstallResume,
@@ -167,17 +152,12 @@ impl Default for LauncherConfig {
             steam_library_path,
             proton_version: "experimental".to_string(),
             chat_presence: ChatPresence::default(),
-            steam_runtime_runner: PathBuf::new(),
-            steam_prefix_mode: SteamPrefixMode::default(),
             enable_cloud_sync: true,
-            use_shared_compat_data: false,
-            windows_steam_discovery_enabled: true,
             preferred_launch_options: HashMap::new(),
             game_configs: HashMap::new(),
             language: None,
             country: None,
             proxy: ProxyConfig::default(),
-            steam_runtime_policy: crate::core::models::SteamRuntimePolicy::default(),
             install_resume: crate::library::backlog::InstallResume::default(),
             experimental: false,
             encrypt_session: false,

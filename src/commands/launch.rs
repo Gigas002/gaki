@@ -4,7 +4,7 @@ use crate::proc_admin;
 
 use crate::commands::common::*;
 
-use crate::cli::{PlatformArg, SteamModeArg};
+use crate::cli::PlatformArg;
 use anyhow::{Context, Result, bail};
 use aurelia::core::config::load_launcher_config;
 use aurelia::core::config::load_user_configs;
@@ -12,22 +12,6 @@ use aurelia::core::models::DownloadState;
 use aurelia::steam_client::SteamClient;
 use std::path::PathBuf;
 use std::sync::{Arc, RwLock};
-
-/// One-off `play` target overrides.
-pub(crate) struct PlayTarget {
-    pub(crate) platform: Option<PlatformArg>,
-    pub(crate) steam_mode: Option<SteamModeArg>,
-}
-
-/// Force a Steam mode via policy.
-fn apply_steam_mode(cfg: &mut aurelia::core::models::UserAppConfig, mode: SteamModeArg) {
-    use aurelia::core::models::SteamRuntimePolicy;
-    cfg.use_steam_runtime = false;
-    cfg.steam_runtime_policy = match mode {
-        SteamModeArg::Runtime => SteamRuntimePolicy::Enabled,
-        SteamModeArg::Host | SteamModeArg::None => SteamRuntimePolicy::Disabled,
-    };
-}
 
 pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> Result<()> {
     let mut client = authed_client().await?;
@@ -51,23 +35,13 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
         aurelia::steam_client::select_launch_entry(&options, &game, prefer_windows, prefer_native)
             .map(|e| e.target);
 
-    let user_configs = load_user_configs().await?;
     let steam = steam || !game.is_owned;
-    let (default_mode, _) = aurelia::infra::runners::resolve_steam_mode_for(
-        user_configs.get(&app_id),
-        &launcher_config,
-        steam,
-    );
     let targets = aurelia::steam_client::launch_targets(
         &options,
         &game,
-        aurelia::core::utils::get_master_steam_config()
-            .steam_exe
-            .is_some(),
         aurelia::core::utils::host_steam_client_path().is_some(),
         steam,
         default_entry,
-        default_mode,
     );
 
     if json {
@@ -114,61 +88,16 @@ pub(crate) async fn cmd_play(
     script: Option<PathBuf>,
     no_script: bool,
     steam: bool,
-    target: PlayTarget,
+    platform: Option<PlatformArg>,
     no_update: bool,
     json: bool,
 ) -> Result<()> {
-    let linux_target = matches!(target.platform, Some(PlatformArg::Linux));
+    let linux_target = matches!(platform, Some(PlatformArg::Linux));
     if linux_target && proton.is_some() {
         bail!("--platform linux runs the native build; it can't be combined with --proton");
     }
-    // Steam mode decides --steam.
-    let steam = match target.steam_mode {
-        Some(SteamModeArg::Host) => true,
-        Some(SteamModeArg::None) => false,
-        _ => steam,
-    };
     let mut client = authed_client().await?;
     let mut game = find_game(&mut client, app_id).await?;
-
-    // A game whose only local copy lives in the in-Wine Steam runtime's own library
-    // (installed through the in-Wine Steam itself — the only route for Family-Shared
-    // titles Aurelia can't download) can't be run through the Proton pipeline: its
-    // Steamworks handshake needs the full context only the running Steam client sets
-    // up. Hand it to the in-Wine Steam, exactly as launching it from that Steam's GUI
-    // does. Its updates are the in-Wine Steam's responsibility, so skip Aurelia's
-    // pre-launch update flow (the game isn't in Aurelia's library to update anyway).
-    if game.from_windows_steam {
-        let launcher_config = load_launcher_config().await?;
-        let install_path = game.install_path.clone().unwrap_or_default();
-        if !json {
-            cli_println!(
-                "⚠ {} lives in the in-Wine Steam runtime's own library — launching it \
-                 through the in-Wine Steam (Wine). Aurelia's Proton/DXVK settings and \
-                 session tracking don't apply to this launch.",
-                game.name
-            );
-            cli_println!("Launching {} via the in-Wine Steam ...", game.name);
-        }
-        aurelia::launch::launch_game_via_master_steam(
-            &launcher_config,
-            app_id,
-            std::path::Path::new(&install_path),
-        )
-        .await
-        .with_context(|| format!("failed to launch {} via the in-Wine Steam", game.name))?;
-        if json {
-            print_json(&serde_json::json!({
-                "app_id": app_id,
-                "name": game.name,
-                "status": "finished",
-                "runtime": "in-wine-steam",
-            }));
-        } else {
-            cli_println!("Finished playing {}.", game.name);
-        }
-        return Ok(());
-    }
 
     // Otherwise the spawn fails on the missing directory with a raw OS error.
     if !game.is_installed {
@@ -266,7 +195,7 @@ pub(crate) async fn cmd_play(
     let forced_proton = game_cfg
         .and_then(|c| c.forced_proton_version.clone())
         .filter(|_| !linux_target);
-    let platform_preference = match target.platform {
+    let platform_preference = match platform {
         Some(PlatformArg::Linux) => Some("linux"),
         Some(PlatformArg::Windows) => Some("windows"),
         None => game_cfg.and_then(|c| c.platform_preference.as_deref()),
@@ -281,11 +210,7 @@ pub(crate) async fn cmd_play(
         .or_else(|| prefers_windows.then(|| launcher_config.proton_version.clone()));
 
     let user_configs = load_user_configs().await?;
-    let mut user_config = user_configs.get(&app_id).cloned();
-    if let Some(mode) = target.steam_mode {
-        apply_steam_mode(user_config.get_or_insert_with(Default::default), mode);
-    }
-    let user_config = user_config.as_ref();
+    let user_config = user_configs.get(&app_id);
 
     if !json {
         cli_println!("Launching {} ...", game.name);

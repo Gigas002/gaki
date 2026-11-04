@@ -186,7 +186,6 @@ fn copy_at(path: &str, last_updated: u64, build_id: u64) -> InstalledAppInfo {
         active_branch: "public".to_string(),
         name: Some("Game".to_string()),
         last_owner: None,
-        from_windows_steam: false,
         manifest_path: PathBuf::from(path).join("appmanifest.acf"),
         last_updated,
         build_id,

@@ -231,11 +231,6 @@ pub(crate) enum Command {
         /// overriding auto-detection for this launch. See `aurelia launch-targets`.
         #[arg(short = 't', long)]
         platform: Option<PlatformArg>,
-        /// Steam integration for a Windows build, for this launch only: `runtime`
-        /// (in-Wine Steam), `host` (bridge to host Steam) or `none` (standalone).
-        /// Overrides the configured Steam-runtime policy.
-        #[arg(short = 'm', long)]
-        steam_mode: Option<SteamModeArg>,
         /// Skip the automatic update check and install before launching.
         #[arg(short = 'N', long = "no-update", alias = "noupdate")]
         no_update: bool,
@@ -402,11 +397,6 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: ProtonCommand,
     },
-    /// Install, repair, or inspect the master Windows Steam runtime prefix.
-    SteamRuntime {
-        #[command(subcommand)]
-        command: SteamRuntimeCommand,
-    },
     /// Manage per-game launch scripts.
     Scripts {
         #[command(subcommand)]
@@ -509,29 +499,6 @@ pub(crate) enum ConfigCommand {
         /// `true` or `false`. Omit to print the current setting.
         enabled: Option<bool>,
     },
-    /// View or set the Wine/Proton runner that hosts the Windows Steam runtime.
-    ///
-    /// Used by `steam-runtime install`/`repair` to drive `SteamSetup.exe` and the
-    /// background Steam client under a bare Wine. Accepts an installed runtime name
-    /// (see `aurelia proton list`) such as `GE-Proton9-20` or `experimental`, or an
-    /// absolute path to a Wine build. A Proton tree is fine — its bundled bare Wine
-    /// is used automatically. Pass an empty value to clear it.
-    SteamRuntimeRunner {
-        /// Installed runtime name or absolute Wine path. Omit to print the current
-        /// setting; pass `""` to clear it.
-        runner: Option<String>,
-    },
-    /// View or set the global default Steam-integration policy for launches.
-    ///
-    /// Applied when a game's own policy (`config game <id> --steam-runtime …`) is
-    /// `auto`. Controls how `aurelia play --steam` provides Steam DRM / Steamworks:
-    /// `auto` prefers the host Steam client and falls back to the in-Wine Steam
-    /// runtime when no host Steam is installed; `on` always uses the in-Wine runtime;
-    /// `off` never does (host Steam only). Omit the value to print the current setting.
-    SteamRuntimePolicy {
-        /// `auto`, `on`, or `off`. Omit to print the current setting.
-        policy: Option<SteamRuntimeArg>,
-    },
     /// View or set whether the daemon resumes interrupted installs when it starts.
     /// `manual` (default) waits for `install resume`; `auto` resumes `interrupted`
     /// backlog entries, never paused or stopped ones.
@@ -587,39 +554,6 @@ pub(crate) enum ProtonCommand {
     Uninstall { version: String },
     /// Set the global default Proton/Wine version (used when a game has none set).
     Default { version: String },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum SteamRuntimeCommand {
-    /// Download SteamSetup.exe (if needed) and install Steam into the master prefix.
-    /// Requires `steam_runtime_runner` to be configured.
-    Install {
-        /// Remove the existing master Steam prefix first, then install a fresh copy.
-        /// Use when Steam reports a corrupted install ("please reinstall"). Unlike
-        /// `repair` (which keeps a `.bak`), this deletes the old prefix outright.
-        #[arg(short = 'r', long)]
-        reinstall: bool,
-    },
-    /// Stop Steam, back up the master prefix (timestamped `.bak-*`), then reinstall.
-    /// Requires `steam_runtime_runner` to be configured.
-    Repair,
-    /// Remove the master Windows Steam prefix entirely (uninstall the runtime).
-    /// Stops any Steam running in it first, then deletes the whole master prefix
-    /// (including any `.bak-*`). Reinstall later with `steam-runtime install`.
-    Uninstall,
-    /// (Re-)start the in-Wine Steam client interactively so you can sign in — use
-    /// after the runtime's Steam session expired, or to switch accounts. Does NOT
-    /// reinstall. The in-Wine Steam keeps its own login (separate from `aurelia
-    /// login`). Requires `steam_runtime_runner` and an installed runtime.
-    #[command(visible_alias = "relogin")]
-    Login,
-    /// Stop the in-Wine Steam client running in the master prefix (kills its Wine
-    /// session), without uninstalling. Use to shut down a Steam started by `login`
-    /// or one left running after a game launch.
-    Stop,
-    /// Show the resolved master prefix, layout, whether steam.exe is present, and
-    /// whether a Steam-runtime runner is configured.
-    Status,
 }
 
 #[derive(Subcommand)]
@@ -1017,17 +951,6 @@ pub(crate) enum PlatformArg {
     Linux,
 }
 
-/// `play --steam-mode` choices.
-#[derive(Clone, Copy, ValueEnum)]
-pub(crate) enum SteamModeArg {
-    /// The in-Wine Steam runtime.
-    Runtime,
-    /// Bridge to the host Steam client.
-    Host,
-    /// Standalone, no Steam client.
-    None,
-}
-
 /// `config install-resume` choices.
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum InstallResumeArg {
@@ -1042,48 +965,6 @@ impl From<InstallResumeArg> for aurelia::library::backlog::InstallResume {
         match value {
             InstallResumeArg::Manual => Self::Manual,
             InstallResumeArg::Auto => Self::Auto,
-        }
-    }
-}
-
-/// `--steam-runtime auto|on|off`: per-game policy for the self-contained Windows Steam
-/// runtime (background master Steam in Wine).
-#[derive(Clone, Copy, ValueEnum)]
-pub(crate) enum SteamRuntimeArg {
-    /// Default behavior (currently off).
-    Auto,
-    /// Start the master Steam client in Wine for this game's Steamworks/DRM handshake.
-    On,
-    /// Never use the master Steam runtime for this game.
-    Off,
-}
-
-impl From<SteamRuntimeArg> for aurelia::core::models::SteamRuntimePolicy {
-    fn from(value: SteamRuntimeArg) -> Self {
-        use aurelia::core::models::SteamRuntimePolicy;
-        match value {
-            SteamRuntimeArg::Auto => SteamRuntimePolicy::Auto,
-            SteamRuntimeArg::On => SteamRuntimePolicy::Enabled,
-            SteamRuntimeArg::Off => SteamRuntimePolicy::Disabled,
-        }
-    }
-}
-
-/// `--steam-prefix-mode shared|per-game`: how the master Steam prefix backs a game.
-#[derive(Clone, Copy, ValueEnum)]
-pub(crate) enum SteamPrefixModeArg {
-    /// Run the game in the master Steam prefix directly.
-    Shared,
-    /// Copy/symlink Steam into the game's own prefix.
-    PerGame,
-}
-
-impl From<SteamPrefixModeArg> for aurelia::core::models::SteamPrefixMode {
-    fn from(value: SteamPrefixModeArg) -> Self {
-        use aurelia::core::models::SteamPrefixMode;
-        match value {
-            SteamPrefixModeArg::Shared => SteamPrefixMode::Shared,
-            SteamPrefixModeArg::PerGame => SteamPrefixMode::PerGame,
         }
     }
 }
@@ -1206,7 +1087,7 @@ pub(crate) struct GameConfigArgs {
     pub(crate) no_platform: bool,
     /// Reset ALL of this game's per-game settings to defaults (both stores).
     #[arg(long, conflicts_with_all = ["proton", "clear_proton", "platform", "no_platform",
-        "launch_script", "no_launch_script", "steam_runtime", "steam_prefix_mode"])]
+        "launch_script", "no_launch_script"])]
     pub(crate) clear: bool,
     /// Set a per-game launch script that wraps the resolved launch command. See
     /// `aurelia scripts`. Overrides the auto-detected `<script_dir>/<app_id>.sh`.
@@ -1215,14 +1096,4 @@ pub(crate) struct GameConfigArgs {
     /// Clear the per-game launch script (falls back to the auto-detected script).
     #[arg(short = 'S', long, conflicts_with = "launch_script")]
     pub(crate) no_launch_script: bool,
-    /// Use the self-contained Windows Steam runtime for this game: `on` starts the
-    /// master Steam client in Wine to satisfy Steamworks/DRM handshakes without the
-    /// host Steam client. Requires `aurelia config steam-runtime-runner` and
-    /// `aurelia steam-runtime install`. `auto` is the default (off).
-    #[arg(short = 'r', long, value_name = "auto|on|off")]
-    pub(crate) steam_runtime: Option<SteamRuntimeArg>,
-    /// How the master Steam prefix backs this game: `shared` runs it in the master
-    /// prefix directly; `per-game` copies Steam into the game's own prefix.
-    #[arg(short = 'm', long, value_name = "shared|per-game")]
-    pub(crate) steam_prefix_mode: Option<SteamPrefixModeArg>,
 }

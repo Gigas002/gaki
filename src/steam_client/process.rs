@@ -43,15 +43,14 @@ impl SteamClient {
 
         // A Proton/Wine game runs as wine processes inside its WINEPREFIX; killing
         // the recorded runner PID alone can leave them behind. Sweep the per-game
-        // prefix too when we recorded one (never the shared master prefix).
+        // compatdata prefix too when we recorded one.
         if let Some(prefix) = record.wineprefix.as_deref() {
             Self::kill_wine_processes_in_prefix(prefix, force);
         }
 
         // Proton re-parents the game's processes (steam.exe shim, the game exe,
         // wineserver) away from the runner we spawned, so killing the recorded PID
-        // tree alone leaves them running — and in the default shared-prefix mode no
-        // wineprefix is recorded to sweep. Every one of those processes carries
+        // tree alone leaves them running. Every one of those processes carries
         // STEAM_COMPAT_APP_ID=<app_id> in its environment, so use that as the
         // authoritative way to find and stop the whole game.
         Self::kill_processes_for_app(app_id, force);
@@ -66,7 +65,7 @@ impl SteamClient {
     /// Terminate every process belonging to `app_id`, identified by
     /// `STEAM_COMPAT_APP_ID=<app_id>` in its environment. This catches Proton's
     /// re-parented game/steam.exe/wineserver processes that aren't in the spawned
-    /// runner's tree. The master Steam client never carries a game's app id, so it
+    /// runner's tree. The host Steam client never carries a game's app id, so it
     /// is not affected.
     pub fn kill_processes_for_app(app_id: u32, force: bool) {
         let needle = format!("STEAM_COMPAT_APP_ID={app_id}");
@@ -110,12 +109,6 @@ impl SteamClient {
         Some(String::from_utf8_lossy(&bytes).into_owned())
     }
 
-    /// Cmdline with NULs as spaces.
-    fn proc_cmdline(pid_path: &Path) -> Option<String> {
-        let bytes = std::fs::read(pid_path.join("cmdline")).ok()?;
-        Some(String::from_utf8_lossy(&bytes).replace('\0', " "))
-    }
-
     /// Signal every process matching `pred`.
     fn sweep_proc_pids(signal: i32, mut pred: impl FnMut(&Path) -> bool) {
         Self::scan_proc_pids(|pid_path, pid_str| {
@@ -133,8 +126,7 @@ impl SteamClient {
 
     /// Terminate every wine process running inside `wineprefix` (identified by the
     /// prefix path appearing in the process environment). Used to stop a
-    /// Proton/Wine game whose processes outlive the runner we spawned. Only call
-    /// this for a per-game prefix — the shared master prefix also hosts Steam.
+    /// Proton/Wine game whose processes outlive the runner we spawned.
     pub fn kill_wine_processes_in_prefix(wineprefix: &Path, force: bool) {
         let prefix_str = wineprefix.to_string_lossy().to_string();
         let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
@@ -142,86 +134,6 @@ impl SteamClient {
         Self::sweep_proc_pids(signal, |pid_path| {
             Self::proc_environ(pid_path).is_some_and(|env| env.contains(&prefix_str))
         });
-    }
-
-    pub fn kill_steam_in_prefix(wineprefix: &Path) {
-        let prefix_str = wineprefix.to_string_lossy().to_string();
-
-        // Kill Steam processes in this prefix.
-        Self::sweep_proc_pids(libc::SIGTERM, |pid_path| {
-            let Some(cmdline) = Self::proc_cmdline(pid_path) else {
-                return false;
-            };
-            let cmdline = cmdline.to_lowercase();
-            (cmdline.contains("steam.exe") || cmdline.contains("steamwebhelper.exe"))
-                && Self::proc_environ(pid_path).is_some_and(|env| env.contains(&prefix_str))
-        });
-    }
-
-    /// Scans /proc to find a wine process running steam.exe inside the given WINEPREFIX.
-    pub fn is_steam_running_in_prefix(wineprefix: &Path) -> bool {
-        let prefix_str = wineprefix.to_string_lossy().to_string();
-
-        Self::scan_proc_pids(|pid_path, _pid_str| {
-            // Must have steam.exe in cmdline
-            if !Self::proc_cmdline(pid_path)?
-                .to_lowercase()
-                .contains("steam.exe")
-            {
-                return None;
-            }
-
-            // Must have our WINEPREFIX in its environment
-            Self::proc_environ(pid_path)?
-                .contains(&prefix_str)
-                .then_some(true)
-        })
-        .unwrap_or(false)
-    }
-
-    /// True while a **game** launched by the in-Wine Steam is running inside
-    /// `wineprefix`. The game is identified by `installdir` — the manifest install-dir
-    /// name (the last path component of its install path) — which appears in the
-    /// process cmdline as `…\steamapps\common\<installdir>\…exe`. The Steam client and
-    /// its helpers are excluded so this tracks only the game itself.
-    ///
-    /// Used to wait on a game the in-Wine Steam started (via `-applaunch`), which
-    /// Aurelia does not own directly and so cannot `wait()` on.
-    pub fn is_game_running_in_prefix(wineprefix: &Path, installdir: &str) -> bool {
-        let prefix_str = wineprefix.to_string_lossy().to_string();
-        let needle = installdir.to_lowercase();
-        if needle.is_empty() {
-            return false;
-        }
-        Self::scan_proc_pids(|pid_path, _pid_str| {
-            let cmdline_str = Self::proc_cmdline(pid_path)?.to_lowercase();
-            if !(cmdline_str.contains(&needle) && cmdline_str.contains(".exe")) {
-                return None;
-            }
-            // Exclude the Steam client and its CEF helper processes.
-            if cmdline_str.contains("steam.exe") || cmdline_str.contains("steamwebhelper") {
-                return None;
-            }
-            Self::proc_environ(pid_path)?
-                .contains(&prefix_str)
-                .then_some(true)
-        })
-        .unwrap_or(false)
-    }
-
-    /// Writes a steam.cfg into the Steam directory that minimises UI on startup.
-    pub fn write_headless_steam_cfg(steam_dir: &Path) {
-        let cfg_path = steam_dir.join("steam.cfg");
-        // Only write if not already present to avoid overwriting user config
-        if cfg_path.exists() {
-            return;
-        }
-        let content = "\
-BootStrapperForceSelfUpdate=disable
-SteamDefaultDialog=Friends
-NoSavePersonalInfo=1
-";
-        let _ = std::fs::write(&cfg_path, content);
     }
 
     /// Launch a Windows game's executable directly, with no Proton/Wine layer.

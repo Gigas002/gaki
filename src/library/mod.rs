@@ -56,10 +56,6 @@ pub struct InstalledAppInfo {
     /// SteamID64 of the account that owns this local install (`LastOwner` in the
     /// appmanifest). Differs from the logged-in user for Family-Shared games.
     pub last_owner: Option<u64>,
-    /// This install was found in the in-Wine Steam runtime's own library (inside the
-    /// master prefix), not Aurelia's Linux library. Set by [`scan_installed_app_info`]
-    /// when merging the Windows-Steam discovery pass.
-    pub from_windows_steam: bool,
     /// The appmanifest this info came from. Kept so a duplicate install can be
     /// reported by the file that declares it.
     pub manifest_path: PathBuf,
@@ -71,8 +67,6 @@ pub struct InstalledAppInfo {
 }
 
 pub async fn scan_installed_app_info() -> Result<HashMap<u32, InstalledAppInfo>> {
-    let config = load_launcher_config().await.ok();
-
     // Scan *every* standard Steam data root, not just the first that exists: a
     // machine can carry a leftover native `~/.steam` next to the Flatpak install
     // that actually holds the games, and only one of them lists the libraries.
@@ -82,34 +76,7 @@ pub async fn scan_installed_app_info() -> Result<HashMap<u32, InstalledAppInfo>>
         libraries.len(),
         libraries
     );
-    let mut installed = scan_libraries(&libraries).await;
-
-    if config.is_some_and(|cfg| cfg.windows_steam_discovery_enabled) {
-        let master_steam = crate::core::utils::get_master_steam_config();
-        if master_steam.wine_prefix.exists() {
-            tracing::debug!(
-                "scanning Windows Steam root: {:?}",
-                master_steam.wine_prefix
-            );
-            // Windows Steam layout is drive_c/Program Files (x86)/Steam
-            let windows_steam_root = master_steam
-                .wine_prefix
-                .join("drive_c/Program Files (x86)/Steam");
-            if windows_steam_root.exists() {
-                let windows_installed = scan_library_info(&windows_steam_root)
-                    .await
-                    .unwrap_or_default();
-                for (app_id, mut info) in windows_installed {
-                    // Mark the source so `list` can flag it and `play` routes it through
-                    // the in-Wine Steam. Prefer native/standard Linux Steam if duplicate.
-                    info.from_windows_steam = true;
-                    installed.entry(app_id).or_insert(info);
-                }
-            }
-        }
-    }
-
-    Ok(installed)
+    Ok(scan_libraries(&libraries).await)
 }
 
 /// One app installed in more than one library: the copy Aurelia uses, and the
@@ -715,7 +682,6 @@ async fn parse_app_manifest_info(path: &Path) -> Result<Option<(u32, InstalledAp
             active_branch: manifest.active_branch,
             name: manifest.name,
             last_owner: manifest.last_owner,
-            from_windows_steam: false,
             manifest_path: path.to_path_buf(),
             last_updated: manifest.last_updated,
             build_id: manifest.build_id,
@@ -741,7 +707,6 @@ pub fn build_game_library(
         owned_app_ids.insert(owned_game.app_id);
         let info = installed_info.get(&owned_game.app_id);
         let install_path = info.map(|i| i.install_path.to_string_lossy().to_string());
-        let from_windows_steam = info.is_some_and(|i| i.from_windows_steam);
         let active_branch = info
             .map(|i| i.active_branch.clone())
             .unwrap_or_else(|| "public".to_string());
@@ -760,7 +725,6 @@ pub fn build_game_library(
             is_family_shared: false,
             online_required: None,
             platform: None,
-            from_windows_steam,
         });
     }
 
@@ -781,7 +745,6 @@ pub fn build_game_library(
         // or the manifest has no LastOwner), don't guess — avoid false positives.
         let family_shared =
             matches!((info.last_owner, steam_id), (Some(owner), Some(me)) if owner != me);
-        let from_windows_steam = info.from_windows_steam;
 
         games.push(LibraryGame {
             app_id,
@@ -797,7 +760,6 @@ pub fn build_game_library(
             is_family_shared: family_shared,
             online_required: None,
             platform: None,
-            from_windows_steam,
         });
     }
 

@@ -23,7 +23,6 @@ mod tests {
                 is_family_shared: false,
                 online_required: None,
                 platform: None,
-                from_windows_steam: false,
             },
             launch_info: LaunchInfo {
                 app_id: 123,
@@ -97,7 +96,6 @@ mod tests {
             is_family_shared: false,
             online_required: None,
             platform: None,
-            from_windows_steam: false,
         };
 
         let mut config = LauncherConfig::default();

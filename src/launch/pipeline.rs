@@ -502,13 +502,6 @@ impl LaunchPipeline {
 
     fn classify_early_exit(&self, ctx: &mut PipelineContext) {
         if ctx.verification.status != "failed_after_spawn" {
-            if ctx.verification.steam_runtime_milestone == "steam_process_exited_early"
-                || ctx.verification.steam_auto_start_failed
-            {
-                ctx.verification.detailed_status = Some("steam_runtime_startup_failed".to_string());
-                return;
-            }
-
             if ctx.command_spec.is_none() {
                 ctx.verification.detailed_status = Some("command_spec_missing".to_string());
                 return;
@@ -537,7 +530,7 @@ impl LaunchPipeline {
                 break;
             }
             if evidence.contains("Steam Client/Environment Failure") {
-                fatal_error = Some("steam_runtime_exposure_regression");
+                fatal_error = Some("steam_client_exposure_regression");
                 break;
             }
             if evidence.contains("PhysX/Middleware failure") {
@@ -576,10 +569,6 @@ impl LaunchPipeline {
             "game_failed_after_spawn".to_string()
         } else if let Some(err) = fatal_error {
             err.to_string()
-        } else if ctx.verification.steam_running_before_launch
-            && ctx.verification.steam_client_exposed
-        {
-            "steam_sensitive_game_failed_after_spawn".to_string()
         } else {
             "game_failed_after_spawn".to_string()
         });
@@ -1678,12 +1667,6 @@ impl LaunchPipeline {
                         metadata.insert("prefix".to_string(), prefix.clone());
                     }
                 }
-                if let Some(config) = &ctx.launcher_config {
-                    metadata.insert(
-                        "shared_prefix".to_string(),
-                        config.use_shared_compat_data.to_string(),
-                    );
-                }
                 metadata.insert(
                     "nvapi_requested".to_string(),
                     ctx.graphics_stack.requested_nvapi.to_string(),
@@ -1713,12 +1696,6 @@ impl LaunchPipeline {
                         ctx.verification.dependency_families_detected.join(", "),
                     );
                 }
-                if !ctx.verification.steam_runtime_milestone.is_empty() {
-                    metadata.insert(
-                        "steam_runtime_milestone".to_string(),
-                        ctx.verification.steam_runtime_milestone.clone(),
-                    );
-                }
                 if let Some(init) = ctx.verification.steam_api_initialized {
                     metadata.insert("steam_api_initialized".to_string(), init.to_string());
                 }
@@ -1727,12 +1704,6 @@ impl LaunchPipeline {
                 }
                 if let Some(ref art) = ctx.verification.steam_client_artifact {
                     metadata.insert("steam_client_artifact".to_string(), art.clone());
-                }
-                if let Some(ref pfx) = ctx.verification.effective_game_wineprefix {
-                    metadata.insert("effective_game_wineprefix".to_string(), pfx.clone());
-                }
-                if let Some(ref pfx) = ctx.verification.effective_steam_wineprefix {
-                    metadata.insert("effective_steam_wineprefix".to_string(), pfx.clone());
                 }
                 if let Some(ref path) = ctx.verification.steam_client_install_path_exposed_to_game {
                     metadata.insert(
@@ -1746,28 +1717,6 @@ impl LaunchPipeline {
                         source.clone(),
                     );
                 }
-                metadata.insert(
-                    "per_game_prefix_requested".to_string(),
-                    ctx.verification.per_game_prefix_requested.to_string(),
-                );
-                metadata.insert(
-                    "per_game_prefix_honored".to_string(),
-                    ctx.verification.per_game_prefix_honored.to_string(),
-                );
-
-                metadata.insert(
-                    "steam_running_before_launch".to_string(),
-                    ctx.verification.steam_running_before_launch.to_string(),
-                );
-                metadata.insert(
-                    "steam_auto_start_attempted".to_string(),
-                    ctx.verification.steam_auto_start_attempted.to_string(),
-                );
-                metadata.insert(
-                    "steam_auto_start_failed".to_string(),
-                    ctx.verification.steam_auto_start_failed.to_string(),
-                );
-
                 ctx.log_info(
                     "launch_summary_concise",
                     "Concise launch summary recorded".to_string(),

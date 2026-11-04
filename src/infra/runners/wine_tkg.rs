@@ -8,40 +8,10 @@ use std::process::Command;
 
 pub struct WineTkgRunner;
 
-/// Outcome of the background-Steam liveness re-check performed after a readiness
-/// heuristic fires and the short grace window has elapsed.
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum ReadinessGrace {
-    /// Process still alive after the grace window — genuinely ready.
-    Ready,
-    /// Process exited within the grace window — a crash masquerading as ready.
-    ExitedEarly { code: Option<i32> },
-}
-
-/// Re-check a background-Steam process after the readiness grace window.
-///
-/// A readiness heuristic (config.vdf/steam.pid/log files) can fire on artifacts
-/// Steam writes *during* early init and then the process crashes a moment later.
-/// The caller sleeps a short grace window and then invokes this: if the process
-/// has since exited it is reclassified as an early exit (a crash) rather than
-/// genuine readiness, so the milestone downstream matches `steam_process_exited_early`.
-pub(crate) fn reclassify_after_grace(child: &mut std::process::Child) -> ReadinessGrace {
-    match child.try_wait() {
-        Ok(Some(status)) => ReadinessGrace::ExitedEarly {
-            code: status.code(),
-        },
-        // Still running, or the wait itself errored (treat as still-alive: the
-        // subsequent launch path will surface any real problem).
-        _ => ReadinessGrace::Ready,
-    }
-}
-
 /// Steam integration facts, derived per phase.
 struct SteamLayout {
     library_root: PathBuf,
     steam_mode: SteamMode,
-    steam_mode_source: &'static str,
-    steam_prefix_mode: crate::core::models::SteamPrefixMode,
     compat_data_path: PathBuf,
     game_prefix: PathBuf,
 }
@@ -50,33 +20,12 @@ impl SteamLayout {
     /// Derive the layout from `ctx`.
     fn derive(ctx: &LaunchContext) -> Self {
         let library_root = PathBuf::from(&ctx.launcher_config.steam_library_path);
-        let (steam_mode, steam_mode_source) = resolve_steam_mode(ctx);
-        let steam_prefix_mode = ctx
-            .user_config
-            .as_ref()
-            .map(|c| c.steam_prefix_mode.clone())
-            .unwrap_or_else(|| ctx.launcher_config.steam_prefix_mode.clone());
-        // Only Shared+InWine consults the master prefix.
-        let master_wine_prefix = if steam_mode == SteamMode::InWineRuntime {
-            crate::core::utils::get_master_steam_config().wine_prefix
-        } else {
-            PathBuf::new()
-        };
-        let compat_data_path = game_compat_data_path(
-            &library_root,
-            ctx.app.app_id,
-            steam_mode,
-            steam_prefix_mode.clone(),
-            &master_wine_prefix,
-        );
-        let game_prefix = effective_game_prefix(ctx);
+        let compat_data_path = crate::core::utils::compat_data_dir(&library_root, ctx.app.app_id);
         Self {
-            library_root,
-            steam_mode,
-            steam_mode_source,
-            steam_prefix_mode,
+            steam_mode: resolve_steam_mode(ctx.steam_enabled),
+            game_prefix: compat_data_path.join("pfx"),
             compat_data_path,
-            game_prefix,
+            library_root,
         }
     }
 }
@@ -88,388 +37,28 @@ impl Runner for WineTkgRunner {
     }
     async fn prepare_prefix(&self, ctx: &LaunchContext) -> std::result::Result<(), LaunchError> {
         let SteamLayout {
-            library_root,
-            steam_mode,
-            steam_mode_source: runtime_source,
-            steam_prefix_mode,
             compat_data_path,
-            game_prefix: effective_game_prefix,
+            game_prefix,
+            ..
         } = SteamLayout::derive(ctx);
-        let use_steam_runtime = steam_mode == SteamMode::InWineRuntime;
-        std::fs::create_dir_all(&effective_game_prefix).map_err(|e| {
-            LaunchError::new(
-                LaunchErrorKind::Permission,
-                format!("failed creating {}", effective_game_prefix.display()),
-            )
-            .with_source(anyhow!(e))
-        })?;
-
         // Proton's `pfx.lock` needs existing compatdata.
-        std::fs::create_dir_all(&compat_data_path).map_err(|e| {
-            LaunchError::new(
-                LaunchErrorKind::Permission,
-                format!("failed creating {}", compat_data_path.display()),
-            )
-            .with_source(anyhow!(e))
-        })?;
-
-        tracing::info!("Effective game prefix: {}", effective_game_prefix.display());
-        tracing::info!(
-            "Shared steam compatibility data enabled: {}",
-            ctx.launcher_config.use_shared_compat_data
-        );
-        tracing::info!("Steam Runtime Prefix Mode: {:?}", steam_prefix_mode);
-
-        if use_steam_runtime {
-            let steam_cfg = crate::core::utils::get_master_steam_config();
-            tracing::info!("Unified Master Steam resolution (Game Launch):");
-            tracing::info!("  - Root Dir: {}", steam_cfg.root_dir.display());
-            tracing::info!("  - Wine Prefix: {}", steam_cfg.wine_prefix.display());
-            tracing::info!("  - Layout Kind: {}", steam_cfg.layout_kind);
-
-            let master_steam_dir = match &steam_cfg.steam_exe {
-                Some(exe) => exe.parent().unwrap().to_path_buf(),
-                None => {
-                    return Err(LaunchError::new(
-                        LaunchErrorKind::Environment,
-                        format!(
-                            "use_steam_runtime is enabled but steam.exe was not found in {}.\n\
-                             Go to Settings → 'Install / Manage Windows Steam Runtime' first.",
-                            steam_cfg.wine_prefix.display()
-                        ),
-                    )
-                    .with_context("master_prefix", steam_cfg.wine_prefix.to_string_lossy()));
-                }
-            };
-
-            tracing::info!(
-                "  - Steam Exe: {}",
-                steam_cfg.steam_exe.as_ref().unwrap().display()
-            );
-
-            let (prefix_steam_dir, steam_wineprefix) = match steam_prefix_mode {
-                crate::core::models::SteamPrefixMode::Shared => {
-                    (master_steam_dir.clone(), steam_cfg.wine_prefix.clone())
-                }
-                crate::core::models::SteamPrefixMode::PerGame => {
-                    let target_steam_dir =
-                        effective_game_prefix.join("drive_c/Program Files (x86)/Steam");
-
-                    tracing::info!(
-                        "Deploying required Steam runtime files to {}",
-                        target_steam_dir.display()
-                    );
-                    let _ = std::fs::create_dir_all(&target_steam_dir);
-
-                    let required_files = [
-                        "steam.exe",
-                        "steamclient.dll",
-                        "steamclient64.dll",
-                        "tier0_s.dll",
-                        "tier0_s64.dll",
-                        "vstdlib_s.dll",
-                        "vstdlib_s64.dll",
-                    ];
-
-                    for file in required_files {
-                        let src = master_steam_dir.join(file);
-                        let dst = target_steam_dir.join(file);
-                        if src.exists()
-                            && !dst.exists()
-                            && let Err(e) = std::os::unix::fs::symlink(&src, &dst)
-                        {
-                            tracing::warn!(
-                                "Symlink failed for {}, falling back to copy: {}",
-                                file,
-                                e
-                            );
-                            let _ = std::fs::copy(&src, &dst);
-                        }
-                    }
-
-                    // Also symlink required subdirectories
-                    let required_dirs = ["bin", "public"];
-                    for dir in required_dirs {
-                        let src = master_steam_dir.join(dir);
-                        let dst = target_steam_dir.join(dir);
-                        if src.exists()
-                            && !dst.exists()
-                            && let Err(e) = std::os::unix::fs::symlink(&src, &dst)
-                        {
-                            tracing::warn!(
-                                "Symlink failed for {}, falling back to copy: {}",
-                                dir,
-                                e
-                            );
-                            let _ = crate::core::utils::copy_dir_all(&src, &dst);
-                        }
-                    }
-
-                    (target_steam_dir, effective_game_prefix.clone())
-                }
-            };
-
-            tracing::debug!("Runtime Steam dir : {}", prefix_steam_dir.display());
-            tracing::debug!("Runtime WINEPREFIX : {}", steam_wineprefix.display());
-
-            SteamClient::write_headless_steam_cfg(&prefix_steam_dir);
-
-            let slc = ctx
-                .user_config
-                .as_ref()
-                .map(|c| c.steam_launch_config.clone())
-                .unwrap_or_default();
-
-            let mut steam_args = vec![
-                "-silent".to_string(),
-                "-tcp".to_string(),
-                "-noverifyfiles".to_string(),
-                "-noreactlogin".to_string(),
-                "-cef-disable-gpu".to_string(),
-                "-cef-disable-sandbox".to_string(),
-            ];
-
-            if slc.no_friends_ui {
-                steam_args.push("-nofriendsui".to_string());
-            }
-            if slc.no_chat_ui {
-                steam_args.push("-nochatui".to_string());
-            }
-            if slc.no_browser {
-                steam_args.push("-no-browser".to_string());
-            }
-            if slc.no_overlay {
-                steam_args.push("-disable-overlay".to_string());
-            }
-            if slc.no_vr {
-                steam_args.push("-noopenvr".to_string());
-            }
-            if slc.big_picture {
-                steam_args.push("-bigpicture".to_string());
-            }
-
-            let steam_running = SteamClient::is_steam_running_in_prefix(&steam_wineprefix);
-
-            ctx.with_verification(|v| {
-                v.steam_running_before_launch = steam_running;
-                v.effective_game_wineprefix =
-                    Some(effective_game_prefix.to_string_lossy().to_string());
-                v.effective_steam_wineprefix = Some(steam_wineprefix.to_string_lossy().to_string());
-                v.per_game_prefix_requested =
-                    steam_prefix_mode == crate::core::models::SteamPrefixMode::PerGame;
-                v.per_game_prefix_honored = effective_game_prefix == steam_wineprefix;
-                v.steam_runtime_policy = format!(
-                    "{:?}",
-                    ctx.user_config
-                        .as_ref()
-                        .map(|c| &c.steam_runtime_policy)
-                        .unwrap_or(&crate::core::models::SteamRuntimePolicy::Auto)
-                );
-                v.steam_runtime_source = runtime_source.to_string();
-                v.windows_steam_discovery_enabled =
-                    ctx.launcher_config.windows_steam_discovery_enabled;
-            });
-
-            if steam_running {
-                println!("✅ Steam already running in prefix — skipping spawn");
-            } else {
-                // Background Steam is hosted on a DEDICATED Steam-runtime runner —
-                // NOT the game runner's `proton run` wrapper. It must run under a
-                // bare wine so `steam.exe` starts as a plain Windows process.
-                let mut steam_cmd = resolve_background_steam_command(ctx, &library_root)?;
-                // Background Steam's CEF UI needs the runner's dxvk/vkd3d PE
-                // libs in the prefix — a bare-wine prefix misses them and the
-                // webhelper GPU process crash-loops (Steam then misreports a
-                // broken installation).
-                crate::core::utils::ensure_steam_runtime_prefix_libs(
-                    &PathBuf::from(steam_cmd.get_program()),
-                    &steam_wineprefix,
-                );
-                steam_cmd.current_dir(&prefix_steam_dir);
-                steam_cmd
-                    .arg("C:\\Program Files (x86)\\Steam\\steam.exe")
-                    .args(&steam_args);
-                steam_cmd
-                    .env("WINEPREFIX", &steam_wineprefix)
-                    .env(
-                        "WINEDLLOVERRIDES",
-                        "vstdlib_s=n,b;tier0_s=n,b;steamclient=n,b;steamclient64=n,b;\
-                                 steam_api=n,b;steam_api64=n,b;lsteamclient=;\
-                                 GameOverlayRenderer=n;GameOverlayRenderer64=n",
-                    )
-                    .env("WINEPATH", "C:\\Program Files (x86)\\Steam")
-                    .env("STEAM_DISABLE_BROWSER", "1")
-                    .env("STEAM_NO_BROWSER", "1")
-                    .env("STEAMCMD", "1") // tells Steam it's running as a cmd tool
-                    .stdout(std::process::Stdio::null()) // silence CEF log spam
-                    .stderr(std::process::Stdio::null());
-
-                tracing::debug!(
-                    program = ?steam_cmd.get_program(),
-                    args = ?steam_cmd.get_args().collect::<Vec<_>>(),
-                    "spawning background Steam",
-                );
-
-                // Record Steam runtime diagnostics
-                ctx.with_verification(|v| {
-                    v.steam_runtime_exe =
-                        Some(steam_cmd.get_program().to_string_lossy().to_string());
-                    v.steam_runtime_args = steam_cmd
-                        .get_args()
-                        .map(|a| a.to_string_lossy().to_string())
-                        .collect();
-                    v.steam_runtime_milestone = "steam_process_spawn_requested".to_string();
-                    v.steam_auto_start_attempted = true;
-                });
-
-                let start_time = std::time::Instant::now();
-                let mut steam_process = steam_cmd.spawn().map_err(|e| {
-                    LaunchError::new(LaunchErrorKind::Process, "Failed to spawn background Steam")
-                        .with_source(anyhow!(e))
-                })?;
-
-                ctx.with_verification(|v| {
-                    v.steam_runtime_milestone = "steam_process_spawned".to_string();
-                });
-
-                let readiness_timeout = 8;
-                println!(
-                    "Waiting for Steam to initialise (max {}s)...",
-                    readiness_timeout
-                );
-
-                let steam_pid_path = prefix_steam_dir.join("steam.pid");
-                let steam_pipe = steam_wineprefix.join("drive_c/windows/temp/.steampath");
-                let steam_config_vdf = prefix_steam_dir.join("config/config.vdf");
-                let steam_logs_dir = prefix_steam_dir.join("logs");
-
-                let ready = 'wait: {
-                    // Which readiness heuristic fired, if any. We record it and
-                    // break the poll loop instead of returning `true` immediately
-                    // so a short liveness grace window below can still reclassify
-                    // a signal-then-crash as an early exit rather than "ready".
-                    let mut ready_signal: Option<String> = None;
-                    for i in 0..readiness_timeout {
-                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-
-                        // Crash detection — bail immediately
-                        if let Ok(Some(status)) = steam_process.try_wait() {
-                            println!(
-                                "❌ FATAL: Background Steam exited after {}s with: {}",
-                                i + 1,
-                                status
-                            );
-                            ctx.with_verification(|v| {
-                                v.steam_runtime_exit_code = status.code();
-                                v.steam_runtime_lifetime_ms =
-                                    Some(start_time.elapsed().as_millis() as u64);
-                                v.steam_runtime_milestone =
-                                    "steam_process_exited_early".to_string();
-                            });
-                            break 'wait false;
-                        }
-
-                        // Signal 1: pid file (some Wine/Steam combos do write this)
-                        if steam_pid_path.exists() {
-                            println!("✅ Steam ready after {}s (steam.pid found)", i + 1);
-                            ready_signal = Some(format!("steam.pid after {}s", i + 1));
-                            break;
-                        }
-
-                        // Signal 2: .steampath in temp (Proton-style)
-                        if steam_pipe.exists() {
-                            println!("✅ Steam ready after {}s (.steampath found)", i + 1);
-                            ready_signal = Some(format!(".steampath after {}s", i + 1));
-                            break;
-                        }
-
-                        // Signal 3: config.vdf written — Steam has finished early init
-                        if steam_config_vdf.exists() {
-                            println!("✅ Steam ready after {}s (config.vdf found)", i + 1);
-                            ready_signal = Some(format!("config.vdf after {}s", i + 1));
-                            break;
-                        }
-
-                        // Signal 4: logs dir has multiple entries — Steam's subsystems are running
-                        let log_count = std::fs::read_dir(&steam_logs_dir)
-                            .map(|d| d.count())
-                            .unwrap_or(0);
-                        if log_count >= 2 {
-                            println!(
-                                "✅ Steam ready after {}s ({} log files found)",
-                                i + 1,
-                                log_count
-                            );
-                            ctx.with_verification(|v| {
-                                v.steam_runtime_milestone =
-                                    "steam_ready_signal_observed".to_string();
-                            });
-                            ready_signal =
-                                Some(format!("{} log files after {}s", log_count, i + 1));
-                            break;
-                        }
-
-                        println!("  Waiting... {}s", i + 1);
-                    }
-
-                    // Liveness grace window: after a readiness heuristic fires, a
-                    // healthy Steam keeps running while a crashing one exits within
-                    // a second or two. Wait a short grace period and re-check the
-                    // process; if it has exited, this was a crash — not readiness —
-                    // so classify it as `steam_process_exited_early` (consumed by
-                    // pipeline.rs) exactly like the top-of-loop crash detection.
-                    if let Some(reason) = ready_signal {
-                        const READINESS_GRACE_SECS: u64 = 2;
-                        tokio::time::sleep(std::time::Duration::from_secs(READINESS_GRACE_SECS))
-                            .await;
-                        match reclassify_after_grace(&mut steam_process) {
-                            ReadinessGrace::ExitedEarly { code } => {
-                                println!(
-                                    "❌ FATAL: Background Steam signalled ready ({}) but exited within {}s grace (code {:?})",
-                                    reason, READINESS_GRACE_SECS, code
-                                );
-                                ctx.with_verification(|v| {
-                                    v.steam_runtime_exit_code = code;
-                                    v.steam_runtime_lifetime_ms =
-                                        Some(start_time.elapsed().as_millis() as u64);
-                                    v.steam_runtime_milestone =
-                                        "steam_process_exited_early".to_string();
-                                });
-                                break 'wait false;
-                            }
-                            // Still alive after the grace window — genuinely ready.
-                            ReadinessGrace::Ready => break 'wait true,
-                        }
-                    }
-
-                    println!(
-                        "⚠️ Steam did not signal ready after {}s, launching game anyway",
-                        readiness_timeout
-                    );
-                    ctx.with_verification(|v| {
-                        v.steam_runtime_milestone = "steam_ready_timeout".to_string();
-                    });
-                    true
-                };
-
-                if !ready {
-                    ctx.with_verification(|v| {
-                        v.steam_auto_start_failed = true;
-                    });
-                    return Err(LaunchError::new(
-                        LaunchErrorKind::Process,
-                        "Background Steam crashed before the game could start",
-                    ));
-                }
-            }
+        for dir in [&game_prefix, &compat_data_path] {
+            std::fs::create_dir_all(dir).map_err(|e| {
+                LaunchError::new(
+                    LaunchErrorKind::Permission,
+                    format!("failed creating {}", dir.display()),
+                )
+                .with_source(anyhow!(e))
+            })?;
         }
+        tracing::info!("Game prefix: {}", game_prefix.display());
 
         // Write steam_appid.txt to the game working directory
         let (_install_dir, _executable, game_working_dir) = ctx.game_paths()?;
-
-        let app_id_str = ctx.app.app_id.to_string();
-        let app_id_path = game_working_dir.join("steam_appid.txt");
-        let _ = std::fs::write(&app_id_path, &app_id_str);
+        let _ = std::fs::write(
+            game_working_dir.join("steam_appid.txt"),
+            ctx.app.app_id.to_string(),
+        );
 
         Ok(())
     }
@@ -517,11 +106,8 @@ impl Runner for WineTkgRunner {
             .as_ref()
             .map(|c| c.graphics_layers.clone())
             .unwrap_or_default();
-        let no_overlay = ctx
-            .user_config
-            .as_ref()
-            .map(|c| c.steam_launch_config.no_overlay)
-            .unwrap_or(true);
+        // Keep Steam's in-game overlay disabled.
+        let no_overlay = true;
 
         let (_install_dir, _executable, game_working_dir) = ctx.game_paths()?;
 
@@ -575,11 +161,9 @@ impl Runner for WineTkgRunner {
             tracing::info!("NVAPI component detected but disabled by per-game settings");
         }
 
-        // Resolve the Steam-integration mode once for the whole env build. Only the
-        // host-bridge mode leaves Steam's client DLLs at Proton's defaults (so
-        // `lsteamclient` bridges to the host client). The in-Wine runtime and
-        // standalone modes both want the native/neutralised set (`steamclient=n`, …)
-        // so the game loads the in-Wine `steamclient.dll` (or none at all).
+        // Only the host-bridge mode leaves Steam's client DLLs at Proton's defaults (so
+        // `lsteamclient` bridges to the host client). Standalone wants the
+        // native/neutralised set (`steamclient=n`, …) so the game loads none at all.
         let host_bridge = steam_mode == SteamMode::HostBridge;
 
         let use_symlinks = glc.use_symlinks_in_prefix;
@@ -757,11 +341,8 @@ impl Runner for WineTkgRunner {
 
         // Expose the Steam client install path the game's DRM/Steamworks bootstrap
         // reads (`STEAM_COMPAT_CLIENT_INSTALL_PATH`), matching the resolved mode:
-        //   - HostBridge    → the host Steam install (Proton's lsteamclient bridges).
-        //   - InWineRuntime → the in-Wine Steam runtime (real steamclient.dll +
-        //                     the steam.exe prepare_prefix starts) — provides DRM
-        //                     with no host Steam (issue #3).
-        //   - Standalone    → the fake-Steam trap (no DRM).
+        //   - HostBridge → the host Steam install (Proton's lsteamclient bridges).
+        //   - Standalone → the fake-Steam trap (no DRM).
         let fake_trap =
             |env: &mut HashMap<String, String>| -> std::result::Result<(), LaunchError> {
                 let fake_env = crate::infra::runners::insert_fake_steam_trap(env)?;
@@ -787,37 +368,18 @@ impl Runner for WineTkgRunner {
         match steam_mode {
             SteamMode::HostBridge => match crate::core::utils::host_steam_client_path() {
                 Some(path) => expose(&mut env, path, "real_host"),
-                // resolve_steam_mode only picks HostBridge when host Steam exists, so
-                // this is defensive (a Steam install vanishing mid-launch).
+                None if ctx.steam_enabled => {
+                    return Err(LaunchError::new(
+                        LaunchErrorKind::Environment,
+                        "Steam integration was requested (`--steam`, or a Family-Shared game) \
+                         but no official Steam client is installed. Install Steam with your \
+                         package manager.",
+                    ));
+                }
+                // An opportunistic bridge whose Steam install vanished mid-launch.
                 None => fake_trap(&mut env)?,
             },
-            SteamMode::InWineRuntime => {
-                let steam_cfg = crate::core::utils::get_master_steam_config();
-                let steam_client_path = match layout.steam_prefix_mode.clone() {
-                    crate::core::models::SteamPrefixMode::Shared => steam_cfg
-                        .steam_exe
-                        .as_ref()
-                        .and_then(|e| e.parent().map(|p| p.to_path_buf())),
-                    crate::core::models::SteamPrefixMode::PerGame => {
-                        Some(effective_game_prefix.join("drive_c/Program Files (x86)/Steam"))
-                    }
-                };
-
-                match steam_client_path {
-                    Some(path) => expose(&mut env, path, "real"),
-                    None => fake_trap(&mut env)?,
-                }
-            }
-            SteamMode::Standalone => {
-                if ctx.steam_enabled {
-                    tracing::warn!(
-                        "--steam was requested but neither a host Steam client nor the in-Wine \
-                         Steam runtime is installed; launching standalone. DRM-protected games \
-                         will not run. Install the runtime with `aurelia steam-runtime install`."
-                    );
-                }
-                fake_trap(&mut env)?;
-            }
+            SteamMode::Standalone => fake_trap(&mut env)?,
         }
 
         if let Ok(display) = std::env::var("DISPLAY") {
@@ -1093,19 +655,6 @@ impl Runner for WineTkgRunner {
     }
 }
 
-/// Build the effective Wine prefix for the game from the launch context.
-///
-/// Wraps this game's per-app config (if any) in a single-entry `UserConfigStore`
-/// and resolves the prefix the same way the launcher does globally.
-fn effective_game_prefix(ctx: &LaunchContext) -> PathBuf {
-    crate::core::utils::wineprefix_for_game(
-        &ctx.launcher_config,
-        ctx.app.app_id,
-        ctx.user_config.as_ref(),
-    )
-}
-
-/// Resolve STEAM_COMPAT_DATA_PATH for the game.
 /// Push dir if not already present.
 fn push_dll_dir_once(dirs: &mut Vec<String>, path: &Path) {
     let s = path.to_string_lossy().to_string();
@@ -1114,134 +663,31 @@ fn push_dll_dir_once(dirs: &mut Vec<String>, path: &Path) {
     }
 }
 
-fn game_compat_data_path(
-    library_root: &Path,
-    app_id: u32,
-    steam_mode: SteamMode,
-    steam_prefix_mode: crate::core::models::SteamPrefixMode,
-    master_wine_prefix: &Path,
-) -> PathBuf {
-    use crate::core::models::SteamPrefixMode;
-    if steam_mode == SteamMode::InWineRuntime && steam_prefix_mode == SteamPrefixMode::Shared {
-        if let Some(parent) = master_wine_prefix.parent() {
-            // Shareable only for proton pfx layout.
-            if parent.join("pfx") == master_wine_prefix {
-                return parent.to_path_buf();
-            }
-        }
-    }
-    crate::core::utils::compat_data_dir(library_root, app_id)
-}
-
 /// Which Steam-integration mode a launch runs in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SteamMode {
     /// Bridge to the **host** Steam client via Proton's `lsteamclient` (full online
-    /// Steamworks, Family-Shared licences). Chosen for `--steam` when a host Steam
-    /// install is present. DLL overrides stay at Proton's defaults so `lsteamclient`
-    /// loads builtin and bridges to the running client.
+    /// Steamworks, Family-Shared licences). DLL overrides stay at Proton's defaults so
+    /// `lsteamclient` loads builtin and bridges to the running client.
     HostBridge,
-    /// Run against the Windows Steam runtime installed **inside Wine**
-    /// (`aurelia steam-runtime install`): the game loads the real `steamclient.dll`
-    /// and connects to the in-Wine `steam.exe` Aurelia starts. Provides Steam DRM
-    /// (and offline Steamworks) with no host Steam install.
-    InWineRuntime,
     /// No Steam client — the standalone fake-Steam trap. DRM-protected games can't run.
     Standalone,
 }
 
-/// Resolve the Steam-integration mode, reconciling the `--steam` flag with the
-/// configurable [`SteamRuntimePolicy`] and which Steam installs are present.
-///
-/// The policy is the authoritative knob, resolved per-game first
-/// (`aurelia config game <id> --steam-runtime …`) and, when that is `Auto`, from the
-/// global default (`aurelia config steam-runtime-policy …`):
-///   - `Enabled`  — always use the in-Wine Steam runtime (real `steamclient.dll` +
-///                  the `steam.exe` Aurelia starts), even when a host Steam exists.
-///   - `Disabled` — never use the in-Wine runtime; `--steam` bridges to host Steam.
-///   - `Auto`     — `--steam` prefers the host client and falls back to the in-Wine
-///                  runtime when no host Steam is installed (previously it assumed a
-///                  host Steam and silently ran DRM-protected games without DRM,
-///                  issue #3). Without `--steam`, standalone.
-///
-/// Returns the mode and a short source label recorded in launch diagnostics.
-fn resolve_steam_mode(ctx: &LaunchContext) -> (SteamMode, &'static str) {
-    resolve_steam_mode_for(
-        ctx.user_config.as_ref(),
-        &ctx.launcher_config,
-        ctx.steam_enabled,
-    )
-}
-
-/// [`resolve_steam_mode`] without a launch context.
-pub fn resolve_steam_mode_for(
-    user_config: Option<&crate::core::models::UserAppConfig>,
-    launcher_config: &crate::core::config::LauncherConfig,
-    steam_enabled: bool,
-) -> (SteamMode, &'static str) {
-    use crate::core::models::SteamRuntimePolicy;
-
-    // Per-game policy wins; `Auto` inherits the global default. The deprecated
-    // per-game `use_steam_runtime` boolean still forces the runtime on.
-    let per_game = user_config
-        .map(|c| c.steam_runtime_policy)
-        .unwrap_or_default();
-    let legacy_forced = user_config.map(|c| c.use_steam_runtime).unwrap_or(false);
-    let effective = match per_game {
-        SteamRuntimePolicy::Auto if legacy_forced => SteamRuntimePolicy::Enabled,
-        SteamRuntimePolicy::Auto => launcher_config.steam_runtime_policy,
-        explicit => explicit,
-    };
-
-    let master_installed = || {
-        crate::core::utils::get_master_steam_config()
-            .steam_exe
-            .is_some()
-    };
-    let host_installed = || crate::core::utils::host_steam_client_path().is_some();
-
-    match effective {
-        // Explicitly configured to use the in-Wine runtime.
-        SteamRuntimePolicy::Enabled => {
-            if master_installed() {
-                (SteamMode::InWineRuntime, "policy_enabled")
-            } else if steam_enabled && host_installed() {
-                // Configured for the runtime but it isn't installed — honour --steam
-                // by bridging to host Steam rather than silently disabling DRM.
-                (SteamMode::HostBridge, "policy_enabled_host_fallback")
-            } else {
-                (SteamMode::Standalone, "policy_enabled_no_runtime")
-            }
-        }
-        // In-Wine runtime forbidden: --steam uses host Steam (or standalone).
-        SteamRuntimePolicy::Disabled => {
-            if steam_enabled && host_installed() {
-                (SteamMode::HostBridge, "host")
-            } else if steam_enabled {
-                (SteamMode::Standalone, "steam_flag_no_host")
-            } else {
-                (SteamMode::Standalone, "policy_disabled")
-            }
-        }
-        // Auto: --steam prefers host, else the in-Wine runtime, else standalone.
-        SteamRuntimePolicy::Auto => {
-            if !steam_enabled {
-                // Opportunistically bridge a running host Steam.
-                if host_installed() && crate::core::utils::is_steam_running() {
-                    tracing::info!("host Steam detected; bridging Steamworks");
-                    (SteamMode::HostBridge, "host_running_opportunistic")
-                } else {
-                    (SteamMode::Standalone, "default")
-                }
-            } else if host_installed() {
-                (SteamMode::HostBridge, "host")
-            } else if master_installed() {
-                (SteamMode::InWineRuntime, "steam_flag_no_host")
-            } else {
-                (SteamMode::Standalone, "steam_flag_no_steam")
-            }
-        }
+/// Resolve the Steam-integration mode. `--steam` (or a Family-Shared game) always
+/// bridges to the host client; otherwise a host Steam that is already running is
+/// bridged opportunistically, and the launch is standalone when none is.
+fn resolve_steam_mode(steam_enabled: bool) -> SteamMode {
+    if steam_enabled {
+        return SteamMode::HostBridge;
     }
+    if crate::core::utils::host_steam_client_path().is_some()
+        && crate::core::utils::is_steam_running()
+    {
+        tracing::info!("host Steam detected; bridging Steamworks");
+        return SteamMode::HostBridge;
+    }
+    SteamMode::Standalone
 }
 
 /// Per-game forced Proton/runner override, if one is configured.
@@ -1269,163 +715,5 @@ fn resolve_proton_required(ctx: &LaunchContext) -> std::result::Result<&str, Lau
                     "proton path is required for Windows launch",
                 )
             })
-    }
-}
-
-/// Resolve the command used to host the background Steam client under a BARE wine.
-///
-/// Background Steam must never be launched through the game runner's `proton run`
-/// protonfixes wrapper — it needs a plain wine so `steam.exe` runs as an ordinary
-/// Windows process. Resolution order:
-///   1. The explicitly configured `steam_runtime_runner`, resolved to its bare wine
-///      binary — a Proton tree is accepted and its bundled `files/bin/wine64` is used
-///      (NOT `proton run`), exactly as `steam-runtime install` resolves it.
-///   2. A wine-tkg / plain-Wine runtime (based on the game runner when it already is
-///      one).
-///   3. If the only available runtime is a Proton tree, its bundled bare
-///      `files/bin/wine64` directly (NOT `proton run`).
-/// If none of these yield a usable bare wine, a clear [`LaunchError`] is returned —
-/// it NEVER silently falls back to hosting Steam on the game's `proton run` runner.
-fn resolve_background_steam_command(
-    ctx: &LaunchContext,
-    library_root: &Path,
-) -> std::result::Result<Command, LaunchError> {
-    // 1. Prefer the explicitly configured Steam-runtime runner. Resolve it to the bare
-    //    wine binary the same way `steam-runtime install` does: this accepts a Proton
-    //    tree and uses the bare wine bundled inside it (`files/bin/wine64`), rather than
-    //    rejecting Proton or invoking the `proton run` wrapper.
-    let configured = &ctx.launcher_config.steam_runtime_runner;
-    if !configured.as_os_str().is_empty() {
-        let name = configured.to_string_lossy();
-        let bare_wine = crate::core::utils::resolve_steam_runtime_wine(&name, library_root)
-            .map_err(|e| {
-                LaunchError::new(
-                    LaunchErrorKind::Runner,
-                    format!(
-                        "configured steam_runtime_runner '{name}' could not be resolved to a bare wine for background Steam"
-                    ),
-                )
-                .with_source(e)
-            })?;
-        tracing::info!(
-            "Background Steam runner: configured steam_runtime_runner '{name}' -> bare wine {}",
-            bare_wine.display()
-        );
-        return Ok(Command::new(bare_wine));
-    }
-
-    // 2/3. Otherwise resolve a bare-wine runtime from what is available. The game
-    // runner is the runtime we know exists for this launch, so classify it.
-    let proton = resolve_proton_required(ctx)?;
-    let game_runner = crate::core::utils::resolve_runner(proton, library_root);
-    match crate::core::utils::classify_runner(&game_runner) {
-        crate::core::utils::RunnerKind::WineTkg | crate::core::utils::RunnerKind::PlainWine => {
-            tracing::info!(
-                "Background Steam runner: bare wine tree {}",
-                game_runner.display()
-            );
-            crate::core::utils::build_runner_command(&game_runner).map_err(|e| {
-                LaunchError::new(
-                    LaunchErrorKind::Runner,
-                    format!(
-                        "Invalid Compatibility Layer path: {}",
-                        game_runner.display()
-                    ),
-                )
-                .with_source(e)
-            })
-        }
-        crate::core::utils::RunnerKind::Proton => {
-            // Only a Proton tree is available — use its bundled bare wine directly,
-            // NOT `proton run` (the protonfixes wrapper is wrong for background Steam).
-            let bare = crate::core::utils::proton_bundled_bare_wine(&game_runner).ok_or_else(|| {
-                LaunchError::new(
-                    LaunchErrorKind::Environment,
-                    format!(
-                        "the only available runtime is a Proton tree ({}) but its bundled bare wine \
-                         (files/bin/wine64) could not be found; background Steam needs a bare wine",
-                        game_runner.display()
-                    ),
-                )
-            })?;
-            tracing::info!(
-                "Background Steam runner: Proton-bundled bare wine {}",
-                bare.display()
-            );
-            Ok(Command::new(bare))
-        }
-        crate::core::utils::RunnerKind::Unknown => Err(LaunchError::new(
-            LaunchErrorKind::Runner,
-            format!(
-                "no suitable Steam-runtime runner found for background Steam. Configure \
-                 `steam_runtime_runner` with a wine-tkg or plain-Wine build (the game runner '{}' \
-                 is not a usable bare-wine runtime)",
-                game_runner.display()
-            ),
-        )),
-    }
-}
-
-#[cfg(test)]
-mod compat_path_tests {
-    use super::*;
-    use crate::core::models::SteamPrefixMode;
-
-    #[test]
-    fn shared_inwine_resolves_to_master_pfx() {
-        let master = PathBuf::from("/home/u/.config/Aurelia/master_steam_prefix/pfx");
-        let got = game_compat_data_path(
-            Path::new("/games"),
-            123,
-            SteamMode::InWineRuntime,
-            SteamPrefixMode::Shared,
-            &master,
-        );
-        // Proton appends /pfx to compat path.
-        assert_eq!(got.join("pfx"), master);
-        assert_eq!(
-            got,
-            PathBuf::from("/home/u/.config/Aurelia/master_steam_prefix")
-        );
-    }
-
-    #[test]
-    fn per_game_inwine_uses_appid_compatdata() {
-        let master = PathBuf::from("/home/u/.config/Aurelia/master_steam_prefix/pfx");
-        let got = game_compat_data_path(
-            Path::new("/games"),
-            123,
-            SteamMode::InWineRuntime,
-            SteamPrefixMode::PerGame,
-            &master,
-        );
-        assert_eq!(got, PathBuf::from("/games/steamapps/compatdata/123"));
-    }
-
-    #[test]
-    fn standalone_uses_appid_compatdata() {
-        let master = PathBuf::from("/m/pfx");
-        let got = game_compat_data_path(
-            Path::new("/games"),
-            123,
-            SteamMode::Standalone,
-            SteamPrefixMode::Shared,
-            &master,
-        );
-        assert_eq!(got, PathBuf::from("/games/steamapps/compatdata/123"));
-    }
-
-    #[test]
-    fn root_layout_master_falls_back_to_appid() {
-        // Non-pfx master layout can't share.
-        let master = PathBuf::from("/home/u/.config/Aurelia/master_steam_prefix");
-        let got = game_compat_data_path(
-            Path::new("/games"),
-            123,
-            SteamMode::InWineRuntime,
-            SteamPrefixMode::Shared,
-            &master,
-        );
-        assert_eq!(got, PathBuf::from("/games/steamapps/compatdata/123"));
     }
 }

@@ -44,10 +44,9 @@ pub struct RunningGame {
     /// such a record never authorises signalling `pid`.
     #[serde(default)]
     pub pid_start_time: Option<u64>,
-    /// The per-game WINEPREFIX the game runs in, when launched through
-    /// Proton/Wine. Present only for per-game (compatdata) prefixes — never the
-    /// shared master prefix, which also hosts the Steam client. Lets `stop`
-    /// sweep leftover wine processes inside the prefix (Linux).
+    /// The per-game (compatdata) WINEPREFIX the game runs in, when launched
+    /// through Proton/Wine. Lets `stop` sweep leftover wine processes inside
+    /// the prefix.
     #[serde(default)]
     pub wineprefix: Option<PathBuf>,
 }
