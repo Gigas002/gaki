@@ -287,7 +287,7 @@ I make the changes, and you review, commit, and push.
   ids are now `windows-host` and `windows`. You can no longer force standalone
   while host Steam is running; that becomes a profile setting in 5.6. The
   README still describes the runtime; Phase 7 rewrites it.
-- [ ] **1.5** Restrict runtime downloads to official Proton (R22). Remove the
+- [x] **1.5** Restrict runtime downloads to official Proton (R22). Remove the
   Wine-TKG/GE downloaders (`infra/runners/wine_tkg.rs` and the related parts of
   `commands/runtimes.rs`) and the `tar`/`xz2`/`flate2` dependencies if nothing
   else uses them. Proton discovery checks, in order: system-wide
@@ -295,6 +295,20 @@ I make the changes, and you review, commit, and push.
   then Steam-installed official Proton apps. Installing official Proton
   (Experimental, or a numbered release) goes through the normal Steam app
   install path.
+  *Done.* `compat/proton.rs` lost the GitHub release fetching, asset
+  selection (arch/CachyOS microarch), tarball extraction and `remove`; it now
+  holds the official catalogue (`official_protons`, `find_official`) and
+  discovery (`search_dirs`, `list_installed`) in the order above. Every
+  directory in a `compatibilitytools.d` counts, so custom builds installed by
+  a distro package or by hand still run; only downloading them is gone.
+  `resolve_runner` uses the same order (the Lutris and
+  `<library>/compatibilitytools.d` lookups are dropped). `proton install` and
+  `proton uninstall` accept only official names and go through the Steam app
+  install/uninstall path; other names get an error pointing at the
+  `compatibilitytools.d` dirs. Removed `tar`, `flate2` and `xz2` and the
+  now-unused `byte_progress_printer`. `infra/runners/wine_tkg.rs` stays: it is
+  the Proton/Wine launch runner, not a downloader (it can be renamed with the
+  other identifiers in 2.4).
 - [ ] **1.6** Drop localized metadata (R20): `core/locale.rs`, the `--lang`
   flag, the `language`/`country` settings, and `tag_names.<lang>.json` caches.
   Keep the English defaults.

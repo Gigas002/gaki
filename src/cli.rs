@@ -392,7 +392,7 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: WorkshopCommand,
     },
-    /// Download and manage Proton/Wine runtimes.
+    /// Install and manage official Proton builds.
     Proton {
         #[command(subcommand)]
         command: ProtonCommand,
@@ -539,18 +539,18 @@ pub(crate) enum ConfigCommand {
 
 #[derive(Subcommand)]
 pub(crate) enum ProtonCommand {
-    /// List installable runtimes (Valve + GE) and what's already installed.
+    /// List installable official Proton builds and what's already installed.
     List {
-        /// Only show what's installed on disk (skips the GitHub/Valve lookup).
+        /// Only show what's installed on disk.
         #[arg(short = 'i', long)]
         installed: bool,
     },
-    /// Download and install a runtime by name (from `proton list`).
+    /// Install an official Proton build through Steam (names from `proton list`).
     Install {
-        /// Runtime name, e.g. `GE-Proton9-20` or `Proton 9.0`.
+        /// Runtime name, e.g. `Proton 9.0` or `Proton Experimental`.
         version: String,
     },
-    /// Uninstall an installed custom (GE) runtime from compatibilitytools.d.
+    /// Uninstall an official Proton build through Steam.
     Uninstall { version: String },
     /// Set the global default Proton/Wine version (used when a game has none set).
     Default { version: String },

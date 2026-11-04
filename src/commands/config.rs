@@ -241,7 +241,7 @@ pub(crate) async fn cmd_config_protons(json: bool) -> Result<()> {
         .collect();
     let custom: Vec<&str> = installed
         .iter()
-        .filter(|i| i.location == "custom")
+        .filter(|i| i.location != "steam")
         .map(|i| i.name.as_str())
         .collect();
 

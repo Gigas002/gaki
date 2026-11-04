@@ -8,7 +8,7 @@ use aurelia::core::models::{DepotPlatform, DownloadState};
 use aurelia::steam_client::InstallOptions;
 use std::sync::{Arc, RwLock};
 
-/// `proton list`: show installable runtimes and what's installed.
+/// `proton list`: show the installable official Proton builds and what's installed.
 pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<()> {
     let cfg = load_launcher_config().await?;
     let installed =
@@ -21,7 +21,7 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
             return Ok(());
         }
         if installed.is_empty() {
-            cli_println!("No Proton/Wine runtimes installed.");
+            cli_println!("No Proton runtimes installed.");
             return Ok(());
         }
         cli_println!("Installed runtimes:");
@@ -32,9 +32,7 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
         return Ok(());
     }
 
-    let available = aurelia::compat::proton::list_available()
-        .await
-        .unwrap_or_default();
+    let available = aurelia::compat::proton::official_protons();
     if json {
         print_json(&serde_json::json!({
             "default": default,
@@ -44,13 +42,8 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
         return Ok(());
     }
 
-    cli_println!("{:<10}  {:<28}  {:>10}  STATUS", "SOURCE", "NAME", "SIZE");
+    cli_println!("{:<8}  {:<28}  {:>8}  STATUS", "SOURCE", "NAME", "APP ID");
     for pkg in &available {
-        let size = if pkg.size > 0 {
-            human_bytes(pkg.size)
-        } else {
-            "-".to_string()
-        };
         let mut status = String::new();
         if is_installed(&pkg.name) {
             status.push_str("installed");
@@ -59,15 +52,15 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
             status.push_str(" *default");
         }
         cli_println!(
-            "{:<10}  {:<28}  {:>10}  {}",
-            pkg.label,
+            "{:<8}  {:<28}  {:>8}  {}",
+            "official",
             pkg.name,
-            size,
+            pkg.app_id,
             status.trim()
         );
     }
-    // Surface any installed runtime not present in the available list (e.g. an old GE
-    // build no longer in recent releases) so the user still sees everything on disk.
+    // Runtimes found on disk that aren't in the official list (custom builds in
+    // a compatibilitytools.d, or an older official release).
     for i in &installed {
         if !available
             .iter()
@@ -75,8 +68,8 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
         {
             let star = if i.name == default { " *default" } else { "" };
             cli_println!(
-                "{:<10}  {:<28}  {:>10}  installed{star}",
-                "(local)",
+                "{:<8}  {:<28}  {:>8}  installed{star}",
+                i.location,
                 i.name,
                 "-"
             );
@@ -86,41 +79,37 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
     Ok(())
 }
 
-/// `proton install`: download/install a runtime and make it the global default.
-pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()> {
-    let pkg = aurelia::compat::proton::resolve_package(&version).await?;
+/// Resolve `name` to an official Proton build, or explain why it can't be installed.
+fn official_or_bail(name: &str) -> Result<aurelia::compat::proton::ProtonPackage> {
+    aurelia::compat::proton::find_official(name).ok_or_else(|| {
+        anyhow::anyhow!(
+            "'{name}' is not an official Proton build (see `aurelia proton list`). \
+             Custom builds such as GE or CachyOS are not downloaded; install them into \
+             {} or ~/.steam/root/compatibilitytools.d and they are picked up automatically.",
+            aurelia::compat::proton::SYSTEM_COMPAT_TOOLS_DIR
+        )
+    })
+}
 
-    match &pkg.source {
-        aurelia::compat::proton::ProtonSource::Valve { app_id } => {
-            let app_id = *app_id;
-            if !json {
-                cli_println!("Installing {} via Steam (app {app_id}) ...", pkg.name);
-            }
-            let client = authed_client().await?;
-            let state = Arc::new(RwLock::new(DownloadState::default()));
-            let rx = client
-                .install_game(
-                    app_id,
-                    DepotPlatform::Linux,
-                    InstallOptions::default(),
-                    state,
-                )
-                .await
-                .with_context(|| format!("failed to start installing {}", pkg.name))?;
-            drive_progress(rx, json).await?;
-        }
-        aurelia::compat::proton::ProtonSource::Github { .. } => {
-            if !json {
-                cli_println!("Downloading {} ({}) ...", pkg.name, pkg.label);
-            }
-            let mut on_progress = byte_progress_printer(json);
-            let path =
-                aurelia::compat::proton::install_github_package(&pkg, &mut on_progress).await?;
-            if !json {
-                cli_println!("\n  Extracted to {}", path.display());
-            }
-        }
+/// `proton install`: install an official Proton build through Steam and make it
+/// the global default.
+pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()> {
+    let pkg = official_or_bail(&version)?;
+    if !json {
+        cli_println!("Installing {} via Steam (app {}) ...", pkg.name, pkg.app_id);
     }
+    let client = authed_client().await?;
+    let state = Arc::new(RwLock::new(DownloadState::default()));
+    let rx = client
+        .install_game(
+            pkg.app_id,
+            DepotPlatform::Linux,
+            InstallOptions::default(),
+            state,
+        )
+        .await
+        .with_context(|| format!("failed to start installing {}", pkg.name))?;
+    drive_progress(rx, json).await?;
 
     // The freshly installed runtime becomes the global default ("last downloaded").
     let mut cfg = load_launcher_config().await?;
@@ -132,6 +121,7 @@ pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()
     if json {
         print_json(&serde_json::json!({
             "name": pkg.name,
+            "app_id": pkg.app_id,
             "status": "installed",
             "default": true,
         }));
@@ -141,27 +131,34 @@ pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()
     Ok(())
 }
 
-/// `proton uninstall`: delete an installed custom (GE) runtime.
+/// `proton uninstall`: uninstall an official Proton build through Steam.
 pub(crate) async fn cmd_proton_uninstall(version: String, json: bool) -> Result<()> {
-    aurelia::compat::proton::remove(&version)
-        .with_context(|| format!("failed to uninstall {version}"))?;
+    let pkg = official_or_bail(&version)?;
+    let client = authed_client().await?;
+    client
+        .uninstall_game(pkg.app_id, false)
+        .await
+        .with_context(|| format!("failed to uninstall {}", pkg.name))?;
 
     // If it was the global default, the default now points at something gone; warn.
     let cfg = load_launcher_config().await?;
-    let was_default = cfg.proton_version.eq_ignore_ascii_case(&version);
+    let was_default = aurelia::compat::proton::find_official(&cfg.proton_version)
+        .is_some_and(|d| d.app_id == pkg.app_id);
 
     if json {
         print_json(&serde_json::json!({
-            "name": version,
+            "name": pkg.name,
+            "app_id": pkg.app_id,
             "status": "uninstalled",
             "was_default": was_default,
         }));
     } else {
-        cli_println!("Uninstalled {version}.");
+        cli_println!("Uninstalled {}.", pkg.name);
         if was_default {
             cli_eprintln!(
-                "Note: {version} was the global default — set a new one with \
-                 `aurelia proton default <NAME>`."
+                "Note: {} was the global default — set a new one with \
+                 `aurelia proton default <NAME>`.",
+                pkg.name
             );
         }
     }

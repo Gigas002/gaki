@@ -95,8 +95,8 @@ fn normalize_runner_name(s: &str) -> String {
 /// Resolve a Proton/Wine runtime *name* (e.g. `Proton 9.0`, `GE-Proton9-20`, the
 /// legacy default `experimental`) or path to an on-disk runtime directory/binary.
 ///
-/// Looks under the Steam library's `steamapps/common`, `compatibilitytools.d`
-/// (both the configured library and the detected Steam root), and Lutris. Falls
+/// Looks in [`crate::compat::proton::search_dirs`] order: the system-wide and
+/// user `compatibilitytools.d`, then the Steam library's `steamapps/common`. Falls
 /// back to a normalized fuzzy match so a configured name like `experimental`
 /// still finds Steam's `Proton - Experimental` directory. Returns the name as a
 /// path if nothing matches (the caller surfaces a clear error).
@@ -124,17 +124,11 @@ pub fn resolve_runner_opt(name: &str, library_root: &Path) -> Option<PathBuf> {
         return Some(name_path.to_path_buf());
     }
 
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let mut search_dirs: Vec<PathBuf> = vec![
-        library_root.join("steamapps/common"),
-        library_root.join("compatibilitytools.d"),
-    ];
-    // The Steam root's compatibilitytools.d (handles a non-standard / Flatpak Steam
-    // whose root differs from `library_root`).
-    if let Ok(compat) = crate::compat::proton::compat_tools_dir() {
-        search_dirs.push(compat);
-    }
-    search_dirs.push(PathBuf::from(&home).join(".local/share/lutris/runners/wine"));
+    // System-wide, then user compatibilitytools.d, then Steam-installed Proton.
+    let search_dirs: Vec<PathBuf> = crate::compat::proton::search_dirs(library_root)
+        .into_iter()
+        .map(|(dir, _)| dir)
+        .collect();
 
     // 1. Exact directory-name match (fast path: "Proton 9.0", "GE-Proton9-20").
     for dir in &search_dirs {

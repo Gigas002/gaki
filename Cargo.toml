@@ -42,11 +42,8 @@ tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 walkdir = "2"
 filetime = "0.2" # Stamp downloaded Cloud saves with their cloud mtime so re-sync doesn't churn
 zip = "2.2.2"
-tar = "0.4" # Extract downloaded Proton/Wine-GE runtime tarballs (.tar.gz/.tar.xz)
 hex = "0.4"
 sha1 = "0.10"
-flate2 = "1"
-xz2 = "0.1"
 cbc = "0.1"
 aes = "0.8"
 steam-cdn = { package = "aurelia-steam-cdn", version = "1.0.0" } # Fork ported to steam-vent 0.5

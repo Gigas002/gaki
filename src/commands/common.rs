@@ -362,25 +362,6 @@ pub(crate) fn available_space_for(path: &std::path::Path) -> Option<u64> {
 }
 
 /// Format a byte count as a human-readable size (binary units).
-/// Percent progress printer; JSON-silent.
-pub(crate) fn byte_progress_printer(json: bool) -> impl FnMut(u64, u64) {
-    let mut last_pct: i64 = -1;
-    move |done: u64, total: u64| {
-        if json || total == 0 {
-            return;
-        }
-        let pct = (done.saturating_mul(100) / total) as i64;
-        if pct != last_pct {
-            last_pct = pct;
-            cli_print!(
-                "\r  {pct:>3}%  ({} / {})        ",
-                human_bytes(done),
-                human_bytes(total)
-            );
-        }
-    }
-}
-
 pub(crate) fn human_bytes(bytes: u64) -> String {
     const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
     if bytes == 0 {
