@@ -15,6 +15,8 @@ name = "gaki"
 path = "src/main.rs"
 
 [dependencies]
+libgaki.workspace = true
+anyhow.workspace = true
 fuzzy-matcher = "0.3.7"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 # Render the Steam login QR challenge as terminal blocks on the login page.
@@ -26,3 +28,7 @@ reqwest = { workspace = true, features = ["blocking"] }
 serde.workspace = true
 serde_json.workspace = true
 shellexpand = "2.1.0"
+tokio.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

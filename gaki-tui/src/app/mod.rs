@@ -1,3 +1,10 @@
+//! Application state and the `libgaki` worker ([`worker`]).
+//!
+//! The splash and sign-in page builders below move to `ui/` with the rest of
+//! the layout work in Phase 4.5.
+
+pub mod worker;
+
 use crate::config::Config;
 use crate::theme;
 
@@ -7,7 +14,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-const SPLASH: &str = include_str!("../assets/splash.txt");
+const SPLASH: &str = include_str!("../../assets/splash.txt");
 
 pub struct App {
     pub mode: Mode,

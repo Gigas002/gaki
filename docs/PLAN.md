@@ -616,8 +616,19 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 4 — TUI on `libgaki` (R23)
 
-- [ ] **4.1** Add the async bridge (D6): an `app/` worker that owns the tokio
+- [x] **4.1** Add the async bridge (D6): an `app/` worker that owns the tokio
   runtime and a `libgaki` session, plus typed request and response channels.
+  *Done.* `gaki-tui/src/app/worker.rs`: `Worker::start()` builds a
+  multi-thread runtime (16 MiB task stacks, like the CLI) and spawns the
+  request loop. `request(Request) -> Ticket` and the non-blocking
+  `poll() -> Option<Reply>` cross over channels; each request runs as its own
+  task against a clone of one shared `SteamClient` (restores serialise on its
+  lock); dropping the worker shuts the runtime down with a 1 s grace. The
+  first requests are `SessionStatus` and `Restore`; 4.2 adds one per view.
+  `app.rs` moved to `app/mod.rs` unchanged (its page builders go to `ui/` in
+  4.5). `tests/worker.rs` round-trips both requests against an empty temp
+  config dir, with no network. The worker isn't started from `main` yet: 4.2
+  wires it in along with the proxy-env setup it needs.
 - [ ] **4.2** Port `interface/aurelia.rs` (subprocess calls plus output parsing)
   to direct `libgaki` calls, one view at a time: library, details, install and
   progress, launch and running, cloud, account and login, and the rest.
