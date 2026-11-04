@@ -3,87 +3,8 @@
 use crate::commands::common::*;
 
 use anyhow::Result;
-use libgaki::core::error::{ErrorKind, TypedError};
-use libgaki::core::utils::normalize_country;
-use libgaki::steam_client::{StoreAppInfo, StorePurchaseOption, unix_to_ymd};
-use std::time::Duration;
-
-/// Spacing between per-region StoreBrowse calls.
-const REGION_SPACING: Duration = Duration::from_millis(150);
-
-/// One region's quote for an app.
-#[derive(Debug, serde::Serialize)]
-struct PriceQuote {
-    country: String,
-    available: bool,
-    is_free: bool,
-    price: Option<String>,
-    price_cents: Option<i64>,
-    original_price: Option<String>,
-    original_price_cents: Option<i64>,
-    discount_pct: i32,
-    discount_end: Option<u64>,
-    discount_end_date: Option<String>,
-    purchase_options: Vec<StorePurchaseOption>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-}
-
-impl PriceQuote {
-    fn from_info(info: &StoreAppInfo) -> Self {
-        Self {
-            country: info.country.clone(),
-            available: !info.region_locked && (info.is_free || info.price.is_some()),
-            is_free: info.is_free,
-            price: info.price.clone(),
-            price_cents: info.price_cents,
-            original_price: info.original_price.clone(),
-            original_price_cents: info.original_price_cents,
-            discount_pct: info.discount_pct,
-            discount_end: info.discount_end,
-            discount_end_date: info.discount_end.map(|t| unix_to_ymd(t as i64)),
-            purchase_options: info.purchase_options.clone(),
-            error: None,
-        }
-    }
-
-    fn unavailable(country: &str, error: Option<String>) -> Self {
-        Self {
-            country: country.to_string(),
-            available: false,
-            is_free: false,
-            price: None,
-            price_cents: None,
-            original_price: None,
-            original_price_cents: None,
-            discount_pct: 0,
-            discount_end: None,
-            discount_end_date: None,
-            purchase_options: Vec::new(),
-            error,
-        }
-    }
-}
-
-/// `--compare` list, normalised and de-duplicated.
-fn parse_regions(compare: &[String]) -> Result<Vec<String>> {
-    let mut regions: Vec<String> = Vec::new();
-    for raw in compare.iter().flat_map(|s| s.split(',')) {
-        if raw.trim().is_empty() {
-            continue;
-        }
-        let cc = normalize_country(raw).ok_or_else(|| {
-            TypedError::new(
-                ErrorKind::InvalidInput,
-                format!("invalid country code `{raw}` — use two-letter ISO codes like US,DE,JP"),
-            )
-        })?;
-        if !regions.contains(&cc) {
-            regions.push(cc);
-        }
-    }
-    Ok(regions)
-}
+use libgaki::ops::store::{self, Listing};
+use libgaki::steam_client::{StoreAppInfo, unix_to_ymd};
 
 /// `aurelia price APPID [--compare CC,…]`.
 pub(crate) async fn cmd_price(
@@ -92,40 +13,16 @@ pub(crate) async fn cmd_price(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let mut regions = parse_regions(&compare)?;
+    let mut regions = store::parse_regions(&compare)?;
     if regions.is_empty() {
-        regions.push(libgaki::ops::store::resolve_country(country.as_deref())?);
+        regions.push(store::resolve_country(country.as_deref())?);
     }
 
     let client = authed_client().await?;
-    let mut name: Option<String> = None;
-    let mut quotes = Vec::with_capacity(regions.len());
-    for (i, region) in regions.iter().enumerate() {
-        if i > 0 {
-            tokio::time::sleep(REGION_SPACING).await;
-        }
-        let quote = match client.fetch_store_apps(&[app_id], region).await {
-            Ok(apps) => match apps.into_iter().find(|a| a.app_id == app_id) {
-                Some(info) => {
-                    if name.is_none() && !info.name.is_empty() {
-                        name = Some(info.name.clone());
-                    }
-                    PriceQuote::from_info(&info)
-                }
-                None => PriceQuote::unavailable(region, None),
-            },
-            Err(e) => PriceQuote::unavailable(region, Some(format!("{e:#}"))),
-        };
-        quotes.push(quote);
-    }
-
-    if name.is_none() {
-        return Err(TypedError::new(
-            ErrorKind::NotFound,
-            format!("no store information available for app {app_id}"),
-        )
-        .into());
-    }
+    let store::Prices {
+        name,
+        regions: quotes,
+    } = store::prices(&client, app_id, &regions).await?;
 
     if json {
         print_json(&serde_json::json!({
@@ -136,7 +33,7 @@ pub(crate) async fn cmd_price(
         return Ok(());
     }
 
-    cli_println!("{}  (app {app_id})", name.unwrap_or_default());
+    cli_println!("{name}  (app {app_id})");
     cli_println!(
         "{:<8} {:<14} {:<9} {:<14} {}",
         "Country",
@@ -203,107 +100,26 @@ pub(crate) async fn cmd_price(
     Ok(())
 }
 
-/// Store record, refetched when cached pre-S3 (no media).
-async fn store_info_with_media(app_id: u32) -> Result<StoreAppInfo> {
-    use libgaki::core::config::{info_cache_ttl, load_info_cache};
-    let country = libgaki::ops::store::DEFAULT_COUNTRY.to_string();
-    if let Some(cached) = load_info_cache(app_id, &country, info_cache_ttl()).await
-        && (!cached.details.screenshots.is_empty() || !cached.details.tags.is_empty())
-    {
-        return Ok(cached.details);
-    }
-    let client = authed_client().await?;
-    client
-        .fetch_store_apps(&[app_id], &country)
-        .await?
-        .into_iter()
-        .find(|a| a.app_id == app_id)
-        .ok_or_else(|| {
-            TypedError::new(
-                ErrorKind::NotFound,
-                format!("no store information available for app {app_id}"),
-            )
-            .into()
-        })
-}
-
-/// HEAD each URL, eight at a time.
-async fn probe_urls(urls: &[String]) -> Vec<Option<u16>> {
-    let Ok(client) = libgaki::core::net::http_client(Duration::from_secs(15)) else {
-        return vec![None; urls.len()];
-    };
-    let mut statuses = vec![None; urls.len()];
-    let indices: Vec<usize> = (0..urls.len()).collect();
-    for chunk in indices.chunks(8) {
-        let mut set = tokio::task::JoinSet::new();
-        for &i in chunk {
-            let client = client.clone();
-            let url = urls[i].clone();
-            set.spawn(async move {
-                let status = libgaki::core::net::send_with_retry(&client, client.head(&url))
-                    .await
-                    .ok()
-                    .map(|r| r.status().as_u16());
-                (i, status)
-            });
-        }
-        while let Some(Ok((i, status))) = set.join_next().await {
-            statuses[i] = status;
-        }
-    }
-    statuses
-}
-
 /// `aurelia image APPID --list [--probe]`: every asset URL.
 pub(crate) async fn cmd_image_list(app_id: u32, probe: bool, json: bool) -> Result<()> {
-    let info = store_info_with_media(app_id).await?;
-    let mut entries: Vec<(&str, String)> = Vec::new();
-    let a = &info.assets;
-    for (kind, url) in [
-        ("header", &a.header),
-        ("capsule", &a.capsule),
-        ("hero", &a.hero),
-        ("background", &a.background),
-        ("logo", &a.logo),
-    ] {
-        if let Some(u) = url {
-            entries.push((kind, u.clone()));
-        }
+    let info = store::record_with_media(app_id, authed_client).await?;
+    let mut entries = store::assets(&info);
+    if probe {
+        store::probe_assets(&mut entries).await;
     }
-    entries.extend(info.screenshots.iter().map(|u| ("screenshot", u.clone())));
-    for t in &info.trailers {
-        if let Some(u) = &t.thumbnail {
-            entries.push(("trailer_thumb", u.clone()));
-        }
-        if let Some(u) = &t.url {
-            entries.push(("trailer", u.clone()));
-        }
-    }
-
-    let urls: Vec<String> = entries.iter().map(|(_, u)| u.clone()).collect();
-    let statuses = if probe {
-        probe_urls(&urls).await
-    } else {
-        vec![None; entries.len()]
-    };
 
     if json {
-        let items: Vec<serde_json::Value> = entries
-            .iter()
-            .zip(&statuses)
-            .map(|((kind, url), status)| serde_json::json!({"kind": kind, "url": url, "status": status}))
-            .collect();
         print_json(&serde_json::json!({
             "app_id": app_id,
             "name": info.name,
             "probed": probe,
-            "assets": items,
+            "assets": entries,
         }));
         return Ok(());
     }
 
     cli_println!("{}  (app {app_id}): {} assets", info.name, entries.len());
-    for ((kind, url), status) in entries.iter().zip(&statuses) {
+    for store::Asset { kind, url, status } in &entries {
         let status = match status {
             Some(s) => s.to_string(),
             None if probe => "ERR".to_string(),
@@ -312,28 +128,13 @@ pub(crate) async fn cmd_image_list(app_id: u32, probe: bool, json: bool) -> Resu
         cli_println!("{kind:<14} {status:<4} {url}");
     }
     if probe {
-        let bad = statuses
+        let bad = entries
             .iter()
-            .filter(|s| !matches!(s, Some(200..=299)))
+            .filter(|a| !matches!(a.status, Some(200..=299)))
             .count();
         cli_println!("\n{} of {} URLs failed the probe", bad, entries.len());
     }
     Ok(())
-}
-
-/// Fetch full records for query ids, preserving order.
-async fn store_records(
-    client: &libgaki::steam_client::SteamClient,
-    ids: &[u32],
-    country: &str,
-) -> Result<Vec<StoreAppInfo>> {
-    if ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    let mut records = client.fetch_store_apps(ids, country).await?;
-    let position = |id: u32| ids.iter().position(|&x| x == id).unwrap_or(usize::MAX);
-    records.sort_by_key(|r| position(r.app_id));
-    Ok(records)
 }
 
 /// Compact JSON row for listings.
@@ -398,23 +199,26 @@ pub(crate) async fn cmd_search(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
+    let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
-    let page = client.search_store(&term, count, &country).await?;
-    let records = store_records(&client, &page.app_ids, &country).await?;
+    let Listing {
+        total,
+        suggestions,
+        records,
+    } = store::search(&client, &term, count, &country).await?;
     if json {
         print_json(&serde_json::json!({
             "term": term,
-            "total": page.total,
-            "suggestions": page.suggestions,
+            "total": total,
+            "suggestions": suggestions,
             "results": records.iter().map(store_row_json).collect::<Vec<_>>(),
         }));
         return Ok(());
     }
     if records.is_empty() {
         cli_println!("No store results for \"{term}\".");
-        if !page.suggestions.is_empty() {
-            cli_println!("Did you mean: {}", page.suggestions.join(", "));
+        if !suggestions.is_empty() {
+            cli_println!("Did you mean: {}", suggestions.join(", "));
         }
         return Ok(());
     }
@@ -432,23 +236,26 @@ pub(crate) async fn cmd_deals(
     json: bool,
 ) -> Result<()> {
     use libgaki::steam_client::DealsScope;
-    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
+    let country = store::resolve_country(country.as_deref())?;
     let scope = match scope {
         crate::cli::DealsScopeArg::DiscountedTopSellers => DealsScope::DiscountedTopSellers,
         crate::cli::DealsScopeArg::TopSellers => DealsScope::TopSellers,
         crate::cli::DealsScopeArg::Specials => DealsScope::Specials,
     };
     let client = authed_client().await?;
-    let page = client
-        .query_deals(scope, min_discount, start, count, &country)
-        .await?;
-    let records = store_records(&client, &page.app_ids, &country).await?;
+    let query = store::DealsQuery {
+        scope,
+        min_discount,
+        start,
+        count,
+    };
+    let Listing { total, records, .. } = store::deals(&client, query, &country).await?;
     if json {
         print_json(&serde_json::json!({
             "country": country,
             "scope": format!("{scope:?}"),
             "start": start,
-            "total": page.total,
+            "total": total,
             "results": records.iter().map(store_row_json).collect::<Vec<_>>(),
         }));
         return Ok(());
@@ -459,7 +266,7 @@ pub(crate) async fn cmd_deals(
     }
     cli_println!(
         "{scope:?} in {country} ({} matching, showing from {start}):",
-        page.total
+        total
     );
     print_store_table(&records);
     Ok(())
@@ -472,10 +279,11 @@ pub(crate) async fn cmd_similar(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
+    let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
-    let page = client.similar_apps(app_id, count, &country).await?;
-    let records = store_records(&client, &page.app_ids, &country).await?;
+    let records = store::similar(&client, app_id, count, &country)
+        .await?
+        .records;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
@@ -494,7 +302,7 @@ pub(crate) async fn cmd_similar(
 /// `aurelia players APPID`: current in-game count.
 pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let players = client.current_players(app_id).await?;
+    let players = store::players(&client, app_id).await?;
     if json {
         print_json(&serde_json::json!({ "app_id": app_id, "players": players }));
     } else {
@@ -505,9 +313,9 @@ pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
 
 /// `aurelia events`: active store sales and events.
 pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()> {
-    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
+    let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
-    let events = client.active_store_events(&country).await?;
+    let events = store::events(&client, &country).await?;
     if json {
         print_json(&serde_json::json!({ "country": country, "events": events }));
         return Ok(());
@@ -540,8 +348,7 @@ pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()
 
 /// `aurelia news APPID`: announcements from the storefront feed.
 pub(crate) async fn cmd_news(app_id: u32, count: u32, max_length: u32, json: bool) -> Result<()> {
-    let http = libgaki::core::net::steam_web_client()?;
-    let items = libgaki::web::discovery::fetch_news(&http, app_id, count, max_length).await?;
+    let items = store::news(app_id, count, max_length).await?;
     if json {
         print_json(&serde_json::json!({ "app_id": app_id, "news": items }));
         return Ok(());
@@ -571,7 +378,7 @@ pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Re
         count,
         cursor,
     } = args;
-    use libgaki::web::discovery::{ReviewQuery, fetch_reviews};
+    use libgaki::web::discovery::ReviewQuery;
     let query = ReviewQuery {
         filter,
         review_type,
@@ -579,8 +386,7 @@ pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Re
         count,
         cursor,
     };
-    let http = libgaki::core::net::steam_web_client()?;
-    let page = fetch_reviews(&http, app_id, &query).await?;
+    let page = store::reviews(app_id, &query).await?;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
@@ -629,49 +435,24 @@ pub(crate) async fn cmd_wishlist(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
+    let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
-    let own_id = client.steam_id();
-    let steam_id = match &user {
-        Some(u) => resolve_user_ident(&client, u).await?,
-        None => own_id.ok_or_else(|| {
-            TypedError::new(
-                ErrorKind::AuthRequired,
-                "not logged in — run `aurelia login` first",
-            )
-        })?,
+    let target = match &user {
+        Some(u) => Some(resolve_user_ident(&client, u).await?),
+        None => None,
     };
-    let is_own = own_id == Some(steam_id);
-    // Steam only serves friends' wishlists over the CM.
-    let entries = client.wishlist(steam_id).await.map_err(|e| {
-        if libgaki::core::error::classify(&e).kind == ErrorKind::AccessDenied {
-            TypedError::new(
-                ErrorKind::PrivacyRestricted,
-                format!("Steam does not expose the wishlist of {steam_id} to you (only friends' wishlists are readable)"),
-            )
-            .into()
-        } else {
-            e
-        }
-    })?;
-    if entries.is_empty() && !is_own {
-        return Err(TypedError::new(
-            ErrorKind::PrivacyRestricted,
-            format!("no wishlist items for {steam_id}: the wishlist may be private, friends-only, or empty"),
-        )
-        .into());
-    }
-    let total = entries.len();
-    let page: Vec<_> = entries.into_iter().skip(offset).take(count).collect();
-    let ids: Vec<u32> = page.iter().map(|e| e.app_id).collect();
-    let records = store_records(&client, &ids, &country).await?;
-    let record_for = |id: u32| records.iter().find(|r| r.app_id == id);
+    let store::Wishlist {
+        steam_id,
+        total,
+        items: page,
+    } = store::wishlist(&client, target, offset, count, &country).await?;
 
     if json {
         let items: Vec<serde_json::Value> = page
             .iter()
-            .map(|e| {
-                let mut v = record_for(e.app_id)
+            .map(|(e, record)| {
+                let mut v = record
+                    .as_ref()
                     .map(store_row_json)
                     .unwrap_or_else(|| serde_json::json!({ "app_id": e.app_id, "name": null }));
                 v["priority"] = e.priority.into();
@@ -706,13 +487,13 @@ pub(crate) async fn cmd_wishlist(
         "DISCOUNT",
         "ADDED"
     );
-    for e in &page {
+    for (e, record) in &page {
         let rank = if e.priority > 0 {
             e.priority.to_string()
         } else {
             "-".to_string()
         };
-        let (name, price, discount) = match record_for(e.app_id) {
+        let (name, price, discount) = match record {
             Some(r) => (
                 r.name.clone(),
                 r.price.clone().unwrap_or_else(|| "-".to_string()),
@@ -740,7 +521,7 @@ pub(crate) async fn cmd_wishlist(
 /// `aurelia wishlist add APPID`.
 pub(crate) async fn cmd_wishlist_add(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let count = client.wishlist_add(app_id).await?;
+    let count = store::wishlist_add(&client, app_id).await?;
     if json {
         print_json(
             &serde_json::json!({ "app_id": app_id, "status": "added", "wishlist_count": count }),
@@ -754,7 +535,7 @@ pub(crate) async fn cmd_wishlist_add(app_id: u32, json: bool) -> Result<()> {
 /// `aurelia wishlist remove APPID`.
 pub(crate) async fn cmd_wishlist_remove(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let count = client.wishlist_remove(app_id).await?;
+    let count = store::wishlist_remove(&client, app_id).await?;
     if json {
         print_json(
             &serde_json::json!({ "app_id": app_id, "status": "removed", "wishlist_count": count }),
@@ -777,7 +558,7 @@ pub(crate) async fn cmd_appinfo(app_id: u32) -> Result<()> {
 pub(crate) async fn cmd_tags(dump: bool, json: bool) -> Result<()> {
     crate::commands::auth::require_experimental("tags").await?;
     let client = authed_client().await?;
-    let tags = client.fetch_tag_list().await?;
+    let tags = store::tags(&client).await?;
     if json {
         print_json(
             &tags

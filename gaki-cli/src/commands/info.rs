@@ -4,11 +4,9 @@ use crate::steam_urls;
 
 use crate::commands::common::*;
 
-use anyhow::{Context, Result, bail};
-use libgaki::core::config::info_cache_ttl;
-use libgaki::core::config::load_info_cache;
-use libgaki::core::config::save_info_cache;
-use libgaki::steam_client::{SteamClient, StoreAppInfo};
+use anyhow::Result;
+use libgaki::ops::info::{self, AppInfo, ExtendedInfo, InfoRequest};
+use libgaki::steam_client::SteamClient;
 use std::path::PathBuf;
 
 pub(crate) async fn cmd_set_dlc(
@@ -23,15 +21,7 @@ pub(crate) async fn cmd_set_dlc(
     // Steam is stopped to survive. With --restart-steam: stop → edit → start.
     let manage_steam = steam_guard_stop_optional(restart_steam, json)?;
 
-    let base = client
-        .set_dlc_enabled(app_id, enable)
-        .await
-        .with_context(|| {
-            format!(
-                "failed to {} DLC {app_id}",
-                if enable { "enable" } else { "disable" }
-            )
-        })?;
+    let base = info::set_dlc(&client, app_id, enable).await?;
 
     steam_guard_restart(manage_steam, json)?;
     let steam_restarted = manage_steam;
@@ -67,10 +57,7 @@ pub(crate) async fn cmd_set_dlc(
 
 pub(crate) async fn cmd_branches(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let branches = client
-        .fetch_branches(app_id)
-        .await
-        .with_context(|| format!("failed to fetch branches for app {app_id}"))?;
+    let branches = info::branches(&client, app_id).await?;
     if json {
         print_json(&serde_json::json!({ "app_id": app_id, "branches": branches }));
         return Ok(());
@@ -87,10 +74,7 @@ pub(crate) async fn cmd_branches(app_id: u32, json: bool) -> Result<()> {
 
 pub(crate) async fn cmd_set_branch(app_id: u32, branch: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    client
-        .update_app_branch(app_id, &branch)
-        .await
-        .with_context(|| format!("failed to switch app {app_id} to branch {branch}"))?;
+    info::set_branch(&client, app_id, &branch).await?;
     if json {
         print_json(&serde_json::json!({ "app_id": app_id, "branch": branch, "status": "set" }));
     } else {
@@ -101,21 +85,6 @@ pub(crate) async fn cmd_set_branch(app_id: u32, branch: String, json: bool) -> R
     Ok(())
 }
 
-/// `--extended` data: CM fields plus web requirements.
-#[derive(Debug, Clone, Default)]
-pub(crate) struct ExtendedInfo {
-    pub genres: Vec<String>,
-    pub categories: Vec<String>,
-    pub metacritic: Option<i64>,
-    pub metacritic_url: Option<String>,
-    pub website: Option<String>,
-    pub requirements_minimum: Vec<String>,
-    pub requirements_recommended: Vec<String>,
-}
-
-/// `(dlc app id, store name)` pairs; `None` when the store has no name.
-type DlcNames = Vec<(u32, Option<String>)>;
-
 pub(crate) async fn cmd_info(
     app_ids: Vec<u32>,
     extended: bool,
@@ -124,174 +93,42 @@ pub(crate) async fn cmd_info(
     json: bool,
 ) -> Result<()> {
     // Country selects the price region and cache key.
-    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
-    // The CM-sourced metadata (StoreBrowse + the DLC list) is effectively static
-    // for hours, and drivers like Heroic call `info` repeatedly. Serve it from a
-    // short-TTL disk cache so a repeat call avoids the Steam CM logon and the
-    // StoreBrowse/PICS round-trips entirely. `--no-cache` forces a fresh fetch.
-    let ttl = if no_cache {
-        std::time::Duration::ZERO
-    } else {
-        info_cache_ttl()
+    let request = InfoRequest {
+        app_ids,
+        extended,
+        no_cache,
+        country: libgaki::ops::store::resolve_country(country.as_deref())?,
     };
-    let single = app_ids.len() == 1;
+    let infos = info::app_info(&request, authed_client).await?;
 
-    // Partition the requested ids into cache hits and misses. Every miss is then
-    // fetched over a *single* Steam logon with one batched StoreBrowse call, so
-    // `info 1 2 3` costs one logon — not the three a caller spends running `info 1`,
-    // `info 2`, `info 3` separately.
-    let mut base: std::collections::HashMap<u32, (StoreAppInfo, DlcNames)> =
-        std::collections::HashMap::new();
-    let mut misses: Vec<u32> = Vec::new();
-    for &id in &app_ids {
-        match load_info_cache(id, &country, ttl).await {
-            Some(cached) => {
-                base.insert(id, (cached.details, cached.dlc));
-            }
-            None => misses.push(id),
-        }
-    }
-
-    // One logon for misses and --extended alike.
-    let session = if !misses.is_empty() || extended {
-        Some(authed_client().await?)
-    } else {
-        None
-    };
-
-    if !misses.is_empty() {
-        // Metadata comes from the StoreBrowse service over the Steam CM connection
-        // (no HTTPS storefront API), so a session is needed here.
-        let client = session.as_ref().expect("session created for misses");
-        let store = client
-            .fetch_store_apps(&misses, &country)
-            .await
-            .context("failed to fetch store information")?;
-        for &id in &misses {
-            let Some(details) = store.iter().find(|i| i.app_id == id).cloned() else {
-                // A single-id caller expects a hard error for an unknown app; in a
-                // batch we skip it (with a warning) so one delisted id doesn't sink
-                // the rest.
-                if single {
-                    return Err(libgaki::core::error::TypedError::new(
-                        libgaki::core::error::ErrorKind::NotFound,
-                        format!("no store information available for app {id}"),
-                    )
-                    .into());
-                }
-                tracing::warn!("no store information available for app {id}; skipping");
-                continue;
-            };
-
-            // The DLC id list isn't part of StoreBrowse's per-item data; read it
-            // from PICS appinfo (`common.dlc`), then resolve the DLC names in a
-            // single batched StoreBrowse call.
-            let dlc_ids = client
-                .get_extended_app_info(id)
-                .await
-                .map(|e| e.dlcs)
-                .unwrap_or_default();
-            let dlc = resolve_dlc_names_via_store(client, &dlc_ids, &country).await;
-
-            // Best-effort cache write — a failure here must not fail the command.
-            if let Err(e) = save_info_cache(id, &country, &details, &dlc).await {
-                tracing::warn!("could not cache info for app {id}: {e:#}");
-            }
-            base.insert(id, (details, dlc));
-        }
-    }
-
-    // Extended: PICS + CM, requirements from web.
-    let mut extended_by_id: std::collections::HashMap<u32, ExtendedInfo> =
-        std::collections::HashMap::new();
-    if extended {
-        let client = session.as_ref().expect("session created for --extended");
-        let category_names = client.store_category_names().await.unwrap_or_else(|e| {
-            tracing::warn!("category names unavailable: {e:#}");
-            Default::default()
-        });
-        let http = libgaki::core::net::steam_web_client().ok();
-        for &id in &app_ids {
-            if !base.contains_key(&id) {
-                continue;
-            }
-            let mut ext = ExtendedInfo::default();
-            match client.get_extended_app_info(id).await {
-                Ok(pics) => {
-                    ext.metacritic = pics.metacritic_score;
-                    ext.metacritic_url = pics.metacritic_url;
-                    ext.website = pics.homepage;
-                    ext.genres = pics
-                        .genre_ids
-                        .iter()
-                        .filter_map(|&g| libgaki::steam_client::genres_table::genre_name(g))
-                        .map(String::from)
-                        .collect();
-                    ext.categories = pics
-                        .category_ids
-                        .iter()
-                        .filter_map(|c| category_names.get(c).cloned())
-                        .collect();
-                }
-                Err(e) => tracing::warn!("appinfo unavailable for app {id}: {e:#}"),
-            }
-            if let Some(http) = &http {
-                match libgaki::web::store::fetch_requirements(http, id, &country).await {
-                    Ok(Some(req)) => {
-                        ext.requirements_minimum = req.minimum;
-                        ext.requirements_recommended = req.recommended;
-                    }
-                    Ok(None) => {}
-                    Err(e) => tracing::warn!("requirements unavailable for app {id}: {e:#}"),
-                }
-            }
-            extended_by_id.insert(id, ext);
-        }
-    }
-
-    // --- Render in the order the ids were requested ---
     if json {
-        let items: Vec<serde_json::Value> = app_ids
-            .iter()
-            .filter_map(|id| {
-                base.get(id)
-                    .map(|(details, dlc)| info_json_value(details, dlc, extended_by_id.get(id)))
-            })
-            .collect();
-        // One id keeps the original single-object shape (backward compatible);
-        // several ids produce an array.
-        if single {
-            match items.into_iter().next() {
-                Some(v) => print_json(&v),
-                None => bail!("no store information available for app {}", app_ids[0]),
-            }
+        let mut items: Vec<serde_json::Value> = infos.iter().map(info_json_value).collect();
+        // One id keeps the single-object shape; several ids produce an array.
+        if request.app_ids.len() == 1 {
+            print_json(&items.remove(0));
         } else {
             print_json(&serde_json::Value::Array(items));
         }
         return Ok(());
     }
 
-    let mut first = true;
-    for id in &app_ids {
-        let Some((details, dlc)) = base.get(id) else {
-            continue;
-        };
-        if !first {
+    for (i, app) in infos.iter().enumerate() {
+        if i > 0 {
             cli_println!("\n{}", "─".repeat(60));
         }
-        first = false;
-        print_info_human(details, dlc, extended_by_id.get(id));
+        print_info_human(app);
     }
     Ok(())
 }
 
 /// Build the `--json` object for one app from its CM metadata, DLC list and
 /// optional `--extended` storefront data.
-pub(crate) fn info_json_value(
-    details: &StoreAppInfo,
-    dlc: &[(u32, Option<String>)],
-    extended_info: Option<&ExtendedInfo>,
-) -> serde_json::Value {
+pub(crate) fn info_json_value(app: &AppInfo) -> serde_json::Value {
+    let AppInfo {
+        details,
+        dlc,
+        extended,
+    } = app;
     let mut value = serde_json::json!({
         "app_id": details.app_id,
         "name": details.name,
@@ -332,7 +169,7 @@ pub(crate) fn info_json_value(
         },
         "dlc": dlc.iter().map(|(id, name)| serde_json::json!({"app_id": id, "name": name})).collect::<Vec<_>>(),
     });
-    if let Some(web) = extended_info {
+    if let Some(web) = extended {
         // `tags` kept for older consumers; now CM-sourced.
         let tag_names: Vec<&str> = details
             .tags
@@ -356,11 +193,13 @@ pub(crate) fn info_json_value(
 }
 
 /// Render the human-readable `info` block for one app to stdout.
-pub(crate) fn print_info_human(
-    details: &StoreAppInfo,
-    dlc: &[(u32, Option<String>)],
-    extended_info: Option<&ExtendedInfo>,
-) {
+pub(crate) fn print_info_human(app: &AppInfo) {
+    let AppInfo {
+        details,
+        dlc,
+        extended,
+    } = app;
+    let extended_info: Option<&ExtendedInfo> = extended.as_ref();
     // --- Header ---
     let ea = if details.is_early_access {
         " [Early Access]"
@@ -514,107 +353,29 @@ pub(crate) fn print_info_human(
     }
 }
 
-/// Resolve DLC names via a single batched `StoreBrowse.GetItems` call (over the
-/// Steam CM connection — no storefront API), returning `(app_id, name)` pairs
-/// sorted by app id. A `None` name means the store didn't return that id.
-pub(crate) async fn resolve_dlc_names_via_store(
-    client: &SteamClient,
-    dlc_ids: &[u32],
-    country: &str,
-) -> Vec<(u32, Option<String>)> {
-    if dlc_ids.is_empty() {
-        return Vec::new();
-    }
-    let name_by_id: std::collections::HashMap<u32, String> = client
-        .fetch_store_apps(dlc_ids, country)
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .map(|i| (i.app_id, i.name))
-        .collect();
-
-    let mut dlc: Vec<(u32, Option<String>)> = dlc_ids
-        .iter()
-        .map(|&id| (id, name_by_id.get(&id).cloned().filter(|s| !s.is_empty())))
-        .collect();
-    dlc.sort_by_key(|(id, _)| *id);
-    dlc
-}
-
-/// DLC store records keyed by id.
-pub(crate) async fn resolve_dlc_store_info(
-    client: &SteamClient,
-    dlc_ids: &[u32],
-    country: &str,
-) -> std::collections::HashMap<u32, StoreAppInfo> {
-    if dlc_ids.is_empty() {
-        return Default::default();
-    }
-    client
-        .fetch_store_apps(dlc_ids, country)
-        .await
-        .unwrap_or_else(|e| {
-            tracing::warn!("could not fetch DLC store records: {e:#}");
-            Vec::new()
-        })
-        .into_iter()
-        .map(|i| (i.app_id, i))
-        .collect()
-}
-
 pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
-    // Ownership status requires an authenticated connection; installed/disabled status
-    // is read from the local appmanifest.
+    // Ownership needs a session; installed/disabled come from the appmanifest.
     let steam = authed_client().await?;
-
-    // DLC ids come from PICS appinfo (`common.dlc`); names from a batched
-    // StoreBrowse call — both over the Steam CM connection, no storefront API.
-    let dlc_ids: Vec<u32> = steam
-        .get_extended_app_info(app_id)
-        .await
-        .map(|e| e.dlcs)
-        .unwrap_or_default();
-    let country = libgaki::ops::store::DEFAULT_COUNTRY.to_string();
-    let store = resolve_dlc_store_info(&steam, &dlc_ids, &country).await;
-    let mut dlc: Vec<(u32, Option<String>)> = dlc_ids
-        .iter()
-        .map(|&id| {
-            (
-                id,
-                store
-                    .get(&id)
-                    .map(|i| i.name.clone())
-                    .filter(|s| !s.is_empty()),
-            )
-        })
-        .collect();
-    dlc.sort_by_key(|(id, _)| *id);
-    let states = steam
-        .dlc_states(app_id, &dlc_ids)
-        .await
-        .with_context(|| format!("failed to resolve DLC status for app {app_id}"))?;
-    let state_by_id: std::collections::HashMap<u32, &libgaki::core::models::DlcState> =
-        states.iter().map(|s| (s.app_id, s)).collect();
+    let dlc = info::dlc_list(&steam, app_id).await?;
 
     if json {
         let value = serde_json::json!({
             "app_id": app_id,
-            "dlc": dlc.iter().map(|(id, name)| {
-                let s = state_by_id.get(id);
+            "dlc": dlc.iter().map(|d| {
+                let (id, s, store) = (&d.app_id, d.state.as_ref(), d.store.as_ref());
                 serde_json::json!({
                     "app_id": id,
-                    "name": name,
+                    "name": d.name,
                     "owned": s.map(|s| s.owned),
                     "installed": s.map(|s| s.installed),
                     "disabled": s.map(|s| s.disabled),
-                    "price": store.get(id).and_then(|i| i.price.clone()),
-                    "discount_pct": store.get(id).map(|i| i.discount_pct),
+                    "price": store.and_then(|i| i.price.clone()),
+                    "discount_pct": store.map(|i| i.discount_pct),
                     "discount_end_date": store
-                        .get(id)
                         .and_then(|i| i.discount_end)
                         .map(|t| libgaki::steam_client::unix_to_ymd(t as i64)),
-                    "release_date": store.get(id).and_then(|i| i.release_date.clone()),
-                    "reviews": store.get(id).and_then(|i| i.review_summary.clone()),
+                    "release_date": store.and_then(|i| i.release_date.clone()),
+                    "reviews": store.and_then(|i| i.review_summary.clone()),
                     "image_url": steam_urls::header_url(*id),
                     "image_fallback_url": steam_urls::small_capsule_url(*id),
                     "store_url": steam_urls::store_url(*id),
@@ -636,12 +397,12 @@ pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
         "STATUS",
         "PRICE"
     );
-    for (id, name) in &dlc {
-        let name = name
-            .clone()
-            .unwrap_or_else(|| "(name unavailable)".to_string());
-        let price = store
-            .get(id)
+    for d in &dlc {
+        let id = d.app_id;
+        let name = d.name.as_deref().unwrap_or("(name unavailable)");
+        let price = d
+            .store
+            .as_ref()
             .map(|i| {
                 let p = i.price.clone().unwrap_or_else(|| "-".to_string());
                 if i.discount_pct > 0 {
@@ -651,7 +412,7 @@ pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
                 }
             })
             .unwrap_or_else(|| "-".to_string());
-        let s = state_by_id.get(id);
+        let s = d.state.as_ref();
         let owned = match s.map(|s| s.owned) {
             Some(true) => "yes",
             Some(false) => "no",
@@ -673,17 +434,11 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
     use libgaki::steam_client::EncryptedTicketOutcome;
 
     let client = authed_client().await?;
-    let country = libgaki::ops::store::DEFAULT_COUNTRY.to_string();
-    let name = client
-        .fetch_store_apps(&[app_id], &country)
-        .await
-        .ok()
-        .and_then(|apps| apps.into_iter().find(|a| a.app_id == app_id))
-        .map(|a| a.name)
-        .filter(|n| !n.is_empty());
-
-    let ownership = client.get_app_ticket(app_id).await;
-    let encrypted = client.request_encrypted_app_ticket(app_id).await;
+    let info::DrmReport {
+        name,
+        ownership,
+        encrypted,
+    } = info::drm_check(&client, app_id).await;
 
     if json {
         let (enc_status, enc_bytes, enc_eresult) = match &encrypted {
@@ -695,7 +450,7 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
             "app_id": app_id,
             "name": name,
             "owned": ownership.is_ok(),
-            "ownership_ticket_bytes": ownership.as_ref().ok().map(|t| t.len()),
+            "ownership_ticket_bytes": ownership.as_ref().ok(),
             "ownership_error": ownership.as_ref().err().map(|e| format!("{e:#}")),
             "encrypted_ticket": {
                 "status": enc_status,
@@ -710,10 +465,9 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
     let title = name.unwrap_or_else(|| format!("app {app_id}"));
     cli_println!("DRM verification for {title} ({app_id})");
     match &ownership {
-        Ok(t) => cli_println!(
-            "  ownership ticket:     issued ({} bytes) — account holds a license",
-            t.len()
-        ),
+        Ok(len) => {
+            cli_println!("  ownership ticket:     issued ({len} bytes) — account holds a license")
+        }
         Err(e) => cli_println!("  ownership ticket:     not issued — {e:#}"),
     }
     match &encrypted {
@@ -736,10 +490,7 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
 
 pub(crate) async fn cmd_achievements(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let achievements = client
-        .fetch_achievements(app_id)
-        .await
-        .with_context(|| format!("failed to fetch achievements for app {app_id}"))?;
+    let achievements = info::achievements(&client, app_id).await?;
     let unlocked = achievements.iter().filter(|a| a.unlocked).count();
 
     if json {
@@ -794,10 +545,7 @@ pub(crate) async fn cmd_achievements(app_id: u32, json: bool) -> Result<()> {
 
 pub(crate) async fn cmd_depots(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let depots = client
-        .get_depot_list(app_id)
-        .await
-        .with_context(|| format!("failed to load depots for app {app_id}"))?;
+    let depots = info::depots(&client, app_id).await?;
 
     if json {
         let arr: Vec<_> = depots
@@ -830,10 +578,7 @@ pub(crate) async fn cmd_depots(app_id: u32, json: bool) -> Result<()> {
 
 pub(crate) async fn cmd_launch_options(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let options = client
-        .fetch_launch_options(app_id)
-        .await
-        .with_context(|| format!("failed to load launch options for app {app_id}"))?;
+    let options = info::launch_options(&client, app_id).await?;
 
     if json {
         let arr: Vec<_> = options
@@ -887,51 +632,7 @@ pub(crate) async fn cmd_image(
     force: bool,
     json: bool,
 ) -> Result<()> {
-    let cache_dir = libgaki::core::config::opensteam_image_cache_dir()?;
-    tokio::fs::create_dir_all(&cache_dir)
-        .await
-        .with_context(|| format!("failed creating {}", cache_dir.display()))?;
-    let cache_path = cache_dir.join(format!("{app_id}_library.jpg"));
-
-    if force || tokio::fs::metadata(&cache_path).await.is_err() {
-        // Steam CDN artwork variants, tried in order of preference.
-        let candidates = [
-            format!(
-                "https://cdn.akamai.steamstatic.com/steam/apps/{app_id}/library_600x900_2x.jpg"
-            ),
-            format!("https://cdn.akamai.steamstatic.com/steam/apps/{app_id}/header.jpg"),
-            format!("https://steamcdn-a.akamaihd.net/steam/apps/{app_id}/library_capsule_2x.jpg"),
-        ];
-
-        let mut downloaded = false;
-        for url in candidates {
-            match reqwest::get(&url).await {
-                Ok(resp) if resp.status().is_success() => {
-                    let bytes = resp.bytes().await.context("failed reading image bytes")?;
-                    tokio::fs::write(&cache_path, &bytes)
-                        .await
-                        .with_context(|| format!("failed writing {}", cache_path.display()))?;
-                    downloaded = true;
-                    break;
-                }
-                _ => continue,
-            }
-        }
-
-        if !downloaded {
-            bail!("no artwork found on the Steam CDN for app {app_id}");
-        }
-    }
-
-    let final_path = match output {
-        Some(out) => {
-            tokio::fs::copy(&cache_path, &out)
-                .await
-                .with_context(|| format!("failed writing {}", out.display()))?;
-            out
-        }
-        None => cache_path,
-    };
+    let final_path = info::artwork(app_id, output.as_deref(), force).await?;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,

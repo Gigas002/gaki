@@ -6,6 +6,7 @@
 
 pub mod auth;
 pub mod config;
+pub mod info;
 pub mod install;
 pub mod library;
 pub mod progress;

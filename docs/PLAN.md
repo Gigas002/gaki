@@ -455,7 +455,11 @@ I make the changes, and you review, commit, and push.
     sources, the NDJSON driver events and cancel watching, QR rendering,
     the experimental gate message, and `--reconnect` (daemon-only). Added 5
     tests.
-  - [ ] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
+  - [x] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
+    *Done.* `ops::info` (cached batched `app_info`, DLC lists, branches,
+    depots, achievements, launch options, DRM check, artwork) and
+    `ops::store` (prices, search/deals/similar, wishlist, assets, news,
+    reviews, tags). JSON shapes unchanged.
   - [ ] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
     move/relink/import, DLC, downgrade.
   - [ ] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
