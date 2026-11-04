@@ -1576,22 +1576,10 @@ impl Browser {
         let exe = exe.to_string_lossy().into_owned();
         let id = steamid.to_string();
 
-        #[cfg(windows)]
-        {
-            // `cmd /c start "<title>" "<program>" <args...>` opens a new console
-            // window. The quoted title positional is required so `start` does not
-            // treat the quoted program path as the window title.
-            let _ = std::process::Command::new("cmd")
-                .args(["/c", "start", "Aurelia Chat", &exe, "--chat", &id, &name])
-                .spawn();
-        }
-        #[cfg(not(windows))]
-        {
-            // Best-effort: launch the chat binary directly, detached.
-            let _ = std::process::Command::new(&exe)
-                .args(["--chat", &id, &name])
-                .spawn();
-        }
+        // Best-effort: launch the chat binary directly, detached.
+        let _ = std::process::Command::new(&exe)
+            .args(["--chat", &id, &name])
+            .spawn();
     }
 
     // --- Chat view ---

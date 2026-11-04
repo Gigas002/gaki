@@ -56,10 +56,6 @@ pub fn config(browser: &Browser) -> Table<'static> {
             row("Language", opt(&info.language)),
             row("Cloud sync", yes_no(info.enable_cloud_sync)),
             row("Shared compat data", yes_no(info.use_shared_compat_data)),
-            row(
-                "Windows discovery",
-                yes_no(info.windows_steam_discovery_enabled),
-            ),
             row("Luxtorpeda", yes_no(info.luxtorpeda_enabled)),
             row("Proxy", proxy_value(browser)),
             row(

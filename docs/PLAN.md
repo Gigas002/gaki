@@ -569,8 +569,18 @@ I make the changes, and you review, commit, and push.
   `.typos.toml`. CI installs `libssl-dev` (reqwest 0.11 uses native-tls until
   3.4) and codecov covers `gaki-tui`. Other aurelia names in the TUI (its
   strings, `~/.config/aurelia-tui`, `AURELIA_TUI_*`) are left for Phase 4/5.
-- [ ] **3.2** Strip Windows from the TUI: the `schannel` dependency, the
+- [x] **3.2** Strip Windows from the TUI: the `schannel` dependency, the
   `cmd`/`open` browser branches, and Windows path code.
+  *Done.* Dropped the `schannel` dependency and its comments, the
+  `cmd`/`open` branches (the browser is `xdg-open`), the `cmd /c start` chat
+  window, `PlayOpts::windows` (`play --windows`, removed in 1.1), and the
+  "Windows discovery" config row (its field is gone from gaki-cli). There was
+  no Windows path code. `schannel` stays in `Cargo.lock` only as a
+  Windows-target dependency of native-tls, until reqwest goes in 3.4.
+  **Left for Phase 4:** the TUI still wraps commands removed in 1.4
+  (`steam-runtime status|install|repair`, `config game … steam-runtime`,
+  `play --steam-mode`) in the engine pane, game config and launch targets.
+  They fail at runtime and go away when `interface/aurelia.rs` is ported.
 - [ ] **3.3** Strip HLTB: `interface/hltb.rs`, `ui/hltb.rs`,
   `tests/hltb_view.rs`, `tests/fixtures/hltb/`, `docs/HOWLONGTOBEAT.md`, and
   `scripts/test-hltb-terminal.py`. Also drop the TUI's `scripts/`, `assets/`

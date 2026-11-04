@@ -47,9 +47,8 @@ fn library_loads_and_maps_to_games() {
 #[test]
 #[ignore]
 fn https_proton_lookup_does_not_abort() {
-    // Regression: on Windows the native-TLS backend (schannel 0.1.20) aborted
-    // with a UB check during the TLS handshake. With rustls this HTTPS request
-    // must complete (returning Some/None) without crashing the process.
+    // This HTTPS request must complete (returning Some/None) without crashing
+    // the process.
     let _ = gaki_tui::interface::proton_data::ProtonData::get(1888160);
 }
 

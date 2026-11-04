@@ -151,9 +151,6 @@ pub struct ConfigJson {
     /// Whether games share a single compat-data prefix.
     #[serde(default)]
     pub use_shared_compat_data: bool,
-    /// Whether installed Windows Steam games are auto-discovered.
-    #[serde(default)]
-    pub windows_steam_discovery_enabled: bool,
     /// Whether the optional luxtorpeda native-engine plugin is enabled.
     #[serde(default)]
     pub luxtorpeda_enabled: bool,
@@ -2599,8 +2596,6 @@ pub struct GameConfigJson {
 pub struct PlayOpts {
     /// Force a specific Proton/Wine runner (`--proton <v>`).
     pub proton: Option<String>,
-    /// Run the Windows executable directly, no Proton layer (`--windows`).
-    pub windows: bool,
     /// Route through the luxtorpeda native-engine plugin (`--native-engine`).
     pub native_engine: bool,
     /// Wrap the launch through umu-launcher (`--umu`).
@@ -3198,9 +3193,6 @@ pub fn play_with(id: i32, opts: PlayOpts, status: Arc<Mutex<Option<GameStatus>>>
     if let Some(p) = &opts.proton {
         args.push("--proton");
         args.push(p);
-    }
-    if opts.windows {
-        args.push("--windows");
     }
     if opts.native_engine {
         args.push("--native-engine");
