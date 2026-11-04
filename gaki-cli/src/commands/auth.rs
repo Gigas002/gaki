@@ -489,7 +489,7 @@ pub(crate) fn report_login_success(account: &str, json: bool) {
 
 pub(crate) async fn cmd_logout(json: bool) -> Result<()> {
     let mut client = restored_client().await?;
-    client.logout().await?;
+    libgaki::ops::auth::logout(&mut client).await?;
     if json {
         print_json(&serde_json::json!({ "logged_out": true }));
     } else {

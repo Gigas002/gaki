@@ -404,7 +404,7 @@ I make the changes, and you review, commit, and push.
   processes named `aurelia`. User-facing strings and env vars still say
   aurelia until 2.4. `deploy.yml` already lists `gaki-tui`, which arrives in
   Phase 3; a release tag before then would fail on that row.
-- [ ] **2.3** Move all logic out of `gaki-cli/src/commands/` into `libgaki`, so
+- [x] **2.3** Move all logic out of `gaki-cli/src/commands/` into `libgaki`, so
   commands keep only argument mapping and output formatting (R23). Expect the
   heavy cases in `install.rs`, `info.rs`, `store.rs`, `auth.rs`, and
   `common.rs`. Output formatting (`core/output.rs`) moves to the CLI.
@@ -473,11 +473,44 @@ I make the changes, and you review, commit, and push.
     `SyncReport`, `files`), `ops::launch` (`targets`, `play` reporting
     `LaunchEvent`s, `running`, `stop`). Process admin (`kill`, `daemon
     stop/list`) stays in the CLI.
-  - [ ] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
+  - [x] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
     `commands/` holds only mapping and rendering; tick 2.3.
-- [ ] **2.4** Rename identifiers: `AURELIA_*` env vars become `GAKI_*`, user-facing
-  strings say gaki, the config dir moves to `gaki/`, and the user agent changes.
-  Grep for `aurelia` until only acknowledgements remain.
+    *Done.* `ops::social` (friends, profiles, chat stream helpers, labels),
+    `ops::market`, `ops::workshop` (browse with `Sort`, resolve, install,
+    subscribe, `status` with update detection, ratings, comments). The last
+    direct client calls in `commands/` (logout, appinfo debug) went through
+    `ops` too.
+- [ ] **2.4** Drop the `AURELIA_*` environment variables and rename to gaki.
+  Configuration comes only from CLI commands, flags and the config file.
+  - [ ] **2.4a** Replace every env var gaki *reads* with a flag or a config key,
+    then delete the env lookup:
+
+    | Env var | Replacement |
+    | --- | --- |
+    | `AURELIA_CONFIG_DIR` | global `--config-dir <PATH>` |
+    | `AURELIA_NO_DAEMON` | global `--no-daemon` |
+    | `AURELIA_NO_SPAWN` | global `--no-spawn` (use a running daemon, never start one) |
+    | `AURELIA_DAEMON_SOCKET` | global `--socket <PATH>`; `daemon --socket` passes it in-process instead of via `set_var` |
+    | `AURELIA_LOG`, `RUST_LOG` | global `--log <FILTER>` (alongside the existing verbosity flags) |
+    | `AURELIA_EXPERIMENTAL` | `config experimental` only; drop `experimental_env_override` |
+    | `AURELIA_INFO_CACHE_TTL` | config key `info_cache_ttl` (seconds; `0` disables) |
+    | `AURELIA_SCRIPT_DIR` | config key `script_dir` |
+    | `AURELIA_DISABLE_KEYRING` | config key `use_keyring` (default true) |
+    | `AURELIA_PASSWORD` | `login --password-stdin` (or the prompt) |
+    | `AURELIA_WEB_TOKEN` | `login --web-token <TOKEN>` / stdin, which already exist |
+
+    Library code takes these as parameters or reads the config; only
+    `gaki-cli` parses flags. Standard variables (`HOME`, `XDG_*`, proxy vars,
+    `DISPLAY`, `COLUMNS`, `PATH`, `LD_*`) stay as they are. Update the docs,
+    smoke-test recipe and CI that set these variables.
+  - [ ] **2.4b** Variables gaki *exports* to launch scripts and the game process
+    (`AURELIA_APP_ID`, `_APP_NAME`, `_GAME_DIR`, `_LAUNCH_PROGRAM`,
+    `_LAUNCH_ARGS`, `_STDOUT_LOG`, `_STDERR_LOG`) are the script interface and
+    can't be flags: rename them to `GAKI_*`, including the generated script
+    template.
+  - [ ] **2.4c** Rename the rest: user-facing strings and command hints say gaki,
+    the config dir moves to `gaki/`, the keyring service and user agent change.
+    Grep for `aurelia` until only acknowledgements remain.
 - [ ] **2.5** Move integration tests to their owning crate's `tests/`. Create
   `examples/` (empty placeholder until Phase 5) and move documentation into
   `docs/` (leave the README content split for Phase 7). Point the codecov

@@ -977,15 +977,16 @@ pub(crate) enum WorkshopSort {
     Text,
 }
 
-impl WorkshopSort {
-    pub(crate) fn query_type(self) -> u32 {
-        match self {
-            WorkshopSort::Trend => 3,
-            WorkshopSort::Popular => 0,
-            WorkshopSort::Recent => 1,
-            WorkshopSort::Updated => 21,
-            WorkshopSort::Subscriptions => 9,
-            WorkshopSort::Text => 12,
+impl From<WorkshopSort> for libgaki::ops::workshop::Sort {
+    fn from(value: WorkshopSort) -> Self {
+        use libgaki::ops::workshop::Sort;
+        match value {
+            WorkshopSort::Trend => Sort::Trend,
+            WorkshopSort::Popular => Sort::Popular,
+            WorkshopSort::Recent => Sort::Recent,
+            WorkshopSort::Updated => Sort::Updated,
+            WorkshopSort::Subscriptions => Sort::Subscriptions,
+            WorkshopSort::Text => Sort::Text,
         }
     }
 }

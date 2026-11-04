@@ -152,6 +152,11 @@ pub async fn secure_session(client: &SteamClient) {
     }
 }
 
+/// Drop the connection and delete the stored session.
+pub async fn logout(client: &mut SteamClient) -> Result<()> {
+    client.logout().await
+}
+
 /// The stored session, as seen without decrypting it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StoredSession {

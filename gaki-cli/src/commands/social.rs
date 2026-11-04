@@ -6,6 +6,7 @@ use crate::output;
 use crate::commands::common::*;
 
 use anyhow::Result;
+use libgaki::ops::social;
 
 /// `aurelia friends`: list the logged-in user's friends with status and game.
 ///
@@ -17,12 +18,7 @@ pub(crate) async fn cmd_friends(json: bool) -> Result<()> {
         daemon::shared_roster().await
     } else {
         let client = authed_client().await?;
-        let mut all = client
-            .collect_friends(std::time::Duration::from_secs(3))
-            .await?;
-        // Match the daemon view: only actual friends (relationship 3).
-        all.retain(|f| f.relationship == 3);
-        all
+        social::friends(&client, social::FRIENDS_WAIT).await?
     };
 
     if json {
@@ -62,7 +58,7 @@ pub(crate) async fn cmd_friends(json: bool) -> Result<()> {
 pub(crate) async fn cmd_user(user: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let steam_id = resolve_user_ident(&client, &user).await?;
-    let profile = client.user_profile(steam_id).await?;
+    let profile = social::profile(&client, steam_id).await?;
     if json {
         print_json(&profile);
         return Ok(());
@@ -79,12 +75,7 @@ pub(crate) async fn cmd_user(user: String, json: bool) -> Result<()> {
     if let Some(url) = &profile.avatar_url {
         cli_println!("Avatar   : {url}");
     }
-    let visibility = match profile.visibility {
-        3 => "public",
-        2 => "friends-only",
-        1 => "private",
-        _ => "unknown",
-    };
+    let visibility = social::visibility_label(profile.visibility);
     let limited = if profile.is_limited {
         ", limited account"
     } else {
@@ -139,7 +130,7 @@ pub(crate) async fn cmd_friends_search(query: String, json: bool) -> Result<()> 
 pub(crate) async fn cmd_friends_add(query: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let steam_id = resolve_user_ident(&client, &query).await?;
-    let added = client.add_friend(steam_id).await?;
+    let added = social::add_friend(&client, steam_id).await?;
     let name = added.persona_name;
 
     if json {
@@ -160,7 +151,7 @@ pub(crate) async fn cmd_friends_add(query: String, json: bool) -> Result<()> {
 /// `aurelia friends remove <steamid>`: remove a friend or cancel a pending request.
 pub(crate) async fn cmd_friends_remove(steamid: u64, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    client.remove_friend(steamid).await?;
+    social::remove_friend(&client, steamid).await?;
     if json {
         print_json(&serde_json::json!({ "steam_id": steamid, "status": "removed" }));
     } else {
@@ -172,7 +163,7 @@ pub(crate) async fn cmd_friends_remove(steamid: u64, json: bool) -> Result<()> {
 /// `aurelia chat send <steamid> <message>`: send a direct message to a friend.
 pub(crate) async fn cmd_chat_send(steamid: u64, message: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let sent = client.send_chat_message(steamid, message).await?;
+    let sent = social::send_message(&client, steamid, message).await?;
     if json {
         print_json(&serde_json::json!({
             "steamid": steamid,
@@ -189,7 +180,7 @@ pub(crate) async fn cmd_chat_send(steamid: u64, message: String, json: bool) -> 
 /// `aurelia chat history <steamid>`: show recent messages with a friend.
 pub(crate) async fn cmd_chat_history(steamid: u64, count: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let messages = client.recent_chat_messages(steamid, count).await?;
+    let messages = social::history(&client, steamid, count).await?;
     if json {
         print_json(&messages);
         return Ok(());
@@ -212,11 +203,7 @@ pub(crate) fn render_chat_event(target: u64, event: steam_vent_chat::ChatEvent, 
     use steam_vent_chat::ChatEvent;
     // Every event carries the conversation partner's SteamID; ignore events for
     // other conversations sharing this connection's notification stream.
-    let source = match &event {
-        ChatEvent::Message(e) | ChatEvent::EchoMessage(e) => u64::from(e.source),
-        ChatEvent::Typing(e) => u64::from(e.source),
-    };
-    if source != target {
+    if social::event_partner(&event) != target {
         return;
     }
     match event {
@@ -264,13 +251,8 @@ pub(crate) async fn cmd_chat_open(steamid: u64, json: bool) -> Result<()> {
     use tokio_stream::StreamExt;
 
     let client = authed_client().await?;
-    // Ensure the session is announced online so Steam delivers incoming messages
-    // (a no-op effect if the daemon's watcher already did this).
-    if let Err(e) = client.announce_configured_presence().await {
-        tracing::warn!("could not announce presence: {e:#}");
-    }
-
-    let chat = client.chat_client()?;
+    // Online, so Steam delivers incoming messages.
+    let chat = social::open_chat(&client).await?;
     let mut events = chat.listen();
 
     if json {
@@ -298,7 +280,7 @@ pub(crate) async fn cmd_chat_open(steamid: u64, json: bool) -> Result<()> {
                         if text.is_empty() {
                             continue;
                         }
-                        if let Err(e) = client.send_chat_message(steamid, text.to_string()).await {
+                        if let Err(e) = social::send_message(&client, steamid, text.to_string()).await {
                             if json {
                                 print_json_line(&serde_json::json!({
                                     "event": "error", "message": format!("{e:#}"),

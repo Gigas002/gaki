@@ -3,18 +3,10 @@
 use crate::cli::*;
 use crate::commands::common::*;
 
-use anyhow::{Context, Result, bail};
-use libgaki::core::models::DownloadState;
+use anyhow::{Result, bail};
+use libgaki::core::models::WorkshopItem;
+use libgaki::ops::workshop;
 use libgaki::steam_client::SteamClient;
-use std::sync::{Arc, RwLock};
-
-/// Human label for a Workshop entry kind.
-pub(crate) fn workshop_kind_label(kind: libgaki::core::models::WorkshopItemKind) -> &'static str {
-    match kind {
-        libgaki::core::models::WorkshopItemKind::Collection => "collection",
-        libgaki::core::models::WorkshopItemKind::Item => "item",
-    }
-}
 
 /// `workshop browse`: search/browse a game's Workshop to discover items.
 pub(crate) async fn cmd_workshop_browse(
@@ -27,16 +19,15 @@ pub(crate) async fn cmd_workshop_browse(
     json: bool,
 ) -> Result<()> {
     let client = authed_client().await?;
-    let page = client
-        .query_workshop_files(
-            app_id,
-            search.as_deref(),
-            sort.query_type(),
-            &cursor,
-            count,
-            &tags,
-        )
-        .await?;
+    let query = workshop::Query {
+        app_id,
+        search,
+        sort: sort.into(),
+        cursor: cursor.clone(),
+        count,
+        tags,
+    };
+    let page = workshop::browse(&client, &query).await?;
 
     if json {
         print_json(&serde_json::json!({
@@ -76,7 +67,7 @@ pub(crate) async fn cmd_workshop_browse(
 /// `workshop info`: show metadata for one or more published files.
 pub(crate) async fn cmd_workshop_info(ids: Vec<u64>, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let items = client.fetch_published_file_details(&ids).await?;
+    let items = workshop::details(&client, &ids).await?;
 
     if json {
         print_json(&items);
@@ -90,7 +81,7 @@ pub(crate) async fn cmd_workshop_info(ids: Vec<u64>, json: bool) -> Result<()> {
         cli_println!("ID      : {}", item.id);
         cli_println!("Title   : {}", item.title);
         cli_println!("App     : {}", item.app_id);
-        cli_println!("Type    : {}", workshop_kind_label(item.kind));
+        cli_println!("Type    : {}", workshop::kind_name(item.kind));
         if item.kind == libgaki::core::models::WorkshopItemKind::Collection {
             cli_println!("Items   : {}", item.children.len());
         } else {
@@ -109,8 +100,7 @@ pub(crate) async fn cmd_workshop_info(ids: Vec<u64>, json: bool) -> Result<()> {
 /// `workshop list`: the items you're subscribed to for a game.
 pub(crate) async fn cmd_workshop_list(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let ids = client.fetch_subscribed_items(app_id).await?;
-    let items = client.fetch_published_file_details(&ids).await?;
+    let items = workshop::subscribed(&client, app_id).await?;
 
     if json {
         print_json(&items);
@@ -133,48 +123,31 @@ pub(crate) async fn cmd_workshop_list(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// Expand collection ids to leaf item ids unless `no_recurse`.
-pub(crate) async fn workshop_resolve_ids(
-    client: &SteamClient,
-    ids: Vec<u64>,
-    no_recurse: bool,
-) -> Result<Vec<u64>> {
-    if no_recurse {
-        Ok(ids)
-    } else {
-        client.expand_collections(&ids).await
-    }
-}
-
 /// Connect, expand collections, resolve metadata.
 async fn resolve_workshop_items(
     ids: Vec<u64>,
     no_recurse: bool,
-) -> Result<(SteamClient, Vec<libgaki::core::models::WorkshopItem>)> {
+) -> Result<(SteamClient, Vec<WorkshopItem>)> {
     let client = authed_client().await?;
-    let leaf_ids = workshop_resolve_ids(&client, ids, no_recurse).await?;
-    let items = client.fetch_published_file_details(&leaf_ids).await?;
+    let items = workshop::resolve(&client, ids, !no_recurse).await?;
     Ok((client, items))
 }
 
 /// Run `op` per item, reporting progress.
 async fn for_each_workshop_item<'a, F, Fut>(
     client: &'a SteamClient,
-    items: &'a [libgaki::core::models::WorkshopItem],
+    items: &'a [WorkshopItem],
     past_tense: &str,
-    fail_verb: &str,
     json: bool,
     op: F,
 ) -> Result<Vec<u64>>
 where
-    F: Fn(&'a SteamClient, u64, u32) -> Fut,
+    F: Fn(&'a SteamClient, &'a WorkshopItem) -> Fut,
     Fut: Future<Output = Result<()>>,
 {
     let mut acted = Vec::new();
     for item in items {
-        op(client, item.id, item.app_id)
-            .await
-            .with_context(|| format!("failed to {fail_verb} Workshop item {}", item.id))?;
+        op(client, item).await?;
         acted.push(item.id);
         if !json {
             cli_println!("{past_tense} Workshop item {} ({}).", item.id, item.title);
@@ -189,12 +162,7 @@ async fn install_one_workshop_item(
     item: &libgaki::core::models::WorkshopItem,
     json: bool,
 ) -> Result<()> {
-    let state = Arc::new(RwLock::new(DownloadState::default()));
-    let rx = client
-        .install_workshop_item(item, state)
-        .await
-        .with_context(|| format!("failed to start install for Workshop item {}", item.id))?;
-    drive_progress(rx, json).await
+    workshop::install(client, item, |rx| drive_progress_until(rx, json)).await
 }
 
 /// `workshop install`: download item(s)/collection(s) and register them.
@@ -233,15 +201,8 @@ pub(crate) async fn cmd_workshop_uninstall(
     // GetDetails resolves each item's owning app id (needed to find its files).
     let (client, items) = resolve_workshop_items(ids, no_recurse).await?;
 
-    let removed = for_each_workshop_item(
-        &client,
-        &items,
-        "Uninstalled",
-        "uninstall",
-        json,
-        |c, id, app| c.uninstall_workshop_item(id, app),
-    )
-    .await?;
+    let removed =
+        for_each_workshop_item(&client, &items, "Uninstalled", json, workshop::uninstall).await?;
     if json {
         print_json(&serde_json::json!({ "uninstalled": removed }));
     } else if removed.is_empty() {
@@ -259,15 +220,8 @@ pub(crate) async fn cmd_workshop_subscribe(
 ) -> Result<()> {
     let (client, items) = resolve_workshop_items(ids, no_recurse).await?;
 
-    let subscribed = for_each_workshop_item(
-        &client,
-        &items,
-        "Subscribed to",
-        "subscribe to",
-        json,
-        |c, id, app| c.subscribe_published_file(id, app),
-    )
-    .await?;
+    let subscribed =
+        for_each_workshop_item(&client, &items, "Subscribed to", json, workshop::subscribe).await?;
 
     if install {
         for item in &items {
@@ -296,9 +250,8 @@ pub(crate) async fn cmd_workshop_unsubscribe(
         &client,
         &items,
         "Unsubscribed from",
-        "unsubscribe from",
         json,
-        |c, id, app| c.unsubscribe_published_file(id, app),
+        workshop::unsubscribe,
     )
     .await?;
     if json {
@@ -310,64 +263,7 @@ pub(crate) async fn cmd_workshop_unsubscribe(
 /// `workshop status`: installed vs subscribed (with update detection) for a game.
 pub(crate) async fn cmd_workshop_status(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let installed = client.read_installed_workshop(app_id).await?;
-    // Subscriptions and live manifests need the network; treat them as best-effort
-    // so `status` still reports the local install set when offline.
-    let subscribed = client
-        .fetch_subscribed_items(app_id)
-        .await
-        .unwrap_or_default();
-
-    // Union of installed + subscribed ids, to fetch current manifests for update detection.
-    let mut all_ids: Vec<u64> = installed.iter().map(|i| i.id).collect();
-    for &s in &subscribed {
-        if !all_ids.contains(&s) {
-            all_ids.push(s);
-        }
-    }
-    let details = client
-        .fetch_published_file_details(&all_ids)
-        .await
-        .unwrap_or_default();
-
-    // Index details and the installed set once, so resolving each row is a hash
-    // lookup rather than a linear scan per id (the loops below run twice over the
-    // same data in the JSON and human paths).
-    let detail_by_id: std::collections::HashMap<u64, &libgaki::core::models::WorkshopItem> =
-        details.iter().map(|d| (d.id, d)).collect();
-    let installed_by_id: std::collections::HashMap<u64, &_> =
-        installed.iter().map(|i| (i.id, i)).collect();
-
-    // Precompute each row's status once (id, title, installed, subscribed, update),
-    // shared by both the JSON and human renderings below.
-    struct StatusRow {
-        id: u64,
-        title: String,
-        installed: bool,
-        subscribed: bool,
-        update: bool,
-    }
-    let rows: Vec<StatusRow> = all_ids
-        .iter()
-        .map(|&id| {
-            let inst = installed_by_id.get(&id).copied();
-            let current_manifest = detail_by_id.get(&id).map(|d| d.hcontent_file);
-            let update = match (inst, current_manifest) {
-                (Some(i), Some(cur)) => cur != 0 && cur != i.manifest_id,
-                _ => false,
-            };
-            StatusRow {
-                id,
-                title: detail_by_id
-                    .get(&id)
-                    .map(|d| d.title.clone())
-                    .unwrap_or_default(),
-                installed: inst.is_some(),
-                subscribed: subscribed.contains(&id),
-                update,
-            }
-        })
-        .collect();
+    let rows = workshop::status(&client, app_id).await?;
 
     if json {
         let arr: Vec<_> = rows
@@ -378,7 +274,7 @@ pub(crate) async fn cmd_workshop_status(app_id: u32, json: bool) -> Result<()> {
                     "title": r.title,
                     "installed": r.installed,
                     "subscribed": r.subscribed,
-                    "update_available": r.update,
+                    "update_available": r.update_available,
                 })
             })
             .collect();
@@ -403,7 +299,7 @@ pub(crate) async fn cmd_workshop_status(app_id: u32, json: bool) -> Result<()> {
             r.id,
             if r.installed { "yes" } else { "no" },
             if r.subscribed { "yes" } else { "no" },
-            if r.update { "yes" } else { "-" },
+            if r.update_available { "yes" } else { "-" },
             r.title,
         );
     }
@@ -413,7 +309,7 @@ pub(crate) async fn cmd_workshop_status(app_id: u32, json: bool) -> Result<()> {
 /// `workshop rate`: thumbs-up/down a Workshop item.
 pub(crate) async fn cmd_workshop_rate(id: u64, up: bool, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    client.vote_workshop_item(id, up).await?;
+    workshop::rate(&client, id, up).await?;
     if json {
         print_json(&serde_json::json!({
             "id": id,
@@ -437,7 +333,7 @@ pub(crate) async fn cmd_workshop_comments_read(
     json: bool,
 ) -> Result<()> {
     let client = authed_client().await?;
-    let comments = client.workshop_comments(id, start, count).await?;
+    let comments = workshop::comments(&client, id, start, count).await?;
 
     if json {
         print_json(&serde_json::json!({ "id": id, "comments": comments }));
@@ -463,7 +359,7 @@ pub(crate) async fn cmd_workshop_comments_read(
 /// `workshop comment`: post a comment to a Workshop item.
 pub(crate) async fn cmd_workshop_comment(id: u64, text: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let comment_id = client.post_workshop_comment(id, &text).await?;
+    let comment_id = workshop::post_comment(&client, id, &text).await?;
     if json {
         print_json(&serde_json::json!({
             "id": id,

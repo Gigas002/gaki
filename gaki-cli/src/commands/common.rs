@@ -145,19 +145,7 @@ pub(crate) fn confirm_cloud_write(action: &str, count: usize, yes: bool, json: b
     )
 }
 
-/// Human label for a raw EPersonaState value.
-pub(crate) fn persona_state_label(state: Option<u32>) -> &'static str {
-    match state {
-        Some(0) | None => "offline",
-        Some(1) => "online",
-        Some(2) => "busy",
-        Some(3) => "away",
-        Some(4) => "snooze",
-        Some(5) => "looking to trade",
-        Some(6) => "looking to play",
-        Some(_) => "online",
-    }
-}
+pub(crate) use libgaki::ops::social::persona_state_label;
 
 pub(crate) fn yesno(b: bool) -> &'static str {
     if b { "yes" } else { "no" }

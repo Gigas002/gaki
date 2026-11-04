@@ -489,6 +489,7 @@ pub struct SteamClient {
 
 // SteamClient methods are implemented across these submodules.
 mod chat;
+pub use chat::{ChatMessage, SentMessage};
 mod client;
 mod friends;
 mod install;

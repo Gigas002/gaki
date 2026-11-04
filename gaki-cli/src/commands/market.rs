@@ -3,11 +3,12 @@
 use crate::commands::common::*;
 
 use anyhow::Result;
+use libgaki::ops::market;
 
 /// `aurelia inventory <appid>`: list the logged-in account's inventory for a game.
 pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Result<()> {
     let web = web_access().await?;
-    let items = libgaki::steam_client::inventory_via(&web, app_id, context).await?;
+    let items = market::inventory(&web, app_id, context).await?;
     if json {
         print_json(&items);
         return Ok(());
@@ -33,7 +34,7 @@ pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Resu
 /// `aurelia wallet`: show the account's Steam Wallet balance.
 pub(crate) async fn cmd_wallet(json: bool) -> Result<()> {
     let web = web_access().await?;
-    let w = libgaki::steam_client::wallet_via(&web).await?;
+    let w = market::wallet(&web).await?;
     if json {
         print_json(&serde_json::json!({
             "balance_cents": w.balance_cents,
@@ -57,7 +58,7 @@ pub(crate) async fn cmd_market_price(
     currency: u32,
     json: bool,
 ) -> Result<()> {
-    let price = libgaki::steam_client::market_price(app_id, &name, currency).await?;
+    let price = market::price(app_id, &name, currency).await?;
     if json {
         print_json(&serde_json::json!({
             "market_hash_name": price.market_hash_name,
@@ -84,8 +85,7 @@ pub(crate) async fn cmd_market_search(
     count: u32,
     json: bool,
 ) -> Result<()> {
-    let (total, results) =
-        libgaki::steam_client::market_search(query.as_deref(), app_id, count).await?;
+    let (total, results) = market::search(query.as_deref(), app_id, count).await?;
     if json {
         print_json(&serde_json::json!({ "total_count": total, "results": results }));
         return Ok(());
@@ -111,7 +111,7 @@ pub(crate) async fn cmd_market_search(
 /// `aurelia market listings`: the account's active listings and open buy orders.
 pub(crate) async fn cmd_market_listings(json: bool) -> Result<()> {
     let web = web_access().await?;
-    let state = libgaki::steam_client::my_listings_via(&web).await?;
+    let state = market::listings(&web).await?;
     if json {
         print_json(&state);
         return Ok(());

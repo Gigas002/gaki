@@ -125,9 +125,7 @@ pub async fn resolve_user_ident(
             let friends = match roster {
                 Some(friends) => friends,
                 None => {
-                    let mut all = client.collect_friends(Duration::from_secs(3)).await?;
-                    all.retain(|f| f.relationship == 3);
-                    all
+                    crate::ops::social::friends(client, crate::ops::social::FRIENDS_WAIT).await?
                 }
             };
             Ok(match_friend_name(&name, &friends)?.steam_id)

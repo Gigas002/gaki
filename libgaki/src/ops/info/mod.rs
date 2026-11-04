@@ -336,6 +336,11 @@ pub async fn launch_options(
         .with_context(|| format!("failed to load launch options for app {app_id}"))
 }
 
+/// The raw appinfo `common`/`extended` sections, for debugging.
+pub async fn appinfo_debug(client: &SteamClient, app_id: u32) -> Result<String> {
+    client.appinfo_debug(app_id).await
+}
+
 /// What Steam's DRM tickets say about an app.
 #[derive(Debug)]
 pub struct DrmReport {

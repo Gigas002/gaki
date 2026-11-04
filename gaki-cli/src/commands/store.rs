@@ -550,7 +550,10 @@ pub(crate) async fn cmd_wishlist_remove(app_id: u32, json: bool) -> Result<()> {
 pub(crate) async fn cmd_appinfo(app_id: u32) -> Result<()> {
     crate::commands::auth::require_experimental("appinfo").await?;
     let client = authed_client().await?;
-    cli_println!("{}", client.appinfo_debug(app_id).await?);
+    cli_println!(
+        "{}",
+        libgaki::ops::info::appinfo_debug(&client, app_id).await?
+    );
     Ok(())
 }
 

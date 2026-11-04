@@ -413,7 +413,7 @@ pub async fn shared_roster() -> Vec<Friend> {
         let roster = state.roster.read().unwrap();
         roster
             .values()
-            .filter(|f| f.relationship == 3)
+            .filter(|f| libgaki::ops::social::is_friend(f))
             .cloned()
             .collect()
     };
