@@ -162,10 +162,10 @@ pub fn launch_targets(
     }
 
     // Fallback default: first available.
-    if !targets.iter().any(|t| t.default) {
-        if let Some(first) = targets.iter_mut().find(|t| t.available) {
-            first.default = true;
-        }
+    if !targets.iter().any(|t| t.default)
+        && let Some(first) = targets.iter_mut().find(|t| t.available)
+    {
+        first.default = true;
     }
     targets
 }
@@ -186,13 +186,12 @@ fn pick_launch_entry(
     });
 
     // Explicit per-game preference beats the manifest.
-    if prefer_native_target {
-        if let Some(entry) = launch_options
+    if prefer_native_target
+        && let Some(entry) = launch_options
             .iter()
             .find(|o| o.target == LaunchTarget::NativeLinux && exe_exists(o))
-        {
-            return Some(entry.clone());
-        }
+    {
+        return Some(entry.clone());
     }
 
     if prefer_windows_target {
@@ -222,7 +221,14 @@ fn pick_launch_entry(
     }
 }
 
+/// Called once the launch target is known, with its id (`None` for native).
+pub type TargetResolvedHook = dyn Fn(Option<&str>) + Send + Sync;
+
 impl SteamClient {
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "launch options; folded into resolved settings in Phase 5"
+    )]
     pub async fn play_game(
         &mut self,
         app: &LibraryGame,
@@ -232,7 +238,7 @@ impl SteamClient {
         disable_launch_script: bool,
         steam_enabled: bool,
         prefer_native_target: bool,
-        on_target_resolved: Option<&(dyn Fn(Option<&str>) + Send + Sync)>,
+        on_target_resolved: Option<&TargetResolvedHook>,
     ) -> Result<LaunchInfo> {
         // A Family-Shared game (licensed to another account) can only be authorised
         // by a running Steam client, so it always needs Steam integration regardless
@@ -423,25 +429,24 @@ impl SteamClient {
         crate::compat::running::clear(app.app_id);
         wait_result?;
 
-        if cloud_enabled {
-            if let (Some(client), Some(resolver)) = (cloud_client.as_ref(), cloud_resolver.as_ref())
-            {
-                // The game has already run and exited, so a cloud-upload failure must not
-                // be surfaced as a launch failure. Log it and continue (this mirrors the
-                // best-effort sync_down before launch).
-                match client.sync_up(app.app_id, resolver, &cloud_specs).await {
-                    Ok(outcome) if outcome.has_conflicts() => tracing::warn!(
+        if cloud_enabled
+            && let (Some(client), Some(resolver)) = (cloud_client.as_ref(), cloud_resolver.as_ref())
+        {
+            // The game has already run and exited, so a cloud-upload failure must not
+            // be surfaced as a launch failure. Log it and continue (this mirrors the
+            // best-effort sync_down before launch).
+            match client.sync_up(app.app_id, resolver, &cloud_specs).await {
+                Ok(outcome) if outcome.has_conflicts() => tracing::warn!(
+                    appid = app.app_id,
+                    "{} Cloud save(s) diverged on upload — left untouched; resolve with `aurelia cloud sync`",
+                    outcome.conflicts.len()
+                ),
+                Ok(_) => tracing::info!(appid = app.app_id, "Upload Complete"),
+                Err(e) => {
+                    tracing::warn!(
                         appid = app.app_id,
-                        "{} Cloud save(s) diverged on upload — left untouched; resolve with `aurelia cloud sync`",
-                        outcome.conflicts.len()
-                    ),
-                    Ok(_) => tracing::info!(appid = app.app_id, "Upload Complete"),
-                    Err(e) => {
-                        tracing::warn!(
-                            appid = app.app_id,
-                            "Cloud upload failed (continuing): {e:#}"
-                        )
-                    }
+                        "Cloud upload failed (continuing): {e:#}"
+                    )
                 }
             }
         }

@@ -10,9 +10,11 @@ async fn wraps_spec_with_override_script() {
     std::fs::write(&script, "exec \"$@\"\n").unwrap();
 
     let mut ctx = PipelineContext::new(555);
-    let mut spec = CommandSpec::default();
-    spec.program = PathBuf::from("/usr/bin/proton");
-    spec.args = vec!["run".to_string(), "game.exe".to_string()];
+    let spec = CommandSpec {
+        program: PathBuf::from("/usr/bin/proton"),
+        args: vec!["run".to_string(), "game.exe".to_string()],
+        ..Default::default()
+    };
     ctx.command_spec = Some(spec);
     ctx.launch_script_override = Some(script.clone());
 
@@ -39,8 +41,10 @@ async fn wraps_spec_with_override_script() {
 #[tokio::test]
 async fn missing_explicit_script_errors() {
     let mut ctx = PipelineContext::new(555);
-    let mut spec = CommandSpec::default();
-    spec.program = PathBuf::from("/usr/bin/proton");
+    let spec = CommandSpec {
+        program: PathBuf::from("/usr/bin/proton"),
+        ..Default::default()
+    };
     ctx.command_spec = Some(spec);
     ctx.launch_script_override = Some(PathBuf::from("/no/such/script.sh"));
 
@@ -51,6 +55,10 @@ async fn missing_explicit_script_errors() {
 }
 
 #[tokio::test]
+#[expect(
+    clippy::await_holding_lock,
+    reason = "the guard serialises AURELIA_SCRIPT_DIR across tests for the whole body"
+)]
 async fn no_script_is_noop() {
     let _guard = crate::launch::launch_script::SCRIPT_DIR_ENV_LOCK
         .lock()
@@ -58,9 +66,11 @@ async fn no_script_is_noop() {
     let tmp = tempdir().unwrap();
     unsafe { std::env::set_var("AURELIA_SCRIPT_DIR", tmp.path()) };
     let mut ctx = PipelineContext::new(555);
-    let mut spec = CommandSpec::default();
-    spec.program = PathBuf::from("/usr/bin/proton");
-    spec.args = vec!["run".to_string()];
+    let spec = CommandSpec {
+        program: PathBuf::from("/usr/bin/proton"),
+        args: vec!["run".to_string()],
+        ..Default::default()
+    };
     ctx.command_spec = Some(spec);
 
     let stage = ApplyLaunchScriptStage;
@@ -80,8 +90,10 @@ async fn disabled_skips_wrapping() {
     std::fs::write(&script, "exec \"$@\"\n").unwrap();
 
     let mut ctx = PipelineContext::new(555);
-    let mut spec = CommandSpec::default();
-    spec.program = PathBuf::from("/usr/bin/proton");
+    let spec = CommandSpec {
+        program: PathBuf::from("/usr/bin/proton"),
+        ..Default::default()
+    };
     ctx.command_spec = Some(spec);
     ctx.launch_script_override = Some(script);
     ctx.disable_launch_script = true;

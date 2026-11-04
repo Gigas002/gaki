@@ -116,10 +116,10 @@ impl Runner for WineTkgRunner {
             .or_else(|| ctx.proton_path.as_deref().filter(|p| !p.is_empty()))
             .unwrap_or("wine");
 
-        let active_runner_path = crate::core::utils::resolve_runner(proton, &library_root);
+        let active_runner_path = crate::core::utils::resolve_runner(proton, library_root);
         let _components = crate::core::utils::detect_runner_components(
             &active_runner_path,
-            Some(&effective_game_prefix),
+            Some(effective_game_prefix),
         );
 
         // 1. Resolve DX8-11 policy (GraphicsBackendPolicy) - CONSERVATIVE
@@ -273,24 +273,24 @@ impl Runner for WineTkgRunner {
                     continue;
                 }
 
-                if let Some(path) = &res.chosen_path {
-                    if let Some(parent) = path.parent() {
-                        push_dll_dir_once(&mut wine_dll_dirs, parent);
+                if let Some(path) = &res.chosen_path
+                    && let Some(parent) = path.parent()
+                {
+                    push_dll_dir_once(&mut wine_dll_dirs, parent);
 
-                        // For Wine-TKG and similar layouts, we must ensure both 64-bit and 32-bit
-                        // architecture folders are in WINEDLLPATH if they exist, so that both
-                        // architectures of a game find their respective native DLLs.
-                        let folder_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                        let sibling_arch = match folder_name {
-                            "x86_64-windows" => Some("i386-windows"),
-                            "i386-windows" => Some("x86_64-windows"),
-                            _ => None,
-                        };
-                        if let Some(arch) = sibling_arch {
-                            let sibling = parent.parent().unwrap().join(arch);
-                            if sibling.exists() {
-                                push_dll_dir_once(&mut wine_dll_dirs, &sibling);
-                            }
+                    // For Wine-TKG and similar layouts, we must ensure both 64-bit and 32-bit
+                    // architecture folders are in WINEDLLPATH if they exist, so that both
+                    // architectures of a game find their respective native DLLs.
+                    let folder_name = parent.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                    let sibling_arch = match folder_name {
+                        "x86_64-windows" => Some("i386-windows"),
+                        "i386-windows" => Some("x86_64-windows"),
+                        _ => None,
+                    };
+                    if let Some(arch) = sibling_arch {
+                        let sibling = parent.parent().unwrap().join(arch);
+                        if sibling.exists() {
+                            push_dll_dir_once(&mut wine_dll_dirs, &sibling);
                         }
                     }
                 }
@@ -303,7 +303,7 @@ impl Runner for WineTkgRunner {
         // dirs (`files/lib`, `files/lib64`) where modern WOW64 builds keep their
         // unix-bridge `.so` libs (so ntdll.dll resolves in syswow64), and both the
         // `-windows` (PE) and `-unix` (WOW64 bridge) arch subdirs.
-        let active_runner = crate::core::utils::resolve_runner(proton, &library_root);
+        let active_runner = crate::core::utils::resolve_runner(proton, library_root);
         let runner_root = crate::core::utils::derive_runner_root(&active_runner);
         for lib_sub in crate::compat::proton::UNIFIED_LIB_SUBDIRS {
             let p = runner_root.join(lib_sub);

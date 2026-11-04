@@ -45,7 +45,7 @@ const PERSONA_DRAIN_IDLE: std::time::Duration = std::time::Duration::from_millis
 pub struct Friend {
     /// SteamID64 of the friend.
     pub steam_id: u64,
-    /// Raw EFriendRelationship value (see [`RELATIONSHIP_FRIEND`]).
+    /// Raw EFriendRelationship value (see `RELATIONSHIP_FRIEND`).
     pub relationship: u32,
     /// Display name, if a persona state update has supplied one.
     pub persona_name: Option<String>,
@@ -177,10 +177,10 @@ fn drain_unprocessed_into(connection: &Connection, roster: &mut Roster) {
             if let Ok(msg) = raw.into_message::<CMsgClientFriendsList>() {
                 lists.push(msg);
             }
-        } else if raw.kind == <CMsgClientPersonaState as NetMessage>::KIND {
-            if let Ok(msg) = raw.into_message::<CMsgClientPersonaState>() {
-                personas.push(msg);
-            }
+        } else if raw.kind == <CMsgClientPersonaState as NetMessage>::KIND
+            && let Ok(msg) = raw.into_message::<CMsgClientPersonaState>()
+        {
+            personas.push(msg);
         }
     }
     for list in &lists {

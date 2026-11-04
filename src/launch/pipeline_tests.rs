@@ -119,10 +119,7 @@ fn test_map_io_error_permission_denied() {
 #[test]
 fn test_map_io_error_lock_detected() {
     // Simulating a "Resource busy" or "locked" error which often maps to 'Other' or 'WouldBlock' in std::io
-    let err = std::io::Error::new(
-        std::io::ErrorKind::Other,
-        "file is locked by another process",
-    );
+    let err = std::io::Error::other("file is locked by another process");
     let mapped = map_io_error(&err, None);
     assert_eq!(mapped.kind, LaunchErrorKind::Process);
     assert!(mapped.message.contains("locked by another process"));
@@ -130,7 +127,7 @@ fn test_map_io_error_lock_detected() {
 
 #[test]
 fn test_map_io_error_with_explicit_dup_info() {
-    let err = std::io::Error::new(std::io::ErrorKind::Other, "generic error");
+    let err = std::io::Error::other("generic error");
     let info = DuplicateInstanceInfo {
         detected: true,
         source: "lockfile".to_string(),
@@ -159,8 +156,10 @@ fn test_detect_duplicate_instance_lockfile() {
     std::fs::write(&lockfile, "").unwrap();
 
     let mut ctx = PipelineContext::new(123);
-    let mut spec = CommandSpec::default();
-    spec.cwd = Some(tmp.path().to_path_buf());
+    let spec = CommandSpec {
+        cwd: Some(tmp.path().to_path_buf()),
+        ..Default::default()
+    };
     ctx.command_spec = Some(spec);
 
     let info = detect_duplicate_instance(&ctx);

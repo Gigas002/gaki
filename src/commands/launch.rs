@@ -82,6 +82,10 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "one argument per CLI flag; replaced by resolved settings in Phase 5"
+)]
 pub(crate) async fn cmd_play(
     app_id: u32,
     proton: Option<String>,

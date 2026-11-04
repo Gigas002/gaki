@@ -264,10 +264,10 @@ pub async fn load_session() -> Result<SessionState> {
 /// already an encrypted envelope — an existing encrypted session is never
 /// silently rewritten as plaintext.
 async fn session_encryption_active(session_path: &Path) -> bool {
-    if let Ok(config) = load_launcher_config().await {
-        if config.encrypt_session {
-            return true;
-        }
+    if let Ok(config) = load_launcher_config().await
+        && config.encrypt_session
+    {
+        return true;
     }
     match fs::read_to_string(session_path).await {
         Ok(raw) => crate::core::session_crypto::EncryptedSession::from_json(&raw).is_some(),
@@ -432,7 +432,7 @@ pub async fn load_library_cache() -> Result<Vec<OwnedGame>> {
 /// with `AURELIA_INFO_CACHE_TTL` — `0` disables the cache.
 const INFO_CACHE_DEFAULT_TTL_SECS: u64 = 6 * 60 * 60;
 
-/// The configured `info` cache TTL ([`INFO_CACHE_DEFAULT_TTL_SECS`] unless
+/// The configured `info` cache TTL (`INFO_CACHE_DEFAULT_TTL_SECS` unless
 /// `AURELIA_INFO_CACHE_TTL` overrides it).
 pub fn info_cache_ttl() -> std::time::Duration {
     let secs = std::env::var("AURELIA_INFO_CACHE_TTL")

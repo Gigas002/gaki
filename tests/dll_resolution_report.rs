@@ -17,12 +17,14 @@ fn test_dll_resolution_report_includes_runner_candidates() {
     let proton_script = runner_root.join("proton");
     fs::write(&proton_script, "dummy").unwrap();
 
-    let mut components = RunnerComponents::default();
-    components.dxvk = Some(aurelia::core::utils::ComponentInfo {
-        version: "2.3".into(),
-        source: aurelia::core::utils::ComponentSource::BundledWithRunner,
-        path: None,
-    });
+    let components = RunnerComponents {
+        dxvk: Some(aurelia::core::utils::ComponentInfo {
+            version: "2.3".into(),
+            source: aurelia::core::utils::ComponentSource::BundledWithRunner,
+            path: None,
+        }),
+        ..Default::default()
+    };
 
     let resolver = DllProviderResolver::new();
     let (resolutions, report) = resolver.resolve(&DllResolveRequest {

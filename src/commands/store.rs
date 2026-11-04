@@ -207,10 +207,10 @@ pub(crate) async fn cmd_price(
 async fn store_info_with_media(app_id: u32) -> Result<StoreAppInfo> {
     use aurelia::core::config::{info_cache_ttl, load_info_cache};
     let country = resolve_steam_country(None)?;
-    if let Some(cached) = load_info_cache(app_id, &country, info_cache_ttl()).await {
-        if !cached.details.screenshots.is_empty() || !cached.details.tags.is_empty() {
-            return Ok(cached.details);
-        }
+    if let Some(cached) = load_info_cache(app_id, &country, info_cache_ttl()).await
+        && (!cached.details.screenshots.is_empty() || !cached.details.tags.is_empty())
+    {
+        return Ok(cached.details);
     }
     let client = authed_client().await?;
     client

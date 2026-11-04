@@ -16,7 +16,7 @@ fn test_dll_priority_game_local() {
     let arch = crate::core::models::ExecutableArchitecture::X86_64;
     let (resolutions, _) = resolver.resolve(&DllResolveRequest {
         game_exe_dir: &game_dir,
-        runner_path: runner_path,
+        runner_path,
         runner_components: &components,
         d3d12_policy: &d3d12_policy,
         target_arch: &arch,
@@ -44,7 +44,7 @@ fn test_dll_priority_system_fallback() {
     let arch = crate::core::models::ExecutableArchitecture::X86_64;
     let (resolutions, _) = resolver.resolve(&DllResolveRequest {
         game_exe_dir: &game_dir,
-        runner_path: runner_path,
+        runner_path,
         runner_components: &components,
         d3d12_policy: &d3d12_policy,
         target_arch: &arch,
@@ -76,17 +76,19 @@ fn test_d3d12_provider_selection() {
     fs::write(&proton_dll, "proton").unwrap();
     fs::write(&wine_dll, "wine").unwrap();
 
-    let mut components = crate::core::utils::RunnerComponents::default();
-    components.vkd3d_proton = Some(crate::core::utils::ComponentInfo {
-        version: "2.10".into(),
-        source: crate::core::utils::ComponentSource::BundledWithRunner,
-        path: None,
-    });
-    components.vkd3d = Some(crate::core::utils::ComponentInfo {
-        version: "1.8".into(),
-        source: crate::core::utils::ComponentSource::BundledWithRunner,
-        path: None,
-    });
+    let components = crate::core::utils::RunnerComponents {
+        vkd3d_proton: Some(crate::core::utils::ComponentInfo {
+            version: "2.10".into(),
+            source: crate::core::utils::ComponentSource::BundledWithRunner,
+            path: None,
+        }),
+        vkd3d: Some(crate::core::utils::ComponentInfo {
+            version: "1.8".into(),
+            source: crate::core::utils::ComponentSource::BundledWithRunner,
+            path: None,
+        }),
+        ..Default::default()
+    };
 
     let resolver = DllProviderResolver::new();
     let game_dir = Path::new("/tmp/game");

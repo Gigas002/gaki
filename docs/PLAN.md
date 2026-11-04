@@ -335,6 +335,29 @@ I make the changes, and you review, commit, and push.
   are collapsible `if` statements and field assignments outside initializers.
   Also fix the rustdoc `-D warnings` errors, which are public docs linking to
   private items. From here on, every ARCHITECTURE §8 gate stays green.
+  *Done.* There are no cargo features yet, so "all three levels" is the
+  default build until Phase 2 adds the gates. `clippy --fix` handled the
+  collapsible `if`s and other mechanical lints. Field assignments became
+  struct literals with `..Default::default()`. Complex types got aliases
+  (`DlcNames`, `Recorded`, `TargetResolvedHook`). The two
+  `mod tests { mod tests }` wrappers were flattened, and duplicate `if`
+  branches were merged. Updating `async-trait` to 0.1.92 cleared the macro's
+  `double_must_use`, and updating `binrw` to 0.15.2 cleared the
+  future-incompat warning. Eight functions with long argument lists carry
+  `#[expect(clippy::too_many_arguments, reason = ...)]` pointing at 2.3 or
+  Phase 5, where they get restructured. One test holds the script-dir env
+  lock across an `.await` on purpose (`#[expect(clippy::await_holding_lock)]`).
+  Nine private intra-doc links became plain code spans. fmt, typos,
+  `deny licenses`, clippy, rustdoc and tests all pass.
+- [ ] **1.9** Fix the Steam-running guard, a leftover from the Windows
+  removal. `SteamClient::steam_is_running()` is hard-coded to `false`, so the
+  "Steam is running, close it first" guard in `commands/common.rs` never
+  fires, and `--restart-steam` (on `dlc enable|disable` and the
+  relink/import commands) is a silent no-op. A running Steam client can
+  therefore overwrite our appmanifest and `libraryfolders.vdf` edits. Wire
+  `steam_is_running` to the existing Linux host-Steam detection. Then either
+  implement stop/start (`steam -shutdown`, then a detached `steam -silent`)
+  or drop `--restart-steam` and keep only the refusal.
 
 ### Phase 2 — rename and restructure (R3, R4, R5, R13, R14, R15)
 

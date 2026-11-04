@@ -670,11 +670,11 @@ fn apply_dlc_disabled(content: &str, dlc_appid: u32, disabled: bool) -> String {
         // No DisabledDLC key yet — add one to the per-user config blocks.
         let mut out = content.to_string();
         for block in ["MountedConfig", "UserConfig"] {
-            if let Some(pos) = out.find(&format!("\"{block}\"")) {
-                if let Some(rel) = out[pos..].find('{') {
-                    let at = pos + rel + 1;
-                    out.insert_str(at, &format!("\n\t\t\"DisabledDLC\"\t\t\"{dlc}\""));
-                }
+            if let Some(pos) = out.find(&format!("\"{block}\""))
+                && let Some(rel) = out[pos..].find('{')
+            {
+                let at = pos + rel + 1;
+                out.insert_str(at, &format!("\n\t\t\"DisabledDLC\"\t\t\"{dlc}\""));
             }
         }
         return out;
@@ -1494,6 +1494,10 @@ pub(crate) async fn fetch_content_hosts(
     }
 }
 
+#[expect(
+    clippy::too_many_arguments,
+    reason = "download loop context; becomes a struct in the libgaki move (2.3)"
+)]
 pub(crate) async fn run_depot_loop(
     client: &SteamClient,
     connection: &Connection,
@@ -1769,10 +1773,11 @@ fn depot_map_from_vdf_root(root: &steam_vdf_parser::Value) -> HashMap<u64, u64> 
                     .get_obj(&["config"])
                     .and_then(|c| c.get("language"))
                     .and_then(|l| l.as_str());
-                if let Some(lang) = lang {
-                    if lang != "english" && !lang.is_empty() {
-                        continue;
-                    }
+                if let Some(lang) = lang
+                    && lang != "english"
+                    && !lang.is_empty()
+                {
+                    continue;
                 }
 
                 if let Some(m_id) = extract_manifest_id_robust(value, "public") {
@@ -1837,19 +1842,19 @@ fn parse_text_vdf(data: &[u8]) -> Result<HashMap<u64, u64>> {
             } else if parts.len() >= 2 && current_depot > 0 {
                 let key = parts[0].to_lowercase();
                 if inside_public && key == "gid" {
-                    if let Ok(gid) = parts[1].parse::<u64>() {
-                        if gid > 0 {
-                            depot_map.insert(current_depot, gid);
-                        }
+                    if let Ok(gid) = parts[1].parse::<u64>()
+                        && gid > 0
+                    {
+                        depot_map.insert(current_depot, gid);
                     }
                 } else if key == "language" {
                     depot_langs.insert(current_depot, parts[1].to_lowercase());
                 } else if !inside_manifests && (key == "manifest" || key == "gid") {
                     // Fallback for flat structure
-                    if let Ok(gid) = parts[1].parse::<u64>() {
-                        if gid > 0 {
-                            depot_map.insert(current_depot, gid);
-                        }
+                    if let Ok(gid) = parts[1].parse::<u64>()
+                        && gid > 0
+                    {
+                        depot_map.insert(current_depot, gid);
                     }
                 }
             }
@@ -1857,10 +1862,11 @@ fn parse_text_vdf(data: &[u8]) -> Result<HashMap<u64, u64>> {
 
         // Apply Language Filter to manual scan results
         depot_map.retain(|id, _| {
-            if let Some(lang) = depot_langs.get(id) {
-                if lang != "english" && !lang.is_empty() {
-                    return false;
-                }
+            if let Some(lang) = depot_langs.get(id)
+                && lang != "english"
+                && !lang.is_empty()
+            {
+                return false;
             }
             true
         });
@@ -1889,25 +1895,25 @@ fn parse_binary_vdf_with_offset(data: &[u8]) -> Result<HashMap<u64, u64>> {
 fn extract_manifest_id_robust(value: &steam_vdf_parser::Value, branch: &str) -> Option<u64> {
     if let Some(obj) = value.as_obj() {
         // Deep search for branch manifest
-        if let Some(manifests) = obj.get("manifests").and_then(|v| v.as_obj()) {
-            if let Some(branch_entry) = manifests.get(branch) {
-                // It can be a direct string or a gid object
-                if let Some(gid_str) = branch_entry.as_str() {
-                    if let Ok(gid) = gid_str.parse::<u64>() {
-                        return Some(gid);
-                    }
+        if let Some(manifests) = obj.get("manifests").and_then(|v| v.as_obj())
+            && let Some(branch_entry) = manifests.get(branch)
+        {
+            // It can be a direct string or a gid object
+            if let Some(gid_str) = branch_entry.as_str()
+                && let Ok(gid) = gid_str.parse::<u64>()
+            {
+                return Some(gid);
+            }
+            if let Some(gid_val) = branch_entry.as_u64() {
+                return Some(gid_val);
+            }
+            if let Some(branch_obj) = branch_entry.as_obj()
+                && let Some(gid) = branch_obj.get("gid")
+            {
+                if let Some(s) = gid.as_str() {
+                    return s.parse().ok();
                 }
-                if let Some(gid_val) = branch_entry.as_u64() {
-                    return Some(gid_val);
-                }
-                if let Some(branch_obj) = branch_entry.as_obj() {
-                    if let Some(gid) = branch_obj.get("gid") {
-                        if let Some(s) = gid.as_str() {
-                            return s.parse().ok();
-                        }
-                        return gid.as_u64();
-                    }
-                }
+                return gid.as_u64();
             }
         }
 
@@ -2020,10 +2026,11 @@ fn parse_installed_depots_from_acf(raw: &str) -> HashMap<u64, u64> {
             if let Ok(depot_id) = u64::from_str(&quoted[0]) {
                 current_depot = Some(depot_id);
             }
-        } else if quoted.len() >= 2 && quoted[0] == "manifest" {
-            if let (Some(depot), Ok(manifest)) = (current_depot, u64::from_str(&quoted[1])) {
-                manifests.insert(depot, manifest);
-            }
+        } else if quoted.len() >= 2
+            && quoted[0] == "manifest"
+            && let (Some(depot), Ok(manifest)) = (current_depot, u64::from_str(&quoted[1]))
+        {
+            manifests.insert(depot, manifest);
         }
     }
 
@@ -2165,12 +2172,12 @@ impl SteamClient {
         if let Ok(output) = std::process::Command::new("ldconfig").args(["-p"]).output() {
             let text = String::from_utf8_lossy(&output.stdout);
             for line in text.lines() {
-                if line.contains("libMangoHud") {
-                    if let Some(path) = line.split("=>").nth(1) {
-                        let p = PathBuf::from(path.trim());
-                        if p.exists() {
-                            return Some(p);
-                        }
+                if line.contains("libMangoHud")
+                    && let Some(path) = line.split("=>").nth(1)
+                {
+                    let p = PathBuf::from(path.trim());
+                    if p.exists() {
+                        return Some(p);
                     }
                 }
             }

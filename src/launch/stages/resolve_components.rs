@@ -226,8 +226,10 @@ mod tests {
 
     #[tokio::test]
     async fn native_runner_appends_user_launch_options() {
-        let mut user_config = UserAppConfig::default();
-        user_config.launch_options = "-fullscreen --skip-intro".to_string();
+        let user_config = UserAppConfig {
+            launch_options: "-fullscreen --skip-intro".to_string(),
+            ..Default::default()
+        };
 
         let ctx = LaunchContext {
             app: LibraryGame {

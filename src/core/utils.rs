@@ -266,14 +266,12 @@ pub fn host_steam_client_path() -> Option<PathBuf> {
 /// brings the already-open client to the foreground (the opposite of `-silent`).
 pub fn is_steam_running() -> bool {
     // ~/.steam/steam.pid holds the running client's PID.
-    if let Ok(home) = std::env::var("HOME") {
-        if let Ok(pid) = std::fs::read_to_string(format!("{home}/.steam/steam.pid")) {
-            if let Ok(pid) = pid.trim().parse::<u32>() {
-                if std::path::Path::new(&format!("/proc/{pid}")).exists() {
-                    return true;
-                }
-            }
-        }
+    if let Ok(home) = std::env::var("HOME")
+        && let Ok(pid) = std::fs::read_to_string(format!("{home}/.steam/steam.pid"))
+        && let Ok(pid) = pid.trim().parse::<u32>()
+        && std::path::Path::new(&format!("/proc/{pid}")).exists()
+    {
+        return true;
     }
     let Ok(entries) = std::fs::read_dir("/proc") else {
         return false;
@@ -504,10 +502,10 @@ fn detect_vkd3d_proton(root: &Path, prefix: Option<&Path>) -> Option<ComponentIn
     }
 
     // VKD3D-Proton replaces d3d12.dll — check prefix for it
-    if let Some(pfx) = prefix {
-        if let Some(info) = check_prefix_d3d12(pfx, true) {
-            return Some(info);
-        }
+    if let Some(pfx) = prefix
+        && let Some(info) = check_prefix_d3d12(pfx, true)
+    {
+        return Some(info);
     }
 
     let system_paths = [
@@ -565,10 +563,10 @@ fn detect_vkd3d(root: &Path, prefix: Option<&Path>) -> Option<ComponentInfo> {
         return Some(info);
     }
 
-    if let Some(pfx) = prefix {
-        if let Some(info) = check_prefix_d3d12(pfx, false) {
-            return Some(info);
-        }
+    if let Some(pfx) = prefix
+        && let Some(info) = check_prefix_d3d12(pfx, false)
+    {
+        return Some(info);
     }
 
     let system_paths = [
@@ -668,9 +666,7 @@ fn check_bundled(
     dll_candidates: &[&str],
     version_files: &[&str],
 ) -> Option<ComponentInfo> {
-    let Some(found_dll) = dll_candidates.iter().find(|rel| root.join(rel).exists()) else {
-        return None;
-    };
+    let found_dll = dll_candidates.iter().find(|rel| root.join(rel).exists())?;
     tracing::debug!(
         "Found bundled component DLL at: {}",
         root.join(found_dll).display()
@@ -818,7 +814,7 @@ fn extract_version_from_dll(dll_path: &Path) -> Option<String> {
     let mut runs: Vec<String> = Vec::new();
     let mut current = Vec::new();
     for &byte in &data {
-        if byte >= 0x20 && byte < 0x7f {
+        if (0x20..0x7f).contains(&byte) {
             current.push(byte as char);
         } else {
             if current.len() >= 4 {
@@ -849,11 +845,15 @@ fn extract_version_from_dll(dll_path: &Path) -> Option<String> {
         .collect();
 
     // Sort: longer (more specific) versions first
-    candidates.sort_by(|a, b| b.len().cmp(&a.len()));
+    candidates.sort_by_key(|c| std::cmp::Reverse(c.len()));
     candidates.into_iter().next()
 }
 
 /// Returns the WINEDLLOVERRIDES string needed to activate installed layers.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "flag soup; replaced by resolved profile settings in Phase 5"
+)]
 pub fn build_dll_overrides(
     dxvk_active: bool,
     vkd3d_proton_active: bool,
@@ -1014,7 +1014,7 @@ pub fn list_available_gpus() -> Vec<DetectedGpu> {
         });
     }
 
-    gpus.sort_by(|a, b| b.is_discrete.cmp(&a.is_discrete));
+    gpus.sort_by_key(|g| std::cmp::Reverse(g.is_discrete));
     gpus
 }
 

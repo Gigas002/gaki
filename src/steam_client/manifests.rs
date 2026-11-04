@@ -255,14 +255,13 @@ impl SteamClient {
             }
         }
 
-        if display_name.starts_with("App ") {
-            if let Ok(games) = load_library_cache().await {
-                if let Some(game) = games.iter().find(|g| g.app_id == appid) {
-                    if !game.name.is_empty() && !game.name.starts_with("App ") {
-                        display_name = game.name.clone();
-                    }
-                }
-            }
+        if display_name.starts_with("App ")
+            && let Ok(games) = load_library_cache().await
+            && let Some(game) = games.iter().find(|g| g.app_id == appid)
+            && !game.name.is_empty()
+            && !game.name.starts_with("App ")
+        {
+            display_name = game.name.clone();
         }
 
         (display_name, installdir)
@@ -285,6 +284,10 @@ impl SteamClient {
     /// `pin_updates` writes `AutoUpdateBehavior "1"` ("only update on launch") instead
     /// of the default `"0"`, so the official Steam client won't eagerly re-patch a
     /// downgraded/pinned install out from under Aurelia. Normal installs pass `false`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "one argument per appmanifest field"
+    )]
     pub fn write_appmanifest(
         path: &Path,
         appid: u32,

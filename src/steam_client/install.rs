@@ -213,10 +213,10 @@ impl SteamClient {
                     installdir = dir;
                 }
             }
-            if game_name.starts_with("App ") {
-                if let Some(name) = parsed.display_name().filter(|n| !n.starts_with("App ")) {
-                    game_name = name;
-                }
+            if game_name.starts_with("App ")
+                && let Some(name) = parsed.display_name().filter(|n| !n.starts_with("App "))
+            {
+                game_name = name;
             }
         }
 
@@ -345,10 +345,11 @@ impl SteamClient {
                                             .get_obj(&["config"])
                                             .and_then(|c| c.get("language"))
                                             .and_then(|l| l.as_str());
-                                        if let Some(lang) = lang {
-                                            if lang != "english" && !lang.is_empty() {
-                                                match_os = false;
-                                            }
+                                        if let Some(lang) = lang
+                                            && lang != "english"
+                                            && !lang.is_empty()
+                                        {
+                                            match_os = false;
                                         }
                                     }
 
@@ -416,12 +417,11 @@ impl SteamClient {
 
             // For a downgrade against a named branch, record that branch's build id in
             // the appmanifest instead of the appinfo-derived (public) one.
-            if let Some(branch_name) = branch.as_deref() {
-                if let Some(bid) =
+            if let Some(branch_name) = branch.as_deref()
+                && let Some(bid) =
                     SteamClient::remote_buildid_static(&connection, appid, branch_name).await
-                {
-                    build_id = Some(bid);
-                }
+            {
+                build_id = Some(bid);
             }
 
             let _ = tx
@@ -589,6 +589,10 @@ impl SteamClient {
     ///
     /// `grand_total_bytes`: the sum of all selected depots' sizes (0 when unknown),
     /// used to decide whether to add this depot's size to `state.total_bytes`.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "per-depot download context; becomes a struct in the libgaki move (2.3)"
+    )]
     pub(crate) async fn download_depot_to_with_hosts(
         &self,
         app_id: u32,

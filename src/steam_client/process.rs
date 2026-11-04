@@ -112,11 +112,11 @@ impl SteamClient {
     /// Signal every process matching `pred`.
     fn sweep_proc_pids(signal: i32, mut pred: impl FnMut(&Path) -> bool) {
         Self::scan_proc_pids(|pid_path, pid_str| {
-            if pred(pid_path) {
-                if let Ok(pid) = pid_str.parse::<i32>() {
-                    unsafe {
-                        libc::kill(pid, signal);
-                    }
+            if pred(pid_path)
+                && let Ok(pid) = pid_str.parse::<i32>()
+            {
+                unsafe {
+                    libc::kill(pid, signal);
                 }
             }
             // Never short-circuit: sweep every matching process.
@@ -154,10 +154,10 @@ impl SteamClient {
         let executable = install_dir.join(&exe_relative);
         let mut args = split_args(&launch_info.arguments);
 
-        if let Some(config) = user_config {
-            if !config.launch_options.trim().is_empty() {
-                args.extend(split_args(&config.launch_options));
-            }
+        if let Some(config) = user_config
+            && !config.launch_options.trim().is_empty()
+        {
+            args.extend(split_args(&config.launch_options));
         }
 
         // Workingdir, exe parent, install dir.
@@ -172,6 +172,10 @@ impl SteamClient {
         Ok((install_dir, executable, args, game_working_dir))
     }
 
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "launch options; folded into resolved settings in Phase 5"
+    )]
     pub(crate) async fn spawn_game_process(
         &self,
         app: &LibraryGame,

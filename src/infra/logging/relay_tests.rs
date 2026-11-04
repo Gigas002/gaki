@@ -1,8 +1,11 @@
 use super::*;
 use std::sync::Mutex;
 
+/// Everything a recording relay was sent, in order.
+type Recorded = Arc<Mutex<Vec<(RelayStream, Vec<u8>)>>>;
+
 /// A relay recording everything sent to it.
-fn recording_relay(verbosity: u8) -> (Relay, Arc<Mutex<Vec<(RelayStream, Vec<u8>)>>>) {
+fn recording_relay(verbosity: u8) -> (Relay, Recorded) {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let sink_seen = Arc::clone(&seen);
     let relay = Relay::new(
