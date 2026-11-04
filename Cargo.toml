@@ -68,24 +68,5 @@ protobuf-codegen = "3.5"
 # handles (otherwise a parent like Heroic never sees EOF and hangs).
 windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Console"] }
 
-[profile.release]
-opt-level = "z"      # optimize for size
-lto = "thin"          # whole-program inlining + cross-crate dead-code elimination
-codegen-units = 1    # better cross-module optimization (slower compile)
-panic = "abort"      # drop unwinding tables & landing pads
-strip = "symbols"    # strip symbol/debug info from the binary
-
 [dev-dependencies]
 tempfile = "3"
-
-[package.metadata.deb]
-name = "aurelia"
-maintainer = "Aurelia Contributors"
-copyright = "2026, Aurelia Contributors"
-license-file = "LICENSE"
-section = "games"
-priority = "optional"
-depends = "$auto, libssl3"
-assets = [
-    ["target/release/aurelia", "usr/bin/aurelia", "755"],
-]

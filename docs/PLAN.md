@@ -217,7 +217,7 @@ I make the changes, and you review, commit, and push.
   `.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/`, and the upstream
   `release.yml`. Also remove the `result`/`result-*` (Nix) entries from
   `.gitignore`.
-- [ ] **0.4** Drop `[profile.release]` and `[package.metadata.deb]` from
+- [x] **0.4** Drop `[profile.release]` and `[package.metadata.deb]` from
   `Cargo.toml` (R25). This probably also fixes the AUR LTO link error (Q2),
   because the forced `lto = "thin"` and `panic = "abort"` combination goes away.
   Recheck that error once a PKGBUILD exists.
