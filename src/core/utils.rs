@@ -302,6 +302,15 @@ pub fn ensure_steam_running() {
         return;
     }
     tracing::info!("Steam client not running; starting `steam -silent` (tray)");
+    match start_steam_detached() {
+        Ok(()) => tracing::info!("Launched Steam client (-silent)"),
+        Err(e) => tracing::warn!("could not start Steam client: {e:#}"),
+    }
+}
+
+/// Spawn `steam -silent` fully detached (its own session, no stdio), so it
+/// outlives this process and never blocks it.
+pub fn start_steam_detached() -> Result<()> {
     let mut cmd = std::process::Command::new("steam");
     cmd.arg("-silent")
         .stdin(std::process::Stdio::null())
@@ -318,9 +327,54 @@ pub fn ensure_steam_running() {
             });
         }
     }
-    match cmd.spawn() {
-        Ok(_) => tracing::info!("Launched Steam client (-silent)"),
-        Err(e) => tracing::warn!("could not start Steam client: {e:#}"),
+    cmd.spawn()
+        .map(|_| ())
+        .map_err(|e| anyhow::anyhow!("failed to run `steam -silent`: {e}"))
+}
+
+/// Ask the running Steam client to exit (`steam -shutdown`) and wait up to
+/// `timeout` for it to go away. Steam rewrites appmanifests and
+/// `libraryfolders.vdf` on exit, so callers editing those must wait for this.
+pub fn shutdown_steam(timeout: std::time::Duration) -> Result<()> {
+    let status = std::process::Command::new("steam")
+        .arg("-shutdown")
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .map_err(|e| anyhow::anyhow!("failed to run `steam -shutdown`: {e}"))?;
+    if !status.success() {
+        bail!("`steam -shutdown` exited with {status}");
+    }
+    if !wait_until(
+        || !is_steam_running(),
+        timeout,
+        std::time::Duration::from_millis(250),
+    ) {
+        bail!(
+            "Steam is still running {}s after `steam -shutdown`; close it manually",
+            timeout.as_secs()
+        );
+    }
+    Ok(())
+}
+
+/// Poll `done` every `interval` until it returns `true` or `timeout` passes.
+/// Returns whether it finished in time.
+pub fn wait_until(
+    mut done: impl FnMut() -> bool,
+    timeout: std::time::Duration,
+    interval: std::time::Duration,
+) -> bool {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        if done() {
+            return true;
+        }
+        if std::time::Instant::now() >= deadline {
+            return false;
+        }
+        std::thread::sleep(interval);
     }
 }
 
@@ -1320,6 +1374,10 @@ pub fn normalize_country(raw: &str) -> Option<String> {
     }
     Some(if code == "UK" { "GB".to_string() } else { code })
 }
+
+#[cfg(test)]
+#[path = "utils_wait_until_tests.rs"]
+mod wait_until_tests;
 
 #[cfg(test)]
 #[path = "utils_country_tests.rs"]

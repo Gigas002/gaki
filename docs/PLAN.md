@@ -330,7 +330,7 @@ I make the changes, and you review, commit, and push.
   `steam-vent-proto` (0.5.2, checked 2026-11-04) still doesn't ship
   `storequery`, `wishlist` or `cloudconfigstore`, so `proto/` and `build.rs`
   stay and move into `libgaki/` with per-feature gating in Phase 2.
-- [ ] **1.8** Make the lint gates green. Fix the roughly 140 clippy findings
+- [x] **1.8** Make the lint gates green. Fix the roughly 140 clippy findings
   (`-D warnings`, at all three feature levels) left after the removals. Most
   are collapsible `if` statements and field assignments outside initializers.
   Also fix the rustdoc `-D warnings` errors, which are public docs linking to
@@ -349,7 +349,7 @@ I make the changes, and you review, commit, and push.
   lock across an `.await` on purpose (`#[expect(clippy::await_holding_lock)]`).
   Nine private intra-doc links became plain code spans. fmt, typos,
   `deny licenses`, clippy, rustdoc and tests all pass.
-- [ ] **1.9** Fix the Steam-running guard, a leftover from the Windows
+- [x] **1.9** Fix the Steam-running guard, a leftover from the Windows
   removal. `SteamClient::steam_is_running()` is hard-coded to `false`, so the
   "Steam is running, close it first" guard in `commands/common.rs` never
   fires, and `--restart-steam` (on `dlc enable|disable` and the
@@ -358,6 +358,15 @@ I make the changes, and you review, commit, and push.
   `steam_is_running` to the existing Linux host-Steam detection. Then either
   implement stop/start (`steam -shutdown`, then a detached `steam -silent`)
   or drop `--restart-steam` and keep only the refusal.
+  *Done: implemented stop/start.* `steam_is_running` uses
+  `core::utils::is_steam_running` (checks `~/.steam/steam.pid`, then scans
+  `/proc`). `shutdown_steam` runs `steam -shutdown` and waits up to 30s for
+  the client to exit (`wait_until`, which has tests). `start_steam` spawns a
+  detached `steam -silent`, sharing `start_steam_detached` with
+  `ensure_steam_running`. With Steam open, `move`, `relink` and `import` now
+  refuse unless given `--restart-steam`, and `dlc enable|disable` and DLC
+  installs warn that a restart is needed, as they were meant to. The
+  "(Windows)" wording is gone from the flag help.
 
 ### Phase 2 — rename and restructure (R3, R4, R5, R13, R14, R15)
 

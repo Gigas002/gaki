@@ -1,20 +1,23 @@
-//! `SteamClient` methods: Steam process control, wine-prefix helpers, headless cfg, ad-hoc launch.
+//! `SteamClient` methods: host Steam control, wine-prefix helpers, ad-hoc launch.
 //!
 //! Split out of `steam_client.rs` for readability; the struct, shared imports
 //! and free helpers live in the parent module (in scope via `use super::*`).
 use super::*;
 
 impl SteamClient {
+    /// Whether the official Steam client is running on this host.
     pub fn steam_is_running() -> bool {
-        false
+        crate::core::utils::is_steam_running()
     }
 
+    /// Stop the official Steam client and wait (up to 30s) until it has exited.
     pub fn shutdown_steam() -> Result<()> {
-        bail!("automatic Steam control is not supported")
+        crate::core::utils::shutdown_steam(std::time::Duration::from_secs(30))
     }
 
+    /// Start the official Steam client in the tray, detached from this process.
     pub fn start_steam() -> Result<()> {
-        bail!("automatic Steam control is not supported")
+        crate::core::utils::start_steam_detached()
     }
 
     /// Stop a game previously launched by `aurelia play`. Looks up the launch
