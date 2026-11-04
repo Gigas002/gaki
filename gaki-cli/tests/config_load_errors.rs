@@ -6,10 +6,9 @@
 //! setting vanish — and any command that then saved wrote those defaults straight over
 //! the user's file.
 //!
-//! These drive the real binary as a subprocess: config resolution reads the
-//! `AURELIA_CONFIG_DIR` env var, and per-process isolation keeps parallel tests from
-//! racing on it. `AURELIA_NO_DAEMON` stops the CLI from forwarding to a session daemon
-//! (which would resolve the config against the *daemon's* environment, not ours).
+//! These drive the real binary as a subprocess, each with its own `--config-dir`.
+//! `--no-daemon` stops the CLI from forwarding to a session daemon (which serves
+//! its own config directory, not ours).
 
 use std::fs;
 use std::path::Path;
@@ -26,9 +25,10 @@ const CORRUPT: &str = r#"{
 
 fn aurelia(config_dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
+        .arg("--config-dir")
+        .arg(config_dir)
+        .arg("--no-daemon")
         .args(args)
-        .env("AURELIA_CONFIG_DIR", config_dir)
-        .env("AURELIA_NO_DAEMON", "1")
         .output()
         .expect("failed running the gaki-cli binary")
 }

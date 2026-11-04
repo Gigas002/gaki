@@ -13,7 +13,8 @@
 //! * Default: warnings and errors only; a launched game's own output is hidden.
 //! * `-v`: Aurelia's progress and debug logs, plus the game/Proton output.
 //! * `-vv` / `-vvv`: progressively unmute `steam-vent` and friends.
-//! * `RUST_LOG` or `AURELIA_LOG`: full manual control, overriding the flags.
+//! * An explicit filter (the CLI's `--log`): full manual control, overriding
+//!   the verbosity.
 //!
 //! The daemon uses [`init_daemon_logging`] instead, which also relays each forwarded
 //! command's events to its client at that client's `-v` level.
@@ -25,11 +26,11 @@ use tracing_subscriber::EnvFilter;
 /// clean for `--json` output.
 ///
 /// `verbosity` is the count of `-v` flags passed on the command line (0 = none).
-/// An explicit `AURELIA_LOG`/`RUST_LOG` environment variable takes precedence
-/// over `verbosity`.
-pub fn init_cli_logging(verbosity: u8) {
+/// `filter`, an `EnvFilter` directive string such as `debug,steam_vent=info`,
+/// takes precedence over `verbosity`.
+pub fn init_cli_logging(verbosity: u8, filter: Option<&str>) {
     super::relay::set_local_verbosity(verbosity);
-    let filter = resolve_filter(verbosity);
+    let filter = resolve_filter(verbosity, filter);
 
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
@@ -48,7 +49,7 @@ pub fn init_cli_logging(verbosity: u8) {
 /// relay layer per verbosity level formats events raised while serving a forwarded
 /// command into that request's stderr, filtered by the *requester's* `-v` count —
 /// so `aurelia play -vv` shows the same logs whether or not a daemon ran it.
-pub fn init_daemon_logging(verbosity: u8) {
+pub fn init_daemon_logging(verbosity: u8, filter: Option<&str>) {
     use tracing_subscriber::Layer;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt;
@@ -58,7 +59,7 @@ pub fn init_daemon_logging(verbosity: u8) {
         .with_ansi(std::io::stderr().is_terminal())
         .with_target(verbosity >= 2)
         .log_internal_errors(false)
-        .with_filter(resolve_filter(verbosity));
+        .with_filter(resolve_filter(verbosity, filter));
 
     tracing_subscriber::registry()
         .with(own)
@@ -169,14 +170,19 @@ impl<S> tracing_subscriber::layer::Filter<S> for RelayFilter {
     }
 }
 
-/// Build the [`EnvFilter`]. An explicit environment variable wins; otherwise the
+/// Build the [`EnvFilter`]. An explicit, valid `filter` wins; otherwise the
 /// directives are derived from the `-v` count.
-fn resolve_filter(verbosity: u8) -> EnvFilter {
-    // `AURELIA_LOG` is checked first as an Aurelia-specific override, then the
-    // conventional `RUST_LOG`.
-    EnvFilter::try_from_env("AURELIA_LOG")
-        .or_else(|_| EnvFilter::try_from_default_env())
-        .unwrap_or_else(|_| EnvFilter::new(default_directives(verbosity)))
+fn resolve_filter(verbosity: u8, filter: Option<&str>) -> EnvFilter {
+    filter
+        .and_then(|f| EnvFilter::try_new(f).ok())
+        .unwrap_or_else(|| EnvFilter::new(default_directives(verbosity)))
+}
+
+/// Check a log filter (as passed to `--log`) parses, returning it unchanged.
+pub fn validate_filter(filter: &str) -> Result<String, String> {
+    EnvFilter::try_new(filter)
+        .map(|_| filter.to_string())
+        .map_err(|e| format!("invalid log filter: {e}"))
 }
 
 /// Map a `-v` count to a set of env-filter directives.

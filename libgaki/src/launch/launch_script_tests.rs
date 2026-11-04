@@ -43,10 +43,12 @@ fn config_beats_dir() {
 
 #[test]
 fn dir_script_used_when_present() {
-    let _guard = SCRIPT_DIR_ENV_LOCK.lock().unwrap();
+    let _guard = SCRIPT_DIR_LOCK.lock().unwrap();
     let tmp = tempdir().unwrap();
-    // Point AURELIA_SCRIPT_DIR at a temp dir with an on-disk script.
-    unsafe { std::env::set_var("AURELIA_SCRIPT_DIR", tmp.path()) };
+    // Point the script dir at a temp dir with an on-disk script.
+    *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
+        .lock()
+        .unwrap() = Some(tmp.path().to_path_buf());
     let path = dir_script_path(4242);
     std::fs::write(&path, "exec \"$@\"\n").unwrap();
 
@@ -55,19 +57,25 @@ fn dir_script_used_when_present() {
 
     // No script for a different id.
     assert!(resolve(9999, None, None, false).is_none());
-    unsafe { std::env::remove_var("AURELIA_SCRIPT_DIR") };
+    *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
+        .lock()
+        .unwrap() = None;
 }
 
 #[test]
 fn empty_config_script_is_ignored() {
-    let _guard = SCRIPT_DIR_ENV_LOCK.lock().unwrap();
+    let _guard = SCRIPT_DIR_LOCK.lock().unwrap();
     let cfg = config_with_script(42, Some(""));
     // Empty string is treated as unset; with no override and no dir script -> None.
     let tmp = tempdir().unwrap();
-    unsafe { std::env::set_var("AURELIA_SCRIPT_DIR", tmp.path()) };
+    *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
+        .lock()
+        .unwrap() = Some(tmp.path().to_path_buf());
     let got = resolve(42, Some(&cfg), None, false);
     assert!(got.is_none());
-    unsafe { std::env::remove_var("AURELIA_SCRIPT_DIR") };
+    *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
+        .lock()
+        .unwrap() = None;
 }
 
 #[test]

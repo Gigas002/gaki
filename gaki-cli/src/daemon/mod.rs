@@ -17,6 +17,9 @@ mod proto;
 mod server;
 mod transport;
 
+pub(crate) use libgaki::core::config::config_dir_override;
+pub(crate) use transport::set_endpoint as set_socket;
+
 use std::sync::Arc;
 use std::sync::OnceLock;
 // The roster cache is shared with the (synchronous) friends watcher

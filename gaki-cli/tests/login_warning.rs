@@ -8,15 +8,19 @@ use tempfile::tempdir;
 // No TTY here: login fails at the password
 // prompt, before any Steam contact.
 fn login(config_dir: &Path) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
-        .arg("login")
-        .env("AURELIA_CONFIG_DIR", config_dir)
-        .env("AURELIA_NO_DAEMON", "1")
-        .env("AURELIA_DISABLE_KEYRING", "1")
-        .env_remove("AURELIA_PASSWORD")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .expect("failed running the gaki-cli binary")
+    let gaki = |args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
+            .arg("--config-dir")
+            .arg(config_dir)
+            .arg("--no-daemon")
+            .args(args)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .expect("failed running the gaki-cli binary")
+    };
+    // No keyring service in CI.
+    assert!(gaki(&["config", "keyring", "false"]).status.success());
+    gaki(&["login"])
 }
 
 fn stderr(out: &Output) -> String {

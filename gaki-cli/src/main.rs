@@ -21,6 +21,15 @@ fn print_long_help() {
 }
 
 fn main() {
+    let cli = parse_cli();
+    // Global options that must hold before anything reads the config or the socket.
+    if let Some(dir) = &cli.config_dir {
+        libgaki::core::config::set_config_dir(dir.clone());
+    }
+    if let Some(socket) = &cli.socket {
+        daemon::set_socket(socket.clone());
+    }
+
     // Translate any configured network proxy into the standard proxy environment
     // variables *before* the async runtime or worker threads start, so every reqwest
     // client in the process (including those in vendored crates) routes through it.
@@ -41,7 +50,7 @@ fn main() {
                 .thread_stack_size(16 * 1024 * 1024)
                 .build()
                 .expect("failed to build the Tokio runtime");
-            runtime.block_on(async_main());
+            runtime.block_on(async_main(cli));
         })
         .expect("failed to spawn the main worker thread");
     worker.join().expect("the main worker thread panicked");
@@ -72,9 +81,8 @@ fn must_run_locally(cli: &Cli) -> bool {
             })
         );
 
-    // `login --web-token` only writes the session file — no CM connection — and
-    // drivers may deliver the token via the AURELIA_WEB_TOKEN env var (dodging
-    // argv-quoting pitfalls), which a pre-existing daemon process would not see.
+    // `login --web-token` only writes the session file — no CM connection — so
+    // it gains nothing from the daemon's shared session.
     let web_token_login = matches!(
         cli.command,
         Command::Login(LoginArgs {
@@ -104,8 +112,9 @@ fn must_run_locally(cli: &Cli) -> bool {
         )
 }
 
-async fn async_main() {
-    let cli = match Cli::try_parse() {
+/// Parse the command line, exiting on errors, `--help` and `--version`.
+fn parse_cli() -> Cli {
+    match Cli::try_parse() {
         Ok(cli) => cli,
         Err(e) => {
             use clap::error::ErrorKind;
@@ -122,25 +131,20 @@ async fn async_main() {
             // default rendering and exit codes.
             e.exit();
         }
-    };
+    }
+}
 
+async fn async_main(cli: Cli) {
     // Send tracing/diagnostics to stderr so stdout stays clean for --json output.
-    if matches!(cli.command, Command::Daemon { command: None, .. }) {
-        libgaki::infra::logging::init_daemon_logging(cli.verbose);
+    let log = cli.log.as_deref();
+    if matches!(cli.command, Command::Daemon { command: None }) {
+        libgaki::infra::logging::init_daemon_logging(cli.verbose, log);
     } else {
-        libgaki::infra::logging::init_cli_logging(cli.verbose);
+        libgaki::infra::logging::init_cli_logging(cli.verbose, log);
     }
 
     // Bare `aurelia daemon`: become the shared-session server. Never forwards.
-    if let Command::Daemon {
-        socket,
-        command: None,
-    } = &cli.command
-    {
-        if let Some(path) = socket {
-            // SAFETY: single-threaded at this point (set before any worker spawns).
-            unsafe { std::env::set_var("AURELIA_DAEMON_SOCKET", path) };
-        }
+    if matches!(cli.command, Command::Daemon { command: None }) {
         if let Err(e) = daemon::run_server().await {
             cli_eprintln!("daemon error: {e:#}");
             std::process::exit(1);
@@ -152,10 +156,10 @@ async fn async_main() {
 
     // Thin client: forward this command to a running daemon (auto-spawning one if
     // needed) so it runs against the single shared Steam session. If no daemon is
-    // available, fall through and run locally. `AURELIA_NO_DAEMON` opts out.
-    if !local_only && std::env::var_os("AURELIA_NO_DAEMON").is_none() {
+    // available, fall through and run locally. `--no-daemon` opts out.
+    if !local_only && !cli.no_daemon {
         use daemon::client::Forwarded;
-        match daemon::client::try_forward().await {
+        match daemon::client::try_forward(cli.no_spawn).await {
             // Exit the process directly rather than returning: the stdin-forwarding
             // task reads `tokio::io::stdin()` on a blocking thread that never
             // finishes for an interactive (no-EOF) stdin, which would otherwise stall
@@ -172,11 +176,33 @@ async fn async_main() {
     std::process::exit(code);
 }
 
+/// Whether this process serves the config directory a forwarded command asked
+/// for (`None`: whichever it serves).
+fn serves_config_dir(requested: Option<&std::path::Path>) -> bool {
+    let Some(requested) = requested else {
+        return true;
+    };
+    let canonical =
+        |p: &std::path::Path| std::fs::canonicalize(p).unwrap_or_else(|_| p.to_path_buf());
+    libgaki::core::config::config_dir()
+        .is_ok_and(|served| canonical(&served) == canonical(requested))
+}
+
 /// Parse `argv` and run the resulting command, reporting any error the same way the
 /// CLI does. Returns the process exit code. This is the daemon's entry point for a
 /// forwarded command (see [`daemon`]); `argv[0]` is the program name.
 pub(crate) async fn run_argv(argv: Vec<String>) -> i32 {
     match Cli::try_parse_from(&argv) {
+        Ok(cli) if !serves_config_dir(cli.config_dir.as_deref()) => {
+            let served = libgaki::core::config::config_dir()
+                .map(|d| d.display().to_string())
+                .unwrap_or_default();
+            cli_eprintln!(
+                "Error: this session daemon serves the config directory {served}; pass \
+                 --socket to use a separate daemon for another one, or --no-daemon"
+            );
+            2
+        }
         Ok(cli) => run_and_report(cli).await,
         Err(e) => {
             use clap::error::ErrorKind;
@@ -451,6 +477,13 @@ async fn run(cli: Cli) -> Result<()> {
             ConfigCommand::Presence { mode } => cmd_config_presence(mode, json).await,
             ConfigCommand::Experimental { enabled } => cmd_config_experimental(enabled, json).await,
             ConfigCommand::InstallResume { mode } => cmd_config_install_resume(mode, json).await,
+            ConfigCommand::Keyring { enabled } => cmd_config_keyring(enabled, json).await,
+            ConfigCommand::ScriptDir { path, clear } => {
+                cmd_config_script_dir(change(clear, path), json).await
+            }
+            ConfigCommand::InfoCacheTtl { seconds, clear } => {
+                cmd_config_info_cache_ttl(change(clear, seconds), json).await
+            }
             ConfigCommand::Proxy {
                 url,
                 no_proxy,

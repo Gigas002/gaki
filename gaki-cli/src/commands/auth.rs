@@ -19,8 +19,7 @@ use libgaki::steam_client::SteamClient;
 /// The browser/OpenID and web-token flows only prove identity / enable the
 /// web-surface commands — they never create the full client session that
 /// library/install/launch need — so they are kept out of the core feature set to
-/// avoid confusion. Opt in per-run with `AURELIA_EXPERIMENTAL=1` or persistently
-/// with `aurelia config experimental true`.
+/// avoid confusion. Opt in with `aurelia config experimental true`.
 pub(crate) async fn require_experimental(what: &str) -> Result<()> {
     if experimental_enabled().await {
         return Ok(());
@@ -29,8 +28,7 @@ pub(crate) async fn require_experimental(what: &str) -> Result<()> {
         "`{what}` is an experimental feature and is disabled by default. It proves \
          identity / enables web-only commands but cannot create a full session for \
          library, install, or launch — use `aurelia login` or `aurelia login --qr` for \
-         those. To enable it, run `aurelia config experimental true` (or set \
-         AURELIA_EXPERIMENTAL=1)."
+         those. To enable it, run `aurelia config experimental true`."
     )
 }
 
@@ -51,6 +49,7 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
     let crate::cli::LoginArgs {
         username,
         password,
+        password_stdin,
         guard,
         qr,
         timeout,
@@ -77,6 +76,11 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
         require_experimental("login --web-token").await?;
         return cmd_login_web_token(pasted, json).await;
     }
+    let password = if password_stdin {
+        Some(read_password_stdin().await?)
+    } else {
+        password
+    };
 
     // In `--json` mode the login is driven non-interactively (e.g. by Heroic): no
     // TTY prompts. Credentials come from flags/env, and a Steam Guard code is
@@ -93,7 +97,7 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
         }
     };
     let account = username.clone();
-    let password = match password.or_else(|| std::env::var("AURELIA_PASSWORD").ok()) {
+    let password = match password {
         Some(p) => p,
         None => {
             rpassword::prompt_password("Steam password: ").context("failed reading password")?
@@ -302,15 +306,9 @@ pub(crate) async fn cmd_login_openid(json: bool) -> Result<()> {
 /// listings, never CM commands, so it complements rather than replaces `login`.
 /// Refuses a token for a different account than the stored session.
 pub(crate) async fn cmd_login_web_token(pasted: Option<String>, json: bool) -> Result<()> {
-    // Token sources, in order: the flag's value, the AURELIA_WEB_TOKEN env var
-    // (drivers use it to avoid shell-quoting the JSON on the command line —
-    // Windows spawn chains mangle embedded quotes), then prompt/stdin.
-    let env_token = || {
-        std::env::var("AURELIA_WEB_TOKEN")
-            .ok()
-            .filter(|v| !v.trim().is_empty())
-    };
-    let raw = match pasted.filter(|v| !v.trim().is_empty()).or_else(env_token) {
+    // Token sources: the flag's value, then prompt/stdin (which spares drivers
+    // from shell-quoting the JSON on the command line).
+    let raw = match pasted.filter(|v| !v.trim().is_empty()) {
         Some(v) => v,
         None if json => {
             eprint_json_line(&serde_json::json!({
@@ -366,7 +364,7 @@ pub(crate) async fn cmd_login_web_token(pasted: Option<String>, json: bool) -> R
 }
 
 /// Non-interactive password login for `--json` drivers (e.g. Heroic). Credentials
-/// come from flags or `AURELIA_PASSWORD`. To keep the driver informed (and never
+/// come from flags or `--password-stdin`. To keep the driver informed (and never
 /// silent), it emits:
 /// - `{event:"awaiting_confirmation"}` right away — the login may block while
 ///   Steam waits for the Guard code or Mobile-app approval, so the driver should
@@ -384,9 +382,8 @@ pub(crate) async fn cmd_login_json(
     guard: Option<String>,
 ) -> Result<()> {
     let username = username.context("--json login requires a username (-u/--username)")?;
-    let password = password
-        .or_else(|| std::env::var("AURELIA_PASSWORD").ok())
-        .context("--json login requires a password (-p/--password or AURELIA_PASSWORD)")?;
+    let password =
+        password.context("--json login requires a password (--password-stdin or -p/--password)")?;
     let account = username.clone();
 
     let mut client = SteamClient::new()?;
@@ -448,6 +445,13 @@ pub(crate) fn emit_qr_challenge_json(event: QrEvent) {
 /// Read a single line from stdin (used to receive a Guard code from a `--json`
 /// driver). Returns the trimmed contents. Routes through [`output::read_line`] so
 /// that, inside the daemon, it reads the forwarding client's stdin.
+/// Read a password from one line of stdin, dropping only the line ending (a
+/// password may begin or end with spaces).
+pub(crate) async fn read_password_stdin() -> Result<String> {
+    let line = output::read_line().await.context("failed reading stdin")?;
+    Ok(line.trim_end_matches(['\r', '\n']).to_string())
+}
+
 pub(crate) async fn read_stdin_line() -> Result<String> {
     output::read_line()
         .await
@@ -519,7 +523,7 @@ pub(crate) async fn cmd_login_reconnect(json: bool) -> Result<()> {
     if !daemon::in_daemon() {
         bail!(
             "--reconnect needs the session daemon, but this command is running standalone \
-             (AURELIA_NO_DAEMON is set, or the daemon is unreachable). Start `aurelia daemon` first."
+             (--no-daemon was given, or the daemon is unreachable). Start `aurelia daemon` first."
         );
     }
     let status = daemon::force_reconnect().await;

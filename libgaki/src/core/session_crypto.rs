@@ -96,9 +96,9 @@ pub fn decrypt(envelope: &EncryptedSession, password: &str) -> Result<Vec<u8>> {
 /// Per-process keyring-key cache: one D-Bus round trip.
 static KEYRING_KEY: Mutex<Option<String>> = Mutex::new(None);
 
-/// Whether the OS keyring may be used at all.
+/// Whether the OS keyring may be used at all (the `use_keyring` setting).
 fn keyring_enabled() -> bool {
-    std::env::var_os("AURELIA_DISABLE_KEYRING").is_none_or(|v| v.is_empty())
+    crate::core::config::load_runtime_settings_blocking().use_keyring
 }
 
 /// The keyring entry holding the session key.

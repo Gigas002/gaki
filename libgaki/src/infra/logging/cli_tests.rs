@@ -94,3 +94,9 @@ async fn relay_follows_the_requesters_verbosity() {
     let trace = relayed_at(7, || tracing::trace!("trace-line")).await;
     assert_eq!(trace.matches("trace-line").count(), 1);
 }
+
+#[test]
+fn explicit_filters_are_validated() {
+    assert!(validate_filter("debug,steam_vent=info").is_ok());
+    assert!(validate_filter("debug,=[").is_err());
+}

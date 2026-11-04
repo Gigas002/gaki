@@ -18,11 +18,18 @@ fn is_aurelia_name(name: &str) -> bool {
     name == env!("CARGO_BIN_NAME")
 }
 
-/// Decide whether a command line is the session daemon. The server runs as
-/// `aurelia daemon [--socket ...]`; a `daemon stop|list` invocation also contains
-/// "daemon" but carries a further subcommand, so those are excluded.
+/// Decide whether a command line is the session daemon: bare `daemon`, possibly
+/// after global flags (`--config-dir ... --socket ... daemon`). Parsed with the
+/// real CLI definition, so `daemon stop|list` and other commands don't match.
 fn cmd_is_daemon(cmd: &[String]) -> bool {
-    cmd.get(1).is_some_and(|a| a == "daemon") && !cmd.iter().any(|a| a == "stop" || a == "list")
+    use clap::Parser;
+    matches!(
+        crate::cli::Cli::try_parse_from(cmd),
+        Ok(crate::cli::Cli {
+            command: crate::cli::Command::Daemon { command: None },
+            ..
+        })
+    )
 }
 
 /// Enumerate running `aurelia` processes, excluding the current process.

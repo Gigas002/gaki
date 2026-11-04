@@ -25,9 +25,26 @@ pub(crate) struct Cli {
     /// Increase log verbosity (repeatable: -v, -vv, -vvv). Without it only
     /// warnings and errors are logged. -v adds progress/debug logs and a launched
     /// game's own output; -vv/-vvv unmute the Steam networking stack so a stalled
-    /// command shows where it is stuck. `RUST_LOG` / `AURELIA_LOG` override the logs.
+    /// command shows where it is stuck. `--log` overrides the logs.
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     pub(crate) verbose: u8,
+    /// Log filter directives (e.g. `debug,steam_vent=info`), overriding `-v`.
+    #[arg(long, global = true, value_name = "FILTER", value_parser = libgaki::infra::logging::validate_filter)]
+    pub(crate) log: Option<String>,
+    /// Use this config directory instead of `~/.config/Aurelia`. A daemon serves
+    /// one config directory, so pair it with `--socket` or `--no-daemon`.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub(crate) config_dir: Option<std::path::PathBuf>,
+    /// Run the command in this process, never through the session daemon.
+    #[arg(long, global = true)]
+    pub(crate) no_daemon: bool,
+    /// Use a running session daemon, but never start one (for drivers that
+    /// manage the daemon themselves, or whose spawn chains wait on children).
+    #[arg(long, global = true, conflicts_with = "no_daemon")]
+    pub(crate) no_spawn: bool,
+    /// Session daemon socket path, to run or reach an isolated daemon.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub(crate) socket: Option<String>,
 }
 
 #[derive(Subcommand)]
@@ -81,7 +98,7 @@ pub(crate) enum Command {
         extended: bool,
         /// Bypass the local metadata cache and fetch fresh data from Steam.
         /// By default `info` serves cached store metadata (TTL via
-        /// `AURELIA_INFO_CACHE_TTL`, default 6h) to avoid a Steam logon per call.
+        /// `config info-cache-ttl`, default 6h) to avoid a Steam logon per call.
         #[arg(short = 'n', long)]
         no_cache: bool,
         /// Price country code; defaults to US.
@@ -415,9 +432,6 @@ pub(crate) enum Command {
     Logout,
     /// Run the background session daemon serving other commands over a local socket.
     Daemon {
-        /// Override the socket/pipe path (also settable via `AURELIA_DAEMON_SOCKET`).
-        #[arg(short = 's', long)]
-        socket: Option<String>,
         #[command(subcommand)]
         command: Option<DaemonCommand>,
     },
@@ -454,8 +468,7 @@ pub(crate) enum ConfigCommand {
     /// (browser identity check) and `login --web-token` (web-surface auth). These
     /// prove identity or enable web-only commands (inventory/wallet/market) but
     /// cannot create the full client session that library/install/launch need.
-    /// The `AURELIA_EXPERIMENTAL=1` environment variable enables them for a single
-    /// run without persisting this setting. Omit the value to print it.
+    /// Omit the value to print it.
     Experimental {
         /// `true` or `false`. Omit to print the current setting.
         enabled: Option<bool>,
@@ -466,6 +479,29 @@ pub(crate) enum ConfigCommand {
     InstallResume {
         /// `manual` or `auto`. Omit to print the current setting.
         mode: Option<InstallResumeArg>,
+    },
+    /// View or set whether the OS keyring may hold the session key. Turn it off
+    /// on headless machines and CI, where no keyring service runs.
+    Keyring {
+        /// `true` or `false`. Omit to print the current setting.
+        enabled: Option<bool>,
+    },
+    /// View or set the directory holding per-game launch scripts.
+    ScriptDir {
+        /// Directory path. Omit to print the current setting.
+        path: Option<String>,
+        /// Revert to `<config_dir>/scripts`.
+        #[arg(short = 'c', long, conflicts_with = "path")]
+        clear: bool,
+    },
+    /// View or set how long `info` results are cached, in seconds (`0` disables
+    /// the cache).
+    InfoCacheTtl {
+        /// Seconds. Omit to print the current setting.
+        seconds: Option<u64>,
+        /// Revert to the default (6 hours).
+        #[arg(short = 'c', long, conflicts_with = "seconds")]
+        clear: bool,
     },
     /// View or set the network proxy used for all HTTP(S) communication.
     ///
@@ -519,7 +555,7 @@ pub(crate) enum ProtonCommand {
 
 #[derive(Subcommand)]
 pub(crate) enum ScriptsCommand {
-    /// Print the resolved launch-script directory (`AURELIA_SCRIPT_DIR` or
+    /// Print the resolved launch-script directory (`config script-dir`, or
     /// `<config_dir>/scripts`).
     Dir,
     /// List app ids that have a launch script (dir-based and config-pinned) and
@@ -851,14 +887,18 @@ pub(crate) struct LoginArgs {
     /// Steam account name (prompted if omitted).
     #[arg(short, long)]
     pub(crate) username: Option<String>,
-    /// Password (prompted, or AURELIA_PASSWORD).
+    /// Password (prompted if omitted). Visible to other local users in the
+    /// process list; prefer `--password-stdin` in scripts.
     #[arg(short, long)]
     pub(crate) password: Option<String>,
+    /// Read the password from the first line of stdin.
+    #[arg(long, conflicts_with = "password")]
+    pub(crate) password_stdin: bool,
     /// Steam Guard code, if known.
     #[arg(short, long)]
     pub(crate) guard: Option<String>,
     /// Log in via Steam Mobile QR code.
-    #[arg(short = 'q', long, conflicts_with_all = ["username", "password", "guard", "code"])]
+    #[arg(short = 'q', long, conflicts_with_all = ["username", "password", "password_stdin", "guard", "code"])]
     pub(crate) qr: bool,
     /// With `--qr`: give up after this many seconds without approval (default 600).
     /// With `--json`, a `cancel` line or EOF on stdin also ends the wait.
@@ -868,17 +908,17 @@ pub(crate) struct LoginArgs {
     #[arg(short = 'c', long, visible_alias = "pin", conflicts_with = "guard")]
     pub(crate) code: bool,
     /// Experimental: browser OpenID identity check (no session token).
-    #[arg(short = 'o', long, hide = true, conflicts_with_all = ["username", "password", "guard", "qr", "code"])]
+    #[arg(short = 'o', long, hide = true, conflicts_with_all = ["username", "password", "password_stdin", "guard", "qr", "code"])]
     pub(crate) openid: bool,
     /// Experimental: store a web token from steamcommunity.com/chat/clientjstoken
-    /// (or AURELIA_WEB_TOKEN) for web-only commands; expires in ~24h.
-    #[arg(short = 'w', long, hide = true, num_args = 0..=1, conflicts_with_all = ["username", "password", "guard", "qr", "code", "openid"])]
+    /// (the value, or stdin when omitted) for web-only commands; expires in ~24h.
+    #[arg(short = 'w', long, hide = true, num_args = 0..=1, conflicts_with_all = ["username", "password", "password_stdin", "guard", "qr", "code", "openid"])]
     pub(crate) web_token: Option<Option<String>>,
     /// Report session health without logging in.
-    #[arg(short = 'H', long, conflicts_with_all = ["username", "password", "guard", "qr", "code", "openid", "web_token", "reconnect"])]
+    #[arg(short = 'H', long, conflicts_with_all = ["username", "password", "password_stdin", "guard", "qr", "code", "openid", "web_token", "reconnect"])]
     pub(crate) health: bool,
     /// Re-establish the daemon session (daemon required).
-    #[arg(short = 'r', long, conflicts_with_all = ["username", "password", "guard", "qr", "code", "openid", "web_token", "health"])]
+    #[arg(short = 'r', long, conflicts_with_all = ["username", "password", "password_stdin", "guard", "qr", "code", "openid", "web_token", "health"])]
     pub(crate) reconnect: bool,
 }
 

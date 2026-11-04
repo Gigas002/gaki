@@ -110,13 +110,29 @@ pub struct LauncherConfig {
     /// browser/OpenID identity check (`login --openid`) and web-token auth
     /// (`login --web-token`), which prove identity / enable web-surface commands
     /// but cannot create the full client session that library/install/launch need.
-    /// Enable with `aurelia config experimental true` or `AURELIA_EXPERIMENTAL=1`.
+    /// Enable with `aurelia config experimental true`.
     #[serde(default)]
     pub experimental: bool,
     /// Keep `session.json` encrypted with the OS-keyring key.
     /// Enabled automatically by the first successful login.
     #[serde(default)]
     pub encrypt_session: bool,
+    /// Whether the OS keyring may be used for the session key. Off for
+    /// headless machines and CI, where no keyring service runs.
+    #[serde(default = "default_true")]
+    pub use_keyring: bool,
+    /// Directory holding per-game launch scripts; `None` is
+    /// `<config dir>/scripts`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub script_dir: Option<String>,
+    /// Lifetime of a cached `info` record in seconds; `None` is the default
+    /// (6h) and `0` disables the cache.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub info_cache_ttl: Option<u64>,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl LauncherConfig {
@@ -152,33 +168,19 @@ impl Default for LauncherConfig {
             install_resume: crate::library::backlog::InstallResume::default(),
             experimental: false,
             encrypt_session: false,
+            use_keyring: true,
+            script_dir: None,
+            info_cache_ttl: None,
         }
     }
 }
 
-/// Whether experimental features are enabled: the `experimental` config toggle,
-/// or the `AURELIA_EXPERIMENTAL` environment variable set to a truthy value
-/// (anything other than empty, `0`, or `false`). The env var lets a driver or a
-/// one-off invocation opt in without persisting the setting.
+/// Whether experimental features are enabled (the `experimental` setting).
 pub async fn experimental_enabled() -> bool {
-    if experimental_env_override() {
-        return true;
-    }
     load_launcher_config()
         .await
         .map(|config| config.experimental)
         .unwrap_or(false)
-}
-
-/// Whether `AURELIA_EXPERIMENTAL` forces experimental features on for this run.
-pub fn experimental_env_override() -> bool {
-    std::env::var_os("AURELIA_EXPERIMENTAL").is_some_and(|value| {
-        let value = value.to_string_lossy();
-        let value = value.trim();
-        !value.is_empty()
-            && !value.eq_ignore_ascii_case("0")
-            && !value.eq_ignore_ascii_case("false")
-    })
 }
 
 pub fn detect_steam_path() -> Option<PathBuf> {
@@ -199,10 +201,24 @@ pub fn home_dir() -> Result<PathBuf> {
         .context("could not determine home directory (HOME is not set)")
 }
 
+/// A config directory set for this process (see [`set_config_dir`]).
+static CONFIG_DIR_OVERRIDE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+/// Use `dir` as the config directory for the rest of the process, instead of
+/// `~/.config/Aurelia`. Call once, before anything reads the config; a later
+/// call is ignored and returns `false`.
+pub fn set_config_dir(dir: PathBuf) -> bool {
+    CONFIG_DIR_OVERRIDE.set(dir).is_ok()
+}
+
+/// The directory set with [`set_config_dir`], if any.
+pub fn config_dir_override() -> Option<&'static Path> {
+    CONFIG_DIR_OVERRIDE.get().map(PathBuf::as_path)
+}
+
 pub fn config_dir() -> Result<PathBuf> {
-    // embedding driver
-    if let Some(dir) = std::env::var_os("AURELIA_CONFIG_DIR").filter(|v| !v.is_empty()) {
-        return Ok(PathBuf::from(dir));
+    if let Some(dir) = CONFIG_DIR_OVERRIDE.get() {
+        return Ok(dir.clone());
     }
     // Joined per component so Windows paths don't mix separators.
     Ok(home_dir()?.join(".config").join("Aurelia"))
@@ -379,6 +395,40 @@ pub fn load_proxy_config_blocking() -> ProxyConfig {
         .unwrap_or_default()
 }
 
+/// The settings read from synchronous code paths (the keyring gate, the script
+/// directory, the info cache TTL). Parsed leniently from `config.json`: other
+/// fields are ignored, and a missing or unreadable file yields the defaults.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct RuntimeSettings {
+    pub use_keyring: bool,
+    pub script_dir: Option<String>,
+    pub info_cache_ttl: Option<u64>,
+}
+
+impl Default for RuntimeSettings {
+    fn default() -> Self {
+        Self {
+            use_keyring: true,
+            script_dir: None,
+            info_cache_ttl: None,
+        }
+    }
+}
+
+/// Synchronously read the [`RuntimeSettings`] from `config.json`.
+pub fn load_runtime_settings_blocking() -> RuntimeSettings {
+    config_dir()
+        .ok()
+        .and_then(|dir| std::fs::read_to_string(dir.join("config.json")).ok())
+        .map(|raw| parse_runtime_settings(&raw))
+        .unwrap_or_default()
+}
+
+fn parse_runtime_settings(raw: &str) -> RuntimeSettings {
+    serde_json::from_str(raw).unwrap_or_default()
+}
+
 /// Pin a game to `manifests` (depot → manifest ids), locking Aurelia's update
 /// commands for it. Preserves the game's other `GameConfig` fields.
 pub async fn set_game_pin(app_id: u32, manifests: HashMap<u32, u64>) -> Result<()> {
@@ -432,16 +482,14 @@ pub async fn load_library_cache() -> Result<Vec<OwnedGame>> {
 /// Default lifetime of a cached `aurelia info` record before it is re-fetched
 /// from Steam. Store metadata is effectively static for hours, while drivers like
 /// Heroic call `info` repeatedly; caching it collapses those into one Steam CM
-/// logon + StoreBrowse/PICS round-trip per app per window. Override (in seconds)
-/// with `AURELIA_INFO_CACHE_TTL` — `0` disables the cache.
-const INFO_CACHE_DEFAULT_TTL_SECS: u64 = 6 * 60 * 60;
+/// logon + StoreBrowse/PICS round-trip per app per window. The `info_cache_ttl`
+/// setting overrides it (in seconds); `0` disables the cache.
+pub const INFO_CACHE_DEFAULT_TTL_SECS: u64 = 6 * 60 * 60;
 
-/// The configured `info` cache TTL (`INFO_CACHE_DEFAULT_TTL_SECS` unless
-/// `AURELIA_INFO_CACHE_TTL` overrides it).
+/// The configured `info` cache TTL.
 pub fn info_cache_ttl() -> std::time::Duration {
-    let secs = std::env::var("AURELIA_INFO_CACHE_TTL")
-        .ok()
-        .and_then(|v| v.trim().parse::<u64>().ok())
+    let secs = load_runtime_settings_blocking()
+        .info_cache_ttl
         .unwrap_or(INFO_CACHE_DEFAULT_TTL_SECS);
     std::time::Duration::from_secs(secs)
 }
@@ -561,3 +609,7 @@ pub async fn save_user_configs(configs: &UserConfigStore) -> Result<()> {
 #[cfg(test)]
 #[path = "config_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "config_tests_runtime.rs"]
+mod runtime_settings_tests;

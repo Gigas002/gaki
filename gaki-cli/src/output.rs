@@ -111,11 +111,18 @@ pub async fn read_line_opt() -> std::io::Result<Option<String>> {
 
 /// Read one line from the daemon's *own* process stdin, returning `Ok(None)` on EOF.
 /// Shared by [`read_line`]/[`read_line_opt`] for the non-daemon (standalone) path.
+///
+/// One reader is shared by every call: a fresh `BufReader` per line would drop
+/// whatever it buffered past the first newline (e.g. a Guard code piped right
+/// after a `--password-stdin` line).
 async fn read_real_stdin_line() -> std::io::Result<Option<String>> {
     use tokio::io::AsyncBufReadExt;
+    static READER: std::sync::OnceLock<tokio::sync::Mutex<tokio::io::BufReader<tokio::io::Stdin>>> =
+        std::sync::OnceLock::new();
+    let reader = READER
+        .get_or_init(|| tokio::sync::Mutex::new(tokio::io::BufReader::new(tokio::io::stdin())));
     let mut line = String::new();
-    let mut reader = tokio::io::BufReader::new(tokio::io::stdin());
-    let n = reader.read_line(&mut line).await?;
+    let n = reader.lock().await.read_line(&mut line).await?;
     if n == 0 {
         return Ok(None);
     }

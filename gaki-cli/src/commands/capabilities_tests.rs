@@ -88,7 +88,9 @@ fn list_view_is_padded_and_braced() {
     let text = render_report(&capabilities(), 120);
     let name = text.lines().find(|l| l.starts_with("Name ")).unwrap();
     assert_eq!(name, "Name        : aurelia");
-    assert!(text.contains("GlobalFlags : {--json, --verbose}"));
+    assert!(text.contains(
+        "GlobalFlags : {--json, --verbose, --log, --config-dir, --no-daemon, --no-spawn, --socket}"
+    ));
     assert!(text.contains("Features    : {login.qr.result_line,"));
 }
 

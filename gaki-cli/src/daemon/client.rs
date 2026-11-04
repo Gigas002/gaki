@@ -23,9 +23,10 @@ pub enum Forwarded {
     Unavailable,
 }
 
-/// Run this command via the daemon.
-pub async fn try_forward() -> Result<Forwarded> {
-    let Some(stream) = connect_or_spawn().await else {
+/// Run this command via the daemon. With `no_spawn`, only use one that is
+/// already running.
+pub async fn try_forward(no_spawn: bool) -> Result<Forwarded> {
+    let Some(stream) = connect_or_spawn(no_spawn).await else {
         return Ok(Forwarded::Unavailable);
     };
     let argv: Vec<String> = std::env::args().collect();
@@ -38,7 +39,7 @@ pub async fn try_forward() -> Result<Forwarded> {
 /// own (stale) CLI, so it rejects newly added subcommands with "unrecognized subcommand".
 /// So when an existing daemon is a different version from this binary, stop it and start a
 /// fresh one before forwarding.
-async fn connect_or_spawn() -> Option<impl AsyncRead + AsyncWrite + Unpin + Send> {
+async fn connect_or_spawn(no_spawn: bool) -> Option<impl AsyncRead + AsyncWrite + Unpin + Send> {
     if let Ok(stream) = transport::connect().await {
         let current = env!("CARGO_PKG_VERSION");
         let info = super::read_daemon_info();
@@ -65,11 +66,11 @@ async fn connect_or_spawn() -> Option<impl AsyncRead + AsyncWrite + Unpin + Send
     }
 
     // Never auto-spawn when the driver manages the daemon lifecycle itself
-    // (AURELIA_NO_SPAWN, set e.g. by Heroic): some driver spawn chains — like
+    // (`--no-spawn`, e.g. Heroic): some driver spawn chains — like
     // `powershell Start-Process -Wait` — wait on the whole descendant tree, so
     // a daemon spawned from this client process would keep that wait blocked
     // for the daemon's lifetime. Run the command locally instead.
-    if std::env::var_os("AURELIA_NO_SPAWN").is_some_and(|v| !v.is_empty()) {
+    if no_spawn {
         return None;
     }
 
@@ -128,6 +129,13 @@ fn restart_daemon(pid: Option<u32>) {
 fn spawn_daemon() -> std::io::Result<()> {
     let exe = std::env::current_exe()?;
     let mut cmd = std::process::Command::new(exe);
+    // The daemon serves the same config dir and socket as this client.
+    if let Some(dir) = super::config_dir_override() {
+        cmd.arg("--config-dir").arg(dir);
+    }
+    if let Some(socket) = transport::endpoint_override() {
+        cmd.arg("--socket").arg(socket);
+    }
     cmd.arg("daemon")
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())

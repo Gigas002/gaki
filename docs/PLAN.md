@@ -482,7 +482,7 @@ I make the changes, and you review, commit, and push.
     `ops` too.
 - [ ] **2.4** Drop the `AURELIA_*` environment variables and rename to gaki.
   Configuration comes only from CLI commands, flags and the config file.
-  - [ ] **2.4a** Replace every env var gaki *reads* with a flag or a config key,
+  - [x] **2.4a** Replace every env var gaki *reads* with a flag or a config key,
     then delete the env lookup:
 
     | Env var | Replacement |
@@ -503,6 +503,18 @@ I make the changes, and you review, commit, and push.
     `gaki-cli` parses flags. Standard variables (`HOME`, `XDG_*`, proxy vars,
     `DISPLAY`, `COLUMNS`, `PATH`, `LD_*`) stay as they are. Update the docs,
     smoke-test recipe and CI that set these variables.
+    *Done.* The CLI parses before anything reads the config, then calls
+    `core::config::set_config_dir` and sets the daemon socket in-process. An
+    auto-spawned daemon gets the client's `--config-dir`/`--socket`, and a
+    forwarded command whose `--config-dir` differs from the daemon's is refused
+    (exit 2). Sync paths read the new keys through
+    `load_runtime_settings_blocking`. Daemon detection in `proc_admin` parses
+    argv with the CLI definition, since global flags may precede `daemon`.
+    Standalone stdin reads now share one buffered reader, so a Guard code
+    piped after `--password-stdin` isn't lost. `config experimental --json` no
+    longer has `env_override`. Smoke tests use
+    `gaki-cli --config-dir <tmp> --no-daemon …` (a `--socket` path must be
+    short: Unix sockets cap it near 108 bytes).
   - [ ] **2.4b** Variables gaki *exports* to launch scripts and the game process
     (`AURELIA_APP_ID`, `_APP_NAME`, `_GAME_DIR`, `_LAUNCH_PROGRAM`,
     `_LAUNCH_ARGS`, `_STDOUT_LOG`, `_STDERR_LOG`) are the script interface and

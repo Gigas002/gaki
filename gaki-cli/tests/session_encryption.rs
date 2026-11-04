@@ -7,13 +7,22 @@ use tempfile::{TempDir, tempdir};
 
 fn aurelia(config_dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
+        .arg("--config-dir")
+        .arg(config_dir)
+        .arg("--no-daemon")
         .args(args)
-        .env("AURELIA_CONFIG_DIR", config_dir)
-        .env("AURELIA_NO_DAEMON", "1")
-        .env("AURELIA_DISABLE_KEYRING", "1")
         .stdin(std::process::Stdio::null())
         .output()
         .expect("failed running the gaki-cli binary")
+}
+
+/// No keyring service in CI: turn it off for this config dir.
+fn disable_keyring(config_dir: &Path) {
+    let out = aurelia(config_dir, &["config", "keyring", "false"]);
+    assert!(
+        out.status.success(),
+        "could not disable the keyring: {out:?}"
+    );
 }
 
 fn stderr(out: &Output) -> String {
@@ -22,6 +31,7 @@ fn stderr(out: &Output) -> String {
 
 // Tokenless session: restore fails before networking.
 fn write_envelope(dir: &Path, keyring: bool) {
+    disable_keyring(dir);
     let mut envelope = libgaki::core::session_crypto::encrypt(b"{}", "irrelevant").unwrap();
     envelope.keyring = keyring;
     fs::write(
@@ -85,11 +95,13 @@ mod daemon_e2e {
     }
 
     fn spawn_daemon(config_dir: &Path, socket: &Path) -> DaemonProc {
+        disable_keyring(config_dir);
         let child = Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
-            .args(["daemon"])
-            .env("AURELIA_CONFIG_DIR", config_dir)
-            .env("AURELIA_DAEMON_SOCKET", socket)
-            .env("AURELIA_DISABLE_KEYRING", "1")
+            .arg("--config-dir")
+            .arg(config_dir)
+            .arg("--socket")
+            .arg(socket)
+            .arg("daemon")
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
@@ -112,12 +124,11 @@ mod daemon_e2e {
         let _daemon = spawn_daemon(tmp.path(), &socket);
 
         let out = Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
-            .args(["account"])
-            .env("AURELIA_CONFIG_DIR", tmp.path())
-            .env("AURELIA_DAEMON_SOCKET", &socket)
-            .env("AURELIA_DISABLE_KEYRING", "1")
-            .env("AURELIA_NO_SPAWN", "1")
-            .env_remove("AURELIA_NO_DAEMON")
+            .arg("--config-dir")
+            .arg(tmp.path())
+            .arg("--socket")
+            .arg(&socket)
+            .args(["--no-spawn", "account"])
             .stdin(std::process::Stdio::null())
             .output()
             .expect("failed running the gaki-cli binary");
@@ -137,12 +148,11 @@ mod daemon_e2e {
         let _daemon = spawn_daemon(tmp.path(), &socket);
 
         let out = Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
-            .args(["account"])
-            .env("AURELIA_CONFIG_DIR", tmp.path())
-            .env("AURELIA_DAEMON_SOCKET", &socket)
-            .env("AURELIA_DISABLE_KEYRING", "1")
-            .env("AURELIA_NO_SPAWN", "1")
-            .env_remove("AURELIA_NO_DAEMON")
+            .arg("--config-dir")
+            .arg(tmp.path())
+            .arg("--socket")
+            .arg(&socket)
+            .args(["--no-spawn", "account"])
             .stdin(std::process::Stdio::null())
             .output()
             .expect("failed running the gaki-cli binary");

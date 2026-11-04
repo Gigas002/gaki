@@ -19,12 +19,19 @@ use crate::core::config::LauncherConfig;
 
 /// Directory that holds per-game launch scripts.
 ///
-/// `AURELIA_SCRIPT_DIR` overrides it; otherwise it is `<config_dir>/scripts`. If the
-/// config dir cannot be resolved we fall back to a relative `scripts` directory so
+/// The `script_dir` setting overrides it; otherwise it is `<config_dir>/scripts`. If
+/// the config dir cannot be resolved we fall back to a relative `scripts` directory so
 /// callers stay infallible (this only happens when even `$HOME` is unset, in which
 /// case nothing else in Aurelia works either).
 pub fn script_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("AURELIA_SCRIPT_DIR").filter(|v| !v.is_empty()) {
+    #[cfg(test)]
+    if let Some(dir) = SCRIPT_DIR_TEST_OVERRIDE.lock().unwrap().clone() {
+        return dir;
+    }
+    if let Some(dir) = crate::core::config::load_runtime_settings_blocking()
+        .script_dir
+        .filter(|d| !d.is_empty())
+    {
         return PathBuf::from(dir);
     }
     match crate::core::config::config_dir() {
@@ -162,10 +169,15 @@ pub fn list_script_app_ids(config: Option<&LauncherConfig>) -> Vec<u32> {
     ids.into_iter().collect()
 }
 
-/// Serializes tests that mutate the process-global `AURELIA_SCRIPT_DIR` env var so
-/// they don't race each other (across this module and the apply-stage tests).
+/// Serializes tests that point [`script_dir`] somewhere else so they don't race
+/// each other (across this module and the apply-stage tests).
 #[cfg(test)]
-pub(crate) static SCRIPT_DIR_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+pub(crate) static SCRIPT_DIR_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// The script directory for tests, set while holding [`SCRIPT_DIR_LOCK`].
+#[cfg(test)]
+pub(crate) static SCRIPT_DIR_TEST_OVERRIDE: std::sync::Mutex<Option<PathBuf>> =
+    std::sync::Mutex::new(None);
 
 /// Delete the auto-detected dir-based script for `app_id`. Returns `Ok(true)` if a
 /// file was removed, `Ok(false)` if none existed.

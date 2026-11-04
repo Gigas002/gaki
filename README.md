@@ -507,7 +507,7 @@ Logs go to stderr. By default only warnings and errors are shown. `-v` adds Aure
 progress and debug logs, and `-vv`/`-vvv` unmute the Steam networking stack, which helps when
 a command seems stuck. Commands run through the session daemon show the same logs at your
 `-v` level, and a verbose `play` also shows the daemon's own activity, prefixed `[daemon]`.
-`AURELIA_LOG` or `RUST_LOG` override the level for a command run locally. A launched game's
+`--log <FILTER>` (e.g. `--log debug,steam_vent=info`) overrides the level. A launched game's
 own output is saved per launch under `~/.config/Aurelia/logs/` (Proton's stderr in
 `wine_<appid>.log`).
 
@@ -523,9 +523,15 @@ explanation, and `play` rejects `--proton`, `--platform linux`, `--steam-mode ru
 ## Configuration
 
 Aurelia stores its configuration and local data under `~/.config/Aurelia`
-(`%USERPROFILE%\.config\Aurelia` on Windows). Set **`AURELIA_CONFIG_DIR`** to relocate it.
+(`%USERPROFILE%\.config\Aurelia` on Windows). Pass **`--config-dir <PATH>`** to relocate it.
 That is useful for an embedding driver (e.g. Heroic) that needs Aurelia's state isolated from
-a standalone install.
+a standalone install. A session daemon serves one config directory, so pair it with
+`--socket <PATH>` (a separate daemon) or `--no-daemon`. `--no-spawn` uses a running daemon
+but never starts one.
+
+Settings are changed with `config` commands, never environment variables: for example
+`config keyring false` on a machine without a keyring service, `config script-dir <PATH>`
+and `config info-cache-ttl <SECONDS>`.
 
 - **Library path.** Aurelia auto-detects your existing Steam installation. Inspect the
   resolved configuration with `aurelia config show`.
@@ -614,7 +620,7 @@ built for each release. See [Install](#install).
 ### Can I use it to script my Steam library?
 
 Yes. Every command accepts `--json` for machine-readable output, including errors, so
-Aurelia works as a backend for other launchers and for automation. `AURELIA_CONFIG_DIR`
+Aurelia works as a backend for other launchers and for automation. `--config-dir`
 relocates its state so an embedding driver can keep it isolated.
 
 ### Is it safe to use? Can I get VAC banned?

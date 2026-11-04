@@ -57,14 +57,16 @@ async fn missing_explicit_script_errors() {
 #[tokio::test]
 #[expect(
     clippy::await_holding_lock,
-    reason = "the guard serialises AURELIA_SCRIPT_DIR across tests for the whole body"
+    reason = "the guard serialises the script-dir override across tests for the whole body"
 )]
 async fn no_script_is_noop() {
-    let _guard = crate::launch::launch_script::SCRIPT_DIR_ENV_LOCK
+    let _guard = crate::launch::launch_script::SCRIPT_DIR_LOCK
         .lock()
         .unwrap();
     let tmp = tempdir().unwrap();
-    unsafe { std::env::set_var("AURELIA_SCRIPT_DIR", tmp.path()) };
+    *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
+        .lock()
+        .unwrap() = Some(tmp.path().to_path_buf());
     let mut ctx = PipelineContext::new(555);
     let spec = CommandSpec {
         program: PathBuf::from("/usr/bin/proton"),
@@ -80,7 +82,9 @@ async fn no_script_is_noop() {
     assert_eq!(spec.program, Path::new("/usr/bin/proton"));
     assert_eq!(spec.args, vec!["run"]);
     assert!(!spec.env.contains_key("AURELIA_APP_ID"));
-    unsafe { std::env::remove_var("AURELIA_SCRIPT_DIR") };
+    *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
+        .lock()
+        .unwrap() = None;
 }
 
 #[tokio::test]

@@ -4,8 +4,8 @@
 //! these operations keep the current behaviour until then.
 
 use crate::core::config::{
-    GameConfig, LauncherConfig, ProxyConfig, experimental_env_override, load_launcher_config,
-    load_user_configs, save_launcher_config, save_user_configs,
+    GameConfig, LauncherConfig, ProxyConfig, load_launcher_config, load_user_configs,
+    save_launcher_config, save_user_configs,
 };
 use crate::core::models::DepotPlatform;
 use anyhow::{Context, Result};
@@ -62,9 +62,7 @@ pub async fn update(
 pub struct ExperimentalStatus {
     /// The persisted setting.
     pub experimental: bool,
-    /// Whether the environment forces it on for this run.
-    pub env_override: bool,
-    /// What actually applies.
+    /// What actually applies (the setting; kept for drivers that read it).
     pub effective: bool,
 }
 
@@ -80,11 +78,9 @@ pub async fn experimental(set: Option<bool>) -> Result<ExperimentalStatus> {
         }
         None => load().await?,
     };
-    let env_override = experimental_env_override();
     Ok(ExperimentalStatus {
         experimental: config.experimental,
-        env_override,
-        effective: config.experimental || env_override,
+        effective: config.experimental,
     })
 }
 

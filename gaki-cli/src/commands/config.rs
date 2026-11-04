@@ -73,9 +73,6 @@ pub(crate) async fn cmd_config_experimental(enabled: Option<bool>, json: bool) -
                 "disabled"
             }
         );
-        if status.env_override && !status.experimental {
-            cli_println!("(AURELIA_EXPERIMENTAL is set — enabled for this run regardless)");
-        }
         cli_println!("Gates: login --openid, login --web-token");
         if changed {
             cli_println!("Saved.");
@@ -145,6 +142,111 @@ pub(crate) async fn cmd_config_install_resume(
         cli_println!("Saved. Applies the next time the daemon starts.");
     }
     Ok(())
+}
+
+/// `config keyring [true|false]`.
+pub(crate) async fn cmd_config_keyring(enabled: Option<bool>, json: bool) -> Result<()> {
+    let (config, changed) = view_or_set(enabled, |c, v| c.use_keyring = v).await?;
+    if json {
+        print_json(&serde_json::json!({ "use_keyring": config.use_keyring }));
+        return Ok(());
+    }
+    cli_println!(
+        "OS keyring: {}",
+        if config.use_keyring {
+            "used for the session key"
+        } else {
+            "not used"
+        }
+    );
+    if changed {
+        cli_println!("Saved.");
+    }
+    Ok(())
+}
+
+/// `config script-dir [PATH|--clear]`.
+pub(crate) async fn cmd_config_script_dir(
+    change: libgaki::ops::config::Change<String>,
+    json: bool,
+) -> Result<()> {
+    let changed = !matches!(change, libgaki::ops::config::Change::Keep);
+    let config = set_optional(change, |c| &mut c.script_dir).await?;
+    let effective = libgaki::launch::launch_script::script_dir();
+    if json {
+        print_json(&serde_json::json!({
+            "script_dir": config.script_dir,
+            "effective": effective.display().to_string(),
+        }));
+        return Ok(());
+    }
+    match &config.script_dir {
+        Some(dir) => cli_println!("Script dir: {dir}"),
+        None => cli_println!("Script dir: {} (default)", effective.display()),
+    }
+    if changed {
+        cli_println!("Saved.");
+    }
+    Ok(())
+}
+
+/// `config info-cache-ttl [SECONDS|--clear]`.
+pub(crate) async fn cmd_config_info_cache_ttl(
+    change: libgaki::ops::config::Change<u64>,
+    json: bool,
+) -> Result<()> {
+    let changed = !matches!(change, libgaki::ops::config::Change::Keep);
+    let config = set_optional(change, |c| &mut c.info_cache_ttl).await?;
+    let effective = config
+        .info_cache_ttl
+        .unwrap_or(libgaki::core::config::INFO_CACHE_DEFAULT_TTL_SECS);
+    if json {
+        print_json(&serde_json::json!({
+            "info_cache_ttl": config.info_cache_ttl,
+            "effective_seconds": effective,
+        }));
+        return Ok(());
+    }
+    let suffix = if config.info_cache_ttl.is_none() {
+        " (default)"
+    } else {
+        ""
+    };
+    if effective == 0 {
+        cli_println!("Info cache: disabled{suffix}");
+    } else {
+        cli_println!("Info cache TTL: {effective}s{suffix}");
+    }
+    if changed {
+        cli_println!("Saved.");
+    }
+    Ok(())
+}
+
+/// Apply a [`Change`] to an optional setting,
+/// returning the config.
+async fn set_optional<T>(
+    change: libgaki::ops::config::Change<T>,
+    field: impl FnOnce(&mut LauncherConfig) -> &mut Option<T>,
+) -> Result<LauncherConfig> {
+    use libgaki::ops::config::Change;
+    match change {
+        Change::Keep => libgaki::ops::config::load().await,
+        Change::Clear => {
+            libgaki::ops::config::update(|c| {
+                *field(c) = None;
+                Ok(())
+            })
+            .await
+        }
+        Change::Set(v) => {
+            libgaki::ops::config::update(|c| {
+                *field(c) = Some(v);
+                Ok(())
+            })
+            .await
+        }
+    }
 }
 
 /// `config protons`: list the Proton/Wine runtimes actually installed on disk.
@@ -292,7 +394,7 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
 }
 
 /// A `--x` / `--no-x` flag pair as a setting change.
-fn change<T>(clear: bool, set: Option<T>) -> Change<T> {
+pub(crate) fn change<T>(clear: bool, set: Option<T>) -> Change<T> {
     match (clear, set) {
         (true, _) => Change::Clear,
         (false, Some(v)) => Change::Set(v),
