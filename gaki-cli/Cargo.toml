@@ -1,0 +1,27 @@
+[package]
+name = "gaki-cli"
+description = "Command-line Steam client and launcher for Linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+libgaki.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+libc.workspace = true
+qrcode.workspace = true
+reqwest.workspace = true
+rpassword.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+steam-vent-chat.workspace = true
+sysinfo.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+walkdir.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

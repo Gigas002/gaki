@@ -388,9 +388,22 @@ I make the changes, and you review, commit, and push.
   `src/proc_admin.rs`, and `web/steam_urls.rs` → `src/steam_urls.rs`.
   Rustdoc now builds the binary too, because it no longer shares the name
   `aurelia` with the library, so three binary doc links were fixed.
-- [ ] **2.2** Create `gaki-cli/` from `src/main.rs`, `cli.rs`, `commands/`, and
+- [x] **2.2** Create `gaki-cli/` from `src/main.rs`, `cli.rs`, `commands/`, and
   `daemon/`. Change `aurelia::` paths to `libgaki::`. Rename the binary to
   `gaki-cli`.
+  *Done.* `src/` moved to `gaki-cli/src/` (package and binary `gaki-cli`), the
+  root `Cargo.toml` is now a pure workspace, and every `aurelia::` path is
+  `libgaki::`. The root package is gone, so the integration tests moved here
+  instead of in 2.5: `config_load_errors`, `login_warning` and
+  `session_encryption` drive the binary and went to `gaki-cli/tests/`
+  (`CARGO_BIN_EXE_gaki-cli`); the other 11 went to `libgaki/tests/`. The
+  codecov matrix in `test.yml` now lists `libgaki` and `gaki-cli`. Two things
+  had to follow the binary name now rather than in 2.4: clap's command name
+  and the `kill`/`daemon list` process matcher in `proc_admin.rs`. Both use
+  `env!("CARGO_BIN_NAME")`; otherwise `gaki-cli kill` would look for
+  processes named `aurelia`. User-facing strings and env vars still say
+  aurelia until 2.4. `deploy.yml` already lists `gaki-tui`, which arrives in
+  Phase 3; a release tag before then would fail on that row.
 - [ ] **2.3** Move all logic out of `gaki-cli/src/commands/` into `libgaki`, so
   commands keep only argument mapping and output formatting (R23). Expect the
   heavy cases in `install.rs`, `info.rs`, `store.rs`, `auth.rs`, and

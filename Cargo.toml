@@ -1,5 +1,5 @@
 [workspace]
-members = ["libgaki"]
+members = ["libgaki", "gaki-cli"]
 resolver = "3"
 
 [workspace.package]
@@ -46,39 +46,3 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 walkdir = "2"
 zip = "2.2.2"
-
-# The CLI binary stays at the workspace root until step 2.2 moves it to gaki-cli/.
-[package]
-name = "aurelia-steam"
-description = "Aurelia CLI Steam launcher"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-repository.workspace = true
-exclude = [".github/"]
-
-[[bin]]
-name = "aurelia"
-path = "src/main.rs"
-
-[dependencies]
-# Renamed so `aurelia::` paths keep working until 2.2 switches them to `libgaki::`.
-aurelia = { package = "libgaki", path = "libgaki" }
-anyhow.workspace = true
-clap.workspace = true
-libc.workspace = true
-qrcode.workspace = true
-reqwest.workspace = true
-rpassword.workspace = true
-serde.workspace = true
-serde_json.workspace = true
-steam-vent-chat.workspace = true
-sysinfo.workspace = true
-tokio.workspace = true
-tokio-stream.workspace = true
-tracing.workspace = true
-walkdir.workspace = true
-
-[dev-dependencies]
-async-trait.workspace = true
-tempfile.workspace = true
