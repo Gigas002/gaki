@@ -177,6 +177,11 @@ impl Session {
         libgaki::ops::session::require_authenticated(self.ensure().await?, None)
     }
 
+    /// Adopt a client that just logged in, replacing any previous one.
+    pub async fn set(&self, client: SteamClient) {
+        *self.0.lock().await = Some(client);
+    }
+
     /// Forget the session, so the next use restores it again.
     pub async fn reset(&self) {
         *self.0.lock().await = None;

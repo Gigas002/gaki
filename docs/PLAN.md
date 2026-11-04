@@ -668,7 +668,14 @@ I make the changes, and you review, commit, and push.
     error naming the count and the first file (worst first: failed,
     diverged, skipped). Diverged saves are still only detected; both copies
     are kept.
-  - [ ] Account and login
+  - [x] Account and login (`login_qr`, `login_classic`, `logout`,
+    `set_presence`, `config_show`, the proxy settings). Fixed username/password
+    login, broken since 2.4a: the password went in an env var the CLI no
+    longer reads. Logins now run on the worker and hand their client to the
+    shared session, so later calls reuse it without restoring from disk.
+    Logout resets the session. Presence changes are announced at once when
+    logged in, instead of after a daemon restart. The QR flow now gets
+    challenge URLs straight from `libgaki`; its rendering bug is 4.3.
   - [ ] The rest
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
   `libgaki` auth flow directly, rather than scraping it from CLI output, which

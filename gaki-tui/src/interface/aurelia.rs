@@ -6,7 +6,7 @@
 //! user is expected to have authenticated once already with `aurelia login`
 //! (the TUI only verifies the session via `aurelia login --health`).
 
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::process;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
@@ -1081,16 +1081,6 @@ pub struct RunningJson {
     pub pid: u32,
 }
 
-/// A `qr_challenge` event line from `aurelia login --qr --json` (emitted on
-/// stderr, re-emitted whenever Steam rotates the code).
-#[derive(Debug, Deserialize)]
-struct QrEvent {
-    #[serde(default)]
-    event: Option<String>,
-    #[serde(default)]
-    url: Option<String>,
-}
-
 /// Where a classic (username/password) login currently stands. Drives what the
 /// TUI shows and when it prompts for a Steam Guard code.
 #[derive(Debug, Clone, PartialEq)]
@@ -1107,15 +1097,6 @@ pub enum LoginPhase {
     DeviceConfirmation,
     Success,
     Failed(String),
-}
-
-/// An NDJSON event line from `aurelia login --json` (on stderr).
-#[derive(Debug, Deserialize)]
-struct LoginEvent {
-    #[serde(default)]
-    event: Option<String>,
-    #[serde(default, rename = "type")]
-    guard_type: Option<String>,
 }
 
 /// A single NDJSON progress line from a streaming `install`/`update`/`verify`.
@@ -1236,21 +1217,33 @@ pub fn account() -> Result<AccountJson, STError> {
     })
 }
 
-/// Fetch the launcher configuration (`aurelia config show --json`).
+/// Fetch the launcher configuration.
 pub fn config_show() -> Result<ConfigJson, STError> {
-    let value = run_json(&["config", "show"])?;
-    Ok(serde_json::from_value(value)?)
+    let config = in_process(libgaki::ops::config::load())?;
+    Ok(serde_json::from_value(serde_json::to_value(config)?)?)
 }
 
-/// Set the friends/chat presence the daemon announces
-/// (`aurelia config presence online|offline --json`).
+/// Set the friends/chat presence, and announce it right away when logged in.
 pub fn set_presence(online: bool) -> Result<(), STError> {
-    run_json(&[
-        "config",
-        "presence",
-        if online { "online" } else { "offline" },
-    ])?;
-    Ok(())
+    use libgaki::core::config::ChatPresence;
+    in_process(async {
+        libgaki::ops::config::update(|c| {
+            c.chat_presence = if online {
+                ChatPresence::Online
+            } else {
+                ChatPresence::Offline
+            };
+            Ok(())
+        })
+        .await?;
+        // Best-effort: the saved setting applies on the next connect anyway.
+        if let Some(client) = worker::global().session().client().await
+            && client.is_authenticated()
+        {
+            let _ = client.announce_configured_presence().await;
+        }
+        Ok(())
+    })
 }
 
 /// The network proxy used for all HTTP(S) communication (Steam web endpoints,
@@ -1267,38 +1260,57 @@ pub struct ProxyJson {
     pub no_proxy: Option<String>,
 }
 
-/// Show the configured HTTP(S) proxy (`aurelia config proxy --json`). With no
-/// arguments the CLI prints — but does not change — the current setting.
+/// Apply a proxy change and return the resulting setting.
+fn update_proxy(change: libgaki::ops::config::ProxyChange) -> Result<ProxyJson, STError> {
+    let proxy = in_process(libgaki::ops::config::update_proxy(change))?;
+    Ok(ProxyJson {
+        url: proxy.url,
+        no_proxy: proxy.no_proxy,
+    })
+}
+
+/// Show the configured HTTP(S) proxy without changing it.
 pub fn config_proxy_show() -> Result<ProxyJson, STError> {
-    let value = run_json(&["config", "proxy"])?;
-    Ok(serde_json::from_value(value)?)
+    update_proxy(Default::default())
 }
 
-/// Set the proxy URL (`aurelia config proxy <url>`). The CLI validates the URL;
-/// an empty string reverts to a direct connection.
+/// Set the proxy URL (validated); an empty string reverts to a direct
+/// connection.
 pub fn config_proxy_set(url: &str) -> Result<(), STError> {
-    run_json(&["config", "proxy", url])?;
-    Ok(())
+    update_proxy(libgaki::ops::config::ProxyChange {
+        url: Some(url.to_string()),
+        ..Default::default()
+    })
+    .map(drop)
 }
 
-/// Set the proxy bypass list (`aurelia config proxy --no-proxy <list>`).
+/// Set the proxy bypass list (`NO_PROXY`).
 pub fn config_proxy_set_no_proxy(list: &str) -> Result<(), STError> {
-    run_json(&["config", "proxy", "--no-proxy", list])?;
-    Ok(())
+    update_proxy(libgaki::ops::config::ProxyChange {
+        no_proxy: Some(list.to_string()),
+        ..Default::default()
+    })
+    .map(drop)
 }
 
-/// Clear the configured proxy, reverting to a direct connection
-/// (`aurelia config proxy --clear`).
+/// Clear the configured proxy, reverting to a direct connection.
 pub fn config_proxy_clear() -> Result<(), STError> {
-    run_json(&["config", "proxy", "--clear"])?;
-    Ok(())
+    update_proxy(libgaki::ops::config::ProxyChange {
+        clear: true,
+        ..Default::default()
+    })
+    .map(drop)
 }
 
-/// Log out of the current Steam session (`aurelia logout --json`). The returned
-/// value (`{"logged_out":true}`) is ignored; only errors are propagated.
+/// Log out of the current Steam session and delete the stored one.
 pub fn logout() -> Result<(), STError> {
-    run_json(&["logout"])?;
-    Ok(())
+    in_process(async {
+        let session = worker::global().session();
+        let mut client = session.ensure().await?;
+        let result = libgaki::ops::auth::logout(&mut client).await;
+        session.reset().await;
+        result
+    })
 }
 
 /// Fetch the Steam Wallet balance (`aurelia wallet --json`).
@@ -1956,64 +1968,29 @@ pub fn stop(app_id: i32) -> Result<(), STError> {
         .map_err(|e| STError::Problem(format!("{e:#}")))
 }
 
-/// Log in by QR code (`aurelia login --qr --json`), publishing each challenge
-/// URL into `qr_cell` so the UI can render it. Blocks until the login resolves;
-/// returns `Ok(())` once authenticated, `Err` on failure/timeout. Intended to
-/// be run on a dedicated thread.
-///
-/// Forced to run standalone (`--no-daemon`) so it authenticates in this
-/// process and writes `session.json`; any running daemon then reloads that
-/// session by mtime on its next forwarded command.
+/// Log in by QR code, publishing each challenge URL into `qr_cell` so the UI
+/// can render it. Blocks until the login resolves; returns `Ok(())` once
+/// authenticated, `Err` on failure/timeout. Intended to be run on a dedicated
+/// thread. On success the worker session adopts the new client.
 pub fn login_qr(qr_cell: &Arc<Mutex<Option<String>>>) -> Result<(), STError> {
-    let spawned = process::Command::new(bin())
-        .args(["login", "--qr", "--json"])
-        .arg("--no-daemon")
-        .stdin(process::Stdio::null())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-    let mut child = spawned.map_err(STError::Process)?;
-
-    // The terminal result object is the single line on stdout; drain it on a
-    // helper thread while we consume the challenge events on stderr.
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
-        }
-        buf
-    });
-
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<QrEvent>(line)
-                && event.event.as_deref() == Some("qr_challenge")
-                && let Some(url) = event.url
-                && let Ok(mut slot) = qr_cell.lock()
-            {
-                *slot = Some(url);
-            }
-        }
-    }
-
-    let result = result_handle.join().unwrap_or_default();
-    let _ = child.wait();
-
-    let value: serde_json::Value = serde_json::from_str(result.trim()).map_err(|_| {
-        STError::Problem("QR login did not complete (no result from aurelia)".to_string())
-    })?;
-    if value.get("logged_in").and_then(|b| b.as_bool()) == Some(true) {
+    use libgaki::core::models::QrEvent;
+    in_process(async {
+        let mut client = libgaki::steam_client::SteamClient::new()?;
+        libgaki::ops::auth::login_qr(
+            &mut client,
+            libgaki::ops::auth::QR_DEFAULT_TIMEOUT,
+            |event| {
+                if let QrEvent::Challenge(url) = event
+                    && let Ok(mut slot) = qr_cell.lock()
+                {
+                    *slot = Some(url.to_string());
+                }
+            },
+        )
+        .await?;
+        worker::global().session().set(client).await;
         Ok(())
-    } else if let Some(err) = json_error(&value) {
-        Err(STError::Problem(err.to_string()))
-    } else {
-        Err(STError::Problem("QR login did not complete".to_string()))
-    }
+    })
 }
 
 fn set_phase(phase: &Arc<Mutex<LoginPhase>>, value: LoginPhase) {
@@ -2022,100 +1999,64 @@ fn set_phase(phase: &Arc<Mutex<LoginPhase>>, value: LoginPhase) {
     }
 }
 
-/// Classic username/password login (`aurelia login --json -u <user>`).
+/// Classic username/password login.
 ///
-/// The password is passed via the `AURELIA_PASSWORD` environment variable so it
-/// never appears in the process's argument list. Steam Guard codes are read by
-/// `aurelia` from stdin: when a `guard_required` event arrives we publish a
-/// `GuardCode` phase, block on `guard_rx` until the UI supplies the code, then
-/// write it to the child's stdin. Runs standalone (`--no-daemon`) so it
-/// authenticates here and writes `session.json`. Intended to run on a dedicated
-/// thread; returns `Ok(())` once authenticated.
+/// Publishes each step into `phase`. When Steam asks for a Steam Guard code
+/// the phase becomes [`LoginPhase::GuardCode`] and this blocks on `guard_rx`
+/// until the UI supplies it. Intended to run on a dedicated thread; returns
+/// `Ok(())` once authenticated, after which the worker session adopts the new
+/// client.
 pub fn login_classic(
     username: &str,
     password: &str,
     phase: &Arc<Mutex<LoginPhase>>,
     guard_rx: Receiver<String>,
 ) -> Result<(), STError> {
+    use libgaki::ops::auth::{LoginStep, PasswordLogin};
     set_phase(phase, LoginPhase::Connecting);
-
-    let spawned = process::Command::new(bin())
-        .args(["login", "--json", "-u", username])
-        .env("AURELIA_PASSWORD", password)
-        .arg("--no-daemon")
-        .stdin(process::Stdio::piped())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-    let mut child = spawned.map_err(STError::Process)?;
-
-    let mut stdin = child.stdin.take();
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
+    let result = in_process(async {
+        let mut client = libgaki::steam_client::SteamClient::new()?;
+        let mut request = PasswordLogin {
+            username: username.to_string(),
+            password: password.to_string(),
+            guard_code: None,
+            read_code_from_stdin: false,
+            timeout: Some(libgaki::ops::auth::LOGIN_TIMEOUT),
+        };
+        // The attempt blocks while Steam waits for a Mobile-app approval, so
+        // say that up front.
+        set_phase(phase, LoginPhase::AwaitingConfirmation);
+        loop {
+            match libgaki::ops::auth::login(&mut client, &request).await? {
+                LoginStep::LoggedIn => break,
+                LoginStep::CodeRequired(kind) if request.guard_code.is_none() => {
+                    set_phase(phase, LoginPhase::GuardCode(kind.as_str().to_string()));
+                    // `block_on` polls this future on the calling (login)
+                    // thread, so waiting here blocks neither the UI nor the
+                    // runtime's workers.
+                    let code = guard_rx
+                        .recv()
+                        .map_err(|_| anyhow::anyhow!("login cancelled"))?;
+                    request.guard_code = Some(code.trim().to_string());
+                    set_phase(phase, LoginPhase::Connecting);
+                }
+                LoginStep::CodeRequired(_) => {
+                    anyhow::bail!("login failed after providing Steam Guard code")
+                }
+                LoginStep::ApprovalRequired => {
+                    set_phase(phase, LoginPhase::DeviceConfirmation);
+                    anyhow::bail!("approve this login in the Steam Mobile app, then log in again")
+                }
+            }
         }
-        buf
+        worker::global().session().set(client).await;
+        Ok(())
     });
-
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            let Ok(event) = serde_json::from_str::<LoginEvent>(line) else {
-                continue;
-            };
-            match event.event.as_deref() {
-                Some("awaiting_confirmation") => set_phase(phase, LoginPhase::AwaitingConfirmation),
-                Some("guard_required") => match event.guard_type.as_deref() {
-                    Some("device_confirmation") => set_phase(phase, LoginPhase::DeviceConfirmation),
-                    Some(kind) => {
-                        set_phase(phase, LoginPhase::GuardCode(kind.to_string()));
-                        // Block until the UI delivers the code, then feed it to
-                        // aurelia's stdin (one line, as it expects).
-                        if let Ok(code) = guard_rx.recv() {
-                            if let Some(si) = stdin.as_mut() {
-                                let _ = writeln!(si, "{}", code);
-                                let _ = si.flush();
-                            }
-                            set_phase(phase, LoginPhase::Connecting);
-                        }
-                    }
-                    None => {}
-                },
-                _ => {}
-            }
-        }
+    match &result {
+        Ok(()) => set_phase(phase, LoginPhase::Success),
+        Err(e) => set_phase(phase, LoginPhase::Failed(e.to_string())),
     }
-
-    let result = result_handle.join().unwrap_or_default();
-    // Close stdin so aurelia sees EOF if it is still reading.
-    drop(stdin);
-    let _ = child.wait();
-
-    match serde_json::from_str::<serde_json::Value>(result.trim()) {
-        Ok(value) if value.get("logged_in").and_then(|b| b.as_bool()) == Some(true) => {
-            set_phase(phase, LoginPhase::Success);
-            Ok(())
-        }
-        Ok(value) => {
-            let msg = value
-                .get("error")
-                .and_then(|e| e.as_str())
-                .unwrap_or("login failed")
-                .to_string();
-            set_phase(phase, LoginPhase::Failed(msg.clone()));
-            Err(STError::Problem(msg))
-        }
-        Err(_) => {
-            let msg = "login did not complete".to_string();
-            set_phase(phase, LoginPhase::Failed(msg.clone()));
-            Err(STError::Problem(msg))
-        }
-    }
+    result
 }
 
 /// Update a shared status cell, preserving any previously-known install dir/size.
