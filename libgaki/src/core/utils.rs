@@ -1366,6 +1366,18 @@ pub fn resolve_path_ignore_case(base: &Path, rel: &str) -> Option<PathBuf> {
     current.exists().then_some(current)
 }
 
+/// Free bytes on the filesystem that `path` lives on, or `None` if no mounted
+/// disk contains it.
+pub fn available_space_for(path: &Path) -> Option<u64> {
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    disks
+        .iter()
+        .filter(|disk| path.starts_with(disk.mount_point()))
+        // Longest matching mount point wins (a nested mount over its parent).
+        .max_by_key(|disk| disk.mount_point().as_os_str().len())
+        .map(|disk| disk.available_space())
+}
+
 /// Normalize a store country code: uppercase two letters; `UK` becomes `GB`.
 pub fn normalize_country(raw: &str) -> Option<String> {
     let code = raw.trim().to_ascii_uppercase();

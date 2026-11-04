@@ -109,7 +109,9 @@ pub(crate) async fn run_install(request: InstallRequest, json: bool) -> Result<(
             .estimate_install_size(app_id, platform)
             .await
             .with_context(|| format!("failed to estimate install size for app {app_id}"))?;
-        if let Some(free) = available_space_for(std::path::Path::new(&library_root)) {
+        if let Some(free) =
+            libgaki::core::utils::available_space_for(std::path::Path::new(&library_root))
+        {
             // A resume's partial files already count.
             if est.disk_size.saturating_sub(on_disk) > free {
                 return Err(libgaki::core::error::TypedError::new(

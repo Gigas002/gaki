@@ -411,7 +411,7 @@ pub(crate) async fn cmd_libraries(json: bool) -> Result<()> {
         .into_iter()
         .filter(|root| root.join("steamapps").is_dir())
         .map(|root| {
-            let free = available_space_for(&root);
+            let free = libgaki::core::utils::available_space_for(&root);
             (root.to_string_lossy().to_string(), free)
         })
         .collect();

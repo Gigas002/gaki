@@ -124,7 +124,7 @@ pub(crate) async fn cmd_info(
     json: bool,
 ) -> Result<()> {
     // Country selects the price region and cache key.
-    let country = resolve_steam_country(country)?;
+    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
     // The CM-sourced metadata (StoreBrowse + the DLC list) is effectively static
     // for hours, and drivers like Heroic call `info` repeatedly. Serve it from a
     // short-TTL disk cache so a repeat call avoids the Steam CM logon and the
@@ -574,7 +574,7 @@ pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
         .await
         .map(|e| e.dlcs)
         .unwrap_or_default();
-    let country = resolve_steam_country(None)?;
+    let country = libgaki::ops::store::DEFAULT_COUNTRY.to_string();
     let store = resolve_dlc_store_info(&steam, &dlc_ids, &country).await;
     let mut dlc: Vec<(u32, Option<String>)> = dlc_ids
         .iter()
@@ -673,7 +673,7 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
     use libgaki::steam_client::EncryptedTicketOutcome;
 
     let client = authed_client().await?;
-    let country = resolve_steam_country(None)?;
+    let country = libgaki::ops::store::DEFAULT_COUNTRY.to_string();
     let name = client
         .fetch_store_apps(&[app_id], &country)
         .await

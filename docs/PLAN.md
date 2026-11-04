@@ -408,6 +408,30 @@ I make the changes, and you review, commit, and push.
   commands keep only argument mapping and output formatting (R23). Expect the
   heavy cases in `install.rs`, `info.rs`, `store.rs`, `auth.rs`, and
   `common.rs`. Output formatting (`core/output.rs`) moves to the CLI.
+  The logic goes into a new `libgaki::ops` layer, one module per area, with
+  typed arguments and `Serialize` results. It never prints, prompts or reads
+  CLI flags, and it is the API `gaki-tui` will call in Phase 4. The CLI keeps
+  argument mapping, prompts, text and JSON rendering, the daemon (D4), and
+  its hints ("run `gaki-cli login`"). The `output.rs` move already happened
+  in 2.1, and `capabilities` stays in the CLI because it describes the CLI
+  itself. The work is split so each commit stays reviewable:
+  - [x] **2.3a** Shared helpers from `common.rs`. Session restore, require-auth
+    and the web-session fallback went to `ops::session`; the daemon branch
+    and login hints stay in the CLI wrappers. `load_library`,
+    `merge_family_shared`, `find_game` and `cached_game_name` went to
+    `ops::library`. The active-install registry and `InstallGuard` went to
+    `ops::install`. The stop/restart guard went to `ops::steam`, taking a
+    callback for the CLI's "Stopping Steam" message. `RateTracker` and
+    `percent_of` went to `ops::progress`, country resolution to `ops::store`,
+    and `available_space_for` to `core::utils`. Added 11 tests.
+  - [ ] **2.3b** `runtimes.rs`, `config.rs` and `scripts.rs`.
+  - [ ] **2.3c** `auth.rs`: login flows, logout, health.
+  - [ ] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
+  - [ ] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
+    move/relink/import, DLC, downgrade.
+  - [ ] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
+  - [ ] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
+    `commands/` holds only mapping and rendering; tick 2.3.
 - [ ] **2.4** Rename identifiers: `AURELIA_*` env vars become `GAKI_*`, user-facing
   strings say gaki, the config dir moves to `gaki/`, and the user agent changes.
   Grep for `aurelia` until only acknowledgements remain.

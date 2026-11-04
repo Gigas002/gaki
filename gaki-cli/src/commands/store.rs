@@ -94,7 +94,7 @@ pub(crate) async fn cmd_price(
 ) -> Result<()> {
     let mut regions = parse_regions(&compare)?;
     if regions.is_empty() {
-        regions.push(resolve_steam_country(country)?);
+        regions.push(libgaki::ops::store::resolve_country(country.as_deref())?);
     }
 
     let client = authed_client().await?;
@@ -206,7 +206,7 @@ pub(crate) async fn cmd_price(
 /// Store record, refetched when cached pre-S3 (no media).
 async fn store_info_with_media(app_id: u32) -> Result<StoreAppInfo> {
     use libgaki::core::config::{info_cache_ttl, load_info_cache};
-    let country = resolve_steam_country(None)?;
+    let country = libgaki::ops::store::DEFAULT_COUNTRY.to_string();
     if let Some(cached) = load_info_cache(app_id, &country, info_cache_ttl()).await
         && (!cached.details.screenshots.is_empty() || !cached.details.tags.is_empty())
     {
@@ -398,7 +398,7 @@ pub(crate) async fn cmd_search(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let country = resolve_steam_country(country)?;
+    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let page = client.search_store(&term, count, &country).await?;
     let records = store_records(&client, &page.app_ids, &country).await?;
@@ -432,7 +432,7 @@ pub(crate) async fn cmd_deals(
     json: bool,
 ) -> Result<()> {
     use libgaki::steam_client::DealsScope;
-    let country = resolve_steam_country(country)?;
+    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
     let scope = match scope {
         crate::cli::DealsScopeArg::DiscountedTopSellers => DealsScope::DiscountedTopSellers,
         crate::cli::DealsScopeArg::TopSellers => DealsScope::TopSellers,
@@ -472,7 +472,7 @@ pub(crate) async fn cmd_similar(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let country = resolve_steam_country(country)?;
+    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let page = client.similar_apps(app_id, count, &country).await?;
     let records = store_records(&client, &page.app_ids, &country).await?;
@@ -505,7 +505,7 @@ pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
 
 /// `aurelia events`: active store sales and events.
 pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()> {
-    let country = resolve_steam_country(country)?;
+    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let events = client.active_store_events(&country).await?;
     if json {
@@ -629,7 +629,7 @@ pub(crate) async fn cmd_wishlist(
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let country = resolve_steam_country(country)?;
+    let country = libgaki::ops::store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let own_id = client.steam_id();
     let steam_id = match &user {

@@ -79,7 +79,9 @@ pub(crate) async fn cmd_scripts_new(app_id: u32, force: bool, json: bool) -> Res
             path.display()
         );
     }
-    let name = resolve_game_name(app_id).await.unwrap_or_default();
+    let name = libgaki::ops::library::cached_game_name(app_id)
+        .await
+        .unwrap_or_default();
     let body = launch_script::template(app_id, &name);
     std::fs::write(&path, body).with_context(|| format!("failed writing {}", path.display()))?;
 
