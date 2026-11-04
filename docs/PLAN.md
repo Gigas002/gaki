@@ -230,7 +230,7 @@ I make the changes, and you review, commit, and push.
   OpenSSL-license exception (see 7.3). `test.yml` codecov points at
   `aurelia-steam`, and `deploy.yml` already uses the final crate names; it runs
   only on tags. The `lint` and `doc` workflows stay red until step 1.8.
-- [ ] **0.6** Copy `rust-template/docs/ARCHITECTURE.md` to `docs/ARCHITECTURE.md`
+- [x] **0.6** Copy `rust-template/docs/ARCHITECTURE.md` to `docs/ARCHITECTURE.md`
   (R10). Add a short gaki section covering crate roles and the features table.
 
 ### Phase 1 — removal (single crate, before the restructure, so diffs stay readable)
