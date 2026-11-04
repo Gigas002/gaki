@@ -206,7 +206,7 @@ pub struct Browser {
     pub show_config: bool,
     /// The fetched launcher configuration, shown by the config overlay.
     pub config_info: Option<ConfigJson>,
-    /// The fetched network proxy setting (`aurelia config proxy`, v0.1.18), shown
+    /// The fetched network proxy setting, shown
     /// in the config overlay. Fetched alongside `config_info` when it opens.
     pub config_proxy: Option<aurelia::ProxyJson>,
     /// The inline proxy-URL edit buffer in the config overlay (None = not
@@ -423,7 +423,7 @@ pub struct Browser {
     pub confirm_proton_uninstall: bool,
     /// Whether the running-games overlay is open.
     pub show_running: bool,
-    /// The games Aurelia currently has running (loaded when the overlay opens).
+    /// The games gaki currently has running (loaded when the overlay opens).
     pub running: Vec<aurelia::RunningJson>,
     /// The highlighted row within the running overlay.
     pub running_index: usize,
@@ -462,8 +462,8 @@ pub struct Browser {
     /// Whether the install-location picker (choose which Steam library folder to
     /// install into) is open.
     pub show_install_picker: bool,
-    /// The available library folders shown in the picker (roots from `aurelia
-    /// libraries`, each with its drive's free space).
+    /// The available library folders shown in the picker, each with its
+    /// drive's free space.
     pub install_libraries: Vec<aurelia::LibraryJson>,
     /// Estimated on-disk size of the game being installed, for the picker to
     /// show and to gauge whether a library has room. `None` if unknown.
@@ -495,9 +495,9 @@ pub struct Browser {
     // --- Versions & pinning overlay ---
     /// Whether the versions/pinning overlay is open.
     pub show_versions: bool,
-    /// Per-depot current manifest ids for the game (from `aurelia manifests`).
+    /// Per-depot current manifest ids for the game.
     pub versions_manifests: Vec<aurelia::DepotManifestInfo>,
-    /// Install + pin state for the game (from `aurelia available`): the pin flag
+    /// Install + pin state for the game: the pin flag
     /// and the pinned depot→manifest map.
     pub versions_available: Option<aurelia::AvailableJson>,
     /// The highlighted depot row within the versions overlay.
@@ -517,9 +517,9 @@ pub struct Browser {
     // --- Game settings overlay (per-game config overrides + launch script) ---
     /// Whether the per-game settings overlay is open.
     pub show_game_config: bool,
-    /// The game's current config overrides (from `aurelia config game`).
+    /// The game's current config overrides.
     pub game_config: Option<aurelia::GameConfigJson>,
-    /// The game's launch-script state (from `aurelia scripts show`).
+    /// The game's launch-script state.
     pub game_script: Option<aurelia::ScriptShowJson>,
     /// Installed Proton runtime names, for cycling the per-game forced runtime.
     pub game_config_protons: Vec<String>,
@@ -533,7 +533,7 @@ pub struct Browser {
     // --- Collections overlay ---
     /// Whether the collections overlay is open.
     pub show_collections: bool,
-    /// The account's Steam library collections (from `aurelia collections list`).
+    /// The account's Steam library collections.
     pub collections: Vec<aurelia::CollectionJson>,
     /// The highlighted collection row.
     pub collections_index: usize,
@@ -548,7 +548,7 @@ pub struct Browser {
     // --- Launch targets overlay ("Play as…") ---
     /// Whether the launch-targets overlay is open.
     pub show_launch_targets: bool,
-    /// The game's launch targets, from `aurelia launch-targets`.
+    /// The game's launch targets.
     pub launch_targets: Vec<aurelia::LaunchTargetJson>,
     /// The highlighted target row.
     pub launch_targets_index: usize,
@@ -763,8 +763,8 @@ impl Browser {
 
     // --- DLC overlay ---
 
-    /// Fetch the DLC for `app_id` and open the overlay. Blocks on the `aurelia
-    /// dlc` subprocess; the selection resets to the first row.
+    /// Fetch the DLC for `app_id` and open the overlay (blocking); the
+    /// selection resets to the first row.
     pub fn open_dlc(&mut self, app_id: i32) -> Result<(), STError> {
         self.dlc = aurelia::dlc(app_id)?;
         self.dlc_app_id = app_id;
@@ -819,8 +819,8 @@ impl Browser {
 
     // --- Branches overlay ---
 
-    /// Fetch the beta branches for `app_id` and open the overlay. Blocks on the
-    /// `aurelia branches` subprocess; the selection resets to the first row.
+    /// Fetch the beta branches for `app_id` and open the overlay (blocking);
+    /// the selection resets to the first row.
     pub fn open_branches(&mut self, app_id: i32) -> Result<(), STError> {
         self.branches = aurelia::branches(app_id)?;
         self.branch_app_id = app_id;
@@ -924,8 +924,7 @@ impl Browser {
         self.move_path.pop();
     }
 
-    /// Relocate the game to the typed library folder (blocking on `aurelia
-    /// move`). Updates `move_status` to reflect progress/outcome and returns the
+    /// Relocate the game to the typed library folder (blocking). Updates `move_status` to reflect progress/outcome and returns the
     /// backend result.
     pub fn do_move(&mut self) -> Result<(), STError> {
         self.move_status = "moving...".to_string();
@@ -969,8 +968,7 @@ impl Browser {
         self.relink_path.pop();
     }
 
-    /// Relink the game to the typed library folder (blocking on `aurelia
-    /// relink`). Updates `relink_status` to reflect progress/outcome and returns
+    /// Relink the game to the typed library folder (blocking). Updates `relink_status` to reflect progress/outcome and returns
     /// the backend result.
     pub fn do_relink(&mut self) -> Result<(), STError> {
         self.relink_status = "relinking...".to_string();
@@ -1014,8 +1012,8 @@ impl Browser {
         self.import_path.pop();
     }
 
-    /// Register the on-disk install at the typed library folder (blocking on
-    /// `aurelia import`). Updates `import_status` to reflect progress/outcome and
+    /// Register the on-disk install at the typed library folder (blocking).
+    /// Updates `import_status` to reflect progress/outcome and
     /// returns the backend result.
     pub fn do_import(&mut self) -> Result<(), STError> {
         self.import_status = "importing...".to_string();
@@ -1033,8 +1031,8 @@ impl Browser {
 
     // --- Proton overlay ---
 
-    /// Fetch the Proton/Wine runtimes and open the overlay. Blocks on the
-    /// `aurelia proton list` subprocess; the selection resets to the first row.
+    /// Fetch the Proton/Wine runtimes and open the overlay (blocking); the
+    /// selection resets to the first row.
     pub fn open_proton(&mut self) -> Result<(), STError> {
         self.protons = aurelia::proton_list()?;
         self.proton_index = 0;
@@ -1122,7 +1120,7 @@ impl Browser {
 
     // --- Running overlay ---
 
-    /// Fetch the games Aurelia currently has running (blocking) and open the
+    /// Fetch the games gaki currently has running (blocking) and open the
     /// overlay. A fetch error simply opens an empty overlay ("No games
     /// running."); the selection resets to the first row.
     pub fn open_running(&mut self) {
@@ -2289,7 +2287,7 @@ impl Browser {
         self.workshop_comments_scroll = self.workshop_comments_scroll.saturating_sub(1);
     }
 
-    /// Fetch the logged-in account (`aurelia account`) and open the overlay.
+    /// Fetch the logged-in account and open the overlay.
     /// Blocking; returns the backend error if the call fails.
     pub fn open_account(&mut self) -> Result<(), STError> {
         self.account_info = Some(aurelia::account()?);
@@ -2356,7 +2354,7 @@ impl Browser {
         self.config_proxy_input = None;
     }
 
-    /// Commit the typed proxy URL (`aurelia config proxy <url>`); an empty value
+    /// Commit the typed proxy URL; an empty value
     /// clears the proxy. A backend/validation error surfaces as a status notice.
     pub fn commit_proxy_edit(&mut self) {
         let Some(url) = self.config_proxy_input.take() else {
@@ -2368,7 +2366,7 @@ impl Browser {
         self.refresh_proxy();
     }
 
-    /// Clear the configured proxy (`aurelia config proxy --clear`).
+    /// Clear the configured proxy.
     pub fn clear_proxy(&mut self) {
         if let Err(e) = aurelia::config_proxy_clear() {
             self.notice = Some(format!("Proxy: {e}"));
@@ -2376,7 +2374,7 @@ impl Browser {
         self.refresh_proxy();
     }
 
-    /// Fetch the Steam Wallet balance (`aurelia wallet`) and open the overlay.
+    /// Fetch the Steam Wallet balance and open the overlay.
     /// Blocking; returns the backend error if the call fails.
     pub fn open_wallet(&mut self) -> Result<(), STError> {
         self.wallet_info = Some(aurelia::wallet()?);
@@ -3164,7 +3162,7 @@ impl Browser {
             .unwrap_or(false)
     }
 
-    /// Pin the game at its currently-installed depot versions (`aurelia pin`).
+    /// Pin the game at its currently-installed depot versions.
     pub fn pin_current(&mut self) {
         self.versions_status = match aurelia::pin(self.versions_app_id) {
             Ok(p) => format!(
@@ -3176,7 +3174,7 @@ impl Browser {
         self.refresh_available();
     }
 
-    /// Clear the game's pin so it updates normally again (`aurelia unpin`).
+    /// Clear the game's pin so it updates normally again.
     pub fn unpin_current(&mut self) {
         self.versions_status = match aurelia::unpin(self.versions_app_id) {
             Ok(true) => "Unpinned — updates re-enabled.".to_string(),
@@ -3244,7 +3242,7 @@ impl Browser {
 
     // --- Launch targets overlay ("Play as…") ---
 
-    /// Fetch the game's launch targets (`aurelia launch-targets`) and open the
+    /// Fetch the game's launch targets and open the
     /// overlay, highlighting the target plain `play` would pick.
     pub fn open_launch_targets(&mut self, app_id: i32) {
         self.launch_targets_status.clear();
@@ -3415,7 +3413,7 @@ impl Browser {
         self.refresh_game_config();
     }
 
-    /// Delete the game's launch-script file (`aurelia scripts remove`).
+    /// Delete the game's launch-script file.
     pub fn game_config_remove_script(&mut self) {
         let id = self.game_config_app_id;
         self.game_config_status = match aurelia::scripts_remove(id) {

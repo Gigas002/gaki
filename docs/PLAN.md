@@ -723,8 +723,21 @@ I make the changes, and you review, commit, and push.
   80×24 terminal with its quiet zone; a smaller terminal gets the size it
   needs instead of a clipped code. `tests/qr_view.rs` decodes the drawn
   cells back into modules and compares them with the QR matrix.
-- [ ] **4.4** Delete the subprocess layer and drop `reqwest` blocking and
+- [x] **4.4** Delete the subprocess layer and drop `reqwest` blocking and
   `serde_json` CLI parsing from the TUI.
+  *Done.* Removed `bin`, `AURELIA_BIN`, `version`, `version_supported`,
+  `MIN_VERSION` and `STError::Process`; the footer badge shows the TUI's own
+  version (`gaki vX.Y.Z`) instead of probing a binary. The interface structs
+  lost their `Deserialize` derives, `#[serde]` attributes and lenient
+  deserializers (`de_steam_id`, `de_opt_u64`, `default_true`), and
+  `config_show` maps `LauncherConfig` directly. `serde_json` stays for the
+  TUI's own settings file, the library cache and ProtonDB responses.
+  Artwork and ProtonDB fetches go through `util::http`, one shared
+  `libgaki::core::net::http_client` on the worker runtime, so `reqwest`
+  lost its `blocking` feature. Docs and messages that still named the
+  `aurelia` CLI now describe the in-process calls; sign-in hints say
+  `gaki-cli login`. Still open: the TUI's own settings and cache live in
+  `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
 - [ ] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
   `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
 

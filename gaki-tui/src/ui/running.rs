@@ -1,4 +1,4 @@
-//! The running-games overlay (modal popup): the games Aurelia currently has
+//! The running-games overlay (modal popup): the games gaki currently has
 //! running, with the highlighted row available to stop.
 
 use ratatui::text::{Line, Span};

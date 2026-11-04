@@ -11,7 +11,6 @@ use std::sync::mpsc::SendError;
 #[derive(Debug)]
 pub enum STError {
     Io(io::Error),
-    Process(io::Error),
     Problem(String),
 }
 
@@ -48,13 +47,8 @@ impl<T: Debug> From<LookupError<T>> for STError {
 impl fmt::Display for STError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            STError::Process(e) => write!(
-                f,
-                "An error occurred spawning the aurelia process. Is the `aurelia` CLI installed and on your PATH?\n{:?}",
-                e
-            ),
-            // The CLI's own message is already human-readable; show it directly
-            // rather than the `Problem("…")` debug wrapper.
+            // The message is already human-readable; show it directly rather
+            // than the `Problem("…")` debug wrapper.
             STError::Problem(msg) => write!(f, "{}", msg),
             _ => write!(f, "{:?}", self),
         }

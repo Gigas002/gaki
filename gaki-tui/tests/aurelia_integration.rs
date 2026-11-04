@@ -21,7 +21,7 @@ fn health_reports_session() {
 #[test]
 #[ignore]
 fn library_loads_and_maps_to_games() {
-    // A single fetch, mapped 1:1 (a second `aurelia list` can legitimately
+    // A single fetch, mapped 1:1 (a second library fetch can legitimately
     // return a different count as family-shared/online data resolves).
     let raw = aurelia::fetch_library().expect("list --json should parse");
     assert!(!raw.is_empty(), "expected a non-empty library");

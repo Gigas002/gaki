@@ -7,7 +7,6 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
-use crate::interface::aurelia;
 use crate::theme;
 
 /// A dim "  ·  " separator span.
@@ -28,14 +27,19 @@ const HINTS: [(&str, &str); 9] = [
     ("[q]", " quit"),
 ];
 
+/// The footer's version badge text.
+fn version_badge_text() -> String {
+    format!("gaki v{}", env!("CARGO_PKG_VERSION"))
+}
+
 /// Where the version badge fits in a footer `area`: the bottom row when the
 /// key hints leave room for it, else the top (status) row.
-pub fn version_badge_area(area: Rect, version: Option<&str>) -> Rect {
+pub fn version_badge_area(area: Rect) -> Rect {
     let hints: usize = HINTS
         .iter()
         .map(|(k, d)| k.chars().count() + d.chars().count())
         .sum();
-    let badge = version_badge_text(version).0.chars().count();
+    let badge = version_badge_text().chars().count();
     let bottom = area.height > 1 && area.width as usize >= hints + badge + 2;
     let y = if bottom {
         area.y + area.height - 1
@@ -49,29 +53,10 @@ pub fn version_badge_area(area: Rect, version: Option<&str>) -> Rect {
     }
 }
 
-/// The badge text, and whether it should be drawn as a warning.
-fn version_badge_text(version: Option<&str>) -> (String, bool) {
-    let (min_major, min_minor, min_patch) = aurelia::MIN_VERSION;
-    match version {
-        Some(v) if aurelia::version_supported(v) => (format!("aurelia v{v}"), false),
-        Some(v) => (
-            format!("aurelia v{v} (needs >= {min_major}.{min_minor}.{min_patch})"),
-            true,
-        ),
-        None => ("aurelia: not found".to_string(), true),
-    }
-}
-
-/// The `aurelia` version badge for the footer's bottom-right corner: dim when
-/// supported, in the warning colour (with the minimum) when too old or missing.
-pub fn version_badge(version: Option<&str>) -> Paragraph<'static> {
-    let (text, warn) = version_badge_text(version);
-    let style = if warn {
-        Style::default().fg(theme::WARN)
-    } else {
-        theme::dim()
-    };
-    Paragraph::new(Line::from(Span::styled(text, style))).alignment(Alignment::Right)
+/// The version badge for the footer's bottom-right corner, in dim text.
+pub fn version_badge() -> Paragraph<'static> {
+    Paragraph::new(Line::from(Span::styled(version_badge_text(), theme::dim())))
+        .alignment(Alignment::Right)
 }
 
 /// Build the footer status bar (a borderless two-line footer).

@@ -157,9 +157,6 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
     client.check_session()?;
     app.mode = Mode::Loading;
 
-    // Probed once: the binary doesn't change while the TUI runs.
-    let aurelia_version = aurelia::version();
-
     // Seed the browser from the cached library, if present.
     let mut cached = false;
     let mut browser = match client.games() {
@@ -335,8 +332,8 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                 );
                 // Bottom-right corner, right of the key hints.
                 frame.render_widget(
-                    ui::status::version_badge(aurelia_version.as_deref()),
-                    ui::status::version_badge_area(chunks[2], aurelia_version.as_deref()),
+                    ui::status::version_badge(),
+                    ui::status::version_badge_area(chunks[2]),
                 );
 
                 // Achievements overlay floats above everything.
@@ -1523,7 +1520,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     KeyCode::Char('r') => {
                         // A session may have been established out-of-band via
-                        // `aurelia login`; re-probe it.
+                        // `gaki-cli login`; re-probe it.
                         cached = false;
                         app.mode = Mode::Loading;
                         client.check_session()?;
@@ -1796,7 +1793,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Launch directly into a full-screen chat with a single friend. Used when the
-/// binary is invoked as `aurelia-tui --chat <steamid> <name>` — the Friends
+/// binary is invoked as `gaki --chat <steamid> <name>` — the Friends
 /// panel's "open in new terminal" action (`t`) spawns exactly this in a fresh
 /// console window. Reuses the shared chat widget and the `Browser` chat state.
 fn chat_entry(steamid: u64, name: String) -> Result<(), Box<dyn std::error::Error>> {
@@ -1848,7 +1845,7 @@ fn main() {
     // proxy. This sets env vars, so it must run before any thread starts.
     libgaki::core::net::install_proxy_env(&libgaki::core::config::load_proxy_config_blocking());
 
-    // `aurelia-tui --chat <steamid> <name>` opens a dedicated chat window.
+    // `gaki --chat <steamid> <name>` opens a dedicated chat window.
     let args: Vec<String> = std::env::args().collect();
     if let Some(pos) = args.iter().position(|a| a == "--chat")
         && let Some(steamid) = args.get(pos + 1).and_then(|s| s.parse::<u64>().ok())

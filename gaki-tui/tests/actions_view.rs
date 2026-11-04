@@ -2,7 +2,7 @@
 //! renders the new 0.1.16/0.1.17 overlays (actions, versions, game settings,
 //! collections, runtime plugins) into tui's off-screen `TestBackend` to prove
 //! they lay out and paint without panicking. State is set through the public
-//! fields directly so the tests never shell out to the `aurelia` binary.
+//! fields directly so the tests never reach Steam.
 
 use gaki_tui::browse::{Action, Browser};
 use gaki_tui::interface::aurelia::{
@@ -217,27 +217,29 @@ fn game_settings_overlay_renders_rows() {
 
 #[test]
 fn launch_targets_parse_and_map_to_play_opts() {
-    let target: LaunchTargetJson = serde_json::from_value(serde_json::json!({
-        "id": "windows-host",
-        "platform": "windows",
-        "steam_mode": "host",
-        "available": true,
-        "default": false,
-        "missing": null,
-        "flags": ["--platform", "windows", "--steam-mode", "host"]
-    }))
-    .unwrap();
+    let target = LaunchTargetJson {
+        id: "windows-host".into(),
+        platform: "windows".into(),
+        steam_mode: Some("host".into()),
+        available: true,
+        flags: ["--platform", "windows", "--steam-mode", "host"]
+            .map(String::from)
+            .to_vec(),
+        ..Default::default()
+    };
     assert_eq!(target.label(), "Windows · host Steam");
     let opts = target.play_opts();
     assert_eq!(opts.platform.as_deref(), Some("windows"));
     assert_eq!(opts.steam_mode.as_deref(), Some("host"));
     assert!(!opts.steam);
 
-    let native: LaunchTargetJson = serde_json::from_value(serde_json::json!({
-        "platform": "linux",
-        "flags": ["--platform", "linux", "--steam"]
-    }))
-    .unwrap();
+    let native = LaunchTargetJson {
+        platform: "linux".into(),
+        flags: ["--platform", "linux", "--steam"]
+            .map(String::from)
+            .to_vec(),
+        ..Default::default()
+    };
     assert!(native.play_opts().steam, "native --steam flag carries over");
 }
 
@@ -312,9 +314,7 @@ fn settings_overlay_renders_proxy() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
     browser.show_config = true;
-    // All ConfigJson fields default, so an empty object yields a valid config.
-    let info: ConfigJson = serde_json::from_value(serde_json::json!({})).unwrap();
-    browser.config_info = Some(info);
+    browser.config_info = Some(ConfigJson::default());
     browser.config_proxy = Some(ProxyJson {
         url: Some("http://host:8080".to_string()),
         no_proxy: Some("localhost".to_string()),

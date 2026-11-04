@@ -9,10 +9,10 @@
 //! The session is shared: requests run against cheap clones of one
 //! [`SteamClient`], the way the CLI daemon serves commands over one connection.
 //!
-//! While the views move off the `gaki-cli` subprocess (Phase 4.2), the
-//! synchronous `interface` functions run their `libgaki` calls on this
-//! runtime through [`Worker::block_on`]. They are called from the UI thread or
-//! from the views' own background threads, never from inside the runtime.
+//! The synchronous `interface` functions (and `util::http`) run their calls
+//! on this runtime through [`Worker::block_on`]. They are called from the UI
+//! thread or from the views' own background threads, never from inside the
+//! runtime.
 
 use std::future::Future;
 use std::sync::atomic::{AtomicU64, Ordering};

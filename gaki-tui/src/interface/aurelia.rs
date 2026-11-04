@@ -1,115 +1,38 @@
-//! Backend bridge to the `aurelia` command-line Steam launcher.
-//!
-//! This replaces the old `steamcmd` integration. Every operation shells out to
-//! the `aurelia` binary with `--json` and parses its structured output. The
-//! binary is expected to be on `PATH` (override with `AURELIA_BIN`), and the
-//! user is expected to have authenticated once already with `aurelia login`
-//! (the TUI only verifies the session via `aurelia login --health`).
+//! The TUI's view of Steam: one function per operation, each running a
+//! `libgaki::ops` call in-process on the shared worker
+//! ([`crate::app::worker`]) and mapping the result into the plain structs the
+//! views render.
 
 use std::collections::BTreeMap;
-use std::process;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
-
-use serde::Deserialize;
 
 use crate::app::worker;
 use crate::interface::game_status::GameStatus;
 use crate::util::error::STError;
 use libgaki::ops::config::{Change, GameSettingsChange};
 
-/// The `gaki-cli` binary to invoke.
-///
-/// Resolution order: `AURELIA_BIN` (explicit override, kept until Phase 4 drops
-/// the subprocess) → a `gaki-cli` next to this binary (the workspace's
-/// `target/<profile>/`, so the TUI works without installing `gaki-cli` first) →
-/// bare `gaki-cli` (resolved on `PATH`).
-pub fn bin() -> String {
-    if let Ok(explicit) = std::env::var("AURELIA_BIN")
-        && !explicit.is_empty()
-    {
-        return explicit;
-    }
-
-    if let Some(sibling) = std::env::current_exe()
-        .ok()
-        .and_then(|cur| cur.parent().map(|dir| dir.join("gaki-cli")))
-        .filter(|candidate| candidate.is_file())
-    {
-        return sibling.to_string_lossy().into_owned();
-    }
-
-    "gaki-cli".to_string()
-}
-
-/// The oldest `aurelia` release this TUI supports.
-pub const MIN_VERSION: (u32, u32, u32) = (0, 1, 40);
-
-/// The installed `aurelia` version (`aurelia --version` prints `aurelia 0.1.40`),
-/// or `None` when the binary can't be run.
-pub fn version() -> Option<String> {
-    let output = process::Command::new(bin())
-        .arg("--version")
-        .stdin(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .output()
-        .ok()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    stdout.split_whitespace().last().map(str::to_string)
-}
-
-/// Whether `version` (e.g. `0.1.40`, `0.1.37-2`) is at least [`MIN_VERSION`].
-/// An unparsable version counts as unsupported.
-pub fn version_supported(version: &str) -> bool {
-    let core = version
-        .trim_start_matches('v')
-        .split('-')
-        .next()
-        .unwrap_or("");
-    let parts: Vec<u32> = core.split('.').filter_map(|p| p.parse().ok()).collect();
-    match parts.as_slice() {
-        [major, minor, patch] => (*major, *minor, *patch) >= MIN_VERSION,
-        _ => false,
-    }
-}
-
-/// Session health, from `aurelia login --health --json`.
-#[derive(Debug, Clone, Deserialize)]
+/// Session health.
+#[derive(Debug, Clone)]
 pub struct HealthJson {
-    #[serde(default)]
     pub logged_in: bool,
-    #[serde(default)]
     pub account: Option<String>,
-    #[serde(default)]
     pub steam_id: Option<u64>,
-    #[serde(default)]
     pub daemon: bool,
 }
 
-/// The logged-in Steam account, from `aurelia account --json`.
-#[derive(Debug, Clone, Deserialize)]
+/// The logged-in Steam account.
+#[derive(Debug, Clone)]
 pub struct AccountJson {
-    #[serde(default)]
     pub steam_id: u64,
-    #[serde(default)]
     pub account_name: String,
-    /// Steam persona / display name (e.g. "Drackrath"). `aurelia account --json`
-    /// does NOT expose this; it is resolved separately via
-    /// `friends search <steam_id> --json` (whose `persona_name` key it shares)
-    /// and injected by [`account`]. `#[serde(default)]` plus the `display_name`
-    /// alias mean a future account schema that *does* emit a persona is also
-    /// picked up. Stays `None` when the persona can't be resolved.
-    #[serde(default, alias = "display_name")]
+    /// Steam persona / display name (e.g. "Drackrath"); `None` when it can't
+    /// be resolved.
     pub persona_name: Option<String>,
-    #[serde(default)]
     pub country: String,
-    #[serde(default)]
     pub email: String,
-    #[serde(default)]
     pub email_validated: bool,
-    #[serde(default)]
     pub authed_machines: u32,
-    #[serde(default)]
     pub vac_bans: u32,
 }
 
@@ -125,21 +48,16 @@ impl AccountJson {
 }
 
 /// The launcher configuration: the human-relevant top-level scalars of
-/// `LauncherConfig`. Every field is `#[serde(default)]`, so a config without
-/// one still reads.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// `LauncherConfig`. Empty settings are `None`.
+#[derive(Debug, Clone, Default)]
 pub struct ConfigJson {
     /// The Steam library path games install into.
-    #[serde(default)]
     pub steam_library_path: Option<String>,
     /// The default Proton/Wine runtime.
-    #[serde(default)]
     pub proton_version: Option<String>,
     /// Friends/chat presence (`"online"` / `"offline"`).
-    #[serde(default)]
     pub chat_presence: Option<String>,
     /// Whether Steam Cloud save sync is enabled.
-    #[serde(default)]
     pub enable_cloud_sync: bool,
 }
 
@@ -151,140 +69,91 @@ impl ConfigJson {
     }
 }
 
-/// The Steam Wallet balance, from `aurelia wallet --json`.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// The Steam Wallet balance.
+#[derive(Debug, Clone, Default)]
 pub struct WalletJson {
     /// Balance in the currency's minor units (cents).
-    #[serde(default)]
     pub balance_cents: i64,
     /// Steam currency id.
-    #[serde(default)]
     pub currency: u32,
     /// Wallet country code.
-    #[serde(default)]
     pub country: String,
     /// Human-readable balance (e.g. "12.34 EUR").
-    #[serde(default)]
     pub formatted: String,
 }
 
-/// Artwork URLs injected by `aurelia list --json`.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// A library entry's artwork URLs.
+#[derive(Debug, Clone, Default)]
 pub struct AssetsJson {
-    #[serde(default)]
     pub header: Option<String>,
-    #[serde(default)]
     pub capsule: Option<String>,
-    #[serde(default)]
     pub hero: Option<String>,
-    #[serde(default)]
     pub logo: Option<String>,
 }
 
-/// One library entry, from `aurelia list --json` (a `LibraryGame` plus the
-/// `assets`/`store_url` fields the CLI bakes in for `--json` output).
-#[derive(Debug, Clone, Deserialize)]
+/// One library entry: a `LibraryGame` plus its artwork and store URLs.
+#[derive(Debug, Clone)]
 pub struct LibraryGameJson {
     pub app_id: u32,
     pub name: String,
-    #[serde(default)]
     pub is_installed: bool,
-    #[serde(default)]
     pub install_path: Option<String>,
-    #[serde(default)]
     pub update_available: bool,
-    #[serde(default)]
     pub is_owned: bool,
-    #[serde(default)]
     pub is_family_shared: bool,
-    #[serde(default)]
     pub platform: Option<String>,
-    #[serde(default)]
     pub active_branch: Option<String>,
-    #[serde(default)]
     pub assets: Option<AssetsJson>,
-    #[serde(default)]
     pub store_url: Option<String>,
 }
 
-/// One Steam Cloud file, from `aurelia cloud list <id> --json`. The CLI emits
-/// `{ "app_id": .., "files": [{ "filename", "size", "timestamp", "sha_hash" }] }`.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One Steam Cloud file of a game.
+#[derive(Debug, Clone, Default)]
 pub struct CloudFileJson {
-    #[serde(default)]
     pub filename: String,
-    #[serde(default)]
     pub size: u64,
-    #[serde(default)]
     pub timestamp: i64,
 }
 
-/// Store metadata, from `aurelia info <id> --json`. Only the fields the TUI
-/// surfaces are captured; the key names match the CLI's `--json` output.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// Store metadata; only the fields the TUI shows.
+#[derive(Debug, Clone, Default)]
 pub struct InfoJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub name: String,
-    #[serde(default, rename = "type")]
     pub app_type: String,
-    #[serde(default)]
     pub developers: Vec<String>,
-    #[serde(default)]
     pub publishers: Vec<String>,
-    #[serde(default)]
     pub description: String,
-    #[serde(default)]
     pub reviews: Option<String>,
 }
 
-/// One achievement entry from `aurelia achievements <id> --json` (an item of
-/// the response's `achievements` array). Only the fields the TUI surfaces are
-/// captured; key names match the CLI's `--json` output. Everything is
-/// `#[serde(default)]` so a missing field never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One achievement, with the user's unlock state and its global rarity.
+#[derive(Debug, Clone, Default)]
 pub struct AchievementJson {
-    #[serde(default)]
     pub name: String,
-    #[serde(default)]
     pub description: String,
     /// Whether the logged-in user has unlocked this achievement.
-    #[serde(default)]
     pub unlocked: bool,
     /// Whether the achievement is visible (false = hidden until unlocked).
-    #[serde(default = "default_true")]
     pub visible: bool,
     /// Global unlock rate across all players, as a percentage (rarity).
-    #[serde(default)]
     pub rarity: f32,
 }
 
-fn default_true() -> bool {
-    true
-}
-
-/// One friend entry from `aurelia friends --json` (an item of the serialized
-/// roster). Key names match the CLI's `Friend` struct. Everything is
-/// `#[serde(default)]` so a missing field never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One friend on the roster, with status and current game.
+#[derive(Debug, Clone, Default)]
 pub struct FriendJson {
     /// SteamID64 of the friend. The CLI emits it as a number, but accept a
     /// string form too for robustness.
-    #[serde(default, deserialize_with = "de_steam_id")]
     pub steam_id: u64,
     /// Display (persona) name, if known.
-    #[serde(default)]
     pub persona_name: Option<String>,
     /// Online status: 0 offline, 1 online, 2 busy, 3 away, 4 snooze,
     /// 5 looking-to-trade, 6 looking-to-play.
-    #[serde(default)]
     pub persona_state: Option<u32>,
     /// App id of the game the friend is currently playing, if any.
-    #[serde(default)]
     pub game_app_id: Option<u32>,
     /// Name of the game the friend is currently playing, if known.
-    #[serde(default)]
     pub game_name: Option<String>,
 }
 
@@ -312,19 +181,14 @@ impl FriendJson {
     }
 }
 
-/// The resolved account from `aurelia friends search <query> --json`. Key names
-/// match the CLI's output (`steam_id`, `persona_name`, `profile_url`). Every
-/// field is `#[serde(default)]` so a missing/renamed key never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// The account a friend search resolved to.
+#[derive(Debug, Clone, Default)]
 pub struct FriendSearchJson {
     /// Resolved SteamID64. The CLI emits it as a number; accept a string too.
-    #[serde(default, deserialize_with = "de_steam_id")]
     pub steam_id: u64,
     /// Display (persona) name, if known.
-    #[serde(default)]
     pub persona_name: Option<String>,
     /// The account's community profile URL, if known.
-    #[serde(default)]
     pub profile_url: Option<String>,
 }
 
@@ -338,53 +202,30 @@ impl FriendSearchJson {
     }
 }
 
-/// One chat message from `aurelia chat history <id> --json` (an item of the
-/// serialized history array). Key names match the CLI's `ChatMessage` struct
-/// (`sender`, `from_self`, `message`, `timestamp`). Everything is
-/// `#[serde(default)]` so a missing/renamed field never breaks parsing, and a
-/// couple of aliases cover alternate spellings the CLI might emit.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One chat message with a friend.
+#[derive(Debug, Clone, Default)]
 pub struct ChatMessageJson {
     /// SteamID64 of the sender. The CLI emits it as a number, but accept a
     /// string form too for robustness.
-    #[serde(
-        default,
-        alias = "steamid",
-        alias = "from",
-        deserialize_with = "de_steam_id"
-    )]
     pub sender: u64,
     /// Whether the logged-in user sent this message.
-    #[serde(default, alias = "outgoing", alias = "sent")]
     pub from_self: bool,
     /// Message body (the CLI key is `message`; `text` is accepted as a fallback).
-    #[serde(default, alias = "text")]
     pub message: String,
     /// Unix timestamp (seconds) the message was sent.
-    #[serde(default)]
     pub timestamp: i64,
 }
 
-/// One inventory item stack, from `aurelia inventory <id> --json` (an item of
-/// the response array). The CLI serializes `InventoryItem` directly, so key
-/// names match its fields: `name`/`market_hash_name`, `item_type`, `amount`,
-/// `tradable`, `marketable`. Everything is `#[serde(default)]` so a missing
-/// field never breaks parsing, and a couple of aliases cover alternate spellings.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One inventory item stack.
+#[derive(Debug, Clone, Default)]
 pub struct InventoryItemJson {
-    #[serde(default)]
     pub name: String,
-    #[serde(default, alias = "market_name")]
     pub market_hash_name: String,
     /// Item type/category text (e.g. "Trading Card").
-    #[serde(default, alias = "type")]
     pub item_type: String,
     /// Stack size for this item.
-    #[serde(default, alias = "count")]
     pub amount: u64,
-    #[serde(default)]
     pub tradable: bool,
-    #[serde(default)]
     pub marketable: bool,
 }
 
@@ -401,32 +242,21 @@ impl InventoryItemJson {
     }
 }
 
-/// One Workshop item the user is subscribed to for a game, from
-/// `aurelia workshop list <id> --json`. The CLI emits a bare array of items
-/// (`WorkshopItem`); the listing shows the title and size. Everything is
-/// `#[serde(default)]` so a missing/extra field never breaks parsing.
-///
-/// `id` is a u64 published-file id, which the backend may serialize either as a
-/// number or a string, so it is captured leniently (and only used to fall back
-/// on a title when none is present).
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One Workshop item, from the user's subscriptions or a browse page; the
+/// listing shows the title and size.
+#[derive(Debug, Clone, Default)]
 pub struct WorkshopItemJson {
-    /// `publishedfileid`. May arrive as a JSON number or string.
-    #[serde(default, deserialize_with = "de_opt_u64")]
+    /// The published-file id.
     pub id: Option<u64>,
     /// The item title (the CLI key is `title`; `name` is accepted as a fallback).
-    #[serde(default, alias = "name")]
     pub title: String,
     /// Whether the item's content is installed on disk. Absent in the current CLI
     /// output (all listed items are subscribed); defaults to `false`.
-    #[serde(default)]
     pub installed: bool,
     /// Whether the user is subscribed to the item. The CLI lists only subscribed
     /// items, so this defaults to `true` when absent.
-    #[serde(default = "default_true")]
     pub subscribed: bool,
     /// On-disk size in bytes (the CLI key is `file_size`; `size` is accepted too).
-    #[serde(default, alias = "size")]
     pub file_size: u64,
 }
 
@@ -444,22 +274,16 @@ impl WorkshopItemJson {
     }
 }
 
-/// One comment on a Workshop item, from `aurelia workshop comments <id> --json`.
-/// The CLI emits a bare array of comments; each carries an author display name,
-/// the body text, and a Unix timestamp. Everything is `#[serde(default)]` so a
-/// missing/extra field never breaks parsing, with a couple of aliases covering
-/// alternate key spellings.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One comment on a Workshop item: its author (a SteamID), the text and a
+/// Unix timestamp.
+#[derive(Debug, Clone, Default)]
 pub struct WorkshopCommentJson {
     /// The commenter's display name (the CLI key is `author`; `name`/`persona`
     /// are accepted as fallbacks).
-    #[serde(default, alias = "name", alias = "persona", alias = "author_name")]
     pub author: String,
     /// The comment body (the CLI key is `message`; `text`/`body` accepted too).
-    #[serde(default, alias = "text", alias = "body", alias = "comment")]
     pub message: String,
     /// Unix timestamp (seconds) the comment was posted.
-    #[serde(default, alias = "time", alias = "timestamp_created")]
     pub timestamp: i64,
 }
 
@@ -474,50 +298,16 @@ impl WorkshopCommentJson {
     }
 }
 
-/// Deserialize a SteamID64 that may arrive as a JSON number or string.
-fn de_steam_id<'de, D>(deserializer: D) -> Result<u64, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    use serde::Deserialize as _;
-    match serde_json::Value::deserialize(deserializer)? {
-        serde_json::Value::Number(n) => Ok(n.as_u64().unwrap_or(0)),
-        serde_json::Value::String(s) => Ok(s.parse().unwrap_or(0)),
-        _ => Ok(0),
-    }
-}
-
-/// Deserialize an optional `u64` that may be encoded as a JSON number or string
-/// (Steam published-file ids are sometimes stringified). Any unparseable value
-/// becomes `None` rather than failing the whole parse.
-fn de_opt_u64<'de, D>(deserializer: D) -> Result<Option<u64>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    let value = Option::<serde_json::Value>::deserialize(deserializer)?;
-    Ok(match value {
-        Some(serde_json::Value::Number(n)) => n.as_u64(),
-        Some(serde_json::Value::String(s)) => s.parse().ok(),
-        _ => None,
-    })
-}
-
-/// One DLC entry for a base game, from `aurelia dlc <id> --json` (the `dlc`
-/// array). All status fields are nullable in the CLI output (they come from a
-/// best-effort `DlcState` lookup), so each defaults when absent.
-#[derive(Debug, Clone, Deserialize)]
+/// One DLC of a base game. The status fields are `None` when the best-effort
+/// state lookup found nothing.
+#[derive(Debug, Clone)]
 pub struct DlcJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub name: Option<String>,
     // The CLI emits these as `bool` or `null` (a best-effort `DlcState` lookup),
     // so deserialize as `Option<bool>` and expose a defaulted view via helpers.
-    #[serde(default)]
     pub owned: Option<bool>,
-    #[serde(default)]
     pub installed: Option<bool>,
-    #[serde(default)]
     pub disabled: Option<bool>,
 }
 
@@ -543,14 +333,8 @@ impl DlcJson {
     }
 }
 
-/// One beta branch for a game, from `aurelia branches <id> --json` (an item of
-/// the response's `branches` array).
-///
-/// The current CLI emits each branch as a bare name string (the password-gated
-/// branches are filtered out server-side), so the common case is a plain
-/// `String`. The custom `Deserialize` below also accepts an object form
-/// (`{ name, description, active/current, build_id, pwdrequired }`) so a richer
-/// future CLI keeps working; every object field is optional/defaulted.
+/// One beta branch of a game. Steam reports branches by name only
+/// (password-gated ones are filtered out server-side).
 #[derive(Debug, Clone, Default)]
 pub struct BranchJson {
     pub name: String,
@@ -561,55 +345,36 @@ pub struct BranchJson {
     pub active: bool,
 }
 
-/// One depot for a game, from `aurelia depots <id> --json` (an item of the
-/// response's `depots` array). Key names match the CLI's `--json` output;
-/// everything is `#[serde(default)]` so a missing field never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One depot of a game.
+#[derive(Debug, Clone, Default)]
 pub struct DepotJson {
-    #[serde(default)]
     pub id: u64,
-    #[serde(default)]
     pub name: String,
-    #[serde(default)]
     pub size: u64,
-    #[serde(default)]
     pub file_count: u64,
-    #[serde(default)]
     pub config: String,
-    #[serde(default)]
     pub is_owned: Option<bool>,
 }
 
-/// One launch option for a game, from `aurelia launch-options <id> --json` (an
-/// item of the response's `launch_options` array). A launch option is one of the
-/// ways Steam can start the game (e.g. a normal launch vs. a level editor). Key
-/// names match the CLI's `--json` output; everything is `#[serde(default)]` so a
-/// missing field never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One launch option of a game: one of the ways Steam can start it (e.g. a
+/// normal launch vs. a level editor).
+#[derive(Debug, Clone, Default)]
 pub struct LaunchOptionJson {
     /// The launch option's id (a string in the app's manifest).
-    #[serde(default)]
     pub id: String,
     /// Human-readable label for this launch option.
-    #[serde(default)]
     pub description: String,
     /// The executable Steam would run.
-    #[serde(default)]
     pub executable: String,
     /// Arguments passed to the executable.
-    #[serde(default)]
     pub arguments: String,
     /// Working directory for the launch, if specified.
-    #[serde(default)]
     pub working_dir: String,
     /// Target OS list (e.g. "windows"); empty means any.
-    #[serde(default)]
     pub oslist: String,
     /// Target OS architecture (e.g. "64"); empty means any.
-    #[serde(default)]
     pub osarch: String,
     /// Launch option type (e.g. "default", "option1").
-    #[serde(default, rename = "type")]
     pub launch_type: String,
 }
 
@@ -644,9 +409,8 @@ impl LaunchOptionJson {
 }
 
 /// One row in the market overlay: a single active sell listing or open buy
-/// order, flattened from `aurelia market listings --json`. The CLI emits an
-/// object with separate `listings` and `buy_orders` arrays; we merge them into
-/// one list and tag each row's `kind` ourselves. `price` is in the currency's
+/// order; [`market_listings`] merges both into one list and tags each row's
+/// `kind`. `price` is in the currency's
 /// minor units (cents); `quantity` is only meaningful for buy orders.
 #[derive(Debug, Clone, Default)]
 pub struct MarketListingJson {
@@ -667,32 +431,22 @@ impl MarketListingJson {
     }
 }
 
-/// One result row from `aurelia market search <query> --json` (an item of the
-/// response's `results` array). The Community Market search needs no login. Key
-/// names match the CLI's `--json` output; everything is `#[serde(default)]` so a
-/// missing/partial/`null` field never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One Community Market search result. The search needs no login.
+#[derive(Debug, Clone, Default)]
 pub struct MarketSearchResultJson {
     /// The app the item belongs to (used for the follow-up price lookup).
-    #[serde(default)]
     pub app_id: u32,
     /// The app's name (e.g. "Team Fortress 2").
-    #[serde(default)]
     pub app_name: String,
     /// The exact market hash name (what a price lookup needs).
-    #[serde(default)]
     pub market_hash_name: String,
     /// The display name (falls back to `market_hash_name`).
-    #[serde(default)]
     pub name: String,
     /// How many sell listings are open for the item.
-    #[serde(default)]
     pub sell_listings: u64,
     /// The lowest sell price in the currency's minor units (cents).
-    #[serde(default)]
     pub sell_price: u64,
     /// The lowest sell price pre-formatted by the CLI (e.g. "$2.34").
-    #[serde(default)]
     pub sell_price_text: String,
 }
 
@@ -723,23 +477,17 @@ impl MarketSearchResultJson {
     }
 }
 
-/// A price lookup result from `aurelia market price <app_id> <name> --json`. The
-/// Community Market price needs no login. Every field is `#[serde(default)]` so a
-/// missing/partial/`null` payload still parses (an empty result is rendered as
-/// "no data").
-#[derive(Debug, Clone, Default, Deserialize)]
+/// A Community Market price lookup. It needs no login; an empty result is
+/// rendered as "no data".
+#[derive(Debug, Clone, Default)]
 pub struct MarketPriceJson {
     /// The market hash name the price is for (echoed back by the CLI).
-    #[serde(default)]
     pub market_hash_name: String,
     /// Lowest current sell price (pre-formatted, e.g. "$2.34").
-    #[serde(default)]
     pub lowest_price: Option<String>,
     /// Median recent sale price (pre-formatted).
-    #[serde(default)]
     pub median_price: Option<String>,
     /// 24-hour sales volume (the CLI emits a formatted string, e.g. "69,730").
-    #[serde(default)]
     pub volume: Option<String>,
 }
 
@@ -869,17 +617,11 @@ impl ProtonJson {
     }
 }
 
-/// One running game, from `aurelia running --json` (an item of the response's
-/// `running` array). Each game was launched via `aurelia play`; the fields match
-/// the CLI's `--json` output and everything defaults so a missing field never
-/// breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One game gaki launched that is still running.
+#[derive(Debug, Clone, Default)]
 pub struct RunningJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub name: String,
-    #[serde(default)]
     pub pid: u32,
 }
 
@@ -944,7 +686,7 @@ pub fn health() -> Result<HealthJson, STError> {
     })
 }
 
-/// Fetch the logged-in Steam account (`aurelia account --json`).
+/// Fetch the logged-in Steam account.
 pub fn account() -> Result<AccountJson, STError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -964,8 +706,21 @@ pub fn account() -> Result<AccountJson, STError> {
 
 /// Fetch the launcher configuration.
 pub fn config_show() -> Result<ConfigJson, STError> {
+    use libgaki::core::config::ChatPresence;
     let config = in_process(libgaki::ops::config::load())?;
-    Ok(serde_json::from_value(serde_json::to_value(config)?)?)
+    let text = |s: String| Some(s).filter(|s| !s.is_empty());
+    Ok(ConfigJson {
+        steam_library_path: text(config.steam_library_path),
+        proton_version: text(config.proton_version),
+        chat_presence: Some(
+            match config.chat_presence {
+                ChatPresence::Online => "online",
+                ChatPresence::Offline => "offline",
+            }
+            .to_string(),
+        ),
+        enable_cloud_sync: config.enable_cloud_sync,
+    })
 }
 
 /// Set the friends/chat presence, and announce it right away when logged in.
@@ -992,16 +747,13 @@ pub fn set_presence(online: bool) -> Result<(), STError> {
 }
 
 /// The network proxy used for all HTTP(S) communication (Steam web endpoints,
-/// depot downloads, Proton/plugin lookups), from `aurelia config proxy --json`
-/// (v0.1.18). The Steam CM connection is not proxied.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// depot downloads, Proton lookups). The Steam CM connection is not proxied.
+#[derive(Debug, Clone, Default)]
 pub struct ProxyJson {
     /// The proxy URL (e.g. `http://host:8080`, `socks5://host:1080`), or `None`
     /// for a direct connection.
-    #[serde(default)]
     pub url: Option<String>,
     /// Comma-separated hosts/domains that bypass the proxy (`NO_PROXY`).
-    #[serde(default)]
     pub no_proxy: Option<String>,
 }
 
@@ -1080,7 +832,7 @@ async fn web_session() -> anyhow::Result<libgaki::web::web_session::WebSession> 
     libgaki::ops::session::web_session(&client).await
 }
 
-/// Fetch the full library (`aurelia list --json`).
+/// Fetch the full library.
 pub fn fetch_library() -> Result<Vec<LibraryGameJson>, STError> {
     use libgaki::core::steam_urls;
     in_process(async {
@@ -1112,18 +864,17 @@ pub fn fetch_library() -> Result<Vec<LibraryGameJson>, STError> {
     })
 }
 
-/// One Steam library folder (a root containing `steamapps`), from
-/// `aurelia libraries --json`, with the free space on its drive.
-#[derive(Debug, Clone, Deserialize)]
+/// One Steam library folder (a root containing `steamapps`), with the free
+/// space on its drive.
+#[derive(Debug, Clone)]
 pub struct LibraryJson {
     pub path: String,
     /// Free bytes on the drive, if the CLI could determine it.
-    #[serde(default)]
     pub free_bytes: Option<u64>,
 }
 
 /// List the Steam library folders games can be installed into, one per
-/// drive/location, with each drive's free space (`aurelia libraries --json`).
+/// drive/location, with each drive's free space.
 pub fn libraries() -> Result<Vec<LibraryJson>, STError> {
     in_process(async {
         Ok(libgaki::ops::library::folders()
@@ -1137,8 +888,7 @@ pub fn libraries() -> Result<Vec<LibraryJson>, STError> {
     })
 }
 
-/// Estimate the on-disk install size of a game, in bytes
-/// (`aurelia install <id> --dry-run --json` → `disk_size`). Returns 0 if the
+/// Estimate the on-disk install size of a game, in bytes. Returns 0 if the
 /// estimate is unavailable.
 pub fn install_estimate(id: i32) -> Result<u64, STError> {
     in_process(async {
@@ -1148,7 +898,7 @@ pub fn install_estimate(id: i32) -> Result<u64, STError> {
     })
 }
 
-/// Fetch store metadata for a single app (`aurelia info <id> --json`).
+/// Fetch store metadata for a single app.
 pub fn fetch_info(id: i32) -> Result<InfoJson, STError> {
     use libgaki::ops::info::{InfoRequest, app_info};
     in_process(async {
@@ -1785,9 +1535,8 @@ fn set_status(status: &Arc<Mutex<Option<GameStatus>>>, msg: &str) {
 }
 
 /// What the user has asked of an in-flight install. The install worker reads
-/// this once the `aurelia install` process exits (the daemon honours a
-/// [`install_stop`] by aborting the download, which ends the process) and
-/// finalises the status accordingly instead of treating the abort as a failure.
+/// this once the download ends ([`install_stop`] aborts it) and finalises the
+/// status accordingly instead of treating the abort as a failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallAction {
     /// Install is running normally; finalise on its actual result.
@@ -2105,85 +1854,58 @@ pub fn play(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
 // overrides, and launch targets.
 // ===========================================================================
 
-/// One depot's current manifest id on a branch, from `aurelia manifests <id>
-/// [--depot <n>] --json`. The CLI emits a TOP-LEVEL array of these; used for
-/// version discovery ahead of a [`downgrade`]. Every field is `#[serde(default)]`
-/// so a missing key never breaks parsing.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One depot's current manifest id on a branch, for version discovery ahead
+/// of a [`downgrade`].
+#[derive(Debug, Clone, Default)]
 pub struct DepotManifestInfo {
-    #[serde(default)]
     pub depot_id: u32,
-    #[serde(default)]
     pub depot_name: Option<String>,
-    #[serde(default)]
     pub branch: String,
-    #[serde(default)]
     pub manifest_id: u64,
-    #[serde(default)]
     pub size: u64,
 }
 
-/// A game's install & version-pin state, from `aurelia available <id> --json`.
-/// `pinned_manifests` maps each depot id (a *string* key) to its pinned manifest.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// A game's install and version-pin state. `pinned_manifests` maps each depot
+/// id (as text) to its pinned manifest.
+#[derive(Debug, Clone, Default)]
 pub struct AvailableJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub available: bool,
-    #[serde(default)]
     pub install_path: Option<String>,
-    #[serde(default)]
     pub pinned: bool,
-    #[serde(default)]
     pub pinned_manifests: std::collections::BTreeMap<String, u64>,
 }
 
-/// The result of pinning a game, from `aurelia pin <id> --json`. `manifests`
-/// maps each depot id (a *string* key) to the manifest it was pinned to.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// The result of pinning a game. `manifests` maps each depot id (as text) to
+/// the manifest it was pinned to.
+#[derive(Debug, Clone, Default)]
 pub struct PinJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub pinned: bool,
-    #[serde(default)]
     pub manifests: std::collections::BTreeMap<String, u64>,
 }
 
 /// A game's resolved launch script. With no script, `exists` is false and
 /// `path` is `None`.
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default)]
 pub struct ScriptShowJson {
-    #[serde(default)]
     pub app_id: u32,
-    #[serde(default)]
     pub path: Option<String>,
-    #[serde(default)]
     pub exists: bool,
-    #[serde(default)]
     pub contents: Option<String>,
 }
 
-/// One library collection, from `aurelia collections list --json` (the
-/// `collections` array) or `aurelia collections show <name> --json`. `list`
-/// carries `count`; `show` carries `app_ids` — both default so either shape
-/// parses. `kind` is `"built-in"`, `"static"`, or `"dynamic"`.
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One library collection. `kind` is `"built-in"`, `"static"`, or
+/// `"dynamic"`; a dynamic one has no `app_ids` (Steam computes its members).
+#[derive(Debug, Clone, Default)]
 pub struct CollectionJson {
-    #[serde(default)]
     pub id: String,
-    #[serde(default)]
     pub name: String,
-    #[serde(default)]
     pub kind: String,
-    #[serde(default)]
     pub dynamic: bool,
     /// Member count (present on `list`).
-    #[serde(default)]
     pub count: Option<u64>,
     /// Member app ids (present on `show`; empty for a dynamic collection).
-    #[serde(default)]
     pub app_ids: Vec<u32>,
 }
 
@@ -2217,25 +1939,18 @@ pub struct PlayOpts {
     pub no_update: bool,
 }
 
-/// One way an installed game can be started, from `aurelia launch-targets <id>
-/// --json` (v0.1.40): a native Linux build, or the Windows build under one Steam
-/// mode. `flags` are the `play` flags selecting it; `missing` says what is
-/// needed when it is not `available` (e.g. `"build"`).
-#[derive(Debug, Clone, Default, Deserialize)]
+/// One way an installed game can be started: a native Linux build, or the
+/// Windows build under one Steam mode. `flags` are the `play` flags selecting
+/// it; `missing` says what is needed when it is not `available` (e.g.
+/// `"build"`).
+#[derive(Debug, Clone, Default)]
 pub struct LaunchTargetJson {
-    #[serde(default)]
     pub id: String,
-    #[serde(default)]
     pub platform: String,
-    #[serde(default)]
     pub steam_mode: Option<String>,
-    #[serde(default)]
     pub available: bool,
-    #[serde(default)]
     pub default: bool,
-    #[serde(default)]
     pub missing: Option<String>,
-    #[serde(default)]
     pub flags: Vec<String>,
 }
 

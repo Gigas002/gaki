@@ -41,7 +41,7 @@ pub struct Game {
     #[serde(default)]
     pub cover_url: Option<String>,
 
-    // Install state, sourced from `aurelia list`. Serialized into the games
+    // Install state, sourced. Serialized into the games
     // cache so the install status survives a cache round-trip (the live
     // `status` cell below is not serialized).
     #[serde(default)]
@@ -55,8 +55,8 @@ pub struct Game {
 
     #[serde(skip)]
     proton_tier: Arc<Mutex<Option<String>>>,
-    // Lazily-fetched store metadata (developer/publisher/description) from
-    // `aurelia info`. `info_requested` guards against re-spawning the fetch.
+    // Lazily-fetched store metadata (developer/publisher/description).
+    // `info_requested` guards against re-starting the fetch.
     #[serde(skip)]
     info: Arc<Mutex<Option<InfoJson>>>,
     #[serde(skip)]
@@ -66,7 +66,7 @@ pub struct Game {
 }
 
 impl Game {
-    /// Build a `Game` from one `aurelia list --json` entry. Developer/publisher
+    /// Build a `Game` from one library entry. Developer/publisher
     /// aren't in the library listing, so they start as `-` and are filled in
     /// lazily on selection via [`Game::query_info`].
     pub fn from_library(entry: LibraryGameJson) -> Game {
@@ -138,7 +138,7 @@ impl Game {
 
     /// Lazily fetch store metadata (developer/publisher/description) the first
     /// time a game is inspected. Mirrors [`Game::query_proton`]'s fire-and-forget
-    /// pattern so the UI never blocks on the `aurelia info` subprocess.
+    /// pattern so the UI never blocks on the store lookup.
     pub fn query_info(&self) {
         if self.info_requested.swap(true, Ordering::SeqCst) {
             return;
@@ -234,7 +234,7 @@ impl Game {
     }
 }
 
-/// Fetch the full library via `aurelia list` and map it into `Game`s.
+/// Fetch the full library and map it into `Game`s.
 pub fn load_library() -> Result<Vec<Game>, STError> {
     let entries = aurelia::fetch_library()?;
     Ok(entries.into_iter().map(Game::from_library).collect())

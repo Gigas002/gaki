@@ -1,7 +1,7 @@
-//! Exercises the Community Market search overlay: the lenient result/price
-//! structs, the browse-state transitions, and the widget render. No live CLI is
-//! involved — the search/price worker cells are driven through the public state
-//! API so the test is hermetic.
+//! Exercises the Community Market search overlay: the result/price display
+//! helpers, the browse-state transitions, and the widget render. Nothing
+//! reaches Steam: the search/price worker cells are driven through the public
+//! state API so the test is hermetic.
 
 use gaki_tui::browse::Browser;
 use gaki_tui::interface::aurelia::{MarketPriceJson, MarketSearchResultJson};
@@ -9,57 +9,48 @@ use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
-use serde_json::json;
 
-/// A partial/empty JSON payload must still deserialize (every field defaulted).
+/// Display helpers fall back sensibly on empty rows.
 #[test]
-fn search_result_tolerates_partial_json() {
-    // Empty object: all fields default.
-    let empty: MarketSearchResultJson = serde_json::from_value(json!({})).unwrap();
-    assert_eq!(empty.app_id, 0);
-    assert!(empty.market_hash_name.is_empty());
+fn search_result_display_falls_back() {
+    let empty = MarketSearchResultJson::default();
     assert_eq!(empty.display_name(), "(unnamed item)");
     assert!(empty.price_text().is_empty());
 
-    // Full row from the real CLI shape.
-    let full: MarketSearchResultJson = serde_json::from_value(json!({
-        "app_id": 440,
-        "app_name": "Team Fortress 2",
-        "market_hash_name": "Mann Co. Supply Crate Key",
-        "name": "Mann Co. Supply Crate Key",
-        "sell_listings": 37094,
-        "sell_price": 234,
-        "sell_price_text": "$2.34"
-    }))
-    .unwrap();
-    assert_eq!(full.app_id, 440);
+    let full = MarketSearchResultJson {
+        app_id: 440,
+        app_name: "Team Fortress 2".into(),
+        market_hash_name: "Mann Co. Supply Crate Key".into(),
+        name: "Mann Co. Supply Crate Key".into(),
+        sell_listings: 37094,
+        sell_price: 234,
+        sell_price_text: "$2.34".into(),
+    };
     assert_eq!(full.display_name(), "Mann Co. Supply Crate Key");
     assert_eq!(full.price_text(), "$2.34");
 
     // Missing pre-formatted text falls back to a minor-unit decimal.
-    let no_text: MarketSearchResultJson = serde_json::from_value(json!({
-        "name": "Thing",
-        "sell_price": 199
-    }))
-    .unwrap();
+    let no_text = MarketSearchResultJson {
+        name: "Thing".into(),
+        sell_price: 199,
+        ..Default::default()
+    };
     assert_eq!(no_text.price_text(), "1.99");
 }
 
-/// A price payload that carries no usable fields summarises to `None`; a full one
-/// produces a one-line summary.
+/// A price with no usable fields summarises to `None`; a full one produces a
+/// one-line summary.
 #[test]
 fn price_summary_handles_empty_and_full() {
-    let empty: MarketPriceJson = serde_json::from_value(json!({})).unwrap();
-    assert!(empty.summary().is_none());
+    assert!(MarketPriceJson::default().summary().is_none());
 
-    let full: MarketPriceJson = serde_json::from_value(json!({
-        "market_hash_name": "Mann Co. Supply Crate Key",
-        "lowest_price": "$2.34",
-        "median_price": "$2.34",
-        "volume": "69,730"
-    }))
-    .unwrap();
-    let summary = full.summary().expect("full payload summarises");
+    let full = MarketPriceJson {
+        market_hash_name: "Mann Co. Supply Crate Key".into(),
+        lowest_price: Some("$2.34".into()),
+        median_price: Some("$2.34".into()),
+        volume: Some("69,730".into()),
+    };
+    let summary = full.summary().expect("full price summarises");
     assert!(summary.contains("low $2.34"));
     assert!(summary.contains("median $2.34"));
     assert!(summary.contains("vol 69,730"));

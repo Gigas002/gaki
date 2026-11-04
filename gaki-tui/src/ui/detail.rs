@@ -105,7 +105,7 @@ fn build_content(
             push(blank(), 1);
 
             // Detail rows. Developer/publisher/description are filled in lazily
-            // from `aurelia info` (see Game::query_info).
+            // (see Game::query_info).
             let homepage = g.homepage.clone();
             let developer = g.get_developer();
             let publisher = g.get_publisher();

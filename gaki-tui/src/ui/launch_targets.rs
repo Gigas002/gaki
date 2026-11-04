@@ -1,6 +1,6 @@
 //! The launch-targets overlay ("Play as…", modal popup): every way an installed
 //! game can be started — the native Linux build, or the Windows build under each
-//! Steam mode — from `aurelia launch-targets`. Enter launches the highlighted one
+//! Steam mode —. Enter launches the highlighted one
 //! for this run only, without changing the saved per-game config.
 
 use ratatui::text::{Line, Span};

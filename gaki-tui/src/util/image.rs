@@ -55,7 +55,7 @@ fn request(id: i32, kind: ImageKind, url: Option<String>, slot: ImageSlot) {
         let buf = match load_cached(id, kind) {
             Some(buf) => Some(buf),
             None => url.and_then(|url| {
-                let bytes = reqwest::blocking::get(&url).ok()?.bytes().ok()?;
+                let bytes = crate::util::http::get(&url)?;
                 let _ = icon_save(id, kind.suffix(), &bytes);
                 image::load_from_memory(&bytes).ok().map(|d| d.to_rgba8())
             }),

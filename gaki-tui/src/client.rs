@@ -29,7 +29,7 @@ pub enum State {
 }
 
 pub enum Command {
-    /// Verify the session (`aurelia login --health`). The `String` is the user
+    /// Verify the session. The `String` is the user
     /// name typed in the UI; it is only used for display/bookkeeping.
     Login(String),
     /// Probe the session health without a user name (stored session or daemon).
@@ -40,7 +40,7 @@ pub enum Command {
     /// Begin a classic username/password login. The `Receiver` delivers a Steam
     /// Guard code from the UI if one is prompted for.
     LoginClassic(String, String, Receiver<String>),
-    /// Fetch and cache the full library (`aurelia list`).
+    /// Fetch and cache the full library.
     LoadGames,
     /// Invalidate the cache and re-verify the session.
     Restart,
@@ -64,13 +64,13 @@ pub enum Command {
     /// Download and install a Proton/Wine runtime by name, streaming progress
     /// into the shared status cell.
     ProtonInstall(String, Arc<Mutex<Option<GameStatus>>>),
-    /// No-op kept for UI compatibility (aurelia manages the Steam client itself).
+    /// No-op kept for UI compatibility (launching brings up what it needs).
     StartClient,
 }
 
-/// Set the session state from a `aurelia login --health` probe. Any spawn/parse
-/// failure (e.g. `aurelia` not on PATH) is recorded in `last_error` so the UI
-/// can show it instead of silently dropping back to the sign-in page.
+/// Set the session state from a session health check. A failed check is
+/// recorded in `last_error` so the UI can show it instead of silently
+/// dropping back to the sign-in page.
 fn handle_login(
     state: &Arc<Mutex<State>>,
     last_error: &Arc<Mutex<Option<String>>>,
@@ -78,7 +78,7 @@ fn handle_login(
 ) -> Result<(), STError> {
     let (next, err, who) = match aurelia::health() {
         Ok(health) if health.logged_in => {
-            log!("aurelia session authenticated", health.account);
+            log!("session authenticated", health.account);
             // The footer shows `steam: {who}`. Prefer the Steam persona / display
             // name over the login (account) name: the health probe only reports
             // the account name, so resolve the persona for our own SteamID via
@@ -95,11 +95,11 @@ fn handle_login(
             (State::Loaded(0, -2), None, who)
         }
         Ok(_) => {
-            log!("aurelia session not authenticated");
+            log!("session not authenticated");
             (State::Failed, None, None)
         }
         Err(err) => {
-            log!("aurelia health check failed", err);
+            log!("session health check failed", err);
             (State::Failed, Some(format!("{}", err)), None)
         }
     };
@@ -226,14 +226,14 @@ fn execute(
                 thread::spawn(move || aurelia::proton_install(name, status));
             }
             Command::StartClient => {
-                // `aurelia play` brings up whatever it needs; nothing to do.
+                // Launching brings up whatever it needs; nothing to do.
             }
         }
     }
     Ok(())
 }
 
-/// Manages and interfaces with the `aurelia` backend worker thread.
+/// Manages and interfaces with the backend worker thread.
 pub struct Client {
     sender: Mutex<Sender<Command>>,
     state: Arc<Mutex<State>>,
@@ -423,22 +423,22 @@ impl Client {
         Ok(())
     }
 
-    /// Launches the provided game via `aurelia play`.
+    /// Launches the provided game.
     pub fn run(&self, game: &Game) -> Result<(), STError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Run(game.id, game.status_counter()))?;
         Ok(())
     }
 
-    /// Launches the provided game via `aurelia play` with extra flags.
+    /// Launches the provided game with extra flags.
     pub fn run_with(&self, game: &Game, opts: aurelia::PlayOpts) -> Result<(), STError> {
         let sender = self.sender.lock()?;
         sender.send(Command::RunWith(game.id, opts, game.status_counter()))?;
         Ok(())
     }
 
-    /// Verifies the session for the provided user (`aurelia login --health`).
-    /// The actual credential entry happens out-of-band via `aurelia login`.
+    /// Verifies the session for the provided user.
+    /// The actual credential entry happens out-of-band.
     pub fn login(&self, user: &str) -> Result<(), STError> {
         if user.is_empty() {
             return Err(STError::Problem(
@@ -452,7 +452,7 @@ impl Client {
         Ok(())
     }
 
-    /// Fetches the full library via `aurelia list` and writes it to the cache.
+    /// Fetches the full library and writes it to the cache.
     /// The state moves to `State::Loaded(0, -1)` while loading and
     /// `State::LoggedIn` once the cache has been written.
     pub fn load_games(&self) -> Result<(), STError> {
@@ -470,7 +470,7 @@ impl Client {
         Ok(parsed)
     }
 
-    /// Kept for UI compatibility; aurelia manages the Steam client itself.
+    /// Kept for UI compatibility; launching brings up what it needs.
     pub fn start_client(&self) -> Result<(), STError> {
         let sender = self.sender.lock()?;
         sender.send(Command::StartClient)?;

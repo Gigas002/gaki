@@ -24,7 +24,7 @@ qrcode.workspace = true
 # Crossterm comes re-exported as `ratatui::crossterm`, which keeps the two in step.
 ratatui = { version = "0.30", features = ["serde"] }
 ratatui-image = { version = "10", default-features = false, features = ["crossterm"] }
-reqwest = { workspace = true, features = ["blocking"] }
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 shellexpand = "2.1.0"

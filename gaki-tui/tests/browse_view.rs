@@ -513,33 +513,9 @@ fn workshop_browse_pane_renders() {
     assert!(text.contains("browse"), "browse-mode title shown");
 }
 
-/// `workshop list` rows omit `subscribed` (the CLI only ever returns subscribed
-/// items), so the struct default must be `true` — the list-path invariant that
-/// `workshop_browse`'s explicit "force false" override depends on. Browse rows
-/// (which never carry the field) are forced to `false` inside the parse fn, so
-/// here we only pin the struct's own default behaviour both ways.
-#[test]
-fn workshop_item_subscribed_default() {
-    // Absent field -> defaults to subscribed (the `workshop list` contract).
-    let listed: WorkshopItemJson =
-        serde_json::from_str(r#"{ "id": 3733868922, "title": "Mod" }"#).unwrap();
-    assert!(
-        listed.subscribed,
-        "an item with no `subscribed` field defaults to subscribed (list path)"
-    );
-
-    // An explicit `false` (or the browse-path override) is honoured verbatim.
-    let unlisted: WorkshopItemJson =
-        serde_json::from_str(r#"{ "id": 42, "title": "X", "subscribed": false }"#).unwrap();
-    assert!(
-        !unlisted.subscribed,
-        "an explicit false is preserved (browse rows are forced false)"
-    );
-}
-
 /// Opening the comments sub-pane and exiting browse both reset its state. We set
 /// the flags directly rather than via `workshop_open_comments` (which would
-/// shell out to the CLI on a worker), to keep the test offline.
+/// reach Steam), to keep the test offline.
 #[test]
 fn workshop_comments_state_resets() {
     isolate_config();
@@ -622,45 +598,35 @@ fn workshop_comments_pane_renders() {
     assert!(text.contains("2 comment"), "comment count shown");
 }
 
-/// `workshop comments` rows parse leniently: aliases for the author/body keys
-/// are accepted and a missing author falls back to a placeholder.
+/// A comment without an author shows a placeholder.
 #[test]
-fn workshop_comment_parses_aliases() {
-    let c: WorkshopCommentJson =
-        serde_json::from_str(r#"{ "name": "Ada", "text": "hi", "time": 42 }"#).unwrap();
-    assert_eq!(c.author, "Ada");
-    assert_eq!(c.message, "hi");
-    assert_eq!(c.timestamp, 42);
-
-    let anon: WorkshopCommentJson = serde_json::from_str(r#"{ "body": "no name" }"#).unwrap();
+fn workshop_comment_without_author_is_anonymous() {
+    let anon = WorkshopCommentJson {
+        message: "no name".into(),
+        ..Default::default()
+    };
     assert_eq!(anon.display_author(), "(anonymous)");
-    assert_eq!(anon.message, "no name");
-}
-
-#[test]
-fn aurelia_version_minimum() {
-    use gaki_tui::interface::aurelia::version_supported;
-    assert!(version_supported("0.1.40"));
-    assert!(version_supported("0.2.0"));
-    assert!(version_supported("v0.1.41-1"));
-    assert!(!version_supported("0.1.39"));
-    assert!(!version_supported("0.1.37-2"));
-    assert!(!version_supported("garbage"));
+    let named = WorkshopCommentJson {
+        author: "76561197960287930".into(),
+        ..Default::default()
+    };
+    assert_eq!(named.display_author(), "76561197960287930");
 }
 
 #[test]
 fn version_badge_sits_in_bottom_right_corner() {
     isolate_config();
     let browser = Browser::new(vec![game(1, "Alpha", true, false)]);
-    let render = |width: u16, version: Option<&str>| -> Vec<String> {
+    let badge = format!("gaki v{}", env!("CARGO_PKG_VERSION"));
+    let render = |width: u16| -> Vec<String> {
         let mut terminal = Terminal::new(TestBackend::new(width, 2)).unwrap();
         let area = Rect::new(0, 0, width, 2);
         terminal
             .draw(|f| {
                 f.render_widget(ui::status::status_bar(&browser, None), area);
                 f.render_widget(
-                    ui::status::version_badge(version),
-                    ui::status::version_badge_area(area, version),
+                    ui::status::version_badge(),
+                    ui::status::version_badge_area(area),
                 );
             })
             .unwrap();
@@ -674,21 +640,15 @@ fn version_badge_sits_in_bottom_right_corner() {
             .collect()
     };
 
-    let rows = render(140, Some("0.1.40"));
+    let rows = render(140);
     assert!(
-        rows[1].trim_end().ends_with("aurelia v0.1.40"),
+        rows[1].trim_end().ends_with(&badge),
         "badge is bottom-right"
     );
     assert!(rows[1].contains("[q] quit"), "key hints are not covered");
 
-    let rows = render(140, Some("0.1.18"));
-    assert!(
-        rows[1].contains("needs >= 0.1.40"),
-        "too-old version is flagged"
-    );
-
     // Too narrow for both on the bottom row: the badge moves up, hints stay whole.
-    let rows = render(110, None);
-    assert!(rows[0].trim_end().ends_with("aurelia: not found"));
+    let rows = render(110);
+    assert!(rows[0].trim_end().ends_with(&badge));
     assert!(rows[1].contains("[q] quit"));
 }

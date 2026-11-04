@@ -81,9 +81,9 @@ impl App {
 
     pub fn build_splash_err() -> Paragraph<'static> {
         App::build_infobox(
-            "aurelia-tui".to_string(),
+            "gaki".to_string(),
             format!(
-                "{}\n Uhoh. Could not find a session. Have you run `aurelia login`?",
+                "{}\n Uhoh. Could not find a session. Have you run `gaki-cli login`?",
                 SPLASH
             ),
             Alignment::Center,
@@ -91,11 +91,7 @@ impl App {
     }
 
     pub fn build_splash() -> Paragraph<'static> {
-        App::build_infobox(
-            "aurelia-tui".to_string(),
-            SPLASH.to_string(),
-            Alignment::Center,
-        )
+        App::build_infobox("gaki".to_string(), SPLASH.to_string(), Alignment::Center)
     }
 
     pub fn build_patience() -> Paragraph<'static> {
@@ -150,7 +146,7 @@ impl App {
         App::build_infobox(
             "Sign in".to_string(),
             format!(
-                " No Steam session found.{}\n [Enter]  sign in with username & password\n [y]      sign in by QR code (Steam Mobile app)\n [r]      re-check session (after `aurelia login`)\n [q]      quit\n\n{}",
+                " No Steam session found.{}\n [Enter]  sign in with username & password\n [y]      sign in by QR code (Steam Mobile app)\n [r]      re-check session (after `gaki-cli login`)\n [q]      quit\n\n{}",
                 problem, SPLASH
             ),
             Alignment::Center,
