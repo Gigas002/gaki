@@ -127,30 +127,6 @@ fn build_content(
                 );
             }
 
-            // Check the preference at render time too: an in-flight lookup may
-            // finish after disabling, but its result must stay hidden.
-            if crate::config::Config::cached().hltb_enabled
-                && let Some(hltb_lines) = super::hltb::lines(&g.get_hltb(), width as usize)
-            {
-                // Keep times inside one wrapping table row, rather than adding a
-                // separate fixed row for each style, title, and source URL. The
-                // source remains accessible through the existing Actions menu.
-                let hltb_height = hltb_lines.len() as u16;
-                push(
-                    Row::new(vec![
-                        Cell::from(Span::styled("HLTB", theme::label())),
-                        Cell::from(Text::from(
-                            hltb_lines
-                                .into_iter()
-                                .map(|line| Spans::from(Span::styled(line, theme::value())))
-                                .collect::<Vec<_>>(),
-                        )),
-                    ])
-                    .height(hltb_height),
-                    hltb_height,
-                );
-            }
-
             if let Some(status) = g.get_status() {
                 push(blank(), 1);
                 let size = convert(status.size);
@@ -174,7 +150,7 @@ fn build_content(
             if !description.is_empty() {
                 // Table fits whole rows: a six-line description that exceeds
                 // the remaining space can disappear entirely. Use the existing
-                // panel budget to show the lines that fit alongside HLTB.
+                // panel budget to show the lines that fit.
                 let description_start = push(blank(), 1);
                 let mut lines = wrap(&description, width.max(1) as usize);
                 let available = height

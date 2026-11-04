@@ -76,7 +76,6 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("S", "search community market"),
         Entry::Binding("  Enter / Tab", "  run / price highlighted"),
         Entry::Binding("i", "expand / collapse desc"),
-        Entry::Binding(",ct", "HowLongToBeat page / retry"),
         Entry::Binding("d", "install (pick library)"),
         Entry::Binding("Space", "pause / resume install"),
         Entry::Binding("c", "cancel install"),

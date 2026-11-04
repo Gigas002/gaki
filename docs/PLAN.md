@@ -581,11 +581,18 @@ I make the changes, and you review, commit, and push.
   (`steam-runtime status|install|repair`, `config game … steam-runtime`,
   `play --steam-mode`) in the engine pane, game config and launch targets.
   They fail at runtime and go away when `interface/aurelia.rs` is ported.
-- [ ] **3.3** Strip HLTB: `interface/hltb.rs`, `ui/hltb.rs`,
+- [x] **3.3** Strip HLTB: `interface/hltb.rs`, `ui/hltb.rs`,
   `tests/hltb_view.rs`, `tests/fixtures/hltb/`, `docs/HOWLONGTOBEAT.md`, and
   `scripts/test-hltb-terminal.py`. Also drop the TUI's `scripts/`, `assets/`
   screenshots, `FUNDING.yml`, and workflows. CI is unified at the workspace
   level.
+  *Done.* Besides the listed files: `interface/hltb_tests.rs`, the
+  `hltb_enabled` config switch (old configs that still carry it load fine),
+  the detail-pane row, the settings row and `h` key, the `,ct` chord, the
+  Actions entry, the help line, the HLTB state and tests in
+  `interface/game.rs`, the README sections, and the `regex` dependency
+  (HLTB-only). `assets/` keeps only `splash.txt`, which `app.rs` embeds; the
+  logo, screenshots and the unused ASCII banner went with `scripts/`.
 - [ ] **3.4** Migrate `tui` 0.18 to `ratatui`, update crossterm, remove `atty`
   (use `std::io::IsTerminal`), and replace `tui-image-rgba-updated` with a
   maintained ratatui image widget, or drop images if none fits (D5).

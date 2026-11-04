@@ -19,7 +19,6 @@ pub mod friend_add;
 pub mod friends;
 pub mod game_config;
 pub mod help;
-mod hltb;
 pub mod import;
 pub mod install_picker;
 pub mod inventory;

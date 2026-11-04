@@ -1,12 +1,11 @@
 //! The settings overlay (modal popup) showing the launcher configuration, with
-//! keys for friends/chat presence, proxy editing, and TUI-owned HLTB metadata.
+//! keys for friends/chat presence and proxy editing.
 
 use tui::layout::Constraint;
 use tui::text::Span;
 use tui::widgets::{Cell, Row, Table};
 
 use crate::browse::Browser;
-use crate::config::Config;
 use crate::theme;
 
 /// One key-value row in the settings table.
@@ -44,10 +43,7 @@ fn proxy_value(browser: &Browser) -> String {
 
 /// Build the settings overlay content from the fetched launcher configuration.
 pub fn config(browser: &Browser) -> Table<'static> {
-    // Local preferences must remain visible without a working launcher. Keep
-    // the switch first so it is also reachable in shorter settings panels.
-    let mut rows = vec![row("HowLongToBeat", yes_no(Config::cached().hltb_enabled))];
-    rows.extend(match &browser.config_info {
+    let mut rows = match &browser.config_info {
         Some(info) => vec![
             row("Presence", opt(&info.chat_presence)),
             row("Proton", opt(&info.proton_version)),
@@ -67,7 +63,7 @@ pub fn config(browser: &Browser) -> Table<'static> {
             ),
         ],
         None => vec![row("Launcher", "Unavailable".into())],
-    });
+    };
     // Keep the inline editor visible if the launcher read failed. Otherwise its
     // title would invite typing while the edited URL itself was hidden.
     if browser.config_info.is_none() && browser.config_proxy_input.is_some() {
@@ -77,7 +73,7 @@ pub fn config(browser: &Browser) -> Table<'static> {
     let title = if browser.config_proxy_input.is_some() {
         "Settings — proxy URL ([Enter] save · [Esc] cancel · empty clears)".to_string()
     } else {
-        "Settings ([h] HLTB · [o] presence · [e] edit proxy · [c] clear proxy)".to_string()
+        "Settings ([o] presence · [e] edit proxy · [c] clear proxy)".to_string()
     };
 
     Table::new(rows)

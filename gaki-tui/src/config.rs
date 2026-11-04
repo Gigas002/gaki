@@ -23,15 +23,6 @@ pub struct Config {
     pub favorite_games: Vec<i32>,
     pub allowed_games: Vec<GameType>,
     pub highlight: Color,
-    /// TUI-owned metadata preference; unlike runtime plugins, HLTB does not run
-    /// through the launcher. Missing fields in older configs preserve the
-    /// existing enabled behavior without resetting favourites or hidden games.
-    #[serde(default = "default_hltb_enabled")]
-    pub hltb_enabled: bool,
-}
-
-fn default_hltb_enabled() -> bool {
-    true
 }
 
 impl Default for Config {
@@ -42,7 +33,6 @@ impl Default for Config {
             favorite_games: vec![],
             allowed_games: vec![GameType::Game, GameType::DLC],
             highlight: theme::ACCENT,
-            hltb_enabled: default_hltb_enabled(),
         }
     }
 }
@@ -88,24 +78,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn older_configs_enable_hltb_without_resetting_existing_preferences() {
+    fn configs_with_the_dropped_hltb_switch_still_load() {
         let mut legacy = serde_json::to_value(Config::default()).unwrap();
-        legacy.as_object_mut().unwrap().remove("hltb_enabled");
+        legacy["hltb_enabled"] = serde_json::json!(true);
         legacy["favorite_games"] = serde_json::json!([400]);
-        legacy["hidden_games"] = serde_json::json!([620]);
-        legacy["default_user"] = serde_json::json!("saved user");
         let config: Config = serde_json::from_value(legacy).unwrap();
-        assert!(config.hltb_enabled);
         assert_eq!(config.favorite_games, [400]);
-        assert_eq!(config.hidden_games, [620]);
-        assert_eq!(config.default_user, "saved user");
-        let disabled = Config {
-            hltb_enabled: false,
-            ..config
-        };
-        let restored: Config =
-            serde_json::from_str(&serde_json::to_string(&disabled).unwrap()).unwrap();
-        assert!(!restored.hltb_enabled);
-        assert_eq!(restored.favorite_games, [400]);
     }
 }
