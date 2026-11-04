@@ -1,5 +1,3 @@
-<img src="assets/aurelia_logo_v6.svg" alt="Aurelia, the command-line Steam client and launcher written in Rust" title="Aurelia" align="left" height="80" />
-
 # Aurelia: a command-line Steam client for Linux and Windows
 
 **A fast, lightweight, headless Steam launcher and library manager written in Rust. Install, update and play your Steam games entirely from the terminal.**

@@ -16,14 +16,10 @@ use crate::cli::*;
 mod commands;
 use crate::commands::*;
 
-/// ASCII-art banner shown when `aurelia` is run with no subcommand.
-const BANNER: &str = include_str!("../assets/asciiart_banner.txt");
-
-/// Print the banner followed by the top-level long help. Used for a bare
-/// `aurelia` invocation so the user sees the logo and then every command.
-fn print_banner_and_help() {
+/// Print the top-level long help. Used for a bare `aurelia` invocation so the
+/// user sees every command.
+fn print_long_help() {
     use clap::CommandFactory;
-    cli_println!("{BANNER}\n");
     cli_print!("{}", Cli::command().render_long_help());
 }
 
@@ -116,13 +112,13 @@ async fn async_main() {
         Ok(cli) => cli,
         Err(e) => {
             use clap::error::ErrorKind;
-            // Bare `aurelia` (no subcommand): greet with the banner, then the full
-            // help — instead of clap's terse "requires a subcommand" error.
+            // Bare `aurelia` (no subcommand): print the full help instead of
+            // clap's terse "requires a subcommand" error.
             if matches!(
                 e.kind(),
                 ErrorKind::MissingSubcommand | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand
             ) {
-                print_banner_and_help();
+                print_long_help();
                 std::process::exit(0);
             }
             // Everything else (genuine parse errors, --help, --version) keeps clap's

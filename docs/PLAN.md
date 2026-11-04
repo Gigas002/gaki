@@ -323,8 +323,13 @@ I make the changes, and you review, commit, and push.
   than localizing anything; without it the region is `US`.
   `normalize_country` moved to `core::utils`. Caches are now
   `tag_names.json`, `category_names.json` and `info_cache/<appid>.<cc>.json`.
-- [ ] **1.7** Act on D2 and D3: delete `assets/` and the banner, and decide the
+- [x] **1.7** Act on D2 and D3: delete `assets/` and the banner, and decide the
   fate of the protos. If they stay, they move in Phase 2.
+  *Done.* Deleted `assets/` (banner and SVG logo). A bare `aurelia` now just
+  prints the long help, and the README logo line is gone. Protos: the newest
+  `steam-vent-proto` (0.5.2, checked 2026-11-04) still doesn't ship
+  `storequery`, `wishlist` or `cloudconfigstore`, so `proto/` and `build.rs`
+  stay and move into `libgaki/` with per-feature gating in Phase 2.
 - [ ] **1.8** Make the lint gates green. Fix the roughly 140 clippy findings
   (`-D warnings`, at all three feature levels) left after the removals. Most
   are collapsible `if` statements and field assignments outside initializers.
