@@ -1,5 +1,5 @@
 [workspace]
-members = ["libgaki", "gaki-cli"]
+members = ["libgaki", "gaki-cli", "gaki-tui"]
 resolver = "3"
 
 [workspace.package]

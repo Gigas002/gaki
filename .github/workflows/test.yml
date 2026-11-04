@@ -30,7 +30,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libssl-dev pkg-config
 
       - name: Build cache
         uses: Swatinem/rust-cache@v2
@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [libgaki, gaki-cli]
+        package: [libgaki, gaki-cli, gaki-tui]
 
     name: codecov (${{ matrix.package }})
     runs-on: ubuntu-latest
@@ -56,7 +56,7 @@ jobs:
           components: llvm-tools-preview
 
       - name: Install system dependencies
-        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev pkg-config
+        run: sudo apt-get update && sudo apt-get install -y libdbus-1-dev libssl-dev pkg-config
 
       - name: Build cache
         uses: Swatinem/rust-cache@v2

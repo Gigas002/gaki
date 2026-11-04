@@ -4,6 +4,7 @@ ratatui = "ratatui"
 sav = "sav"                 # `.sav` save-game files
 packageid = "packageid"     # Steam proto/KeyValues field
 unvailable = "unvailable"   # sic, Valve proto field `unvailable_for_country_restriction`
+Dota = "Dota"               # the game title, in TUI test fixtures
 # Valid spelling variants / crate names
 unparseable = "unparseable"
 flate = "flate"             # `flate2` crate

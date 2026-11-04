@@ -552,10 +552,23 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 3 — import the TUI (R6, R7, R8, R9)
 
-- [ ] **3.1** Copy the `../Aurelia-TUI` sources into `gaki-tui/` as they are
+- [x] **3.1** Copy the `../Aurelia-TUI` sources into `gaki-tui/` as they are
   (record the upstream commit `d0af998` in the commit message). Name the crate
   `gaki-tui` and the binary `gaki`. It keeps talking to the CLI as a
   subprocess for now, but invokes `gaki-cli` instead of `aurelia`.
+  *Done.* Copied everything but `.git`, `Cargo.lock` (the workspace has one)
+  and the upstream `.gitignore` (it ignored `/docs` and `.c*`). The crate is a
+  workspace member with the workspace version; its license stays the
+  upstream `GPL-3.0-only` (now allowed in `deny.toml`), with the upstream
+  `LICENSE` kept in `gaki-tui/`. `aurelia_tui::` paths became `gaki_tui::`.
+  `bin()` looks for a `gaki-cli` next to its own executable, then on `PATH`;
+  `AURELIA_BIN` stays as an override until Phase 4 drops the subprocess (a
+  test relies on it). To pass the workspace gates: `cargo fmt`, clippy fixes
+  (collapsed `if`s, a `Slot<T>` alias, an iterator loop, explicit
+  `truncate(false)`), seven broken rustdoc links, one typo, `Dota` allowed in
+  `.typos.toml`. CI installs `libssl-dev` (reqwest 0.11 uses native-tls until
+  3.4) and codecov covers `gaki-tui`. Other aurelia names in the TUI (its
+  strings, `~/.config/aurelia-tui`, `AURELIA_TUI_*`) are left for Phase 4/5.
 - [ ] **3.2** Strip Windows from the TUI: the `schannel` dependency, the
   `cmd`/`open` browser branches, and Windows path code.
 - [ ] **3.3** Strip HLTB: `interface/hltb.rs`, `ui/hltb.rs`,
