@@ -424,7 +424,22 @@ I make the changes, and you review, commit, and push.
     callback for the CLI's "Stopping Steam" message. `RateTracker` and
     `percent_of` went to `ops::progress`, country resolution to `ops::store`,
     and `available_space_for` to `core::utils`. Added 11 tests.
-  - [ ] **2.3b** `runtimes.rs`, `config.rs` and `scripts.rs`.
+  - [x] **2.3b** `runtimes.rs`, `config.rs` and `scripts.rs`. New
+    `ops::config`:
+    - `load`/`update` (load, edit, save) and `experimental`
+      (`core::config::experimental_env_override` now owns the env-var check).
+    - `update_proxy(ProxyChange)`, `games_with_settings` and
+      `clear_all_game_settings`.
+    - `update_game(app_id, GameSettingsChange)`. Its `Change<T>`
+      (`Keep`/`Clear`/`Set`) replaces the CLI's flag-pair juggling.
+
+    New `ops::proton`: `listing`, `find` (a typed `NotFound` that explains
+    custom builds), `start_install`, `set_default` and `uninstall`. New
+    `ops::scripts`: `list`, `create`, `show` and `remove`. The install-dir
+    platform detection (`detect_installed_platform[_set]` and its bounded
+    walk) moved from `commands/library.rs` to `libgaki::library::platform`,
+    with tests, because `config game` needs it. `--json` output keeps its
+    keys. Added 10 tests.
   - [ ] **2.3c** `auth.rs`: login flows, logout, health.
   - [ ] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
   - [ ] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,

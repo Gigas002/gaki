@@ -3,6 +3,7 @@ pub mod cloud_sync;
 pub mod collections;
 pub mod depot_browser;
 pub mod local_library;
+pub mod platform;
 pub mod relocate;
 
 use crate::core::config::load_launcher_config;

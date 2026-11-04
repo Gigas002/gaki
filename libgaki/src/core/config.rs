@@ -161,20 +161,24 @@ impl Default for LauncherConfig {
 /// (anything other than empty, `0`, or `false`). The env var lets a driver or a
 /// one-off invocation opt in without persisting the setting.
 pub async fn experimental_enabled() -> bool {
-    if let Some(value) = std::env::var_os("AURELIA_EXPERIMENTAL") {
-        let value = value.to_string_lossy();
-        let value = value.trim();
-        if !value.is_empty()
-            && !value.eq_ignore_ascii_case("0")
-            && !value.eq_ignore_ascii_case("false")
-        {
-            return true;
-        }
+    if experimental_env_override() {
+        return true;
     }
     load_launcher_config()
         .await
         .map(|config| config.experimental)
         .unwrap_or(false)
+}
+
+/// Whether `AURELIA_EXPERIMENTAL` forces experimental features on for this run.
+pub fn experimental_env_override() -> bool {
+    std::env::var_os("AURELIA_EXPERIMENTAL").is_some_and(|value| {
+        let value = value.to_string_lossy();
+        let value = value.trim();
+        !value.is_empty()
+            && !value.eq_ignore_ascii_case("0")
+            && !value.eq_ignore_ascii_case("false")
+    })
 }
 
 pub fn detect_steam_path() -> Option<PathBuf> {
