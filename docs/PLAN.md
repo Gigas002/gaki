@@ -370,11 +370,24 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 2 — rename and restructure (R3, R4, R5, R13, R14, R15)
 
-- [ ] **2.1** Convert to a workspace. The root `Cargo.toml` gets `[workspace]`,
+- [x] **2.1** Convert to a workspace. The root `Cargo.toml` gets `[workspace]`,
   `[workspace.package]` (edition 2024, GPL-3.0-or-later, and repository), and
   `[workspace.dependencies]`. Create `libgaki/` from `src/lib.rs` and its
   modules (`core`, `steam_client`, `library`, `web`, `launch`, `compat`, `infra`)
   plus `proto/` and `build.rs`.
+  *Done.* The root `Cargo.toml` is now a workspace (`resolver = "3"`,
+  repository `Gigas002/gaki`, version 0.1.41) with every dependency in
+  `[workspace.dependencies]`. Each crate lists only the crates it uses, so the
+  unused `directories`, `prost`, `cbc` and `aes` were dropped. `libgaki/`
+  holds the library tree, `proto/` and `build.rs`. The CLI binary stays at the
+  root as package `aurelia-steam` until 2.2, and depends on
+  `aurelia = { package = "libgaki", ... }` so `aurelia::` paths and
+  `tests/` keep working unchanged. Three binary-only files that were pulled
+  out of the library tree with `#[path]` now live in `src/` as plain modules:
+  `core/output.rs` → `src/output.rs`, `compat/proc_admin.rs` →
+  `src/proc_admin.rs`, and `web/steam_urls.rs` → `src/steam_urls.rs`.
+  Rustdoc now builds the binary too, because it no longer shares the name
+  `aurelia` with the library, so three binary doc links were fixed.
 - [ ] **2.2** Create `gaki-cli/` from `src/main.rs`, `cli.rs`, `commands/`, and
   `daemon/`. Change `aurelia::` paths to `libgaki::`. Rename the binary to
   `gaki-cli`.

@@ -317,7 +317,7 @@ impl DaemonState {
     }
 
     /// Drop the shared session and clear the failure backoff so the next
-    /// [`ensure_session`] re-attempts immediately (used after login/logout). Also tears
+    /// [`Self::ensure_session`] re-attempts immediately (used after login/logout). Also tears
     /// down the friends watcher and empties the roster: the watcher is bound to the dead
     /// connection, so a reconnect must start a fresh one over the new connection rather
     /// than leave a defunct task and stale friends data behind.

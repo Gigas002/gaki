@@ -2,12 +2,9 @@ use anyhow::{Result, bail};
 use clap::Parser;
 
 #[macro_use]
-#[path = "core/output.rs"]
 mod output;
 mod daemon;
-#[path = "compat/proc_admin.rs"]
 mod proc_admin;
-#[path = "web/steam_urls.rs"]
 mod steam_urls;
 
 mod cli;

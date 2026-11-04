@@ -1,0 +1,45 @@
+[package]
+name = "libgaki"
+description = "Steam client library behind gaki-cli and gaki-tui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+argon2.workspace = true
+async-trait.workspace = true
+chacha20poly1305.workspace = true
+filetime.workspace = true
+hex.workspace = true
+keyring.workspace = true
+keyvalues-serde.workspace = true
+libc.workspace = true
+protobuf.workspace = true
+rand.workspace = true
+regex.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha1.workspace = true
+steam-cdn.workspace = true
+steam-vdf-parser.workspace = true
+steam-vent.workspace = true
+steam-vent-chat.workspace = true
+steam-vent-proto.workspace = true
+steam-vent-proto-common.workspace = true
+steamid-ng.workspace = true
+sysinfo.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+walkdir.workspace = true
+zip.workspace = true
+
+[build-dependencies]
+protobuf-codegen.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

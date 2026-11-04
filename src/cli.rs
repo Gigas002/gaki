@@ -867,10 +867,10 @@ pub(crate) struct LoginArgs {
     /// Type the Guard code instead of app approval.
     #[arg(short = 'c', long, visible_alias = "pin", conflicts_with = "guard")]
     pub(crate) code: bool,
-    /// [EXPERIMENTAL] Browser OpenID identity check (no session token).
+    /// Experimental: browser OpenID identity check (no session token).
     #[arg(short = 'o', long, hide = true, conflicts_with_all = ["username", "password", "guard", "qr", "code"])]
     pub(crate) openid: bool,
-    /// [EXPERIMENTAL] Store a web token from steamcommunity.com/chat/clientjstoken
+    /// Experimental: store a web token from steamcommunity.com/chat/clientjstoken
     /// (or AURELIA_WEB_TOKEN) for web-only commands; expires in ~24h.
     #[arg(short = 'w', long, hide = true, num_args = 0..=1, conflicts_with_all = ["username", "password", "guard", "qr", "code", "openid"])]
     pub(crate) web_token: Option<Option<String>>,

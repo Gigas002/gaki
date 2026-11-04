@@ -1,64 +1,84 @@
-[package]
-name = "aurelia-steam"
+[workspace]
+members = ["libgaki"]
+resolver = "3"
+
+[workspace.package]
 version = "0.1.41"
 edition = "2024"
-description = "Aurelia CLI Steam launcher"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/Drackrath/Aurelia"
-exclude = [".github/"]
+repository = "https://github.com/Gigas002/gaki"
 
-# Crate name "aurelia" is taken.
-[lib]
-name = "aurelia"
-path = "src/lib.rs"
+[workspace.dependencies]
+libgaki = { path = "libgaki" }
+
+anyhow = "1"
+argon2 = "0.5"
+async-trait = "0.1"
+chacha20poly1305 = "0.10"
+clap = { version = "4", features = ["derive"] }
+filetime = "0.2" # Stamp downloaded Cloud saves with their cloud mtime so re-sync doesn't churn
+hex = "0.4"
+keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
+keyvalues-serde = "0.2" # Text VDF deserialization into structs
+libc = "0.2"
+protobuf = "3.5" # rust-protobuf runtime; matches steam-vent-proto's MessageField/EnumOrUnknown
+protobuf-codegen = "3.5" # Pure-Rust codegen (no protoc); tracks the `protobuf` runtime
+qrcode = { version = "0.14", default-features = false } # Terminal QR rendering for `login --qr`
+rand = "0.10" # Match steam-vent's rand version so only one copy is linked
+regex = "1"
+reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "socks"] }
+rpassword = "7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha1 = "0.10"
+steam-cdn = { package = "aurelia-steam-cdn", version = "1.0.0" } # Fork ported to steam-vent 0.5
+steam-vdf-parser = "0.1.1" # Raw binary PICS VDF parsing (not supported by keyvalues-serde or steam-vent)
+steam-vent = "0.5"
+steam-vent-chat = { package = "aurelia-steam-vent-chat", version = "0.5.0" } # Fork ported to steam-vent 0.5
+steam-vent-proto = "=0.5.2" # Not re-exported as steam_vent::proto since 0.5
+steam-vent-proto-common = "0.5.1" # RpcMethod/RpcMessage traits for the hand-wired CloudConfigStore RPC
+steamid-ng = "3" # Matches steam-vent's steamid-ng
+sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] } # Process listing for `kill`/`daemon`; `disk` for free-space checks
+tempfile = "3"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "time", "net", "io-util", "sync", "io-std", "process"] }
+tokio-stream = "0.1" # Consume steam-vent's notification broadcast streams (friend chat events)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+walkdir = "2"
+zip = "2.2.2"
+
+# The CLI binary stays at the workspace root until step 2.2 moves it to gaki-cli/.
+[package]
+name = "aurelia-steam"
+description = "Aurelia CLI Steam launcher"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+exclude = [".github/"]
 
 [[bin]]
 name = "aurelia"
 path = "src/main.rs"
 
 [dependencies]
-anyhow = "1"
-async-trait = "0.1"
-clap = { version = "4", features = ["derive"] }
-directories = "6" # Match steam-vent's directories version so only one copy is linked
-rpassword = "7"
-keyvalues-serde = "0.2" # Used for text VDF deserialization into structs
-prost = "0.13"
-protobuf = "3.5" # rust-protobuf runtime; matches steam-vent-proto's MessageField/EnumOrUnknown so we can build StoreBrowse requests
-rand = "0.10" # Match steam-vent's rand version so only one copy is linked
-reqwest = { version = "0.13", default-features = false, features = ["json", "query", "rustls", "socks"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-steam-vdf-parser = "0.1.1" # Needed for raw binary PICS VDF parsing (not supported by keyvalues-serde or steam-vent yet)
-steam-vent = "0.5"
-steam-vent-proto = "=0.5.2" # proto is no longer re-exported as steam_vent::proto since 0.5; depend on it directly
-steam-vent-proto-common = "0.5.1" # RpcMethod/RpcMessage traits, to hand-wire the CloudConfigStore RPC (library collections) not shipped in steam-vent-proto
-steam-vent-chat = { package = "aurelia-steam-vent-chat", version = "0.5.0" } # Fork ported to steam-vent 0.5
-steamid-ng = "3" # Construct SteamIDs (from u64 / string) to pass to steam-vent-chat; matches steam-vent's steamid-ng
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "time", "net", "io-util", "sync", "io-std", "process"] }
-tokio-stream = "0.1" # Consume steam-vent's notification broadcast streams (friend chat events)
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
-walkdir = "2"
-filetime = "0.2" # Stamp downloaded Cloud saves with their cloud mtime so re-sync doesn't churn
-zip = "2.2.2"
-hex = "0.4"
-sha1 = "0.10"
-cbc = "0.1"
-aes = "0.8"
-steam-cdn = { package = "aurelia-steam-cdn", version = "1.0.0" } # Fork ported to steam-vent 0.5
-libc = "0.2"
-regex = "1"
-sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] } # Enumerate/kill aurelia processes for `kill`/`daemon`; `disk` for library free-space checks
-qrcode = { version = "0.14", default-features = false } # Terminal QR rendering for `login --qr`
-chacha20poly1305 = "0.10"
-argon2 = "0.5"
-keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
-
-[build-dependencies]
-# Pure-Rust protobuf codegen (no protoc) for the CloudConfigStore messages used by
-# library collections; version tracks the `protobuf` runtime above.
-protobuf-codegen = "3.5"
+# Renamed so `aurelia::` paths keep working until 2.2 switches them to `libgaki::`.
+aurelia = { package = "libgaki", path = "libgaki" }
+anyhow.workspace = true
+clap.workspace = true
+libc.workspace = true
+qrcode.workspace = true
+reqwest.workspace = true
+rpassword.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+steam-vent-chat.workspace = true
+sysinfo.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+walkdir.workspace = true
 
 [dev-dependencies]
-tempfile = "3"
+async-trait.workspace = true
+tempfile.workspace = true
