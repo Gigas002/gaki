@@ -4,7 +4,7 @@ use crate::commands::common::*;
 
 use anyhow::Result;
 use aurelia::core::error::{ErrorKind, TypedError};
-use aurelia::core::locale::normalize_country;
+use aurelia::core::utils::normalize_country;
 use aurelia::steam_client::{StoreAppInfo, StorePurchaseOption, unix_to_ymd};
 use std::time::Duration;
 
@@ -90,13 +90,11 @@ pub(crate) async fn cmd_price(
     app_id: u32,
     compare: Vec<String>,
     country: Option<String>,
-    lang: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let lang = resolve_steam_language(lang).await;
     let mut regions = parse_regions(&compare)?;
     if regions.is_empty() {
-        regions.push(resolve_steam_country(country).await?);
+        regions.push(resolve_steam_country(country)?);
     }
 
     let client = authed_client().await?;
@@ -106,7 +104,7 @@ pub(crate) async fn cmd_price(
         if i > 0 {
             tokio::time::sleep(REGION_SPACING).await;
         }
-        let quote = match client.fetch_store_apps(&[app_id], &lang, region).await {
+        let quote = match client.fetch_store_apps(&[app_id], region).await {
             Ok(apps) => match apps.into_iter().find(|a| a.app_id == app_id) {
                 Some(info) => {
                     if name.is_none() && !info.name.is_empty() {
@@ -208,16 +206,15 @@ pub(crate) async fn cmd_price(
 /// Store record, refetched when cached pre-S3 (no media).
 async fn store_info_with_media(app_id: u32) -> Result<StoreAppInfo> {
     use aurelia::core::config::{info_cache_ttl, load_info_cache};
-    let lang = resolve_steam_language(None).await;
-    let country = resolve_steam_country(None).await?;
-    if let Some(cached) = load_info_cache(app_id, &lang, &country, info_cache_ttl()).await {
+    let country = resolve_steam_country(None)?;
+    if let Some(cached) = load_info_cache(app_id, &country, info_cache_ttl()).await {
         if !cached.details.screenshots.is_empty() || !cached.details.tags.is_empty() {
             return Ok(cached.details);
         }
     }
     let client = authed_client().await?;
     client
-        .fetch_store_apps(&[app_id], &lang, &country)
+        .fetch_store_apps(&[app_id], &country)
         .await?
         .into_iter()
         .find(|a| a.app_id == app_id)
@@ -328,13 +325,12 @@ pub(crate) async fn cmd_image_list(app_id: u32, probe: bool, json: bool) -> Resu
 async fn store_records(
     client: &aurelia::steam_client::SteamClient,
     ids: &[u32],
-    lang: &str,
     country: &str,
 ) -> Result<Vec<StoreAppInfo>> {
     if ids.is_empty() {
         return Ok(Vec::new());
     }
-    let mut records = client.fetch_store_apps(ids, lang, country).await?;
+    let mut records = client.fetch_store_apps(ids, country).await?;
     let position = |id: u32| ids.iter().position(|&x| x == id).unwrap_or(usize::MAX);
     records.sort_by_key(|r| position(r.app_id));
     Ok(records)
@@ -400,14 +396,12 @@ pub(crate) async fn cmd_search(
     term: String,
     count: u32,
     country: Option<String>,
-    lang: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let lang = resolve_steam_language(lang).await;
-    let country = resolve_steam_country(country).await?;
+    let country = resolve_steam_country(country)?;
     let client = authed_client().await?;
-    let page = client.search_store(&term, count, &lang, &country).await?;
-    let records = store_records(&client, &page.app_ids, &lang, &country).await?;
+    let page = client.search_store(&term, count, &country).await?;
+    let records = store_records(&client, &page.app_ids, &country).await?;
     if json {
         print_json(&serde_json::json!({
             "term": term,
@@ -435,12 +429,10 @@ pub(crate) async fn cmd_deals(
     count: i32,
     start: i32,
     country: Option<String>,
-    lang: Option<String>,
     json: bool,
 ) -> Result<()> {
     use aurelia::steam_client::DealsScope;
-    let lang = resolve_steam_language(lang).await;
-    let country = resolve_steam_country(country).await?;
+    let country = resolve_steam_country(country)?;
     let scope = match scope {
         crate::cli::DealsScopeArg::DiscountedTopSellers => DealsScope::DiscountedTopSellers,
         crate::cli::DealsScopeArg::TopSellers => DealsScope::TopSellers,
@@ -448,9 +440,9 @@ pub(crate) async fn cmd_deals(
     };
     let client = authed_client().await?;
     let page = client
-        .query_deals(scope, min_discount, start, count, &lang, &country)
+        .query_deals(scope, min_discount, start, count, &country)
         .await?;
-    let records = store_records(&client, &page.app_ids, &lang, &country).await?;
+    let records = store_records(&client, &page.app_ids, &country).await?;
     if json {
         print_json(&serde_json::json!({
             "country": country,
@@ -478,14 +470,12 @@ pub(crate) async fn cmd_similar(
     app_id: u32,
     count: i32,
     country: Option<String>,
-    lang: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let lang = resolve_steam_language(lang).await;
-    let country = resolve_steam_country(country).await?;
+    let country = resolve_steam_country(country)?;
     let client = authed_client().await?;
-    let page = client.similar_apps(app_id, count, &lang, &country).await?;
-    let records = store_records(&client, &page.app_ids, &lang, &country).await?;
+    let page = client.similar_apps(app_id, count, &country).await?;
+    let records = store_records(&client, &page.app_ids, &country).await?;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
@@ -515,7 +505,7 @@ pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
 
 /// `aurelia events`: active store sales and events.
 pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()> {
-    let country = resolve_steam_country(country).await?;
+    let country = resolve_steam_country(country)?;
     let client = authed_client().await?;
     let events = client.active_store_events(&country).await?;
     if json {
@@ -580,18 +570,12 @@ pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Re
         purchase,
         count,
         cursor,
-        lang,
     } = args;
     use aurelia::web::discovery::{ReviewQuery, fetch_reviews};
-    let language = match lang {
-        Some(l) => l,
-        None => resolve_steam_language(None).await,
-    };
     let query = ReviewQuery {
         filter,
         review_type,
         purchase_type: purchase,
-        language,
         count,
         cursor,
     };
@@ -643,11 +627,9 @@ pub(crate) async fn cmd_wishlist(
     count: usize,
     offset: usize,
     country: Option<String>,
-    lang: Option<String>,
     json: bool,
 ) -> Result<()> {
-    let lang = resolve_steam_language(lang).await;
-    let country = resolve_steam_country(country).await?;
+    let country = resolve_steam_country(country)?;
     let client = authed_client().await?;
     let own_id = client.steam_id();
     let steam_id = match &user {
@@ -682,7 +664,7 @@ pub(crate) async fn cmd_wishlist(
     let total = entries.len();
     let page: Vec<_> = entries.into_iter().skip(offset).take(count).collect();
     let ids: Vec<u32> = page.iter().map(|e| e.app_id).collect();
-    let records = store_records(&client, &ids, &lang, &country).await?;
+    let records = store_records(&client, &ids, &country).await?;
     let record_for = |id: u32| records.iter().find(|r| r.app_id == id);
 
     if json {
@@ -795,7 +777,7 @@ pub(crate) async fn cmd_appinfo(app_id: u32) -> Result<()> {
 pub(crate) async fn cmd_tags(dump: bool, json: bool) -> Result<()> {
     crate::commands::auth::require_experimental("tags").await?;
     let client = authed_client().await?;
-    let tags = client.fetch_tag_list("english").await?;
+    let tags = client.fetch_tag_list().await?;
     if json {
         print_json(
             &tags

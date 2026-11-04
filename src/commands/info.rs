@@ -117,16 +117,11 @@ pub(crate) async fn cmd_info(
     app_ids: Vec<u32>,
     extended: bool,
     no_cache: bool,
-    lang: Option<String>,
     country: Option<String>,
     json: bool,
 ) -> Result<()> {
-    // Resolve the store-text language once: explicit --lang > `config language` >
-    // English. Threaded into the StoreBrowse fetch, the `--extended` storefront
-    // fetch, and the per-language cache key.
-    let lang = resolve_steam_language(lang).await;
     // Country selects the price region and cache key.
-    let country = resolve_steam_country(country).await?;
+    let country = resolve_steam_country(country)?;
     // The CM-sourced metadata (StoreBrowse + the DLC list) is effectively static
     // for hours, and drivers like Heroic call `info` repeatedly. Serve it from a
     // short-TTL disk cache so a repeat call avoids the Steam CM logon and the
@@ -146,7 +141,7 @@ pub(crate) async fn cmd_info(
         std::collections::HashMap::new();
     let mut misses: Vec<u32> = Vec::new();
     for &id in &app_ids {
-        match load_info_cache(id, &lang, &country, ttl).await {
+        match load_info_cache(id, &country, ttl).await {
             Some(cached) => {
                 base.insert(id, (cached.details, cached.dlc));
             }
@@ -166,7 +161,7 @@ pub(crate) async fn cmd_info(
         // (no HTTPS storefront API), so a session is needed here.
         let client = session.as_ref().expect("session created for misses");
         let store = client
-            .fetch_store_apps(&misses, &lang, &country)
+            .fetch_store_apps(&misses, &country)
             .await
             .context("failed to fetch store information")?;
         for &id in &misses {
@@ -193,10 +188,10 @@ pub(crate) async fn cmd_info(
                 .await
                 .map(|e| e.dlcs)
                 .unwrap_or_default();
-            let dlc = resolve_dlc_names_via_store(&client, &dlc_ids, &lang, &country).await;
+            let dlc = resolve_dlc_names_via_store(&client, &dlc_ids, &country).await;
 
             // Best-effort cache write — a failure here must not fail the command.
-            if let Err(e) = save_info_cache(id, &lang, &country, &details, &dlc).await {
+            if let Err(e) = save_info_cache(id, &country, &details, &dlc).await {
                 tracing::warn!("could not cache info for app {id}: {e:#}");
             }
             base.insert(id, (details, dlc));
@@ -208,13 +203,10 @@ pub(crate) async fn cmd_info(
         std::collections::HashMap::new();
     if extended {
         let client = session.as_ref().expect("session created for --extended");
-        let category_names = client
-            .store_category_names(&lang)
-            .await
-            .unwrap_or_else(|e| {
-                tracing::warn!("category names unavailable: {e:#}");
-                Default::default()
-            });
+        let category_names = client.store_category_names().await.unwrap_or_else(|e| {
+            tracing::warn!("category names unavailable: {e:#}");
+            Default::default()
+        });
         let http = aurelia::core::net::steam_web_client().ok();
         for &id in &app_ids {
             if !base.contains_key(&id) {
@@ -241,7 +233,7 @@ pub(crate) async fn cmd_info(
                 Err(e) => tracing::warn!("appinfo unavailable for app {id}: {e:#}"),
             }
             if let Some(http) = &http {
-                match aurelia::web::store::fetch_requirements(http, id, &lang, &country).await {
+                match aurelia::web::store::fetch_requirements(http, id, &country).await {
                     Ok(Some(req)) => {
                         ext.requirements_minimum = req.minimum;
                         ext.requirements_recommended = req.recommended;
@@ -525,14 +517,13 @@ pub(crate) fn print_info_human(
 pub(crate) async fn resolve_dlc_names_via_store(
     client: &SteamClient,
     dlc_ids: &[u32],
-    language: &str,
     country: &str,
 ) -> Vec<(u32, Option<String>)> {
     if dlc_ids.is_empty() {
         return Vec::new();
     }
     let name_by_id: std::collections::HashMap<u32, String> = client
-        .fetch_store_apps(dlc_ids, language, country)
+        .fetch_store_apps(dlc_ids, country)
         .await
         .unwrap_or_default()
         .into_iter()
@@ -551,14 +542,13 @@ pub(crate) async fn resolve_dlc_names_via_store(
 pub(crate) async fn resolve_dlc_store_info(
     client: &SteamClient,
     dlc_ids: &[u32],
-    language: &str,
     country: &str,
 ) -> std::collections::HashMap<u32, StoreAppInfo> {
     if dlc_ids.is_empty() {
         return Default::default();
     }
     client
-        .fetch_store_apps(dlc_ids, language, country)
+        .fetch_store_apps(dlc_ids, country)
         .await
         .unwrap_or_else(|e| {
             tracing::warn!("could not fetch DLC store records: {e:#}");
@@ -581,9 +571,8 @@ pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
         .await
         .map(|e| e.dlcs)
         .unwrap_or_default();
-    let country = resolve_steam_country(None).await?;
-    let lang = resolve_steam_language(None).await;
-    let store = resolve_dlc_store_info(&steam, &dlc_ids, &lang, &country).await;
+    let country = resolve_steam_country(None)?;
+    let store = resolve_dlc_store_info(&steam, &dlc_ids, &country).await;
     let mut dlc: Vec<(u32, Option<String>)> = dlc_ids
         .iter()
         .map(|&id| {
@@ -681,9 +670,9 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
     use aurelia::steam_client::EncryptedTicketOutcome;
 
     let client = authed_client().await?;
-    let country = resolve_steam_country(None).await?;
+    let country = resolve_steam_country(None)?;
     let name = client
-        .fetch_store_apps(&[app_id], "english", &country)
+        .fetch_store_apps(&[app_id], &country)
         .await
         .ok()
         .and_then(|apps| apps.into_iter().find(|a| a.app_id == app_id))
@@ -742,11 +731,10 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_achievements(app_id: u32, lang: Option<String>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_achievements(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let lang = resolve_steam_language(lang).await;
     let achievements = client
-        .fetch_achievements(app_id, &lang)
+        .fetch_achievements(app_id)
         .await
         .with_context(|| format!("failed to fetch achievements for app {app_id}"))?;
     let unlocked = achievements.iter().filter(|a| a.unlocked).count();

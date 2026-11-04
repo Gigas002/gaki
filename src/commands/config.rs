@@ -51,60 +51,6 @@ pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>, json: boo
     Ok(())
 }
 
-/// `config language [<name>]`: view or set the default Steam API language name
-/// used by `aurelia achievements` when `--lang` is not given. Pass an empty
-/// value to clear it (falling back to English).
-pub(crate) async fn cmd_config_language(lang: Option<String>, json: bool) -> Result<()> {
-    let (config, changed) = view_or_set(lang, |c, lang| {
-        let value = lang.trim().to_ascii_lowercase();
-        c.language = if value.is_empty() { None } else { Some(value) };
-    })
-    .await?;
-    let current = config.language.as_deref();
-    if json {
-        print_json(&serde_json::json!({ "language": current }));
-    } else {
-        match current {
-            Some(lang) => cli_println!("Language: {lang}"),
-            None => cli_println!("Language: english (default)"),
-        }
-        if changed {
-            cli_println!("Saved.");
-        }
-    }
-    Ok(())
-}
-
-/// View or set the price country.
-pub(crate) async fn cmd_config_country(country: Option<String>, json: bool) -> Result<()> {
-    use aurelia::core::error::{ErrorKind, TypedError};
-    use aurelia::core::locale::normalize_country;
-    let value = match country {
-        None => None,
-        Some(raw) if raw.trim().is_empty() => Some(None),
-        Some(raw) => Some(Some(normalize_country(&raw).ok_or_else(|| {
-            TypedError::new(
-                ErrorKind::InvalidInput,
-                format!("invalid country code `{raw}` — use a two-letter ISO code like US or DE"),
-            )
-        })?)),
-    };
-    let (config, changed) = view_or_set(value, |c, cc| c.country = cc).await?;
-    let current = config.country.as_deref();
-    if json {
-        print_json(&serde_json::json!({ "country": current }));
-    } else {
-        match current {
-            Some(cc) => cli_println!("Country: {cc}"),
-            None => cli_println!("Country: auto (system locale, else US)"),
-        }
-        if changed {
-            cli_println!("Saved.");
-        }
-    }
-    Ok(())
-}
-
 /// `config experimental [true|false]`: view or set the experimental-features gate
 /// that unlocks `login --openid` and `login --web-token`. See [`ConfigCommand::Experimental`].
 pub(crate) async fn cmd_config_experimental(enabled: Option<bool>, json: bool) -> Result<()> {

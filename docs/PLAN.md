@@ -309,9 +309,20 @@ I make the changes, and you review, commit, and push.
   now-unused `byte_progress_printer`. `infra/runners/wine_tkg.rs` stays: it is
   the Proton/Wine launch runner, not a downloader (it can be renamed with the
   other identifiers in 2.4).
-- [ ] **1.6** Drop localized metadata (R20): `core/locale.rs`, the `--lang`
+- [x] **1.6** Drop localized metadata (R20): `core/locale.rs`, the `--lang`
   flag, the `language`/`country` settings, and `tag_names.<lang>.json` caches.
   Keep the English defaults.
+  *Done.* Deleted `core/locale.rs` (env-locale detection). Every store and
+  community request now uses `core::STEAM_LANGUAGE` (`english`), so the
+  `language` parameters are gone from the `steam_client` store/tag/category/
+  achievement APIs, `web::store::fetch_requirements` and `ReviewQuery`.
+  Removed `--lang` from `info`, `price`, `search`, `deals`, `similar`,
+  `wishlist`, `achievements` and `reviews`, and the `config language` and
+  `config country` commands and settings (old configs still load). The
+  per-command `--country` flag stays, since it picks a price region rather
+  than localizing anything; without it the region is `US`.
+  `normalize_country` moved to `core::utils`. Caches are now
+  `tag_names.json`, `category_names.json` and `info_cache/<appid>.<cc>.json`.
 - [ ] **1.7** Act on D2 and D3: delete `assets/` and the banner, and decide the
   fate of the protos. If they stay, they move in Phase 2.
 - [ ] **1.8** Make the lint gates green. Fix the roughly 140 clippy findings

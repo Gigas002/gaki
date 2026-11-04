@@ -51,8 +51,6 @@ pub struct ReviewQuery {
     pub review_type: String,
     /// `all`, `steam` or `non_steam_purchase`.
     pub purchase_type: String,
-    /// Steam API language name, or `all`.
-    pub language: String,
     pub count: u32,
     pub cursor: Option<String>,
 }
@@ -86,7 +84,7 @@ pub async fn fetch_reviews(
         ("filter", query.filter.clone()),
         ("review_type", query.review_type.clone()),
         ("purchase_type", query.purchase_type.clone()),
-        ("language", query.language.clone()),
+        ("language", crate::core::STEAM_LANGUAGE.to_string()),
         ("num_per_page", query.count.min(100).to_string()),
     ];
     if let Some(cursor) = &query.cursor {

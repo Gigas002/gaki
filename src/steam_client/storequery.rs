@@ -75,9 +75,9 @@ pub enum DealsScope {
     Specials,
 }
 
-fn query_context(language: &str, country: &str) -> QueryContext {
+fn query_context(country: &str) -> QueryContext {
     let mut context = QueryContext::new();
-    context.set_language(language.to_string());
+    context.set_language(crate::core::STEAM_LANGUAGE.to_string());
     context.set_country_code(country.to_string());
     context
 }
@@ -112,13 +112,12 @@ impl SteamClient {
         &self,
         term: &str,
         max_results: u32,
-        language: &str,
         country: &str,
     ) -> Result<QueryPage> {
         let connection = self.require_connection()?;
         let mut request = CStoreQuery_SearchSuggestions_Request::new();
         request.set_query_name("aurelia-search".to_string());
-        request.context = MessageField::some(query_context(language, country));
+        request.context = MessageField::some(query_context(country));
         request.set_search_term(term.to_string());
         request.set_max_results(max_results);
         request.set_use_spellcheck(true);
@@ -139,7 +138,6 @@ impl SteamClient {
         min_discount: i32,
         start: i32,
         count: i32,
-        language: &str,
         country: &str,
     ) -> Result<QueryPage> {
         let connection = self.require_connection()?;
@@ -168,7 +166,7 @@ impl SteamClient {
         let mut request = CStoreQuery_Query_Request::new();
         request.set_query_name("aurelia-deals".to_string());
         request.query = MessageField::some(params);
-        request.context = MessageField::some(query_context(language, country));
+        request.context = MessageField::some(query_context(country));
         let response = connection
             .service_method(request)
             .await
@@ -177,17 +175,11 @@ impl SteamClient {
     }
 
     /// Items similar to `app_id`; app ids only.
-    pub async fn similar_apps(
-        &self,
-        app_id: u32,
-        count: i32,
-        language: &str,
-        country: &str,
-    ) -> Result<QueryPage> {
+    pub async fn similar_apps(&self, app_id: u32, count: i32, country: &str) -> Result<QueryPage> {
         let connection = self.require_connection()?;
         let mut request = CStoreQuery_MoreLikeThis_Request::new();
         request.set_query_name("aurelia-similar".to_string());
-        request.context = MessageField::some(query_context(language, country));
+        request.context = MessageField::some(query_context(country));
         let mut item = QueryItemID::new();
         item.set_appid(app_id);
         request.item_id = MessageField::some(item);

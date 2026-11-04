@@ -84,11 +84,7 @@ pub(crate) enum Command {
         /// `AURELIA_INFO_CACHE_TTL`, default 6h) to avoid a Steam logon per call.
         #[arg(short = 'n', long)]
         no_cache: bool,
-        /// Steam API language name for store text (descriptions, requirements).
-        /// Defaults to the `aurelia config language` setting, or English.
-        #[arg(short = 'l', long = "lang", alias = "language")]
-        lang: Option<String>,
-        /// Price country code; defaults to config, locale, US.
+        /// Price country code; defaults to US.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
     },
@@ -101,9 +97,6 @@ pub(crate) enum Command {
         /// Country code for a single-region lookup.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
-        /// Steam API language name for the game's name.
-        #[arg(short = 'l', long = "lang", alias = "language")]
-        lang: Option<String>,
     },
     /// Search the store by title.
     Search {
@@ -114,9 +107,6 @@ pub(crate) enum Command {
         /// Country code for prices.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
-        /// Steam API language name for names.
-        #[arg(short = 'l', long = "lang", alias = "language")]
-        lang: Option<String>,
     },
     /// Discounted and top-selling games in a region.
     Deals {
@@ -135,9 +125,6 @@ pub(crate) enum Command {
         /// Country code for prices.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
-        /// Steam API language name for names.
-        #[arg(short = 'l', long = "lang", alias = "language")]
-        lang: Option<String>,
     },
     /// Current player count for an app.
     Players { app_id: u32 },
@@ -175,9 +162,6 @@ pub(crate) enum Command {
         /// Country code for prices.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
-        /// Steam API language name for names.
-        #[arg(short = 'l', long = "lang", alias = "language")]
-        lang: Option<String>,
         #[command(subcommand)]
         command: Option<WishlistCommand>,
     },
@@ -190,9 +174,6 @@ pub(crate) enum Command {
         /// Country code for prices.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
-        /// Steam API language name for names.
-        #[arg(short = 'l', long = "lang", alias = "language")]
-        lang: Option<String>,
     },
     /// Download and install a game.
     Install(InstallArgs),
@@ -294,13 +275,7 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// Show the logged-in user's achievements for a game.
-    Achievements {
-        app_id: u32,
-        /// Steam API language name. Defaults to the `aurelia config language`
-        /// setting, or English.
-        #[arg(short, long, alias = "language")]
-        lang: Option<String>,
-    },
+    Achievements { app_id: u32 },
     /// Download a game's cover/header artwork to the local image cache.
     Image {
         app_id: u32,
@@ -472,20 +447,6 @@ pub(crate) enum ConfigCommand {
         /// `online`, or `offline` (invisible: you appear offline but still sync
         /// friends and receive chat). Omit to print the current setting.
         mode: Option<ChatPresenceArg>,
-    },
-    /// View or set the default Steam API language.
-    #[command(alias = "lang")]
-    Language {
-        /// The default Steam API language name (e.g. `german`, `french`,
-        /// `schinese`) used by `aurelia achievements` when `--lang` is not
-        /// given. Omit the value to print the current setting.
-        lang: Option<String>,
-    },
-    /// View or set the price country.
-    #[command(alias = "cc")]
-    Country {
-        /// Two-letter ISO code; empty clears, omitted prints.
-        country: Option<String>,
     },
     /// View or set the experimental-features gate.
     ///
@@ -940,9 +901,6 @@ pub(crate) struct ReviewsArgs {
     /// Cursor from a previous page's JSON.
     #[arg(short = 'u', long)]
     pub(crate) cursor: Option<String>,
-    /// Steam API language name, or `all`.
-    #[arg(short = 'l', long = "lang", alias = "language")]
-    pub(crate) lang: Option<String>,
 }
 
 #[derive(Clone, Copy, ValueEnum)]

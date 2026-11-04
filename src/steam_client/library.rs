@@ -300,12 +300,10 @@ impl SteamClient {
     /// `StoreBrowse.GetItems` service method (over the CM connection — no HTTPS
     /// storefront API). Returns one [`StoreAppInfo`] per app the store knows
     /// about; unknown/region-locked ids are simply omitted. Requires a connection.
-    /// `language` is a Steam API language name (e.g. "english", "german").
     /// `country` selects the price region.
     pub async fn fetch_store_apps(
         &self,
         app_ids: &[u32],
-        language: &str,
         country: &str,
     ) -> Result<Vec<StoreAppInfo>> {
         if app_ids.is_empty() {
@@ -328,7 +326,7 @@ impl SteamClient {
         data.set_include_trailers(true);
 
         let mut context = StoreBrowseContext::new();
-        context.set_language(language.to_string());
+        context.set_language(crate::core::STEAM_LANGUAGE.to_string());
         context.set_country_code(country.to_string());
 
         let mut request = CStoreBrowse_GetItems_Request::new();
@@ -360,7 +358,7 @@ impl SteamClient {
         ids.sort_unstable();
         ids.dedup();
         if !ids.is_empty() {
-            let names = self.resolve_tag_names(&ids, language).await;
+            let names = self.resolve_tag_names(&ids).await;
             for tag in apps.iter_mut().flat_map(|a| a.tags.iter_mut()) {
                 tag.name = names.get(&tag.id).cloned();
             }

@@ -36,9 +36,9 @@ struct RawRequirements {
 pub async fn fetch_requirements(
     client: &reqwest::Client,
     app_id: u32,
-    language: &str,
     country: &str,
 ) -> Result<Option<Requirements>> {
+    let language = crate::core::STEAM_LANGUAGE;
     let cc = country.to_ascii_lowercase();
     let url = format!(
         "https://store.steampowered.com/api/appdetails?appids={app_id}&l={language}&cc={cc}"

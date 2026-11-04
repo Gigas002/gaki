@@ -99,13 +99,6 @@ pub struct LauncherConfig {
     pub preferred_launch_options: HashMap<u32, String>,
     #[serde(default)]
     pub game_configs: HashMap<u32, GameConfig>,
-    /// Persistent default Steam API language *name* (e.g. "german") used by
-    /// `aurelia achievements` when `--lang` is not given. `None` = use "english".
-    #[serde(default)]
-    pub language: Option<String>,
-    /// Store country code for prices (`None` = locale/US).
-    #[serde(default)]
-    pub country: Option<String>,
     /// Network proxy for all HTTP(S) communication. Empty by default (a direct
     /// connection). Applied process-wide at startup; see [`crate::core::net`].
     #[serde(default)]
@@ -155,8 +148,6 @@ impl Default for LauncherConfig {
             enable_cloud_sync: true,
             preferred_launch_options: HashMap::new(),
             game_configs: HashMap::new(),
-            language: None,
-            country: None,
             proxy: ProxyConfig::default(),
             install_resume: crate::library::backlog::InstallResume::default(),
             experimental: false,
@@ -465,65 +456,11 @@ fn info_cache_dir() -> Result<PathBuf> {
     Ok(data_dir()?.join("info_cache"))
 }
 
-/// Per-app, per-language cache file. One file per `(app id, language)` (rather
-/// than a shared map) so concurrent Aurelia invocations for different apps — or
-/// the same app in different languages — never clobber each other. The language
-/// is sanitized to keep it safe as a filename component.
-fn info_cache_path(app_id: u32, language: &str, country: &str) -> Result<PathBuf> {
-    let sanitize = |s: &str| -> String {
-        s.chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() {
-                    c.to_ascii_lowercase()
-                } else {
-                    '_'
-                }
-            })
-            .collect()
-    };
-    let (lang, cc) = (sanitize(language), sanitize(country));
-    Ok(info_cache_dir()?.join(format!("{app_id}.{lang}.{cc}.json")))
-}
-
-use crate::core::utils::now_unix;
-
-/// Load a cached `info` record for `app_id` if one exists and is still within
-/// `ttl`. Returns `None` on a miss, a stale entry, or any read/parse error, so the
-/// caller falls through to a fresh fetch. A zero `ttl` always misses.
-pub async fn load_info_cache(
-    app_id: u32,
-    language: &str,
-    country: &str,
-    ttl: std::time::Duration,
-) -> Option<CachedAppInfo> {
-    if ttl.is_zero() {
-        return None;
-    }
-    let path = info_cache_path(app_id, language, country).ok()?;
-    let raw = fs::read_to_string(&path).await.ok()?;
-    let cached: CachedAppInfo = serde_json::from_str(&raw).ok()?;
-    let age = now_unix().saturating_sub(cached.fetched_at);
-    (age <= ttl.as_secs()).then_some(cached)
-}
-
-/// Persist an `info` record for `app_id`, stamped with the current time.
-pub async fn save_info_cache(
-    app_id: u32,
-    language: &str,
-    country: &str,
-    details: &crate::steam_client::StoreAppInfo,
-    dlc: &[(u32, Option<String>)],
-) -> Result<()> {
-    let record = CachedAppInfo {
-        fetched_at: now_unix(),
-        details: details.clone(),
-        dlc: dlc.to_vec(),
-    };
-    write_json_pretty(&info_cache_path(app_id, language, country)?, &record).await
-}
-
-fn tag_name_cache_path(language: &str) -> Result<PathBuf> {
-    let lang: String = language
+/// Per-app cache file, one per `(app id, country)` so concurrent invocations
+/// for different apps never clobber each other. The country is sanitized to
+/// keep it safe as a filename component.
+fn info_cache_path(app_id: u32, country: &str) -> Result<PathBuf> {
+    let cc: String = country
         .chars()
         .map(|c| {
             if c.is_ascii_alphanumeric() {
@@ -533,23 +470,63 @@ fn tag_name_cache_path(language: &str) -> Result<PathBuf> {
             }
         })
         .collect();
-    Ok(data_dir()?.join(format!("tag_names.{lang}.json")))
+    Ok(info_cache_dir()?.join(format!("{app_id}.{cc}.json")))
 }
 
-/// Cached tag names for `language`; empty on miss.
-pub async fn load_tag_name_cache(language: &str) -> std::collections::HashMap<u32, String> {
-    let Ok(path) = tag_name_cache_path(language) else {
+use crate::core::utils::now_unix;
+
+/// Load a cached `info` record for `app_id` if one exists and is still within
+/// `ttl`. Returns `None` on a miss, a stale entry, or any read/parse error, so the
+/// caller falls through to a fresh fetch. A zero `ttl` always misses.
+pub async fn load_info_cache(
+    app_id: u32,
+    country: &str,
+    ttl: std::time::Duration,
+) -> Option<CachedAppInfo> {
+    if ttl.is_zero() {
+        return None;
+    }
+    let path = info_cache_path(app_id, country).ok()?;
+    let raw = fs::read_to_string(&path).await.ok()?;
+    let cached: CachedAppInfo = serde_json::from_str(&raw).ok()?;
+    let age = now_unix().saturating_sub(cached.fetched_at);
+    (age <= ttl.as_secs()).then_some(cached)
+}
+
+/// Persist an `info` record for `app_id`, stamped with the current time.
+pub async fn save_info_cache(
+    app_id: u32,
+    country: &str,
+    details: &crate::steam_client::StoreAppInfo,
+    dlc: &[(u32, Option<String>)],
+) -> Result<()> {
+    let record = CachedAppInfo {
+        fetched_at: now_unix(),
+        details: details.clone(),
+        dlc: dlc.to_vec(),
+    };
+    write_json_pretty(&info_cache_path(app_id, country)?, &record).await
+}
+
+/// Cache file for a store name table (`tag_names`, `category_names`).
+fn name_cache_path(kind: &str) -> Result<PathBuf> {
+    Ok(data_dir()?.join(format!("{kind}.json")))
+}
+
+/// Cached store names of `kind`; empty on miss.
+pub async fn load_name_cache(kind: &str) -> std::collections::HashMap<u32, String> {
+    let Ok(path) = name_cache_path(kind) else {
         return Default::default();
     };
     read_json(&path).await.unwrap_or_default()
 }
 
-/// Persist tag names for `language`.
-pub async fn save_tag_name_cache(
-    language: &str,
+/// Persist store names of `kind`.
+pub async fn save_name_cache(
+    kind: &str,
     names: &std::collections::HashMap<u32, String>,
 ) -> Result<()> {
-    write_json_pretty(&tag_name_cache_path(language)?, names).await
+    write_json_pretty(&name_cache_path(kind)?, names).await
 }
 
 /// Load the per-game user config store (`user_apps.json`).

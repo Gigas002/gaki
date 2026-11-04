@@ -346,20 +346,16 @@ impl SteamClient {
     /// the user's per-achievement unlock state and time (`ClientGetUserStats`,
     /// whose binary-KV schema maps each achievement to its stat/bit). Achievements
     /// the user hasn't unlocked are returned with `unlocked = false`.
-    pub async fn fetch_achievements(
-        &self,
-        appid: u32,
-        language: &str,
-    ) -> Result<Vec<GameAchievement>> {
+    pub async fn fetch_achievements(&self, appid: u32) -> Result<Vec<GameAchievement>> {
         let connection = self.require_connection()?;
         let steam_id = self
             .steam_id()
             .context("not logged in — achievements need an authenticated session")?;
 
-        // 1. Definitions + global rarity (localized).
+        // 1. Definitions + global rarity.
         let mut def_req = CPlayer_GetGameAchievements_Request::new();
         def_req.set_appid(appid);
-        def_req.set_language(language.to_string());
+        def_req.set_language(crate::core::STEAM_LANGUAGE.to_string());
         let def_resp: CPlayer_GetGameAchievements_Response = connection
             .service_method(def_req)
             .await

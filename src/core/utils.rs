@@ -1312,6 +1312,19 @@ pub fn resolve_path_ignore_case(base: &Path, rel: &str) -> Option<PathBuf> {
     current.exists().then_some(current)
 }
 
+/// Normalize a store country code: uppercase two letters; `UK` becomes `GB`.
+pub fn normalize_country(raw: &str) -> Option<String> {
+    let code = raw.trim().to_ascii_uppercase();
+    if code.len() != 2 || !code.chars().all(|c| c.is_ascii_alphabetic()) {
+        return None;
+    }
+    Some(if code == "UK" { "GB".to_string() } else { code })
+}
+
+#[cfg(test)]
+#[path = "utils_country_tests.rs"]
+mod country_tests;
+
 #[cfg(test)]
 #[path = "utils_path_ignore_case_tests.rs"]
 mod path_ignore_case_tests;

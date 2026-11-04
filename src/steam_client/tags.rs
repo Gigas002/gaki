@@ -1,17 +1,20 @@
 //! Store tag names: baked table, cache, then CM.
 use super::*;
-use crate::core::config::{load_tag_name_cache, save_tag_name_cache};
+use crate::core::config::{load_name_cache, save_name_cache};
+
+/// Name-cache file for tag names.
+const TAG_NAMES: &str = "tag_names";
 use steam_vent_proto::steammessages_store_steamclient::{
     CStore_GetLocalizedNameForTags_Request, CStore_GetLocalizedNameForTags_Response,
     CStore_GetTagList_Request, CStore_GetTagList_Response,
 };
 
 impl SteamClient {
-    /// Full tag vocabulary in `language`, sorted by id.
-    pub async fn fetch_tag_list(&self, language: &str) -> Result<Vec<(u32, String)>> {
+    /// Full tag vocabulary, sorted by id.
+    pub async fn fetch_tag_list(&self) -> Result<Vec<(u32, String)>> {
         let connection = self.require_connection()?;
         let mut request = CStore_GetTagList_Request::new();
-        request.set_language(language.to_string());
+        request.set_language(crate::core::STEAM_LANGUAGE.to_string());
         let response: CStore_GetTagList_Response = connection
             .service_method(request)
             .await
@@ -27,18 +30,14 @@ impl SteamClient {
         Ok(tags)
     }
 
-    /// Localized names for `ids` over the CM.
-    pub async fn fetch_tag_names(
-        &self,
-        ids: &[u32],
-        language: &str,
-    ) -> Result<HashMap<u32, String>> {
+    /// Names for `ids` over the CM.
+    pub async fn fetch_tag_names(&self, ids: &[u32]) -> Result<HashMap<u32, String>> {
         if ids.is_empty() {
             return Ok(HashMap::new());
         }
         let connection = self.require_connection()?;
         let mut request = CStore_GetLocalizedNameForTags_Request::new();
-        request.set_language(language.to_string());
+        request.set_language(crate::core::STEAM_LANGUAGE.to_string());
         request.tagids = ids.to_vec();
         let response: CStore_GetLocalizedNameForTags_Response = connection
             .service_method(request)
@@ -60,22 +59,16 @@ impl SteamClient {
             .collect())
     }
 
-    /// Names for `ids`: table, disk cache, then CM.
-    pub async fn resolve_tag_names(&self, ids: &[u32], language: &str) -> HashMap<u32, String> {
-        let english = language.eq_ignore_ascii_case("english");
-        let mut names: HashMap<u32, String> = HashMap::new();
-        if english {
-            for &id in ids {
-                if let Some(name) = tags_table::tag_name(id) {
-                    names.insert(id, name.to_string());
-                }
-            }
+    /// Names for `ids`: baked table, disk cache, then CM.
+    pub async fn resolve_tag_names(&self, ids: &[u32]) -> HashMap<u32, String> {
+        let mut names: HashMap<u32, String> = ids
+            .iter()
+            .filter_map(|&id| tags_table::tag_name(id).map(|n| (id, n.to_string())))
+            .collect();
+        if names.len() == ids.len() {
+            return names;
         }
-        let mut cached = if names.len() == ids.len() {
-            HashMap::new()
-        } else {
-            load_tag_name_cache(language).await
-        };
+        let mut cached = load_name_cache(TAG_NAMES).await;
         for &id in ids {
             if let Some(name) = cached.get(&id) {
                 names.entry(id).or_insert_with(|| name.clone());
@@ -89,22 +82,16 @@ impl SteamClient {
         if missing.is_empty() {
             return names;
         }
-        match self.fetch_tag_names(&missing, language).await {
+        match self.fetch_tag_names(&missing).await {
             Ok(fetched) if !fetched.is_empty() => {
                 cached.extend(fetched.iter().map(|(k, v)| (*k, v.clone())));
-                if let Err(e) = save_tag_name_cache(language, &cached).await {
+                if let Err(e) = save_name_cache(TAG_NAMES, &cached).await {
                     tracing::debug!("could not cache tag names: {e:#}");
                 }
                 names.extend(fetched);
             }
             Ok(_) => {}
             Err(e) => tracing::warn!("tag names unavailable from Steam: {e:#}"),
-        }
-        // Last resort: English table for any language.
-        for &id in &missing {
-            if let Some(name) = tags_table::tag_name(id) {
-                names.entry(id).or_insert_with(|| name.to_string());
-            }
         }
         names
     }

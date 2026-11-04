@@ -21,7 +21,7 @@ const CORRUPT: &str = r#"{
   "proton_version": "GE-Proton9-20",
   "enable_cloud_sync": yes,
   "preferred_launch_options": { "570": "-novid -high" },
-  "language": "german"
+  "chat_presence": "online"
 }"#;
 
 fn aurelia(config_dir: &Path, args: &[&str]) -> Output {
@@ -43,14 +43,14 @@ fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).to_string()
 }
 
-/// The headline regression: `config language` mutates and saves. With a corrupt config
+/// The headline regression: `config presence` mutates and saves. With a corrupt config
 /// it used to write defaults over the file, wiping every unrelated setting.
 #[test]
 fn corrupt_config_is_not_overwritten_by_a_saving_command() {
     let tmp = with_corrupt_config();
     let path = tmp.path().join("config.json");
 
-    let out = aurelia(tmp.path(), &["config", "language", "english"]);
+    let out = aurelia(tmp.path(), &["config", "presence", "online"]);
 
     assert!(!out.status.success(), "expected failure, got: {out:?}");
     assert_eq!(
@@ -119,12 +119,12 @@ fn missing_config_still_yields_defaults() {
 #[test]
 fn missing_config_can_still_be_written() {
     let tmp = tempdir().unwrap();
-    let out = aurelia(tmp.path(), &["config", "language", "english"]);
+    let out = aurelia(tmp.path(), &["config", "presence", "online"]);
     assert!(out.status.success(), "failed: {}", stderr(&out));
 
     let written = fs::read_to_string(tmp.path().join("config.json")).unwrap();
     assert!(
-        written.contains("\"language\": \"english\""),
+        written.contains("\"chat_presence\": \"online\""),
         "got: {written}"
     );
 }
