@@ -220,23 +220,3 @@ fn reinstall_replaces_the_previous_runtime() {
     assert!(target.join("proton").is_file());
     assert!(!target.join("stale").exists());
 }
-
-#[test]
-fn plain_tar_is_extracted() {
-    // umu-launcher ships its zipapp as an uncompressed `.tar`.
-    let tmp = tempfile::tempdir().unwrap();
-    let archive = tmp.path().join("umu.tar");
-    let mut builder = tar::Builder::new(std::fs::File::create(&archive).unwrap());
-    let mut header = tar::Header::new_gnu();
-    header.set_size(1);
-    header.set_mode(0o755);
-    header.set_cksum();
-    builder
-        .append_data(&mut header, "umu/umu-run", &b"x"[..])
-        .unwrap();
-    builder.finish().unwrap();
-    drop(builder);
-    let out = tmp.path().join("out");
-    extract_tarball(&archive, ".tar", &out).unwrap();
-    assert!(out.join("umu/umu-run").is_file());
-}

@@ -193,81 +193,16 @@ fn session_log_file(spec: &CommandSpec, key: &str) -> Option<std::fs::File> {
     std::fs::File::create(&path).ok()
 }
 
-/// Whether this launch should be routed through the luxtorpeda plugin: either a one-off
-/// `--native-engine` override, or the game is pinned to it while the feature is enabled.
-fn wants_luxtorpeda(ctx: &PipelineContext) -> bool {
-    if ctx.force_native_engine {
-        return true;
-    }
-    let Some(config) = &ctx.launcher_config else {
-        return false;
-    };
-    config.luxtorpeda_enabled
-        && config
-            .game_configs
-            .get(&ctx.app_id)
-            .map(|g| g.runner == crate::core::config::GameRunner::Luxtorpeda)
-            .unwrap_or(false)
-}
-
-/// Whether this launch should be wrapped through the umu-launcher plugin: either a
-/// one-off `--umu` override, or the game is pinned to it while the feature is enabled.
-fn wants_umu(ctx: &PipelineContext) -> bool {
-    if ctx.force_umu {
-        return true;
-    }
-    let Some(config) = &ctx.launcher_config else {
-        return false;
-    };
-    config.umu_enabled
-        && config
-            .game_configs
-            .get(&ctx.app_id)
-            .map(|g| g.runner == crate::core::config::GameRunner::Umu)
-            .unwrap_or(false)
-}
-
 #[async_trait]
 impl PipelineStage for ResolveComponentsStage {
     fn name(&self) -> &str {
         "ResolveComponents"
     }
     async fn execute(&self, ctx: &mut PipelineContext) -> std::result::Result<(), LaunchError> {
-        use crate::infra::runners::{LuxtorpedaRunner, WineTkgRunner};
+        use crate::infra::runners::WineTkgRunner;
         use crate::steam_client::LaunchTarget;
 
         if ctx.runner.is_none() {
-            // Route through the luxtorpeda native-engine plugin when the launch was
-            // explicitly forced (`--native-engine`) or the game is pinned to it and the
-            // feature is enabled.
-            if wants_luxtorpeda(ctx) {
-                ctx.runner = Some(Box::new(LuxtorpedaRunner) as Box<dyn Runner>);
-                return Ok(());
-            }
-
-            // The umu-launcher plugin *wraps* Proton rather than replacing the runner:
-            // when active, we keep the normal Proton/Wine runner but resolve the
-            // `umu-run` entry point (downloading on first use) so the runner spawns the
-            // game through umu.
-            if wants_umu(ctx) {
-                let custom = ctx
-                    .launcher_config
-                    .as_ref()
-                    .and_then(|c| c.umu_path.clone());
-                let custom_path = custom.as_deref().map(std::path::Path::new);
-                let umu_run = crate::compat::umu::ensure_installed(custom_path)
-                    .await
-                    .map_err(|e| {
-                        LaunchError::new(
-                            LaunchErrorKind::Runner,
-                            format!("failed to resolve the umu-launcher plugin: {e:#}"),
-                        )
-                        .with_source(e)
-                    })?;
-                ctx.use_umu = true;
-                ctx.umu_run = Some(umu_run);
-            }
-
             let Some(info) = &ctx.launch_info else {
                 return Err(LaunchError::new(
                     LaunchErrorKind::Validation,
@@ -324,8 +259,6 @@ mod tests {
             user_config: Some(user_config),
             proton_path: None,
             steam_enabled: false,
-            use_umu: false,
-            umu_run: None,
             target_architecture: Default::default(),
             dll_resolutions: Vec::new(),
             game_fixups: Default::default(),

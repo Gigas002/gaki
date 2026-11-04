@@ -111,8 +111,6 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
 pub(crate) async fn cmd_play(
     app_id: u32,
     proton: Option<String>,
-    native_engine: bool,
-    umu: bool,
     script: Option<PathBuf>,
     no_script: bool,
     steam: bool,
@@ -302,8 +300,6 @@ pub(crate) async fn cmd_play(
             &game,
             proton_path.as_deref(),
             user_config,
-            native_engine,
-            umu,
             script,
             no_script,
             steam,

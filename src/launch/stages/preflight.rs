@@ -64,9 +64,7 @@ impl PipelineStage for PreflightStage {
 
         let mut final_res: std::result::Result<(), LaunchError> = Ok(());
 
-        // 1. Verify runner binary. When umu-launcher wraps the launch, `spec.program` is
-        // the absolute plugin-resolved `umu-run` path, so the normal existence check
-        // applies to it just like any other runner.
+        // 1. Verify runner binary.
         let runner_file = &spec.program;
         let mut check = PreflightCheck {
             name: "Runner Existence".into(),

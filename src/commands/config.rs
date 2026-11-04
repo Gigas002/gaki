@@ -145,7 +145,7 @@ pub(crate) async fn cmd_config_experimental(enabled: Option<bool>, json: bool) -
 
 /// `config proxy [<url>] [--no-proxy <list>] [--clear]`: view or set the network
 /// proxy used for all HTTP(S) communication (Steam web endpoints, depot downloads, and
-/// Proton/plugin release lookups). With no arguments, prints the current setting.
+/// Proton release lookups). With no arguments, prints the current setting.
 pub(crate) async fn cmd_config_proxy(
     url: Option<String>,
     no_proxy: Option<String>,
@@ -433,16 +433,11 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         platform,
         no_platform,
         clear,
-        native_engine,
-        no_native_engine,
-        umu,
-        no_umu,
         launch_script,
         no_launch_script,
         steam_runtime,
         steam_prefix_mode,
     } = args;
-    use aurelia::core::config::GameRunner;
     use aurelia::core::models::{SteamPrefixMode, SteamRuntimePolicy};
 
     // The Steam-runtime knobs live in a separate per-game store (user_apps.json) from the
@@ -494,19 +489,6 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
             );
             changed = true;
         }
-        if native_engine {
-            entry.runner = GameRunner::Luxtorpeda;
-            changed = true;
-        } else if no_native_engine {
-            entry.runner = GameRunner::Auto;
-            changed = true;
-        } else if umu {
-            entry.runner = GameRunner::Umu;
-            changed = true;
-        } else if no_umu {
-            entry.runner = GameRunner::Auto;
-            changed = true;
-        }
         if no_launch_script {
             entry.launch_script = None;
             changed = true;
@@ -529,20 +511,13 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         Some((false, false)) => "no recognizable payload",
         None => "unknown until installed",
     };
-    let runner_label = match entry.runner {
-        GameRunner::Auto => match (platforms, entry.platform_preference.as_deref()) {
-            (Some((true, true)), Some("linux")) => "auto (Native, by linux preference)",
-            (Some((true, true)), Some("windows")) => {
-                "auto (Proton via Wine-TKG, by windows preference)"
-            }
-            (Some((true, true)), _) => "auto (Native or Proton, no platform preference)",
-            (Some((true, false)), _) => "auto (Native)",
-            (Some((false, true)), _) => "auto (Proton via Wine-TKG)",
-            _ => "auto (resolved at launch)",
-        }
-        .to_string(),
-        GameRunner::Luxtorpeda => "luxtorpeda (native engine)".to_string(),
-        GameRunner::Umu => "umu (Proton via umu-launcher)".to_string(),
+    let runner_label = match (platforms, entry.platform_preference.as_deref()) {
+        (Some((true, true)), Some("linux")) => "Native, by linux preference",
+        (Some((true, true)), Some("windows")) => "Proton via Wine-TKG, by windows preference",
+        (Some((true, true)), _) => "Native or Proton, no platform preference",
+        (Some((true, false)), _) => "Native",
+        (Some((false, true)), _) => "Proton via Wine-TKG",
+        _ => "resolved at launch",
     };
     let steam_runtime_label = match ua.steam_runtime_policy {
         SteamRuntimePolicy::Auto if ua.use_steam_runtime => {
@@ -567,7 +542,6 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
             "app_id": app_id,
             "forced_proton_version": entry.forced_proton_version,
             "platform_preference": entry.platform_preference,
-            "runner": entry.runner,
             "launch_script": entry.launch_script,
             "steam_runtime_policy": ua.steam_runtime_policy,
             "steam_prefix_mode": ua.steam_prefix_mode,

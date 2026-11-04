@@ -1,24 +1,11 @@
 use super::*;
 
 #[test]
-fn game_config_without_runner_defaults_to_auto() {
-    // A config written before the `runner` field existed must still parse.
-    let legacy = r#"{ "forced_proton_version": "GE-Proton9-20", "platform_preference": null }"#;
+fn game_config_with_removed_runner_field_still_parses() {
+    // Configs written while the umu/luxtorpeda plugins existed carry a `runner` field.
+    let legacy = r#"{ "forced_proton_version": "GE-Proton9-20", "runner": "umu" }"#;
     let cfg: GameConfig = serde_json::from_str(legacy).unwrap();
-    assert_eq!(cfg.runner, GameRunner::Auto);
     assert_eq!(cfg.forced_proton_version.as_deref(), Some("GE-Proton9-20"));
-}
-
-#[test]
-fn game_runner_round_trips_as_lowercase() {
-    let cfg = GameConfig {
-        runner: GameRunner::Luxtorpeda,
-        ..Default::default()
-    };
-    let json = serde_json::to_string(&cfg).unwrap();
-    assert!(json.contains("\"luxtorpeda\""), "got: {json}");
-    let back: GameConfig = serde_json::from_str(&json).unwrap();
-    assert_eq!(back.runner, GameRunner::Luxtorpeda);
 }
 
 #[test]
@@ -52,12 +39,12 @@ fn game_config_pin_round_trips_and_omits_empty() {
 }
 
 #[test]
-fn launcher_config_without_luxtorpeda_flag_defaults_false() {
-    // Minimal legacy config.json (pre-luxtorpeda) must load.
+fn launcher_config_with_removed_plugin_fields_still_parses() {
+    // Configs written while the umu/luxtorpeda plugins existed carry their toggles.
     let legacy = r#"{ "steam_library_path": "/x", "proton_version": "experimental",
-        "enable_cloud_sync": true }"#;
+        "enable_cloud_sync": true, "luxtorpeda_enabled": true, "umu_path": "/opt/umu" }"#;
     let cfg: LauncherConfig = serde_json::from_str(legacy).unwrap();
-    assert!(!cfg.luxtorpeda_enabled);
+    assert_eq!(cfg.steam_library_path, "/x");
 }
 
 #[test]

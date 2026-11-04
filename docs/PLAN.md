@@ -256,9 +256,17 @@ I make the changes, and you review, commit, and push.
   `supported`, and the plugins `linux` field are gone. Also removed the
   keyring `apple-native` feature and the macOS Steam root and `/Volumes`
   probes. macOS *game* builds are still recognised and skipped.
-- [ ] **1.3** Drop launch plugins (R2): `compat/{umu,luxtorpeda,plugin}.rs`,
+- [x] **1.3** Drop launch plugins (R2): `compat/{umu,luxtorpeda,plugin}.rs`,
   `infra/runners/luxtorpeda.rs`, the `umu`/`luxtorpeda`/`plugins` commands, and
   the related config fields and tests. Answers Q7.
+  *Done.* Removed the `play --native-engine/--umu` flags, the
+  `config game --native-engine/--no-native-engine/--umu/--no-umu` flags, the
+  `GameRunner` enum, and the per-game `runner` field (also from `config game
+  --json`). Removed the `luxtorpeda_*`/`umu_*` settings, the umu branch in the
+  Wine-TKG runner, the pipeline's `force_*`/`use_umu` plumbing, and plain `.tar`
+  extraction, which only umu used. Old config files that still contain these
+  keys keep loading, because serde ignores unknown fields; a regression test
+  covers this.
 - [ ] **1.4** Drop the self-contained Windows Steam runtime (R21): the
   `steam-runtime` command, `SteamRuntimePolicy`, the `steam_runtime_*` config,
   and `tests/steam_runtime_*.rs`. Treat a missing host Steam installation as a

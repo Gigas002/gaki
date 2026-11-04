@@ -7,8 +7,8 @@
 //! script becomes the program and the previously-resolved program + args are passed
 //! as its arguments (`"$@"`). A script that is just `exec "$@"` is therefore a
 //! transparent passthrough, while a custom one can prepend `gamemoderun` / `mangohud`
-//! / `gamescope` or launch its own way. This works uniformly for native, Proton
-//! (WineTkg), luxtorpeda and umu launches because it operates on the final spec.
+//! / `gamescope` or launch its own way. This works uniformly for native and Proton
+//! (WineTkg) launches because it operates on the final spec.
 //!
 //! Aurelia also exports `AURELIA_*` env vars (see [`template`]) alongside the full
 //! launch environment (WINEPREFIX etc.) so scripts can introspect the launch.

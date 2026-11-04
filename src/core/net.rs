@@ -2,7 +2,7 @@
 //!
 //! Aurelia reaches the network over HTTP(S) from many places: the Steam
 //! Community/store/market web endpoints, depot content downloads (steam-cdn), and
-//! GitHub/Codeberg release lookups for the Proton/plugin managers. All of these build
+//! GitHub/Codeberg release lookups for the Proton manager. All of these build
 //! `reqwest` clients, and `reqwest` honours the conventional proxy environment
 //! variables (`HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY`) unless a client
 //! explicitly opts out — none of ours do.

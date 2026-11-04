@@ -380,8 +380,6 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Play {
             app_id,
             proton,
-            native_engine,
-            umu,
             script,
             no_script,
             steam,
@@ -394,16 +392,7 @@ async fn run(cli: Cli) -> Result<()> {
                 steam_mode,
             };
             cmd_play(
-                app_id,
-                proton,
-                native_engine,
-                umu,
-                script,
-                no_script,
-                steam,
-                target,
-                no_update,
-                json,
+                app_id, proton, script, no_script, steam, target, no_update, json,
             )
             .await
         }
@@ -574,24 +563,6 @@ async fn run(cli: Cli) -> Result<()> {
             SteamRuntimeCommand::Login => cmd_steam_runtime_login(json).await,
             SteamRuntimeCommand::Stop => cmd_steam_runtime_stop(json).await,
             SteamRuntimeCommand::Status => cmd_steam_runtime_status(json).await,
-        },
-        Command::Luxtorpeda { command } => match command {
-            LuxtorpedaCommand::Enable => cmd_luxtorpeda_toggle(true, json).await,
-            LuxtorpedaCommand::Disable => cmd_luxtorpeda_toggle(false, json).await,
-            LuxtorpedaCommand::Install | LuxtorpedaCommand::Update => {
-                cmd_luxtorpeda_install(json).await
-            }
-            LuxtorpedaCommand::Status => cmd_luxtorpeda_status(json).await,
-            LuxtorpedaCommand::Path { path, clear } => cmd_luxtorpeda_path(path, clear, json).await,
-            LuxtorpedaCommand::Uninstall => cmd_luxtorpeda_uninstall(json).await,
-        },
-        Command::Umu { command } => match command {
-            UmuCommand::Enable => cmd_umu_toggle(true, json).await,
-            UmuCommand::Disable => cmd_umu_toggle(false, json).await,
-            UmuCommand::Install | UmuCommand::Update => cmd_umu_install(json).await,
-            UmuCommand::Status => cmd_umu_status(json).await,
-            UmuCommand::Path { path, clear } => cmd_umu_path(path, clear, json).await,
-            UmuCommand::Uninstall => cmd_umu_uninstall(json).await,
         },
         Command::Scripts { command } => match command {
             ScriptsCommand::Dir => cmd_scripts_dir(json).await,

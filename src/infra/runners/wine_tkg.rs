@@ -1001,44 +1001,24 @@ impl Runner for WineTkgRunner {
             }
         }
 
-        // umu-launcher (when active) wraps the launch instead of resolving a runner
-        // command below; it selects Proton via PROTONPATH and spawns `umu-run` directly.
-        // The plugin-resolved absolute `umu-run` path is threaded in via the context.
-        let use_umu = ctx.use_umu;
-
         let mut spec = CommandSpec::default();
 
-        if use_umu {
-            // umu-launcher is the compatibility wrapper: it invokes Proton itself
-            // (selected via PROTONPATH) so we spawn `umu-run` directly with the game
-            // executable — NO 'proton run' prefix and NO steam:// handoff. The umu-run
-            // binary is resolved by the umu plugin (ResolveComponentsStage).
-            let umu_run = ctx.umu_run.clone().ok_or_else(|| {
-                LaunchError::new(
-                    LaunchErrorKind::Runner,
-                    "umu is active but the plugin `umu-run` path was not resolved",
-                )
-            })?;
-            spec.program = umu_run;
-        } else {
-            // Build the base command (handles 'proton run' wrapper and directory resolution)
-            let base_cmd =
-                crate::core::utils::build_runner_command(&active_runner).map_err(|e| {
-                    LaunchError::new(
-                        LaunchErrorKind::Runner,
-                        format!(
-                            "Invalid Compatibility Layer path: {}",
-                            active_runner.display()
-                        ),
-                    )
-                    .with_source(e)
-                })?;
-            spec.program = base_cmd.get_program().into();
-            spec.args = base_cmd
-                .get_args()
-                .map(|s| s.to_string_lossy().to_string())
-                .collect();
-        }
+        // Build the base command (handles 'proton run' wrapper and directory resolution)
+        let base_cmd = crate::core::utils::build_runner_command(&active_runner).map_err(|e| {
+            LaunchError::new(
+                LaunchErrorKind::Runner,
+                format!(
+                    "Invalid Compatibility Layer path: {}",
+                    active_runner.display()
+                ),
+            )
+            .with_source(e)
+        })?;
+        spec.program = base_cmd.get_program().into();
+        spec.args = base_cmd
+            .get_args()
+            .map(|s| s.to_string_lossy().to_string())
+            .collect();
 
         let (_install_dir, executable, game_working_dir) = ctx.game_paths()?;
 
@@ -1069,18 +1049,6 @@ impl Runner for WineTkgRunner {
         spec.args.extend(user_launch_args);
 
         spec.env = self.build_env(ctx).await?;
-
-        if use_umu {
-            // umu-run needs GAMEID (the Steam AppID) and PROTONPATH (the absolute
-            // directory of the resolved Proton tool) to select and run the game.
-            let proton_root = crate::core::utils::derive_runner_root(&active_runner);
-            spec.env
-                .insert("GAMEID".to_string(), ctx.app.app_id.to_string());
-            spec.env.insert(
-                "PROTONPATH".to_string(),
-                proton_root.to_string_lossy().to_string(),
-            );
-        }
 
         Ok(spec)
     }

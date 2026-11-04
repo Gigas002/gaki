@@ -36,14 +36,9 @@ async fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
 pub struct GameConfig {
     pub forced_proton_version: Option<String>,
     pub platform_preference: Option<String>,
-    /// Which launch backend this game uses. `Auto` (default) keeps Aurelia's normal
-    /// native-vs-Proton selection; `Luxtorpeda` routes the game through the optional
-    /// luxtorpeda native-engine plugin (Linux only, requires `luxtorpeda_enabled`).
-    #[serde(default)]
-    pub runner: GameRunner,
     /// Per-game launch script path. When set (and not overridden/bypassed at launch),
     /// Aurelia wraps the resolved launch command with this script. Takes precedence
-    /// over the auto-detected `<script_dir>/<app_id>.sh|bat`.
+    /// over the auto-detected `<script_dir>/<app_id>.sh`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub launch_script: Option<String>,
     /// Depot → manifest ids this game is pinned to (recorded when the game is
@@ -57,22 +52,9 @@ pub struct GameConfig {
     pub pinned: bool,
 }
 
-/// Per-game launch backend selection.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
-#[serde(rename_all = "lowercase")]
-pub enum GameRunner {
-    /// Aurelia's normal selection (native Linux executable, or Proton/Wine for Windows).
-    #[default]
-    Auto,
-    /// Route through the luxtorpeda native-engine plugin.
-    Luxtorpeda,
-    /// Route through the umu-launcher plugin (Proton via umu; Linux only, requires `umu_enabled`).
-    Umu,
-}
-
 /// Network proxy settings applied to all of Aurelia's HTTP(S) traffic: the Steam
 /// Community/store/market web endpoints, depot content downloads (steam-cdn), and the
-/// GitHub/Codeberg release lookups used by the Proton/plugin managers. Empty by default
+/// GitHub/Codeberg release lookups used by the Proton manager. Empty by default
 /// (a direct connection). See [`crate::core::net`] for how these are applied.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ProxyConfig {
@@ -125,24 +107,6 @@ pub struct LauncherConfig {
     pub preferred_launch_options: HashMap<u32, String>,
     #[serde(default)]
     pub game_configs: HashMap<u32, GameConfig>,
-    /// Master toggle for the optional luxtorpeda native-engine plugin. When `false`
-    /// (default) nothing is ever downloaded and no game is routed through luxtorpeda.
-    #[serde(default)]
-    pub luxtorpeda_enabled: bool,
-    /// Path to an externally-managed luxtorpeda install (a directory containing, or holding
-    /// a subdirectory with, `toolmanifest.vdf`). When set, Aurelia uses this install and
-    /// never downloads its own managed copy. `None` (default) uses the on-the-fly download.
-    #[serde(default)]
-    pub luxtorpeda_path: Option<String>,
-    /// Master toggle for the optional umu-launcher plugin. When `false` (default)
-    /// nothing is ever downloaded and no game is routed through umu.
-    #[serde(default)]
-    pub umu_enabled: bool,
-    /// Path to an externally-managed umu install (a directory containing `umu-run`, or the
-    /// `umu-run` binary itself). When set, Aurelia uses this install and never downloads its
-    /// own managed copy. `None` (default) uses the on-the-fly download.
-    #[serde(default)]
-    pub umu_path: Option<String>,
     /// Persistent default Steam API language *name* (e.g. "german") used by
     /// `aurelia achievements` when `--lang` is not given. `None` = use "english".
     #[serde(default)]
@@ -210,10 +174,6 @@ impl Default for LauncherConfig {
             windows_steam_discovery_enabled: true,
             preferred_launch_options: HashMap::new(),
             game_configs: HashMap::new(),
-            luxtorpeda_enabled: false,
-            luxtorpeda_path: None,
-            umu_enabled: false,
-            umu_path: None,
             language: None,
             country: None,
             proxy: ProxyConfig::default(),

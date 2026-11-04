@@ -79,23 +79,12 @@ pub struct PipelineContext {
     pub launcher_config: Option<LauncherConfig>,
     pub user_config: Option<UserAppConfig>,
     pub proton_path: Option<String>,
-    /// One-off request (e.g. `aurelia play --native-engine`) to force the luxtorpeda
-    /// runner for this launch regardless of the per-game config.
-    pub force_native_engine: bool,
-    /// One-off request (e.g. `aurelia play --umu`) to wrap this launch through the
-    /// umu-launcher plugin regardless of the per-game config.
-    pub force_umu: bool,
     /// One-off launch-script override (e.g. `aurelia play --script <PATH>`) that
     /// takes precedence over the per-game config and the auto-detected dir script.
     pub launch_script_override: Option<std::path::PathBuf>,
     /// One-off request (e.g. `aurelia play --no-script`) to bypass all launch
     /// scripts for this launch.
     pub disable_launch_script: bool,
-    /// Whether umu wrapping is active for this launch, resolved in
-    /// `ResolveComponentsStage` and threaded into `LaunchContext`.
-    pub use_umu: bool,
-    /// The plugin-resolved absolute `umu-run` path (set when `use_umu`).
-    pub umu_run: Option<std::path::PathBuf>,
     /// Run the game with real Steam integration
     pub steam_enabled: bool,
 
@@ -189,8 +178,6 @@ impl PipelineContext {
             user_config: self.user_config.clone(),
             proton_path: self.proton_path.clone(),
             steam_enabled: self.steam_enabled,
-            use_umu: self.use_umu,
-            umu_run: self.umu_run.clone(),
             target_architecture: self.target_architecture,
             dll_resolutions: self.dll_resolutions.clone(),
             game_fixups: self.game_fixups.clone(),
@@ -206,12 +193,8 @@ impl PipelineContext {
             launcher_config: None,
             user_config: None,
             proton_path: None,
-            force_native_engine: false,
-            force_umu: false,
             launch_script_override: None,
             disable_launch_script: false,
-            use_umu: false,
-            umu_run: None,
             steam_enabled: false,
             resolved_install_dir: None,
             resolved_executable_path: None,

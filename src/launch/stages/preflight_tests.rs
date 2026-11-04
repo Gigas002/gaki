@@ -85,22 +85,21 @@ async fn test_preflight_is_not_directory() {
 }
 
 #[tokio::test]
-async fn test_preflight_umu_run_allowed() {
-    // With the umu plugin active, `spec.program` is the absolute plugin-resolved
-    // `umu-run` binary; an existing absolute path must pass preflight normally.
+async fn test_preflight_absolute_executable_runner_allowed() {
+    // An existing, executable absolute runner path must pass preflight.
     let tmp = tempdir().unwrap();
-    let umu_run = tmp.path().join("umu-run");
-    fs::write(&umu_run, "#!/bin/sh\n").unwrap();
+    let runner = tmp.path().join("runner");
+    fs::write(&runner, "#!/bin/sh\n").unwrap();
     {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&umu_run).unwrap().permissions();
+        let mut perms = fs::metadata(&runner).unwrap().permissions();
         perms.set_mode(0o755);
-        fs::set_permissions(&umu_run, perms).unwrap();
+        fs::set_permissions(&runner, perms).unwrap();
     }
 
     let mut ctx = PipelineContext::new(123);
     let mut spec = CommandSpec::default();
-    spec.program = umu_run;
+    spec.program = runner;
     ctx.command_spec = Some(spec);
 
     let stage = PreflightStage;
@@ -108,7 +107,7 @@ async fn test_preflight_umu_run_allowed() {
 
     assert!(
         res.is_ok(),
-        "resolved umu-run should pass preflight: {:?}",
+        "existing runner should pass preflight: {:?}",
         res.err()
     );
 }
@@ -118,7 +117,7 @@ async fn test_preflight_bogus_relative_runner_fails() {
     // A bogus relative, non-existent runner path must fail preflight.
     let mut ctx = PipelineContext::new(123);
     let mut spec = CommandSpec::default();
-    spec.program = Path::new("umu-run").to_path_buf();
+    spec.program = Path::new("no-such-runner").to_path_buf();
     ctx.command_spec = Some(spec);
 
     let stage = PreflightStage;

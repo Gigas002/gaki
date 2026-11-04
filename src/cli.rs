@@ -213,15 +213,6 @@ pub(crate) enum Command {
         /// Force a specific Proton/Wine runner (implies Windows target).
         #[arg(short, long)]
         proton: Option<String>,
-        /// Route this launch through the luxtorpeda native-engine plugin (Linux only).
-        /// Installs the plugin on first use; see `aurelia luxtorpeda`.
-        #[arg(short = 'n', long, conflicts_with = "proton")]
-        native_engine: bool,
-        /// Wrap this launch through the umu-launcher plugin (Proton via `umu-run`,
-        /// Linux only). Installs the plugin on first use; see `aurelia umu`.
-        /// Combine with `--proton` to pick the Proton build umu runs.
-        #[arg(short = 'u', long, conflicts_with = "native_engine")]
-        umu: bool,
         /// Wrap this launch with a specific launch script, overriding the per-game
         /// config and the auto-detected `<script_dir>/<app_id>.sh`. The script runs
         /// with the resolved launch command as its arguments. See `aurelia scripts`.
@@ -238,7 +229,7 @@ pub(crate) enum Command {
         steam: bool,
         /// Run this installed build (`linux` native or `windows` via Proton),
         /// overriding auto-detection for this launch. See `aurelia launch-targets`.
-        #[arg(short = 't', long, conflicts_with = "native_engine")]
+        #[arg(short = 't', long)]
         platform: Option<PlatformArg>,
         /// Steam integration for a Windows build, for this launch only: `runtime`
         /// (in-Wine Steam), `host` (bridge to host Steam) or `none` (standalone).
@@ -416,16 +407,6 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: SteamRuntimeCommand,
     },
-    /// Manage the optional luxtorpeda native-engine plugin.
-    Luxtorpeda {
-        #[command(subcommand)]
-        command: LuxtorpedaCommand,
-    },
-    /// Manage the optional umu-launcher plugin (Proton via umu).
-    Umu {
-        #[command(subcommand)]
-        command: UmuCommand,
-    },
     /// Manage per-game launch scripts.
     Scripts {
         #[command(subcommand)]
@@ -560,7 +541,7 @@ pub(crate) enum ConfigCommand {
     },
     /// View or set the network proxy used for all HTTP(S) communication.
     ///
-    /// Applies to the Steam web endpoints, depot downloads, and Proton/plugin
+    /// Applies to the Steam web endpoints, depot downloads, and Proton
     /// release lookups. Takes effect on the next command (and requires restarting
     /// the session daemon). An explicit `HTTP(S)_PROXY`/`ALL_PROXY` environment
     /// variable still overrides this. The Steam CM connection is not proxied.
@@ -639,58 +620,6 @@ pub(crate) enum SteamRuntimeCommand {
     /// Show the resolved master prefix, layout, whether steam.exe is present, and
     /// whether a Steam-runtime runner is configured.
     Status,
-}
-
-#[derive(Subcommand)]
-pub(crate) enum LuxtorpedaCommand {
-    /// Enable the plugin (sets the master toggle; games still opt in per-game).
-    Enable,
-    /// Disable the plugin. Games pinned to it fall back to normal native/Proton launch.
-    Disable,
-    /// Download (or re-download) the latest luxtorpeda client into Aurelia's data dir.
-    Install,
-    /// Re-fetch the latest luxtorpeda client, replacing the installed payload.
-    Update,
-    /// Show whether the plugin is enabled and which version (if any) is installed.
-    Status,
-    /// Use an externally-managed luxtorpeda install instead of the managed download.
-    /// Pass a directory to set it (disables downloading), omit args to show the current
-    /// value, or `--clear` to revert to the managed download.
-    Path {
-        /// Directory of an existing luxtorpeda install (contains `toolmanifest.vdf`).
-        path: Option<String>,
-        /// Clear the custom path and use Aurelia's managed download instead.
-        #[arg(short = 'c', long, conflicts_with = "path")]
-        clear: bool,
-    },
-    /// Remove the downloaded luxtorpeda payload from disk.
-    Uninstall,
-}
-
-#[derive(Subcommand)]
-pub(crate) enum UmuCommand {
-    /// Enable the plugin (sets the master toggle; games still opt in per-game).
-    Enable,
-    /// Disable the plugin. Games pinned to it fall back to normal native/Proton launch.
-    Disable,
-    /// Download (or re-download) the latest umu-launcher into Aurelia's data dir.
-    Install,
-    /// Re-fetch the latest umu-launcher, replacing the installed payload.
-    Update,
-    /// Show whether the plugin is enabled and which version (if any) is installed.
-    Status,
-    /// Use an externally-managed umu install instead of the managed download.
-    /// Pass a directory (or the `umu-run` binary) to set it (disables downloading),
-    /// omit args to show the current value, or `--clear` to revert to the managed download.
-    Path {
-        /// Directory of an existing umu install (contains `umu-run`), or the `umu-run` binary.
-        path: Option<String>,
-        /// Clear the custom path and use Aurelia's managed download instead.
-        #[arg(short = 'c', long, conflicts_with = "path")]
-        clear: bool,
-    },
-    /// Remove the downloaded umu-launcher payload from disk.
-    Uninstall,
 }
 
 #[derive(Subcommand)]
@@ -1277,23 +1206,8 @@ pub(crate) struct GameConfigArgs {
     pub(crate) no_platform: bool,
     /// Reset ALL of this game's per-game settings to defaults (both stores).
     #[arg(long, conflicts_with_all = ["proton", "clear_proton", "platform", "no_platform",
-        "native_engine", "no_native_engine", "umu", "no_umu", "launch_script",
-        "no_launch_script", "steam_runtime", "steam_prefix_mode"])]
+        "launch_script", "no_launch_script", "steam_runtime", "steam_prefix_mode"])]
     pub(crate) clear: bool,
-    /// Route this game through the luxtorpeda native-engine plugin (Linux only;
-    /// requires `aurelia luxtorpeda enable`).
-    #[arg(short = 'n', long)]
-    pub(crate) native_engine: bool,
-    /// Clear the luxtorpeda routing (back to Aurelia's normal native/Proton selection).
-    #[arg(short = 'N', long, conflicts_with = "native_engine")]
-    pub(crate) no_native_engine: bool,
-    /// Route this game through the umu-launcher plugin (Proton via umu; Linux only;
-    /// requires `aurelia umu enable`).
-    #[arg(short = 'u', long, conflicts_with_all = ["native_engine", "no_native_engine"])]
-    pub(crate) umu: bool,
-    /// Clear the umu routing (back to Aurelia's normal native/Proton selection).
-    #[arg(short = 'U', long, conflicts_with = "umu")]
-    pub(crate) no_umu: bool,
     /// Set a per-game launch script that wraps the resolved launch command. See
     /// `aurelia scripts`. Overrides the auto-detected `<script_dir>/<app_id>.sh`.
     #[arg(short = 's', long, value_name = "PATH")]
