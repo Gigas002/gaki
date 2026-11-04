@@ -36,6 +36,8 @@ fn logged_out_session_is_reported_not_fetched() {
     aurelia::logout().expect("logout without a session");
     assert!(!aurelia::health().unwrap().logged_in);
 
+    game_data_needs_a_session();
+    pinning_reads_local_state();
     settings_round_trip();
     game_settings_round_trip();
     scripts_round_trip();
@@ -139,4 +141,37 @@ fn proton_default_is_saved() {
         aurelia::config_show().unwrap().proton_version.as_deref(),
         Some(marked[0].as_str())
     );
+}
+
+/// Steam-backed game data asks for a login instead of failing obscurely.
+fn game_data_needs_a_session() {
+    let id = 945360;
+    let calls: [(&str, Result<(), gaki_tui::util::error::STError>); 7] = [
+        ("achievements", aurelia::achievements(id).map(drop)),
+        ("dlc", aurelia::dlc(id).map(drop)),
+        ("depots", aurelia::depots(id).map(drop)),
+        ("launch options", aurelia::launch_options(id).map(drop)),
+        ("branches", aurelia::branches(id).map(drop)),
+        ("set branch", aurelia::set_branch(id, "beta")),
+        ("manifests", aurelia::manifests(id, None).map(drop)),
+    ];
+    for (what, result) in calls {
+        let err = result.expect_err(what);
+        assert!(
+            err.to_string().contains("not logged in"),
+            "{what}: unexpected error: {err}"
+        );
+    }
+}
+
+/// Pin state comes from local files, so it works logged out.
+fn pinning_reads_local_state() {
+    let id = 945360;
+    let state = aurelia::available(id).unwrap();
+    assert!(!state.available && !state.pinned);
+    assert!(state.pinned_manifests.is_empty());
+
+    let err = aurelia::pin(id).expect_err("nothing installed to pin");
+    assert!(err.to_string().contains("no installed depots"), "{err}");
+    assert!(!aurelia::unpin(id).unwrap(), "was not pinned");
 }

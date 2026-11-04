@@ -688,8 +688,11 @@ I make the changes, and you review, commit, and push.
       become the default; custom builds are listed but only the package
       manager removes them. The unused `scripts_dir`/`scripts_list` and
       `config_game_set_launch_script` wrappers are gone.
-    - [ ] Per-game Steam data: DLC, branches, depots, achievements, launch
-      options, manifests, pinning, downgrade
+    - [x] Per-game Steam data: DLC, branches, depots, achievements, launch
+      options, manifests, pinning, downgrade. Downgrades stream progress
+      through the shared `drive_progress` (new `Downgrade` label); pin state
+      is still read from local files without a Steam logon. That was the
+      last streaming subprocess, so the NDJSON progress parser is gone too.
     - [ ] Social and market: friends, chat, wallet, inventory, market, workshop
     - [ ] Collections
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the

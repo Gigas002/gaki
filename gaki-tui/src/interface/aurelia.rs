@@ -6,18 +6,16 @@
 //! user is expected to have authenticated once already with `aurelia login`
 //! (the TUI only verifies the session via `aurelia login --health`).
 
-use std::io::{BufRead, BufReader, Read};
+use std::collections::BTreeMap;
 use std::process;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use serde::Deserialize;
 
 use crate::app::worker;
 use crate::interface::game_status::GameStatus;
 use crate::util::error::STError;
-use crate::util::log::log;
 use libgaki::ops::config::{Change, GameSettingsChange};
 
 /// The `gaki-cli` binary to invoke.
@@ -545,14 +543,6 @@ impl DlcJson {
     }
 }
 
-/// The top-level object from `aurelia dlc <id> --json`: the base app id plus its
-/// DLC list. Only the `dlc` array is surfaced.
-#[derive(Debug, Clone, Deserialize)]
-struct DlcResponse {
-    #[serde(default)]
-    dlc: Vec<DlcJson>,
-}
-
 /// One beta branch for a game, from `aurelia branches <id> --json` (an item of
 /// the response's `branches` array).
 ///
@@ -569,48 +559,6 @@ pub struct BranchJson {
     /// CLI doesn't report it, so it stays `false`; [`crate::browse::Browser::open_branches`]
     /// marks the active branch by name when one is known.
     pub active: bool,
-}
-
-impl<'de> Deserialize<'de> for BranchJson {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        // The branch array mixes shapes across CLI versions: a bare name string,
-        // or an object with optional metadata. Deserialize either via an
-        // untagged shim, then normalise into `BranchJson`.
-        #[derive(Deserialize)]
-        struct BranchObj {
-            #[serde(default)]
-            name: String,
-            #[serde(default)]
-            description: String,
-            #[serde(default)]
-            active: bool,
-            #[serde(default)]
-            current: bool,
-        }
-
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum BranchRaw {
-            Name(String),
-            Obj(BranchObj),
-        }
-
-        Ok(match BranchRaw::deserialize(deserializer)? {
-            BranchRaw::Name(name) => BranchJson {
-                name,
-                description: String::new(),
-                active: false,
-            },
-            BranchRaw::Obj(obj) => BranchJson {
-                name: obj.name,
-                description: obj.description,
-                active: obj.active || obj.current,
-            },
-        })
-    }
 }
 
 /// One depot for a game, from `aurelia depots <id> --json` (an item of the
@@ -1057,23 +1005,6 @@ pub enum LoginPhase {
     Failed(String),
 }
 
-/// A single NDJSON progress line from a streaming `install`/`update`/`verify`.
-/// Progress events are emitted on **stderr**; the terminal result object goes
-/// to **stdout**.
-#[derive(Debug, Deserialize)]
-struct ProgressJson {
-    #[serde(default)]
-    event: Option<String>,
-    #[serde(default)]
-    state: Option<String>,
-    #[serde(default)]
-    percent: Option<f64>,
-    /// Estimated seconds remaining, or `None` when not yet estimable (the CLI
-    /// emits `eta_seconds: null` early in a transfer).
-    #[serde(default)]
-    eta_seconds: Option<u64>,
-}
-
 /// Format a download ETA into a compact " · ETA 3m 12s" suffix to sit next to
 /// the State value. Empty when the time is not yet estimable, so a status line
 /// without an estimate is unchanged.
@@ -1457,19 +1388,22 @@ fn sync_problem(
     None
 }
 
-/// Fetch the selected game's achievements with the logged-in user's unlock
-/// state (`aurelia achievements <id> --json`). The CLI wraps the list in an
-/// object (`{ achievements: [...] }`); we unwrap and parse just the array.
+/// A game's achievements with the user's unlock state and global rarity.
 pub fn achievements(app_id: i32) -> Result<Vec<AchievementJson>, STError> {
-    let value = run_json(&["achievements", &app_id.to_string()])?;
-    let list = value
-        .get("achievements")
-        .cloned()
-        .unwrap_or(serde_json::Value::Null);
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let list = libgaki::ops::info::achievements(&client, app_id as u32).await?;
+        Ok(list
+            .into_iter()
+            .map(|a| AchievementJson {
+                name: a.name,
+                description: a.description,
+                unlocked: a.unlocked,
+                visible: !a.hidden,
+                rarity: a.global_percent,
+            })
+            .collect())
+    })
 }
 
 /// Fetch the logged-in user's friends (`aurelia friends --json`). The CLI emits
@@ -1575,36 +1509,62 @@ pub fn inventory(app_id: i32) -> Result<Vec<InventoryItemJson>, STError> {
     Ok(serde_json::from_value(list)?)
 }
 
-/// Fetch the DLC list for a base game (`aurelia dlc <id> --json`).
+/// A base game's DLC with ownership and install state.
 pub fn dlc(app_id: i32) -> Result<Vec<DlcJson>, STError> {
-    let value = run_json(&["dlc", &app_id.to_string()])?;
-    let parsed: DlcResponse = serde_json::from_value(value)?;
-    Ok(parsed.dlc)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let list = libgaki::ops::info::dlc_list(&client, app_id as u32).await?;
+        Ok(list
+            .into_iter()
+            .map(|d| DlcJson {
+                app_id: d.app_id,
+                name: d.name,
+                owned: d.state.as_ref().map(|s| s.owned),
+                installed: d.state.as_ref().map(|s| s.installed),
+                disabled: d.state.as_ref().map(|s| s.disabled),
+            })
+            .collect())
+    })
 }
 
-/// List a game's depots (`aurelia depots <id> --json`). The CLI wraps the
-/// per-depot array under a `depots` key (alongside `app_id`); accept either the
-/// wrapping object or a bare array.
+/// A game's depots.
 pub fn depots(app_id: i32) -> Result<Vec<DepotJson>, STError> {
-    let value = run_json(&["depots", &app_id.to_string()])?;
-    let depots = match value.get("depots") {
-        Some(depots) => depots.clone(),
-        None => value,
-    };
-    Ok(serde_json::from_value(depots)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let list = libgaki::ops::info::depots(&client, app_id as u32).await?;
+        Ok(list
+            .into_iter()
+            .map(|d| DepotJson {
+                id: d.id,
+                name: d.name,
+                size: d.size,
+                file_count: d.file_count,
+                config: d.config,
+                is_owned: d.is_owned,
+            })
+            .collect())
+    })
 }
 
-/// List a game's launch options (`aurelia launch-options <id> --json`). The CLI
-/// wraps the array under a `launch_options` key; the top-level object also
-/// carries `app_id`, which we ignore. Accepts a bare array too.
+/// A game's launch options, as listed in its app info.
 pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOptionJson>, STError> {
-    let value = run_json(&["launch-options", &app_id.to_string()])?;
-    // Accept either the wrapping object (`{ "launch_options": [..] }`) or a bare array.
-    let list = match value.get("launch_options") {
-        Some(list) => list.clone(),
-        None => value,
-    };
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let list = libgaki::ops::info::launch_options(&client, app_id as u32).await?;
+        Ok(list
+            .into_iter()
+            .map(|o| LaunchOptionJson {
+                id: o.id,
+                description: o.description,
+                executable: o.executable,
+                arguments: o.arguments,
+                working_dir: o.working_dir,
+                oslist: o.oslist,
+                osarch: o.osarch,
+                launch_type: o.launch_type,
+            })
+            .collect())
+    })
 }
 
 /// List the user's subscribed Workshop items for a game
@@ -1738,33 +1698,38 @@ pub fn market_listings() -> Result<Vec<MarketListingJson>, STError> {
     Ok(rows)
 }
 
-/// Enable or disable a single DLC (`aurelia enable|disable <id> --json`). The
-/// returned value is ignored; only errors are propagated.
+/// Enable or disable a single DLC. Steam reads DLC state only at startup, so
+/// a running Steam picks the change up on its next start.
 pub fn set_dlc(app_id: i32, enable: bool) -> Result<(), STError> {
-    let verb = if enable { "enable" } else { "disable" };
-    run_json(&[verb, &app_id.to_string()])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().ensure().await?;
+        libgaki::ops::info::set_dlc(&client, app_id as u32, enable).await
+    })
+    .map(drop)
 }
 
-/// Fetch the beta branches for a game (`aurelia branches <id> --json`). The CLI
-/// wraps the list under a `branches` key (`{ app_id, branches: [..] }`); accept
-/// either that or a bare array.
+/// A game's beta branches, by name.
 pub fn branches(app_id: i32) -> Result<Vec<BranchJson>, STError> {
-    let value = run_json(&["branches", &app_id.to_string()])?;
-    // Accept either the wrapping object (`{ "branches": [..] }`) or a bare array.
-    let list = match value.get("branches") {
-        Some(branches) => branches.clone(),
-        None => value,
-    };
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let names = libgaki::ops::info::branches(&client, app_id as u32).await?;
+        Ok(names
+            .into_iter()
+            .map(|name| BranchJson {
+                name,
+                ..Default::default()
+            })
+            .collect())
+    })
 }
 
-/// Switch a game to a beta branch (`aurelia set-branch <id> <branch> --json`).
-/// The returned value is ignored; only errors are propagated. The switch is
-/// staged — an `update` is needed afterwards for it to take effect.
+/// Switch a game to a beta branch. The switch is staged: an [`update`] is
+/// needed afterwards for it to take effect.
 pub fn set_branch(app_id: i32, branch: &str) -> Result<(), STError> {
-    run_json(&["set-branch", &app_id.to_string(), branch])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::info::set_branch(&client, app_id as u32, branch).await
+    })
 }
 
 /// List the Proton/Wine runtimes: every official build, marked installed and
@@ -2089,6 +2054,7 @@ enum ProgressLabel {
     Install,
     Verify,
     Update,
+    Downgrade,
 }
 
 /// Feed `libgaki` download progress into the status cell until the
@@ -2118,6 +2084,12 @@ async fn drive_progress(
                     (ProgressLabel::Verify, _) => format!("verifying {percent:.1}%"),
                     (ProgressLabel::Update, _) => {
                         format!("updating {percent:.1}%{}", eta_suffix(eta))
+                    }
+                    (ProgressLabel::Downgrade, State::Verifying) => {
+                        format!("verifying {percent:.1}%")
+                    }
+                    (ProgressLabel::Downgrade, _) => {
+                        format!("downgrading {percent:.1}%{}", eta_suffix(eta))
                     }
                     (ProgressLabel::Install, State::Verifying) => {
                         format!("verifying {percent:.1}%{}", eta_suffix(eta))
@@ -2443,53 +2415,64 @@ pub fn launch_targets(app_id: i32) -> Result<Vec<LaunchTargetJson>, STError> {
     })
 }
 
-/// List each depot's current manifest id per branch (`aurelia manifests <id>
-/// [--depot <n>] --json`). The CLI emits a TOP-LEVEL array; `depot` restricts it
-/// to one depot. Steam only exposes *current* ids — older ones live on SteamDB.
+/// Each depot's current manifest id per branch; `depot` restricts it to one
+/// depot. Steam only exposes *current* ids — older ones live on SteamDB.
 pub fn manifests(app_id: i32, depot: Option<u32>) -> Result<Vec<DepotManifestInfo>, STError> {
-    let id = app_id.to_string();
-    let depot_str = depot.map(|d| d.to_string());
-    let mut args: Vec<&str> = vec!["manifests", &id];
-    if let Some(d) = &depot_str {
-        args.push("--depot");
-        args.push(d);
-    }
-    let value = run_json(&args)?;
-    if value.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(value)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let list = libgaki::ops::install::manifests(&client, app_id as u32, depot).await?;
+        Ok(list
+            .into_iter()
+            .map(|m| DepotManifestInfo {
+                depot_id: m.depot_id,
+                depot_name: m.depot_name,
+                branch: m.branch,
+                manifest_id: m.manifest_id,
+                size: m.size,
+            })
+            .collect())
+    })
 }
 
-/// Report a game's install & version-pin state (`aurelia available <id> --json`).
+/// A game's install and version-pin state, from local files only (no Steam
+/// logon, so per-game polling is cheap).
 pub fn available(app_id: i32) -> Result<AvailableJson, STError> {
-    let value = run_json(&["available", &app_id.to_string()])?;
-    Ok(serde_json::from_value(value)?)
+    let a = in_process(libgaki::ops::install::availability(app_id as u32))?;
+    Ok(AvailableJson {
+        app_id: app_id as u32,
+        available: a.available,
+        install_path: a.install_path,
+        pinned: a.pinned,
+        pinned_manifests: manifest_map(&a.pinned_manifests),
+    })
 }
 
-/// Pin a game to its currently-installed manifests, locking Aurelia's updates
-/// (`aurelia pin <id> --json`).
+/// Depot → manifest, keyed by the depot id as text, in depot order.
+fn manifest_map(map: &std::collections::HashMap<u32, u64>) -> BTreeMap<String, u64> {
+    map.iter().map(|(d, m)| (d.to_string(), *m)).collect()
+}
+
+/// Pin a game to its currently-installed manifests, holding gaki's updates.
 pub fn pin(app_id: i32) -> Result<PinJson, STError> {
-    let value = run_json(&["pin", &app_id.to_string()])?;
-    Ok(serde_json::from_value(value)?)
+    let manifests = in_process(libgaki::ops::install::pin(app_id as u32))?;
+    Ok(PinJson {
+        app_id: app_id as u32,
+        pinned: true,
+        manifests: manifest_map(&manifests),
+    })
 }
 
-/// Remove a game's version pin (`aurelia unpin <id> --json`). Returns whether the
-/// game had actually been pinned (`was_pinned`).
+/// Remove a game's version pin. Returns whether it had been pinned.
 pub fn unpin(app_id: i32) -> Result<bool, STError> {
-    let value = run_json(&["unpin", &app_id.to_string()])?;
-    Ok(value
-        .get("was_pinned")
-        .and_then(|b| b.as_bool())
-        .unwrap_or(false))
+    in_process(libgaki::ops::install::unpin(app_id as u32))
 }
 
-/// Install specific (usually older) depot manifests and pin them — a downgrade
-/// (`aurelia downgrade <id> --manifest <depot>:<manifest> ... --json`), streaming
-/// progress into the shared status cell exactly like [`update`]. `overrides`
-/// pairs each depot id with the manifest id to install; `branch` records the
-/// build's branch, `verify` runs an integrity pass afterward, and `no_pin` skips
-/// pinning. Blocks until it finishes; intended to be run on a dedicated thread.
+/// Install specific (usually older) depot manifests and pin them — a
+/// downgrade — streaming progress into the shared status cell like
+/// [`update`]. `overrides` pairs each depot id with the manifest id to
+/// install; `branch` records the build's branch, `verify` runs an integrity
+/// pass afterward, and `no_pin` skips pinning. Blocks until it finishes;
+/// intended to be run on a dedicated thread.
 pub fn downgrade(
     app_id: i32,
     overrides: &[(u32, u64)],
@@ -2499,101 +2482,22 @@ pub fn downgrade(
     status: Arc<Mutex<Option<GameStatus>>>,
 ) {
     set_status(&status, "processing...");
-
-    let id = app_id.to_string();
-    // Use the combined `--manifest <depot>:<manifest>` form, one per override.
-    let manifest_args: Vec<String> = overrides
-        .iter()
-        .map(|(depot, manifest)| format!("{}:{}", depot, manifest))
-        .collect();
-    let mut args: Vec<&str> = vec!["downgrade", &id];
-    for m in &manifest_args {
-        args.push("--manifest");
-        args.push(m);
-    }
-    if let Some(b) = branch {
-        args.push("--branch");
-        args.push(b);
-    }
-    if verify {
-        args.push("--verify");
-    }
-    if no_pin {
-        args.push("--no-pin");
-    }
-    args.push("--json");
-
-    let spawned = process::Command::new(bin())
-        .args(&args)
-        .stdin(process::Stdio::null())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(err) => {
-            set_status(&status, &format!("Failed: {}", err));
-            log!("Failed to spawn aurelia downgrade", app_id, err);
-            return;
-        }
+    let request = libgaki::ops::install::Downgrade {
+        app_id: app_id as u32,
+        manifests: overrides.iter().copied().collect(),
+        library: None,
+        branch: branch.map(str::to_string),
+        verify,
+        pin: !no_pin,
     };
-
-    // Drain stdout (the small terminal result object) on a helper thread so the
-    // child never blocks writing it while we consume the larger stderr stream.
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
-        }
-        buf
+    let outcome = worker::global().block_on(async {
+        let mut client = worker::global().session().authed().await?;
+        libgaki::ops::install::downgrade(&mut client, &request, |rx| {
+            drive_progress(rx, &status, ProgressLabel::Downgrade)
+        })
+        .await
     });
-
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<ProgressJson>(line)
-                && event.event.as_deref() == Some("progress")
-            {
-                let label = match event.state.as_deref() {
-                    Some("verifying") => "verifying",
-                    Some("moving") => "moving",
-                    Some("queued") => "queued",
-                    _ => "downgrading",
-                };
-                set_status(
-                    &status,
-                    &format!(
-                        "{} {:.1}%{}",
-                        label,
-                        event.percent.unwrap_or(0.0),
-                        eta_suffix(event.eta_seconds)
-                    ),
-                );
-            }
-        }
-    }
-
-    let result = result_handle.join().unwrap_or_default();
-    let _ = child.wait();
-
-    match serde_json::from_str::<serde_json::Value>(result.trim()) {
-        Ok(value) => {
-            if let Some(err) = json_error(&value) {
-                set_status(&status, &format!("Failed: {}", err));
-            } else if value.get("status").and_then(|s| s.as_str()) == Some("downgraded") {
-                set_status(&status, "downgraded");
-            } else {
-                set_status(&status, "done");
-            }
-        }
-        // No parseable result line: fall back on the exit status we already waited on.
-        Err(_) => set_status(&status, "downgraded"),
-    }
+    finish(&status, outcome, "downgraded");
 }
 
 /// A game's resolved launch script and its contents.
@@ -2901,6 +2805,14 @@ mod progress_tests {
 
         let (_, text) = drive(ProgressLabel::Verify, vec![step(State::Downloading, 3, 4)]);
         assert_eq!(text.as_deref(), Some("verifying 75.0%"));
+
+        let (_, text) = drive(
+            ProgressLabel::Downgrade,
+            vec![step(State::Downloading, 1, 4)],
+        );
+        assert_eq!(text.as_deref(), Some("downgrading 25.0%"));
+        let (_, text) = drive(ProgressLabel::Downgrade, vec![step(State::Verifying, 1, 2)]);
+        assert_eq!(text.as_deref(), Some("verifying 50.0%"));
     }
 
     #[test]
