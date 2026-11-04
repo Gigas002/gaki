@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use libgaki::core::models::DepotPlatform;
 
-/// Aurelia — a command-line Steam launcher (auth, library, install, launch).
+/// gaki — a command-line Steam launcher (auth, library, install, launch).
 #[derive(Parser)]
 #[command(
     name = env!("CARGO_BIN_NAME"),
@@ -31,7 +31,7 @@ pub(crate) struct Cli {
     /// Log filter directives (e.g. `debug,steam_vent=info`), overriding `-v`.
     #[arg(long, global = true, value_name = "FILTER", value_parser = libgaki::infra::logging::validate_filter)]
     pub(crate) log: Option<String>,
-    /// Use this config directory instead of `~/.config/Aurelia`. A daemon serves
+    /// Use this config directory instead of `~/.config/gaki`. A daemon serves
     /// one config directory, so pair it with `--socket` or `--no-daemon`.
     #[arg(long, global = true, value_name = "PATH")]
     pub(crate) config_dir: Option<std::path::PathBuf>,
@@ -201,7 +201,7 @@ pub(crate) enum Command {
     Update {
         /// Game to update. Omit to list every installed game that needs an update.
         app_id: Option<u32>,
-        /// Update even if the game is pinned (see `aurelia pin`), overriding the lock.
+        /// Update even if the game is pinned (see `gaki-cli pin`), overriding the lock.
         #[arg(short = 'f', long)]
         force: bool,
     },
@@ -213,7 +213,7 @@ pub(crate) enum Command {
         proton: Option<String>,
         /// Wrap this launch with a specific launch script, overriding the per-game
         /// config and the auto-detected `<script_dir>/<app_id>.sh`. The script runs
-        /// with the resolved launch command as its arguments. See `aurelia scripts`.
+        /// with the resolved launch command as its arguments. See `gaki-cli scripts`.
         #[arg(short = 'x', long, value_name = "PATH")]
         script: Option<PathBuf>,
         /// Bypass all launch scripts for this launch (ignore the per-game config and
@@ -226,7 +226,7 @@ pub(crate) enum Command {
         #[arg(short = 's', long)]
         steam: bool,
         /// Run this installed build (`linux` native or `windows` via Proton),
-        /// overriding auto-detection for this launch. See `aurelia launch-targets`.
+        /// overriding auto-detection for this launch. See `gaki-cli launch-targets`.
         #[arg(short = 't', long)]
         platform: Option<PlatformArg>,
         /// Skip the automatic update check and install before launching.
@@ -242,16 +242,16 @@ pub(crate) enum Command {
         #[arg(short = 's', long)]
         steam: bool,
     },
-    /// Stop a running game previously launched with `aurelia play`.
+    /// Stop a running game previously launched with `gaki-cli play`.
     Stop {
-        /// App id to stop. Omit to list the games Aurelia is tracking as running.
+        /// App id to stop. Omit to list the games gaki is tracking as running.
         app_id: Option<u32>,
         /// Force-kill the game immediately (SIGKILL) instead of asking it to exit
         /// gracefully first. Use when a game is hung and ignores a normal stop.
         #[arg(short = 'f', long)]
         force: bool,
     },
-    /// List the games Aurelia is currently running.
+    /// List the games gaki is currently running.
     Running,
     /// Uninstall a game.
     Uninstall {
@@ -368,9 +368,9 @@ pub(crate) enum Command {
     },
     /// Install a specific (usually older) depot manifest and pin it — a downgrade.
     Downgrade(DowngradeArgs),
-    /// Pin a game to its currently-installed manifests, locking Aurelia's updates.
+    /// Pin a game to its currently-installed manifests, locking gaki's updates.
     Pin { app_id: u32 },
-    /// Remove a game's version pin (unlock Aurelia's updates).
+    /// Remove a game's version pin (unlock gaki's updates).
     Unpin { app_id: u32 },
     /// List a game's launch options.
     LaunchOptions { app_id: u32 },
@@ -435,18 +435,18 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
     },
-    /// Kill all running aurelia processes, including the session daemon.
+    /// Kill all running gaki-cli processes, including the session daemon.
     Kill,
 }
 
 #[derive(Subcommand)]
 pub(crate) enum DaemonCommand {
-    /// Stop running aurelia daemon(s). With a PID, stop only that daemon.
+    /// Stop running gaki-cli daemon(s). With a PID, stop only that daemon.
     Stop {
-        /// The daemon PID to stop (from `aurelia daemon list`). Omit to stop all.
+        /// The daemon PID to stop (from `gaki-cli daemon list`). Omit to stop all.
         pid: Option<u32>,
     },
-    /// List running aurelia daemon(s) with their PID.
+    /// List running gaki-cli daemon(s) with their PID.
     List,
 }
 
@@ -689,7 +689,7 @@ pub(crate) enum CloudCommand {
         /// Only download saves from Steam.
         #[arg(short = 'd', long, conflicts_with = "up")]
         down: bool,
-        /// Local save directory. Defaults to Aurelia's managed cloud root.
+        /// Local save directory. Defaults to gaki's managed cloud root.
         #[arg(short = 'p', long)]
         path: Option<PathBuf>,
         /// Resolve diverged saves by taking this side (`cloud` or `local`) instead
@@ -794,7 +794,7 @@ pub(crate) enum WorkshopCommand {
     },
 }
 
-/// `aurelia install`: either install an app (positional `app_id`) or manage
+/// `gaki-cli install`: either install an app (positional `app_id`) or manage
 /// in-flight installs (`list` / `stop`). The positional and the subcommands
 /// coexist via clap's args-conflict-with-subcommands pattern.
 #[derive(clap::Args)]
@@ -816,7 +816,7 @@ pub(crate) struct InstallArgs {
     #[arg(short = 'd', long)]
     pub(crate) dry_run: bool,
     /// Steam library folder (drive/location) to install into. A library root
-    /// containing a `steamapps` directory, as listed by `aurelia libraries`.
+    /// containing a `steamapps` directory, as listed by `gaki-cli libraries`.
     /// Defaults to the configured `steam_library_path`.
     #[arg(short = 'l', long)]
     pub(crate) library: Option<String>,
@@ -850,7 +850,7 @@ pub(crate) enum InstallAction {
     },
 }
 
-/// `aurelia downgrade`: install specific depot manifests (an older version) and
+/// `gaki-cli downgrade`: install specific depot manifests (an older version) and
 /// pin them. `--depot`/`--manifest` are parallel repeatable lists paired by
 /// position; `--manifest <depot>:<manifest>` is an alternative combined form.
 #[derive(clap::Args)]
@@ -876,12 +876,12 @@ pub(crate) struct DowngradeArgs {
     /// Verify the install after downloading (integrity pass).
     #[arg(short = 'V', long)]
     pub(crate) verify: bool,
-    /// Don't pin after downgrading (Aurelia's update commands may re-upgrade it).
+    /// Don't pin after downgrading (gaki's update commands may re-upgrade it).
     #[arg(short = 'N', long)]
     pub(crate) no_pin: bool,
 }
 
-/// `aurelia login` flags.
+/// `gaki-cli login` flags.
 #[derive(clap::Args)]
 pub(crate) struct LoginArgs {
     /// Steam account name (prompted if omitted).
@@ -922,7 +922,7 @@ pub(crate) struct LoginArgs {
     pub(crate) reconnect: bool,
 }
 
-/// `aurelia reviews` flags.
+/// `gaki-cli reviews` flags.
 #[derive(clap::Args)]
 pub(crate) struct ReviewsArgs {
     pub(crate) app_id: u32,
@@ -1072,7 +1072,7 @@ pub(crate) enum DealsScopeArg {
 pub(crate) struct GameConfigArgs {
     pub(crate) app_id: u32,
     /// Set the Proton/Wine version this game launches with. Use a name from
-    /// `aurelia proton list` (installed). Overrides the global default.
+    /// `gaki-cli proton list` (installed). Overrides the global default.
     #[arg(short = 'p', long)]
     pub(crate) proton: Option<String>,
     /// Clear the per-game Proton version (fall back to the global default).
@@ -1089,7 +1089,7 @@ pub(crate) struct GameConfigArgs {
         "launch_script", "no_launch_script"])]
     pub(crate) clear: bool,
     /// Set a per-game launch script that wraps the resolved launch command. See
-    /// `aurelia scripts`. Overrides the auto-detected `<script_dir>/<app_id>.sh`.
+    /// `gaki-cli scripts`. Overrides the auto-detected `<script_dir>/<app_id>.sh`.
     #[arg(short = 's', long, value_name = "PATH")]
     pub(crate) launch_script: Option<PathBuf>,
     /// Clear the per-game launch script (falls back to the auto-detected script).

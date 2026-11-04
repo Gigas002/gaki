@@ -2,12 +2,12 @@
 //!
 //! The per-invocation CLI re-authenticates with Steam on every command, and Steam
 //! throttles repeated logons (the `invalid credentials` / `RateLimitExceeded`
-//! churn). This module lets **one** long-running `aurelia daemon` process hold a
-//! single authenticated Steam session and execute every other `aurelia` command on
+//! churn). This module lets **one** long-running `gaki-cli daemon` process hold a
+//! single authenticated Steam session and execute every other `gaki-cli` command on
 //! its behalf, so the whole machine logs on once per daemon lifetime.
 //!
 //! - [`server`] accepts forwarded commands and runs them against the shared session.
-//! - [`client`] is what a normal `aurelia <cmd>` uses to forward itself to a running
+//! - [`client`] is what a normal `gaki-cli <cmd>` uses to forward itself to a running
 //!   daemon (auto-spawning one if needed), transparently relaying stdio + exit code.
 //! - The shared session lives in [`DaemonState`]; [`shared_restored_client`] hands
 //!   each request a cheap clone-backed [`SteamClient`] over the one live connection.
@@ -49,7 +49,7 @@ struct Header {
 /// a daemon can't answer a new protocol query either. A daemon predating this marker
 /// leaves it absent — which the client reads as a mismatch and restarts, exactly the
 /// desired behavior. The pid lets the client stop precisely that daemon rather than every
-/// `aurelia` process on the machine.
+/// `gaki-cli` process on the machine.
 #[derive(Debug, Serialize, Deserialize)]
 struct DaemonInfo {
     /// The daemon's compiled crate version (`CARGO_PKG_VERSION`).

@@ -14,7 +14,7 @@ fn test_launch_session_id_uniqueness() {
 
 #[test]
 fn test_launch_session_path_generation() {
-    let temp = PathBuf::from("/tmp/aurelia_logs");
+    let temp = PathBuf::from("/tmp/gaki_logs");
     let session = LaunchSession::new(&temp);
 
     let id_str = session.id.to_string();

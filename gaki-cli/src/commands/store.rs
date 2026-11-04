@@ -6,7 +6,7 @@ use anyhow::Result;
 use libgaki::ops::store::{self, Listing};
 use libgaki::steam_client::{StoreAppInfo, unix_to_ymd};
 
-/// `aurelia price APPID [--compare CC,…]`.
+/// `gaki-cli price APPID [--compare CC,…]`.
 pub(crate) async fn cmd_price(
     app_id: u32,
     compare: Vec<String>,
@@ -100,7 +100,7 @@ pub(crate) async fn cmd_price(
     Ok(())
 }
 
-/// `aurelia image APPID --list [--probe]`: every asset URL.
+/// `gaki-cli image APPID --list [--probe]`: every asset URL.
 pub(crate) async fn cmd_image_list(app_id: u32, probe: bool, json: bool) -> Result<()> {
     let info = store::record_with_media(app_id, authed_client).await?;
     let mut entries = store::assets(&info);
@@ -192,7 +192,7 @@ fn print_store_table(records: &[StoreAppInfo]) {
     }
 }
 
-/// `aurelia search TERM`: find app ids by title.
+/// `gaki-cli search TERM`: find app ids by title.
 pub(crate) async fn cmd_search(
     term: String,
     count: u32,
@@ -226,7 +226,7 @@ pub(crate) async fn cmd_search(
     Ok(())
 }
 
-/// `aurelia deals`: discounted and top-selling games.
+/// `gaki-cli deals`: discounted and top-selling games.
 pub(crate) async fn cmd_deals(
     scope: crate::cli::DealsScopeArg,
     min_discount: i32,
@@ -272,7 +272,7 @@ pub(crate) async fn cmd_deals(
     Ok(())
 }
 
-/// `aurelia similar APPID`: related games.
+/// `gaki-cli similar APPID`: related games.
 pub(crate) async fn cmd_similar(
     app_id: u32,
     count: i32,
@@ -299,7 +299,7 @@ pub(crate) async fn cmd_similar(
     Ok(())
 }
 
-/// `aurelia players APPID`: current in-game count.
+/// `gaki-cli players APPID`: current in-game count.
 pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let players = store::players(&client, app_id).await?;
@@ -311,7 +311,7 @@ pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia events`: active store sales and events.
+/// `gaki-cli events`: active store sales and events.
 pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()> {
     let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
@@ -346,7 +346,7 @@ pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()
     Ok(())
 }
 
-/// `aurelia news APPID`: announcements from the storefront feed.
+/// `gaki-cli news APPID`: announcements from the storefront feed.
 pub(crate) async fn cmd_news(app_id: u32, count: u32, max_length: u32, json: bool) -> Result<()> {
     let items = store::news(app_id, count, max_length).await?;
     if json {
@@ -368,7 +368,7 @@ pub(crate) async fn cmd_news(app_id: u32, count: u32, max_length: u32, json: boo
     Ok(())
 }
 
-/// `aurelia reviews APPID`: one page of user reviews.
+/// `gaki-cli reviews APPID`: one page of user reviews.
 pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Result<()> {
     let crate::cli::ReviewsArgs {
         app_id,
@@ -427,7 +427,7 @@ pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Re
     Ok(())
 }
 
-/// `aurelia wishlist [USER]`: a wishlist with store records.
+/// `gaki-cli wishlist [USER]`: a wishlist with store records.
 pub(crate) async fn cmd_wishlist(
     user: Option<String>,
     count: usize,
@@ -518,7 +518,7 @@ pub(crate) async fn cmd_wishlist(
     Ok(())
 }
 
-/// `aurelia wishlist add APPID`.
+/// `gaki-cli wishlist add APPID`.
 pub(crate) async fn cmd_wishlist_add(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let count = store::wishlist_add(&client, app_id).await?;
@@ -532,7 +532,7 @@ pub(crate) async fn cmd_wishlist_add(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia wishlist remove APPID`.
+/// `gaki-cli wishlist remove APPID`.
 pub(crate) async fn cmd_wishlist_remove(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let count = store::wishlist_remove(&client, app_id).await?;
@@ -546,7 +546,7 @@ pub(crate) async fn cmd_wishlist_remove(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia appinfo APPID`: raw PICS `common`/`extended` sections.
+/// `gaki-cli appinfo APPID`: raw PICS `common`/`extended` sections.
 pub(crate) async fn cmd_appinfo(app_id: u32) -> Result<()> {
     crate::commands::auth::require_experimental("appinfo").await?;
     let client = authed_client().await?;
@@ -557,7 +557,7 @@ pub(crate) async fn cmd_appinfo(app_id: u32) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia tags [--dump]`: the store tag vocabulary.
+/// `gaki-cli tags [--dump]`: the store tag vocabulary.
 pub(crate) async fn cmd_tags(dump: bool, json: bool) -> Result<()> {
     crate::commands::auth::require_experimental("tags").await?;
     let client = authed_client().await?;
@@ -578,7 +578,7 @@ pub(crate) async fn cmd_tags(dump: bool, json: bool) -> Result<()> {
         return Ok(());
     }
     let today = unix_to_ymd(libgaki::core::utils::now_unix() as i64);
-    cli_println!("//! Generated by `aurelia tags --dump`; do not edit.\n");
+    cli_println!("//! Generated by `gaki-cli tags --dump`; do not edit.\n");
     cli_println!("/// Snapshot date of the vocabulary below.");
     cli_println!("pub const TAGS_GENERATED_AT: &str = \"{today}\";\n");
     cli_println!(

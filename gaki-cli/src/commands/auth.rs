@@ -19,7 +19,7 @@ use libgaki::steam_client::SteamClient;
 /// The browser/OpenID and web-token flows only prove identity / enable the
 /// web-surface commands — they never create the full client session that
 /// library/install/launch need — so they are kept out of the core feature set to
-/// avoid confusion. Opt in with `aurelia config experimental true`.
+/// avoid confusion. Opt in with `gaki-cli config experimental true`.
 pub(crate) async fn require_experimental(what: &str) -> Result<()> {
     if experimental_enabled().await {
         return Ok(());
@@ -27,8 +27,8 @@ pub(crate) async fn require_experimental(what: &str) -> Result<()> {
     bail!(
         "`{what}` is an experimental feature and is disabled by default. It proves \
          identity / enables web-only commands but cannot create a full session for \
-         library, install, or launch — use `aurelia login` or `aurelia login --qr` for \
-         those. To enable it, run `aurelia config experimental true`."
+         library, install, or launch — use `gaki-cli login` or `gaki-cli login --qr` for \
+         those. To enable it, run `gaki-cli config experimental true`."
     )
 }
 
@@ -131,7 +131,7 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
         }
         LoginStep::ApprovalRequired => {
             tracing::info!("Login method awaited: Steam Mobile app approval");
-            bail!("approve this login in the Steam Mobile app, then run `aurelia login` again")
+            bail!("approve this login in the Steam Mobile app, then run `gaki-cli login` again")
         }
     }
     report_login_success(&account, json);
@@ -239,7 +239,7 @@ fn qr_result_err(err: &anyhow::Error) -> serde_json::Value {
 /// Verify the user's identity on the official Steam sign-in page in the browser
 /// (Steam OpenID 2.0 — Valve offers no OpenID Connect / OAuth2 endpoint).
 ///
-/// The password is only ever typed on `steamcommunity.com`; Aurelia receives a
+/// The password is only ever typed on `steamcommunity.com`; gaki receives a
 /// signed assertion naming the SteamID64 and confirms it with Steam directly.
 /// Steam issues **no session token** over OpenID, so this verifies identity but
 /// cannot mint a client session — it never touches the persisted session, and
@@ -285,8 +285,8 @@ pub(crate) async fn cmd_login_openid(json: bool) -> Result<()> {
         cli_eprintln!(
             "\nNote: Steam's OpenID sign-in proves who you are, but Valve issues no client\n\
              session token over it. Commands that need a session still require\n\
-             `aurelia login` or `aurelia login --qr`.\n\
-             Your browser is now signed in, though — run `aurelia login --web-token` to\n\
+             `gaki-cli login` or `gaki-cli login --qr`.\n\
+             Your browser is now signed in, though — run `gaki-cli login --web-token` to\n\
              also enable the web commands (inventory, wallet, market listings)."
         );
     }
@@ -355,8 +355,8 @@ pub(crate) async fn cmd_login_web_token(pasted: Option<String>, json: bool) -> R
         if !full_session {
             cli_eprintln!(
                 "\nThis enables the web commands (inventory, wallet, market listings) only.\n\
-                 Library/install/launch still need a full `aurelia login` or `aurelia login --qr`.\n\
-                 When it expires, reload the clientjstoken page and re-run `aurelia login --web-token`."
+                 Library/install/launch still need a full `gaki-cli login` or `gaki-cli login --qr`.\n\
+                 When it expires, reload the clientjstoken page and re-run `gaki-cli login --web-token`."
             );
         }
     }
@@ -523,7 +523,7 @@ pub(crate) async fn cmd_login_reconnect(json: bool) -> Result<()> {
     if !daemon::in_daemon() {
         bail!(
             "--reconnect needs the session daemon, but this command is running standalone \
-             (--no-daemon was given, or the daemon is unreachable). Start `aurelia daemon` first."
+             (--no-daemon was given, or the daemon is unreachable). Start `gaki-cli daemon` first."
         );
     }
     let status = daemon::force_reconnect().await;

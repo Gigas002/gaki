@@ -99,7 +99,7 @@ fn resume_hint(app_id: u32, e: anyhow::Error) -> anyhow::Error {
         TypedError::new(
             ErrorKind::Cancelled,
             format!(
-                "install of app {app_id} paused; continue with `aurelia install resume {app_id}`"
+                "install of app {app_id} paused; continue with `gaki-cli install resume {app_id}`"
             ),
         )
         .into()
@@ -139,13 +139,13 @@ pub(crate) async fn cmd_install_dry_run(
     Ok(())
 }
 
-/// `aurelia install stop <app_id>`: signal a running install (tracked in this
+/// `gaki-cli install stop <app_id>`: signal a running install (tracked in this
 /// process's registry) to abort. The download loops poll `abort_signal`.
 pub(crate) async fn cmd_install_stop(app_id: u32, json: bool) -> Result<()> {
     signal_install(app_id, false, json)
 }
 
-/// `aurelia install pause <app_id>`: stop, but stay `paused`.
+/// `gaki-cli install pause <app_id>`: stop, but stay `paused`.
 pub(crate) async fn cmd_install_pause(app_id: u32, json: bool) -> Result<()> {
     signal_install(app_id, true, json)
 }
@@ -203,7 +203,7 @@ fn signal_install(app_id: u32, pause: bool, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia install list`: running installs, then the backlog.
+/// `gaki-cli install list`: running installs, then the backlog.
 pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
     let rows = install::list()?;
 
@@ -271,13 +271,13 @@ pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia install resume <app_id>|--all`.
+/// `gaki-cli install resume <app_id>|--all`.
 pub(crate) async fn cmd_install_resume(app_id: Option<u32>, all: bool, json: bool) -> Result<()> {
     let ids = install::resume_targets(app_id, all).map_err(|e| {
         if classify(&e).kind == ErrorKind::NotFound {
             TypedError::new(
                 ErrorKind::NotFound,
-                format!("{e} (see `aurelia install list`)"),
+                format!("{e} (see `gaki-cli install list`)"),
             )
             .into()
         } else {
@@ -344,11 +344,11 @@ pub(crate) async fn resume_entries(ids: &[u32], auto: bool, json: bool) -> Resul
     Err(summary)
 }
 
-/// `aurelia install forget <app_id> [--delete-files]`.
+/// `gaki-cli install forget <app_id> [--delete-files]`.
 pub(crate) async fn cmd_install_forget(app_id: u32, delete_files: bool, json: bool) -> Result<()> {
     if install::is_running(app_id) {
         anyhow::bail!(
-            "app {app_id} is downloading; stop it first with `aurelia install stop {app_id}`"
+            "app {app_id} is downloading; stop it first with `gaki-cli install stop {app_id}`"
         );
     }
     let deleted = install::forget(app_id, delete_files)?;
@@ -538,7 +538,7 @@ pub(crate) async fn cmd_update(app_id: u32, force: bool, json: bool) -> Result<(
     let (pinned, _) = libgaki::core::config::game_pin_state(app_id).await;
     if pinned && !force {
         anyhow::bail!(
-            "app {app_id} is pinned — run `aurelia unpin {app_id}` first (or pass --force)"
+            "app {app_id} is pinned — run `gaki-cli unpin {app_id}` first (or pass --force)"
         );
     }
 
@@ -548,7 +548,7 @@ pub(crate) async fn cmd_update(app_id: u32, force: bool, json: bool) -> Result<(
     Ok(())
 }
 
-/// `aurelia update` with no app id: list every installed game whose active branch
+/// `gaki-cli update` with no app id: list every installed game whose active branch
 /// has a newer build available than what's on disk.
 pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
     let mut client = authed_client().await?;
@@ -593,13 +593,13 @@ pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
             cli_println!("{:>9}  {}{}", g.app_id, g.name, branch);
         }
         cli_println!(
-            "\n{} game(s) need an update. Run `aurelia update <app_id>` to install one.",
+            "\n{} game(s) need an update. Run `gaki-cli update <app_id>` to install one.",
             updates.len()
         );
     }
 
     if !pinned.is_empty() {
-        cli_println!("\nPinned (held at a fixed version; `aurelia unpin <app_id>` to release):");
+        cli_println!("\nPinned (held at a fixed version; `gaki-cli unpin <app_id>` to release):");
         for g in &pinned {
             cli_println!("{:>9}  {}", g.app_id, g.name);
         }
@@ -607,7 +607,7 @@ pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia manifests <app_id>`: list each depot's current manifest id per branch
+/// `gaki-cli manifests <app_id>`: list each depot's current manifest id per branch
 /// (version discovery). Steam only exposes *current* ids; the printed SteamDB
 /// links are where historical/older ids can be found for a `downgrade`.
 pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -> Result<()> {
@@ -669,7 +669,7 @@ pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -
     Ok(())
 }
 
-/// `aurelia downgrade`: install specific (usually older) depot manifests and pin
+/// `gaki-cli downgrade`: install specific (usually older) depot manifests and pin
 /// them, streaming progress via the same path as `install`.
 pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()> {
     let overrides = install::parse_manifest_overrides(&args.depots, &args.manifests)?;
@@ -730,18 +730,18 @@ pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()>
         );
         if pinned {
             cli_println!(
-                "Aurelia's `update` / `check-updates` will now hold it here. Note: launching"
+                "gaki's `update` / `check-updates` will now hold it here. Note: launching"
             );
             cli_println!(
                 "through the OFFICIAL Steam client can still re-queue an update (the pin is"
             );
-            cli_println!("authoritative only for Aurelia's own commands).");
+            cli_println!("authoritative only for gaki's own commands).");
         }
     }
     Ok(())
 }
 
-/// `aurelia pin <app_id>`: lock Aurelia's update commands for a game, recording
+/// `gaki-cli pin <app_id>`: lock gaki's update commands for a game, recording
 /// its currently-installed manifests.
 pub(crate) async fn cmd_pin(app_id: u32, json: bool) -> Result<()> {
     let manifests = install::pin(app_id).await?;
@@ -754,14 +754,14 @@ pub(crate) async fn cmd_pin(app_id: u32, json: bool) -> Result<()> {
         }));
     } else {
         cli_println!(
-            "Pinned app {app_id} to its installed manifests ({} depot(s)). Aurelia won't update it until `aurelia unpin {app_id}`.",
+            "Pinned app {app_id} to its installed manifests ({} depot(s)). gaki won't update it until `gaki-cli unpin {app_id}`.",
             manifests.len()
         );
     }
     Ok(())
 }
 
-/// `aurelia unpin <app_id>`: release a game's version pin.
+/// `gaki-cli unpin <app_id>`: release a game's version pin.
 pub(crate) async fn cmd_unpin(app_id: u32, json: bool) -> Result<()> {
     let was_pinned = install::unpin(app_id).await?;
 
@@ -782,7 +782,7 @@ pub(crate) async fn cmd_unpin(app_id: u32, json: bool) -> Result<()> {
 /// Report games installed in more than one Steam library.
 ///
 /// Deliberately read-only: the redundant copy is real game data on a real disk,
-/// and which one to keep can depend on things Aurelia can't see (a drive about to
+/// and which one to keep can depend on things gaki can't see (a drive about to
 /// be unplugged, a slower disk). So this prints the removal commands rather than
 /// running them.
 pub(crate) async fn cmd_duplicates(json: bool) -> Result<()> {

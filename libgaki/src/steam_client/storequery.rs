@@ -116,7 +116,7 @@ impl SteamClient {
     ) -> Result<QueryPage> {
         let connection = self.require_connection()?;
         let mut request = CStoreQuery_SearchSuggestions_Request::new();
-        request.set_query_name("aurelia-search".to_string());
+        request.set_query_name("gaki-search".to_string());
         request.context = MessageField::some(query_context(country));
         request.set_search_term(term.to_string());
         request.set_max_results(max_results);
@@ -164,7 +164,7 @@ impl SteamClient {
         params.filters = MessageField::some(filters);
 
         let mut request = CStoreQuery_Query_Request::new();
-        request.set_query_name("aurelia-deals".to_string());
+        request.set_query_name("gaki-deals".to_string());
         request.query = MessageField::some(params);
         request.context = MessageField::some(query_context(country));
         let response = connection
@@ -178,7 +178,7 @@ impl SteamClient {
     pub async fn similar_apps(&self, app_id: u32, count: i32, country: &str) -> Result<QueryPage> {
         let connection = self.require_connection()?;
         let mut request = CStoreQuery_MoreLikeThis_Request::new();
-        request.set_query_name("aurelia-similar".to_string());
+        request.set_query_name("gaki-similar".to_string());
         request.context = MessageField::some(query_context(country));
         let mut item = QueryItemID::new();
         item.set_appid(app_id);

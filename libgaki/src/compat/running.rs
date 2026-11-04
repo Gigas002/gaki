@@ -1,16 +1,16 @@
-//! Tracks games launched by Aurelia so a separate `aurelia stop <app_id>`
+//! Tracks games launched by gaki so a separate `gaki-cli stop <app_id>`
 //! invocation can find and terminate them.
 //!
-//! `aurelia play` blocks in the foreground process while the game runs, so the
+//! `gaki-cli play` blocks in the foreground process while the game runs, so the
 //! PID of the launched process can't be queried from another invocation. To make
 //! `stop` work across processes, each launch records a small JSON file under
-//! `~/.config/Aurelia/running/<app_id>.json` holding the child PID (and, for a
+//! `~/.config/gaki/running/<app_id>.json` holding the child PID (and, for a
 //! per-game Proton/Wine launch, the WINEPREFIX the game runs in). The launching
 //! process removes the file when the game exits.
 //!
 //! # Recovery contract
 //!
-//! A record can outlive its launch: `aurelia play` may be killed or crash, the
+//! A record can outlive its launch: `gaki-cli play` may be killed or crash, the
 //! machine may reboot, and PIDs are recycled. A record is therefore never trusted
 //! on its PID alone:
 //!
@@ -35,7 +35,7 @@ use std::path::PathBuf;
 pub struct RunningGame {
     pub app_id: u32,
     pub name: String,
-    /// PID of the process Aurelia spawned for this game: the game executable for a
+    /// PID of the process gaki spawned for this game: the game executable for a
     /// native launch, the runner process for a Proton/Wine launch.
     pub pid: u32,
     /// Start time of `pid` as the OS reports it (seconds since the Unix epoch).
@@ -129,7 +129,7 @@ pub fn clear(app_id: u32) {
     }
 }
 
-/// Every game Aurelia currently has a record for, live or stale. Use
+/// Every game gaki currently has a record for, live or stale. Use
 /// [`list_active`] for the ones still running.
 pub fn list() -> Vec<RunningGame> {
     let Ok(dir) = running_dir() else {
@@ -184,9 +184,9 @@ pub fn processes_for_app(app_id: u32) -> Vec<u32> {
     pids
 }
 
-/// The games Aurelia is running whose process is still alive. Records whose
+/// The games gaki is running whose process is still alive. Records whose
 /// process has already exited are pruned as a side effect, so stale launches
-/// (an interrupted `aurelia play`, a reboot) don't linger in the listing.
+/// (an interrupted `gaki-cli play`, a reboot) don't linger in the listing.
 ///
 /// A record that no longer owns its PID does not mean the game is gone — the
 /// record holds the directly spawned process, which wrappers and script launchers

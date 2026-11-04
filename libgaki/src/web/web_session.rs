@@ -34,7 +34,7 @@ impl WebSession {
     /// use to resolve wallet currency.
     pub fn new(steam_id: u64, web_access_token: &str, country: Option<&str>) -> Result<Self> {
         let http = reqwest::Client::builder()
-            .user_agent("aurelia")
+            .user_agent("gaki")
             .timeout(std::time::Duration::from_secs(20))
             // Don't follow redirects: an unauthenticated request bounces to the login
             // page, so a 30x is a definitive "session rejected" signal rather than a
@@ -99,8 +99,8 @@ async fn read_checked(resp: reqwest::Response) -> Result<String> {
         return Err(TypedError::new(
             ErrorKind::AuthRequired,
             format!(
-                "the Steam web session was rejected (HTTP {}). Run `aurelia login --reconnect`, \
-                 or `aurelia login` if you are not signed in.",
+                "the Steam web session was rejected (HTTP {}). Run `gaki-cli login --reconnect`, \
+                 or `gaki-cli login` if you are not signed in.",
                 status.as_u16()
             ),
         )
@@ -124,7 +124,7 @@ async fn read_checked(resp: reqwest::Response) -> Result<String> {
         if location.contains("/login") {
             bail!(
                 "the Steam web session was rejected (redirected to login). Run \
-                 `aurelia login --reconnect`."
+                 `gaki-cli login --reconnect`."
             );
         }
         bail!(

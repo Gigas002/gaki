@@ -8,7 +8,7 @@ use crate::commands::common::*;
 use anyhow::Result;
 use libgaki::ops::social;
 
-/// `aurelia friends`: list the logged-in user's friends with status and game.
+/// `gaki-cli friends`: list the logged-in user's friends with status and game.
 ///
 /// Inside the daemon the roster is served from the background watcher's cache;
 /// standalone it does a short best-effort collection over a fresh connection
@@ -54,7 +54,7 @@ pub(crate) async fn cmd_friends(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia user IDENT`: profile over the CM.
+/// `gaki-cli user IDENT`: profile over the CM.
 pub(crate) async fn cmd_user(user: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let steam_id = resolve_user_ident(&client, &user).await?;
@@ -121,12 +121,12 @@ pub(crate) async fn cmd_user(user: String, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia friends search IDENT`: same as `user`.
+/// `gaki-cli friends search IDENT`: same as `user`.
 pub(crate) async fn cmd_friends_search(query: String, json: bool) -> Result<()> {
     cmd_user(query, json).await
 }
 
-/// `aurelia friends add IDENT`: send a friend request.
+/// `gaki-cli friends add IDENT`: send a friend request.
 pub(crate) async fn cmd_friends_add(query: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let steam_id = resolve_user_ident(&client, &query).await?;
@@ -148,7 +148,7 @@ pub(crate) async fn cmd_friends_add(query: String, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia friends remove <steamid>`: remove a friend or cancel a pending request.
+/// `gaki-cli friends remove <steamid>`: remove a friend or cancel a pending request.
 pub(crate) async fn cmd_friends_remove(steamid: u64, json: bool) -> Result<()> {
     let client = authed_client().await?;
     social::remove_friend(&client, steamid).await?;
@@ -160,7 +160,7 @@ pub(crate) async fn cmd_friends_remove(steamid: u64, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia chat send <steamid> <message>`: send a direct message to a friend.
+/// `gaki-cli chat send <steamid> <message>`: send a direct message to a friend.
 pub(crate) async fn cmd_chat_send(steamid: u64, message: String, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let sent = social::send_message(&client, steamid, message).await?;
@@ -177,7 +177,7 @@ pub(crate) async fn cmd_chat_send(steamid: u64, message: String, json: bool) -> 
     Ok(())
 }
 
-/// `aurelia chat history <steamid>`: show recent messages with a friend.
+/// `gaki-cli chat history <steamid>`: show recent messages with a friend.
 pub(crate) async fn cmd_chat_history(steamid: u64, count: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let messages = social::history(&client, steamid, count).await?;
@@ -196,7 +196,7 @@ pub(crate) async fn cmd_chat_history(steamid: u64, count: u32, json: bool) -> Re
     Ok(())
 }
 
-/// Render one incoming chat event for `aurelia chat open`, filtered to the
+/// Render one incoming chat event for `gaki-cli chat open`, filtered to the
 /// conversation with `target`. Plain mode prints a friendly line; `--json` emits
 /// one NDJSON event for GUI drivers.
 pub(crate) fn render_chat_event(target: u64, event: steam_vent_chat::ChatEvent, json: bool) {
@@ -241,7 +241,7 @@ pub(crate) fn render_chat_event(target: u64, event: steam_vent_chat::ChatEvent, 
     }
 }
 
-/// `aurelia chat open <steamid>`: interactive live chat. Incoming messages stream
+/// `gaki-cli chat open <steamid>`: interactive live chat. Incoming messages stream
 /// to stdout while lines read from stdin are sent to the friend; the session ends
 /// on stdin EOF (Ctrl-D / Ctrl-Z) or when the notification stream closes.
 ///

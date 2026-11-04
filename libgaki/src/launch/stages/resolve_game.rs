@@ -21,7 +21,7 @@ impl PipelineStage for ResolveGameStage {
             None => Err(LaunchError::new(
                 LaunchErrorKind::GameData,
                 format!(
-                    "{} is not installed on this machine. Run `aurelia install {}` first.",
+                    "{} is not installed on this machine. Run `gaki-cli install {}` first.",
                     app.name, ctx.app_id
                 ),
             )),
@@ -29,7 +29,7 @@ impl PipelineStage for ResolveGameStage {
                 LaunchErrorKind::GameData,
                 format!(
                     "{} has install path {} but it does not exist on disk. \
-                     Run `aurelia verify {}` or `aurelia install {}`.",
+                     Run `gaki-cli verify {}` or `gaki-cli install {}`.",
                     app.name, p, ctx.app_id, ctx.app_id
                 ),
             )),

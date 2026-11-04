@@ -1,6 +1,6 @@
 //! Network proxy configuration.
 //!
-//! Aurelia reaches the network over HTTP(S) from many places: the Steam
+//! gaki reaches the network over HTTP(S) from many places: the Steam
 //! Community/store/market web endpoints, depot content downloads (steam-cdn), and
 //! GitHub/Codeberg release lookups for the Proton manager. All of these build
 //! `reqwest` clients, and `reqwest` honours the conventional proxy environment
@@ -16,7 +16,7 @@
 //! proxy convention.
 //!
 //! Scope: this covers HTTP(S) traffic only. The Steam CM binary/WebSocket transport
-//! (steam-vent) is a separate connection that Aurelia does not route through the proxy.
+//! (steam-vent) is a separate connection that gaki does not route through the proxy.
 
 use crate::core::config::ProxyConfig;
 use crate::core::error::{ErrorKind, TypedError};
@@ -54,7 +54,7 @@ pub fn install_proxy_env(config: &ProxyConfig) {
         return;
     };
 
-    // An explicit proxy env var from the user takes precedence over Aurelia's config.
+    // An explicit proxy env var from the user takes precedence over gaki's config.
     if !env_proxy_already_set() {
         for name in PROXY_VARS {
             // SAFETY: `install_proxy_env` is documented to run from `main` before the
@@ -231,17 +231,17 @@ pub async fn send_with_retry(
     unreachable!("loop returns on the last attempt")
 }
 
-/// Aurelia-UA client with `timeout`.
+/// gaki-UA client with `timeout`.
 pub fn http_client(timeout: Duration) -> anyhow::Result<reqwest::Client> {
     use anyhow::Context;
     reqwest::Client::builder()
-        .user_agent("aurelia")
+        .user_agent("gaki")
         .timeout(timeout)
         .build()
         .context("failed to build HTTP client")
 }
 
-/// "aurelia" UA, 20-second timeout.
+/// "gaki" UA, 20-second timeout.
 pub fn steam_web_client() -> anyhow::Result<reqwest::Client> {
     http_client(Duration::from_secs(20))
 }

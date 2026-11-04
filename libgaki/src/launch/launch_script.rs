@@ -1,6 +1,6 @@
 //! Per-game launch scripts.
 //!
-//! A launch script is a user-supplied shell script (`<app_id>.sh`) that Aurelia
+//! A launch script is a user-supplied shell script (`<app_id>.sh`) that gaki
 //! runs as a **wrapper** around the
 //! fully-resolved launch command. When a script is active for an app the pipeline
 //! rewrites the resolved [`CommandSpec`](crate::infra::runners::CommandSpec) so the
@@ -38,7 +38,7 @@ pub const ENV_STDERR_LOG: &str = "GAKI_STDERR_LOG";
 /// The `script_dir` setting overrides it; otherwise it is `<config_dir>/scripts`. If
 /// the config dir cannot be resolved we fall back to a relative `scripts` directory so
 /// callers stay infallible (this only happens when even `$HOME` is unset, in which
-/// case nothing else in Aurelia works either).
+/// case nothing else in gaki works either).
 pub fn script_dir() -> PathBuf {
     #[cfg(test)]
     if let Some(dir) = SCRIPT_DIR_TEST_OVERRIDE.lock().unwrap().clone() {
@@ -122,9 +122,9 @@ pub fn template(app_id: u32, name: &str) -> String {
 
     format!(
         "#!/usr/bin/env bash\n\
-         # Aurelia per-game launch script for app {app_id} ({name}).\n\
+         # gaki per-game launch script for app {app_id} ({name}).\n\
          #\n\
-         # Aurelia runs this script as a WRAPPER around the fully-resolved launch\n\
+         # gaki runs this script as a WRAPPER around the fully-resolved launch\n\
          # command: the resolved program and its arguments are passed to this script\n\
          # as \"$@\", and the entire launch environment (WINEPREFIX, WINEDLLOVERRIDES,\n\
          # STEAM_COMPAT_*, DXVK_HUD, ...) is already exported. A script that is just\n\

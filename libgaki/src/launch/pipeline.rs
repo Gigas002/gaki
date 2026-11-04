@@ -79,10 +79,10 @@ pub struct PipelineContext {
     pub launcher_config: Option<LauncherConfig>,
     pub user_config: Option<UserAppConfig>,
     pub proton_path: Option<String>,
-    /// One-off launch-script override (e.g. `aurelia play --script <PATH>`) that
+    /// One-off launch-script override (e.g. `gaki-cli play --script <PATH>`) that
     /// takes precedence over the per-game config and the auto-detected dir script.
     pub launch_script_override: Option<std::path::PathBuf>,
-    /// One-off request (e.g. `aurelia play --no-script`) to bypass all launch
+    /// One-off request (e.g. `gaki-cli play --no-script`) to bypass all launch
     /// scripts for this launch.
     pub disable_launch_script: bool,
     /// Run the game with real Steam integration
@@ -405,7 +405,7 @@ pub fn detect_duplicate_instance(ctx: &PipelineContext) -> DuplicateInstanceInfo
     if let Some(spec) = &ctx.command_spec {
         // 1. Check for explicit lockfile in the game directory or prefix
         if let Some(cwd) = &spec.cwd
-            && cwd.join(".aurelia_launch.lock").exists()
+            && cwd.join(".gaki_launch.lock").exists()
         {
             return DuplicateInstanceInfo {
                 detected: true,

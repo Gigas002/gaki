@@ -152,7 +152,7 @@ fn test_map_io_error_with_explicit_dup_info() {
 #[test]
 fn test_detect_duplicate_instance_lockfile() {
     let tmp = tempfile::tempdir().unwrap();
-    let lockfile = tmp.path().join(".aurelia_launch.lock");
+    let lockfile = tmp.path().join(".gaki_launch.lock");
     std::fs::write(&lockfile, "").unwrap();
 
     let mut ctx = PipelineContext::new(123);

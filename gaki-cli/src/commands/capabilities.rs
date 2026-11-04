@@ -72,7 +72,7 @@ pub(crate) fn command_detail(path: &[String]) -> Result<Value> {
         else {
             let known: Vec<&str> = visible.iter().map(|c| c.get_name()).collect();
             let at = if depth == 0 {
-                "aurelia".to_string()
+                "gaki-cli".to_string()
             } else {
                 path[..depth].join(" ")
             };
@@ -377,7 +377,7 @@ pub(crate) fn capabilities() -> Value {
         .map(|k| json!({ "type": k, "exit_code": k.exit_code(), "hint": k.hint() }))
         .collect();
     json!({
-        "name": "aurelia",
+        "name": "gaki-cli",
         "version": env!("CARGO_PKG_VERSION"),
         "schema": JSON_SCHEMA,
         "os": std::env::consts::OS,

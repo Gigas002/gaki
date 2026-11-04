@@ -2,7 +2,7 @@ syntax = "proto2";
 
 // Minimal subset of Steam's webui/service_storequery.proto: enough to search the
 // store (SearchSuggestions), run filtered queries (Query) and ask for similar
-// items (MoreLikeThis). Only the fields Aurelia reads or sends are declared;
+// items (MoreLikeThis). Only the fields gaki reads or sends are declared;
 // unknown fields in responses (notably the embedded StoreItem list) are skipped,
 // and full records are fetched afterwards through StoreBrowse.GetItems.
 // Field numbers match Valve's definitions exactly.

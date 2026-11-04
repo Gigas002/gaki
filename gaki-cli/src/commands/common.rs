@@ -79,7 +79,7 @@ pub(crate) async fn authed_client() -> Result<SteamClient> {
         if e.to_string() == "not logged in" {
             TypedError::new(
                 ErrorKind::AuthRequired,
-                "not logged in — run `aurelia login` first",
+                "not logged in — run `gaki-cli login` first",
             )
             .into()
         } else {
@@ -99,7 +99,7 @@ pub(crate) async fn web_access() -> Result<libgaki::web::web_session::WebSession
             if classify(&e).kind == ErrorKind::AuthRequired {
                 TypedError::new(
                     ErrorKind::AuthRequired,
-                    "not logged in — run `aurelia login` first, or `aurelia login --web-token` \
+                    "not logged in — run `gaki-cli login` first, or `gaki-cli login --web-token` \
                      for web-only (inventory/wallet/market) access",
                 )
                 .into()
@@ -165,7 +165,7 @@ pub(crate) fn steam_guard_stop(restart_steam: bool, json: bool) -> Result<bool> 
         if classify(&e).kind == ErrorKind::InvalidInput {
             anyhow::anyhow!(
                 "Steam is running. Close it first, or re-run with --restart-steam to have \
-                 Aurelia stop and restart it around the change."
+                 gaki stop and restart it around the change."
             )
         } else {
             e

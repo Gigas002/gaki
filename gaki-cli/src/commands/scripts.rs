@@ -24,7 +24,7 @@ pub(crate) async fn cmd_scripts_list(json: bool) -> Result<()> {
         return Ok(());
     }
     if scripts.is_empty() {
-        cli_println!("No launch scripts. Create one with `aurelia scripts new <app_id>`.");
+        cli_println!("No launch scripts. Create one with `gaki-cli scripts new <app_id>`.");
         return Ok(());
     }
     cli_println!(
@@ -58,7 +58,7 @@ pub(crate) async fn cmd_scripts_new(app_id: u32, force: bool, json: bool) -> Res
         print_json(&serde_json::json!({ "app_id": app_id, "path": path, "status": "created" }));
     } else {
         cli_println!("Created launch script: {}", path.display());
-        cli_println!("Edit it, then `aurelia play {app_id}` runs through it.");
+        cli_println!("Edit it, then `gaki-cli play {app_id}` runs through it.");
     }
     Ok(())
 }

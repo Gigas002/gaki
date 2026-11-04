@@ -1,12 +1,12 @@
-//! Discovery and termination of running `aurelia` processes, backing the
-//! `aurelia kill` and `aurelia daemon stop|list` commands.
+//! Discovery and termination of running `gaki-cli` processes, backing the
+//! `gaki-cli kill` and `gaki-cli daemon stop|list` commands.
 
 use sysinfo::{Pid, System};
 
-/// A running `aurelia` process other than the current one.
-pub struct AureliaProcess {
+/// A running `gaki-cli` process other than the current one.
+pub struct GakiProcess {
     pub pid: u32,
-    /// Whether this is a session daemon (`aurelia daemon`) rather than a thin client
+    /// Whether this is a session daemon (`gaki-cli daemon`) rather than a thin client
     /// or one-off command.
     pub is_daemon: bool,
     /// The full command line, for display.
@@ -14,7 +14,7 @@ pub struct AureliaProcess {
 }
 
 /// True if a process executable name is this binary's (`gaki-cli`).
-fn is_aurelia_name(name: &str) -> bool {
+fn is_gaki_cli_name(name: &str) -> bool {
     name == env!("CARGO_BIN_NAME")
 }
 
@@ -32,23 +32,23 @@ fn cmd_is_daemon(cmd: &[String]) -> bool {
     )
 }
 
-/// Enumerate running `aurelia` processes, excluding the current process.
-pub fn find_aurelia_processes() -> Vec<AureliaProcess> {
+/// Enumerate running `gaki-cli` processes, excluding the current process.
+pub fn find_gaki_processes() -> Vec<GakiProcess> {
     let me = std::process::id();
     let sys = System::new_all();
 
-    let mut out: Vec<AureliaProcess> = sys
+    let mut out: Vec<GakiProcess> = sys
         .processes()
         .iter()
         .filter(|(pid, _)| pid.as_u32() != me)
-        .filter(|(_, p)| is_aurelia_name(&p.name().to_string_lossy()))
+        .filter(|(_, p)| is_gaki_cli_name(&p.name().to_string_lossy()))
         .map(|(pid, p)| {
             let cmd: Vec<String> = p
                 .cmd()
                 .iter()
                 .map(|s| s.to_string_lossy().into_owned())
                 .collect();
-            AureliaProcess {
+            GakiProcess {
                 pid: pid.as_u32(),
                 is_daemon: cmd_is_daemon(&cmd),
                 command: cmd.join(" "),

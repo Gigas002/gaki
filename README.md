@@ -1,4 +1,4 @@
-# Aurelia: a command-line Steam client for Linux and Windows
+# gaki: a command-line Steam client for Linux and Windows
 
 **A fast, lightweight, headless Steam launcher and library manager written in Rust. Install, update and play your Steam games entirely from the terminal.**
 
@@ -12,14 +12,14 @@
 
 > [!WARNING]
 > **Disclaimer: read before use.**
-> Aurelia is an **independent, unofficial project** and is **not affiliated with, authorized, sponsored, or endorsed by Valve or Steam** in any way. "Steam" and "Valve" are trademarks of Valve Corporation.
+> gaki is an **independent, unofficial project** and is **not affiliated with, authorized, sponsored, or endorsed by Valve or Steam** in any way. "Steam" and "Valve" are trademarks of Valve Corporation.
 >
 > - **It modifies Steam's files directly.** Doing so may corrupt or damage your Steam installation, potentially forcing a full reinstallation. Back up your data first.
-> - **No warranty for games launched outside the official Steam launcher.** Titles started through Aurelia bypass the normal Steam client and may not behave as expected.
+> - **No warranty for games launched outside the official Steam launcher.** Titles started through gaki bypass the normal Steam client and may not behave as expected.
 >
-> Use Aurelia entirely **at your own risk**. The authors accept no liability for damage to your Steam installation, lost data, or banned or suspended accounts.
+> Use gaki entirely **at your own risk**. The authors accept no liability for damage to your Steam installation, lost data, or banned or suspended accounts.
 
-Aurelia is a pure command-line Steam launcher and library manager. No CEF, no WebViews,
+gaki is a pure command-line Steam launcher and library manager. No CEF, no WebViews,
 no GUI. It talks to Steam's real network protocols through
 [`steam-vent`](https://codeberg.org/steam-vent/steam-vent), so you can log in, manage your
 library, install and update games, sync Steam Cloud saves, manage Steam Workshop content,
@@ -36,17 +36,17 @@ memory safety, and a scriptable, headless-friendly workflow. It is also a full-f
 alternative to **SteamCMD**, one that can *launch* the games it installs.
 
 ```bash
-aurelia login
-aurelia list --installed
-aurelia install 1245620
-aurelia play 1245620
+gaki-cli login
+gaki-cli list --installed
+gaki-cli install 1245620
+gaki-cli play 1245620
 ```
 
 ---
 
 ## Contents
 
-- [Why Aurelia?](#why-aurelia)
+- [Why gaki?](#why-gaki-cli)
 - [How it compares](#how-it-compares)
 - [Project status](#project-status)
 - [Install](#install)
@@ -62,7 +62,7 @@ aurelia play 1245620
 
 ---
 
-## Why Aurelia?
+## Why gaki?
 
 - **No web technology.** No Electron, CEF, or embedded browser. Idle memory stays under
   ~50 MB instead of the official Steam app's hundreds.
@@ -78,7 +78,7 @@ aurelia play 1245620
 
 ### How it compares
 
-| Feature | Official Steam | OpenSteamClient | SteamCMD | **Aurelia** |
+| Feature | Official Steam | OpenSteamClient | SteamCMD | **gaki** |
 |---|---|---|---|---|
 | **Architecture** | Electron + C++ | C++ with Qt | C++ (proprietary) | Pure Rust |
 | **Idle RAM** | ~400-800 MB | ~100-200 MB | ~50 MB (per run) | < 50 MB |
@@ -91,19 +91,19 @@ aurelia play 1245620
 | **Open source** | No | Yes | No | Yes (GPL-3.0-or-later) |
 
 **vs. SteamCMD.** [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) is Valve's
-official command-line tool and the closest analog to Aurelia, but it is **content-only**: it
+official command-line tool and the closest analog to gaki, but it is **content-only**: it
 downloads and updates app and Workshop files (often anonymously, for dedicated servers) and
-little else. Aurelia is a full launcher and library manager. On top of installing and
+little else. gaki is a full launcher and library manager. On top of installing and
 updating, it lists and searches your library, **launches** games (natively or via
 Proton or Wine), syncs Steam Cloud saves, manages DLC and Workshop subscriptions, reads
 achievements, and does friends & chat, with every command scriptable via `--json`. SteamCMD is
-proprietary and ships only as a prebuilt binary. Aurelia is open source (GPL-3.0-or-later).
+proprietary and ships only as a prebuilt binary. gaki is open source (GPL-3.0-or-later).
 
 ---
 
 ## Project status
 
-Aurelia is in **experimental beta**. The core is highly functional: authentication,
+gaki is in **experimental beta**. The core is highly functional: authentication,
 library management, installs and updates, integrity verification, DLC handling, Steam Cloud
 sync, and Proton or Wine launching all work today.
 
@@ -117,7 +117,7 @@ sync, and Proton or Wine launching all work today.
 | **DLC** | ✅ | Install, enable or disable, and per-DLC ownership and install status |
 | **Steam Cloud** | ✅ | Enumerate, download, upload save data |
 | **Proton and Wine** | ✅ | Runtime discovery, a download manager (official Valve Proton, GE builds, and **Proton-CachyOS** with AVX2 or `x86_64_v3` microarch selection), automatic **modern unified-layout** discovery (Proton 11+, GE, CachyOS, WOW64-aware) with strict bitness filtering, per-game version pinning, and launch integration. Depot-aware executable selection (native vs Proton), running-game tracking, and graceful or forced stop (`running`, `stop --force`). Launch records survive crashes and reboots: each pairs the PID with the process start time, so a stale record with a recycled PID is cleared, never signalled |
-| **Self-contained Windows Steam runtime** | ✅ | Install or repair a master Wine Steam prefix (`steam-runtime install`, `repair`, `stop`, `uninstall`, `status`) to satisfy Steamworks and DRM handshakes without a host Steam client. `play --steam` falls back to it automatically when no host Steam is installed (`config steam-runtime-policy auto\|on\|off`). **Linux only**: Proton/Wine runners are Linux binaries, so on Windows Aurelia uses the installed Steam client instead |
+| **Self-contained Windows Steam runtime** | ✅ | Install or repair a master Wine Steam prefix (`steam-runtime install`, `repair`, `stop`, `uninstall`, `status`) to satisfy Steamworks and DRM handshakes without a host Steam client. `play --steam` falls back to it automatically when no host Steam is installed (`config steam-runtime-policy auto\|on\|off`). **Linux only**: Proton/Wine runners are Linux binaries, so on Windows gaki uses the installed Steam client instead |
 | **Optional launch plugins** | ✅ | Linux, opt-in, never bundled: **luxtorpeda** native engines, and **umu-launcher** (Proton via `umu-run`). Both are downloaded on demand and routed per-game |
 | **Steam integration (opt-in)** | ✅ | Launch with real Steam integration (`play --steam`): the host Steam client bridged in, started silently if needed, or the in-Wine Steam runtime when no host Steam exists, for Steamworks and DRM. Auto-enabled on Family-Shared games |
 | **Depot browser** | ✅ | List depots, inspect manifest trees, download single files |
@@ -216,7 +216,7 @@ cd Aurelia
 cargo build --release
 ```
 
-The binary is produced at `target/release/aurelia` (`aurelia.exe` on Windows).
+The binary is produced at `target/release/gaki-cli` (`gaki-cli.exe` on Windows).
 
 ---
 
@@ -248,199 +248,199 @@ The library is pre-1.0, so its API may change between releases.
 
 ## Usage
 
-Aurelia is driven entirely from the command line. Run `aurelia --help` for the full list
-of subcommands, or `aurelia <command> --help` for a specific one.
+gaki is driven entirely from the command line. Run `gaki-cli --help` for the full list
+of subcommands, or `gaki-cli <command> --help` for a specific one.
 
 ```bash
 # Account
-aurelia login                        # authenticate (prompts for credentials and Steam Guard)
-aurelia login --qr --timeout 120     # scan a QR code with the Steam Mobile app; give up after 120 s
-aurelia logout                       # clear the stored session
-aurelia account                      # show account details
+gaki-cli login                        # authenticate (prompts for credentials and Steam Guard)
+gaki-cli login --qr --timeout 120     # scan a QR code with the Steam Mobile app; give up after 120 s
+gaki-cli logout                       # clear the stored session
+gaki-cli account                      # show account details
 
 # Library
-aurelia list                         # list your library
-aurelia list --installed             # only installed games
-aurelia list --search elden          # filter by name
-aurelia list --online                # add an ONLINE column (needs-connection heuristic)
-aurelia info 690830                  # game details (description, release, reviews, tags, rating, DLC)
-aurelia info 690830 --extended       # + requirements, Metacritic, genres, categories
-aurelia info 690830 --lang german    # localize store text (falls back to config, then English)
-aurelia info 690830 --country DE     # quote the price for a region (falls back to config, locale, US)
-aurelia price 690830 --compare US,DE,JP   # compare a game's price and discount end across regions
-aurelia search "no man's sky"        # find app ids by title (store search over the Steam connection)
-aurelia deals                        # discounted top sellers in your region (--scope top-sellers|specials)
-aurelia similar 275850               # games Steam considers similar
-aurelia players 730                  # current in-game player count
-aurelia events                       # store-wide sales and events currently running
-aurelia news 275850                  # recent announcements
-aurelia reviews 275850 -t negative   # user reviews, paged via --cursor
-aurelia dlc 690830                   # list a game's DLC with ownership and install status
-aurelia drm 690830                   # verify DRM/ownership tickets headlessly (no Steam client)
-aurelia achievements 620             # your achievements for a game (unlock state + rarity)
-aurelia achievements 620 --lang german  # localize achievement names and descriptions
-aurelia image 1245620                # fetch cover art to the cache (prints the path)
-aurelia image 1245620 -o cover.jpg   # save artwork to a specific file
-aurelia image 1245620 --list --probe # every store asset URL (art, screenshots, trailers), HEAD-checked
+gaki-cli list                         # list your library
+gaki-cli list --installed             # only installed games
+gaki-cli list --search elden          # filter by name
+gaki-cli list --online                # add an ONLINE column (needs-connection heuristic)
+gaki-cli info 690830                  # game details (description, release, reviews, tags, rating, DLC)
+gaki-cli info 690830 --extended       # + requirements, Metacritic, genres, categories
+gaki-cli info 690830 --lang german    # localize store text (falls back to config, then English)
+gaki-cli info 690830 --country DE     # quote the price for a region (falls back to config, locale, US)
+gaki-cli price 690830 --compare US,DE,JP   # compare a game's price and discount end across regions
+gaki-cli search "no man's sky"        # find app ids by title (store search over the Steam connection)
+gaki-cli deals                        # discounted top sellers in your region (--scope top-sellers|specials)
+gaki-cli similar 275850               # games Steam considers similar
+gaki-cli players 730                  # current in-game player count
+gaki-cli events                       # store-wide sales and events currently running
+gaki-cli news 275850                  # recent announcements
+gaki-cli reviews 275850 -t negative   # user reviews, paged via --cursor
+gaki-cli dlc 690830                   # list a game's DLC with ownership and install status
+gaki-cli drm 690830                   # verify DRM/ownership tickets headlessly (no Steam client)
+gaki-cli achievements 620             # your achievements for a game (unlock state + rarity)
+gaki-cli achievements 620 --lang german  # localize achievement names and descriptions
+gaki-cli image 1245620                # fetch cover art to the cache (prints the path)
+gaki-cli image 1245620 -o cover.jpg   # save artwork to a specific file
+gaki-cli image 1245620 --list --probe # every store asset URL (art, screenshots, trailers), HEAD-checked
 
 # Install & maintain
-aurelia install 1245620              # download & install a game by app id
-aurelia install 1245620 --library D:\SteamLibrary  # install onto a specific drive or library
-aurelia libraries                    # list Steam library folders (one per drive) + free space
-aurelia install list                 # running installs and the backlog (paused, stopped, interrupted)
-aurelia install pause 1245620        # pause a running install; keep its partial files
-aurelia install resume 1245620       # resume a paused/interrupted install
-aurelia install resume --all         # resume every backlog entry, one at a time
-aurelia install stop 1245620         # cancel a running install; keep it in the backlog
-aurelia install forget 1245620       # remove an entry without deleting partial files
-aurelia install forget 1245620 --delete-files
+gaki-cli install 1245620              # download & install a game by app id
+gaki-cli install 1245620 --library D:\SteamLibrary  # install onto a specific drive or library
+gaki-cli libraries                    # list Steam library folders (one per drive) + free space
+gaki-cli install list                 # running installs and the backlog (paused, stopped, interrupted)
+gaki-cli install pause 1245620        # pause a running install; keep its partial files
+gaki-cli install resume 1245620       # resume a paused/interrupted install
+gaki-cli install resume --all         # resume every backlog entry, one at a time
+gaki-cli install stop 1245620         # cancel a running install; keep it in the backlog
+gaki-cli install forget 1245620       # remove an entry without deleting partial files
+gaki-cli install forget 1245620 --delete-files
                                       # remove the entry and safe partial files
-aurelia update 1245620               # download the latest manifest
-aurelia verify 1245620               # verify installed files
-aurelia uninstall 1245620            # remove a game (--delete-prefix wipes its prefix)
-aurelia move 1245620 D:\SteamLibrary # move an install to another library (updates Steam data)
-aurelia relink 1245620 D:\SteamLibrary  # re-point Steam at already-moved files (no copy)
-aurelia import 1245620 D:\SteamLibrary  # register existing on-disk files with Steam
-aurelia available 1245620            # is it installed and present on disk?
-aurelia duplicates                   # games installed in several libraries at once
+gaki-cli update 1245620               # download the latest manifest
+gaki-cli verify 1245620               # verify installed files
+gaki-cli uninstall 1245620            # remove a game (--delete-prefix wipes its prefix)
+gaki-cli move 1245620 D:\SteamLibrary # move an install to another library (updates Steam data)
+gaki-cli relink 1245620 D:\SteamLibrary  # re-point Steam at already-moved files (no copy)
+gaki-cli import 1245620 D:\SteamLibrary  # register existing on-disk files with Steam
+gaki-cli available 1245620            # is it installed and present on disk?
+gaki-cli duplicates                   # games installed in several libraries at once
                                      # (a duplicate makes a game re-report updates forever.
                                      #  prints the copies to delete, removes nothing itself)
 
 # Downgrade & version pinning
-aurelia manifests 1245620            # each depot's current manifest id per branch
-aurelia downgrade 1245620 --depot 1245621 --manifest 8593343465227540543  # install an older build & pin it
-aurelia pin 1245620                  # lock the current install (block Aurelia updates)
-aurelia unpin 1245620                # release the pin
+gaki-cli manifests 1245620            # each depot's current manifest id per branch
+gaki-cli downgrade 1245620 --depot 1245621 --manifest 8593343465227540543  # install an older build & pin it
+gaki-cli pin 1245620                  # lock the current install (block gaki updates)
+gaki-cli unpin 1245620                # release the pin
 # Older manifest ids aren't exposed by Steam. Find them on SteamDB:
 #   https://steamdb.info/depot/<depot_id>/manifests/
 
 # DLC
-aurelia enable 2001                  # enable an installed DLC for its base game
-aurelia disable 2001                 # disable a DLC
+gaki-cli enable 2001                  # enable an installed DLC for its base game
+gaki-cli disable 2001                 # disable a DLC
 
 # Branches & depots
-aurelia branches 1245620             # list beta branches
-aurelia set-branch 1245620 beta      # switch branch
-aurelia depots 1245620               # list depots
-aurelia launch-options 1245620       # list Steam launch configs (exe, args, platform)
+gaki-cli branches 1245620             # list beta branches
+gaki-cli set-branch 1245620 beta      # switch branch
+gaki-cli depots 1245620               # list depots
+gaki-cli launch-options 1245620       # list Steam launch configs (exe, args, platform)
 
 # Launch
-aurelia play 1245620                 # launch a game and wait for it to exit
-aurelia play 1245620 --proton experimental   # Linux: force a specific Proton or Wine runner
-aurelia play 1245620 --steam         # run with Steam online features (Family Sharing, DRM)
-aurelia launch-targets 1245620       # installed builds + Steam modes, and the `play` flags for each
-aurelia play 1245620 --platform linux        # Linux: run the native build (or `windows` via Proton)
-aurelia play 1245620 --steam-mode host       # one launch: `runtime` (in-Wine), `host` or `none`
-aurelia play 1245620 -v              # also log progress/debug output (-vv/-vvv: Steam networking)
-aurelia running                      # list games Aurelia is currently running
-aurelia stop 1245620                 # stop a running game (--force to kill a hung one)
+gaki-cli play 1245620                 # launch a game and wait for it to exit
+gaki-cli play 1245620 --proton experimental   # Linux: force a specific Proton or Wine runner
+gaki-cli play 1245620 --steam         # run with Steam online features (Family Sharing, DRM)
+gaki-cli launch-targets 1245620       # installed builds + Steam modes, and the `play` flags for each
+gaki-cli play 1245620 --platform linux        # Linux: run the native build (or `windows` via Proton)
+gaki-cli play 1245620 --steam-mode host       # one launch: `runtime` (in-Wine), `host` or `none`
+gaki-cli play 1245620 -v              # also log progress/debug output (-vv/-vvv: Steam networking)
+gaki-cli running                      # list games gaki is currently running
+gaki-cli stop 1245620                 # stop a running game (--force to kill a hung one)
 
 # Steam Cloud
-aurelia cloud sync 1245620           # sync saves (down then up)
-aurelia cloud list 1245620           # list a game's Cloud files
+gaki-cli cloud sync 1245620           # sync saves (down then up)
+gaki-cli cloud list 1245620           # list a game's Cloud files
 
 # Steam Workshop
-aurelia workshop browse 1245620            # discover items (search, sort, paginate)
-aurelia workshop info 1234567890           # item or collection metadata
-aurelia workshop install 1234567890        # download an item (collections expand to members)
-aurelia workshop subscribe 1234567890 --install  # subscribe, then download
-aurelia workshop status 1245620            # installed vs subscribed (+ update detection)
-aurelia workshop rate 1234567890 up        # thumbs-up (or: down) an item
-aurelia workshop comments 1234567890       # read an item's comments
-aurelia workshop comment 1234567890 "Nice mod!"  # post a comment
+gaki-cli workshop browse 1245620            # discover items (search, sort, paginate)
+gaki-cli workshop info 1234567890           # item or collection metadata
+gaki-cli workshop install 1234567890        # download an item (collections expand to members)
+gaki-cli workshop subscribe 1234567890 --install  # subscribe, then download
+gaki-cli workshop status 1245620            # installed vs subscribed (+ update detection)
+gaki-cli workshop rate 1234567890 up        # thumbs-up (or: down) an item
+gaki-cli workshop comments 1234567890       # read an item's comments
+gaki-cli workshop comment 1234567890 "Nice mod!"  # post a comment
 
 # Friends & chat
-aurelia friends                              # list friends (name, status, current game)
-aurelia friends search "AI Jungle Wulf"      # show a user: SteamID64, /profiles/ URL, friend name or `me`
-aurelia friends add 76561197960287930        # send a friend request (same identifiers)
-aurelia user me                              # your profile as Steam sees it (no web requests)
-aurelia wishlist                             # your wishlist with prices; `wishlist "<friend>"` for a friend's
-aurelia wishlist add 1245620                 # add / remove items (`wishlist remove 1245620`)
-aurelia friends remove 76561197960287930     # remove a friend or cancel a request
-aurelia chat send 76561198042323314 "hi!"    # send a direct message to a friend
-aurelia chat history 76561198042323314       # show recent messages with a friend
-aurelia chat open 76561198042323314          # interactive live chat (type to send, Ctrl-D quits)
+gaki-cli friends                              # list friends (name, status, current game)
+gaki-cli friends search "AI Jungle Wulf"      # show a user: SteamID64, /profiles/ URL, friend name or `me`
+gaki-cli friends add 76561197960287930        # send a friend request (same identifiers)
+gaki-cli user me                              # your profile as Steam sees it (no web requests)
+gaki-cli wishlist                             # your wishlist with prices; `wishlist "<friend>"` for a friend's
+gaki-cli wishlist add 1245620                 # add / remove items (`wishlist remove 1245620`)
+gaki-cli friends remove 76561197960287930     # remove a friend or cancel a request
+gaki-cli chat send 76561198042323314 "hi!"    # send a direct message to a friend
+gaki-cli chat history 76561198042323314       # show recent messages with a friend
+gaki-cli chat open 76561198042323314          # interactive live chat (type to send, Ctrl-D quits)
 
 # Inventory & market
-aurelia inventory 753 --context 6            # your Steam cards, gems and backgrounds
-aurelia market price 440 "Mann Co. Supply Crate Key"   # item price (no login needed)
-aurelia market search "Sticker" --app-id 730 # search the Community Market
-aurelia market listings                      # your active listings & buy orders
-aurelia wallet                               # Steam Wallet balance
+gaki-cli inventory 753 --context 6            # your Steam cards, gems and backgrounds
+gaki-cli market price 440 "Mann Co. Supply Crate Key"   # item price (no login needed)
+gaki-cli market search "Sticker" --app-id 730 # search the Community Market
+gaki-cli market listings                      # your active listings & buy orders
+gaki-cli wallet                               # Steam Wallet balance
 
 # Configuration
-aurelia config show                  # print launcher configuration
-aurelia config protons               # list detected Proton and Wine runtimes
-aurelia config presence online       # appear online for chat (default: invisible)
-aurelia config language german       # default language for info and achievements text
-aurelia config country DE            # default store region for prices (unset: system locale, else US)
-aurelia config game 1245620 --proton GE-Proton9-20  # pin a Proton version for one game
-aurelia config install-resume auto   # let the daemon resume interrupted installs when it starts
+gaki-cli config show                  # print launcher configuration
+gaki-cli config protons               # list detected Proton and Wine runtimes
+gaki-cli config presence online       # appear online for chat (default: invisible)
+gaki-cli config language german       # default language for info and achievements text
+gaki-cli config country DE            # default store region for prices (unset: system locale, else US)
+gaki-cli config game 1245620 --proton GE-Proton9-20  # pin a Proton version for one game
+gaki-cli config install-resume auto   # let the daemon resume interrupted installs when it starts
 
 # Proton and Wine runtimes (download manager)
-aurelia proton list                  # installable runtimes (Valve + GE + CachyOS) and what's installed
-aurelia proton install GE-Proton9-20 # download a GE build (or "Proton 9.0" via Steam)
-aurelia proton install Proton-CachyOS # CachyOS build (auto-picks x86_64_v3 or AVX2 when supported)
-aurelia proton default GE-Proton9-20 # set the global default (used when a game has none set)
-aurelia proton uninstall GE-Proton9-19  # delete an installed GE build
+gaki-cli proton list                  # installable runtimes (Valve + GE + CachyOS) and what's installed
+gaki-cli proton install GE-Proton9-20 # download a GE build (or "Proton 9.0" via Steam)
+gaki-cli proton install Proton-CachyOS # CachyOS build (auto-picks x86_64_v3 or AVX2 when supported)
+gaki-cli proton default GE-Proton9-20 # set the global default (used when a game has none set)
+gaki-cli proton uninstall GE-Proton9-19  # delete an installed GE build
 
 # Windows Steam runtime (self-contained Steamworks and DRM handshake, no host Steam client)
-aurelia config steam-runtime-runner GE-Proton9-20  # select the Wine or Proton runner (required first)
-aurelia steam-runtime status          # resolved master prefix, layout, steam.exe presence
-aurelia steam-runtime install         # install Steam into the master Wine prefix (sign in here)
-aurelia steam-runtime install --reinstall  # delete the prefix first, then install fresh
+gaki-cli config steam-runtime-runner GE-Proton9-20  # select the Wine or Proton runner (required first)
+gaki-cli steam-runtime status          # resolved master prefix, layout, steam.exe presence
+gaki-cli steam-runtime install         # install Steam into the master Wine prefix (sign in here)
+gaki-cli steam-runtime install --reinstall  # delete the prefix first, then install fresh
                                            # (for a corrupted install, no .bak is kept)
-aurelia steam-runtime login           # re-open the in-Wine Steam to sign in again
-aurelia steam-runtime repair          # back up the prefix (keep one) and reinstall
-aurelia steam-runtime stop            # shut down the in-Wine Steam, keeping the prefix
-aurelia steam-runtime uninstall       # remove the master prefix entirely (incl. any .bak)
-aurelia config steam-runtime-policy on   # make `play --steam` always use the in-Wine runtime
+gaki-cli steam-runtime login           # re-open the in-Wine Steam to sign in again
+gaki-cli steam-runtime repair          # back up the prefix (keep one) and reinstall
+gaki-cli steam-runtime stop            # shut down the in-Wine Steam, keeping the prefix
+gaki-cli steam-runtime uninstall       # remove the master prefix entirely (incl. any .bak)
+gaki-cli config steam-runtime-policy on   # make `play --steam` always use the in-Wine runtime
                                          # (default `auto`: host Steam if present, else in-Wine)
 
 # Collections (library categories): edit locally offline, sync to Steam on demand
-aurelia collections list                     # all collections + game counts
-aurelia collections create "RPGs"            # new (static) collection
-aurelia collections add "RPGs" 570 730       # add games by app id
-aurelia collections remove "RPGs" 730        # drop a game
-aurelia collections show "RPGs"              # list a collection's games
-aurelia list --collection "RPGs"             # filter the library to one collection
-aurelia collections pull                     # fetch Steam's collections and merge them in
-aurelia collections push --yes               # upload local collections to your Steam account
-aurelia collections sync --yes               # pull then push (reconcile both sides)
+gaki-cli collections list                     # all collections + game counts
+gaki-cli collections create "RPGs"            # new (static) collection
+gaki-cli collections add "RPGs" 570 730       # add games by app id
+gaki-cli collections remove "RPGs" 730        # drop a game
+gaki-cli collections show "RPGs"              # list a collection's games
+gaki-cli list --collection "RPGs"             # filter the library to one collection
+gaki-cli collections pull                     # fetch Steam's collections and merge them in
+gaki-cli collections push --yes               # upload local collections to your Steam account
+gaki-cli collections sync --yes               # pull then push (reconcile both sides)
 
 # umu-launcher plugin (Linux only, optional: Proton via umu-run, downloaded on demand)
-aurelia umu enable                    # turn the plugin on (off by default)
-aurelia umu install                   # download umu-run on demand (not bundled)
-aurelia umu path ~/umu                # use an existing install instead (skips the download)
-aurelia umu status                    # show enabled state + installed version
-aurelia config game 1245620 --umu     # route one game through umu (Proton via umu-run)
-aurelia play 1245620 --umu            # one-off launch via umu
-aurelia umu uninstall                 # remove the downloaded payload
+gaki-cli umu enable                    # turn the plugin on (off by default)
+gaki-cli umu install                   # download umu-run on demand (not bundled)
+gaki-cli umu path ~/umu                # use an existing install instead (skips the download)
+gaki-cli umu status                    # show enabled state + installed version
+gaki-cli config game 1245620 --umu     # route one game through umu (Proton via umu-run)
+gaki-cli play 1245620 --umu            # one-off launch via umu
+gaki-cli umu uninstall                 # remove the downloaded payload
 
 # Luxtorpeda native-engine plugin (Linux only, optional)
-aurelia luxtorpeda enable             # turn the plugin on (off by default)
-aurelia luxtorpeda install            # download the client on demand (not bundled)
-aurelia luxtorpeda path ~/luxtorpeda  # use an existing install instead (skips the download)
-aurelia luxtorpeda status             # show enabled state + installed version
-aurelia config game 2270 --native-engine   # route one game through a native engine
-aurelia play 2270 --native-engine     # one-off launch via luxtorpeda
-aurelia luxtorpeda uninstall          # remove the downloaded payload
+gaki-cli luxtorpeda enable             # turn the plugin on (off by default)
+gaki-cli luxtorpeda install            # download the client on demand (not bundled)
+gaki-cli luxtorpeda path ~/luxtorpeda  # use an existing install instead (skips the download)
+gaki-cli luxtorpeda status             # show enabled state + installed version
+gaki-cli config game 2270 --native-engine   # route one game through a native engine
+gaki-cli play 2270 --native-engine     # one-off launch via luxtorpeda
+gaki-cli luxtorpeda uninstall          # remove the downloaded payload
 
 # Per-game launch scripts (wrap the resolved launch command with your own script)
-aurelia scripts new 2270              # scaffold <script_dir>/2270.sh (2270.bat on Windows)
-aurelia scripts list                  # app ids with a script + resolved paths
-aurelia scripts show 2270             # print the resolved script + its contents
-aurelia play 2270                     # runs through the script (e.g. gamemoderun, mangohud)
-aurelia config game 2270 --launch-script ~/my/wrap.sh   # pin a specific script per game
-aurelia play 2270 --script ~/other.sh # one-off override for a single launch
-aurelia play 2270 --no-script         # bypass all scripts for this launch
-aurelia scripts remove 2270           # delete the dir-based script
+gaki-cli scripts new 2270              # scaffold <script_dir>/2270.sh (2270.bat on Windows)
+gaki-cli scripts list                  # app ids with a script + resolved paths
+gaki-cli scripts show 2270             # print the resolved script + its contents
+gaki-cli play 2270                     # runs through the script (e.g. gamemoderun, mangohud)
+gaki-cli config game 2270 --launch-script ~/my/wrap.sh   # pin a specific script per game
+gaki-cli play 2270 --script ~/other.sh # one-off override for a single launch
+gaki-cli play 2270 --no-script         # bypass all scripts for this launch
+gaki-cli scripts remove 2270           # delete the dir-based script
 ```
 
 > [!NOTE]
 > **Luxtorpeda** is an optional plugin that runs supported games on native Linux engines
-> (GZDoom, OpenMW, …) instead of Proton or Wine. It is **never bundled**. Aurelia downloads it
-> on the fly into `~/.config/Aurelia/plugins/luxtorpeda` only when you enable the feature and
+> (GZDoom, OpenMW, …) instead of Proton or Wine. It is **never bundled**. gaki downloads it
+> on the fly into `~/.config/gaki/plugins/luxtorpeda` only when you enable the feature and
 > opt a game in, so the binary stays lean. Linux only. Games run outside Steam's runtime
 > container, so if an engine can't find system libraries, prefer Proton for that title.
 
@@ -450,7 +450,7 @@ aurelia scripts remove 2270           # delete the dir-based script
 > **umu-launcher** is an optional plugin that runs Windows games through Proton **outside**
 > Steam (applying the Steam Linux Runtime and per-game protonfixes), wrapping the launch with
 > `umu-run` instead of replacing the runtime. Like luxtorpeda it is **never bundled**.
-> Aurelia downloads it on the fly into `~/.config/Aurelia/plugins/umu` only when you enable the
+> gaki downloads it on the fly into `~/.config/gaki/plugins/umu` only when you enable the
 > feature and opt a game in, so the binary stays lean. Linux only. It **wraps Proton** rather
 > than replacing it, so `--umu` combines with `--proton` to pick the Proton build it runs.
 
@@ -458,7 +458,7 @@ aurelia scripts remove 2270           # delete the dir-based script
 
 > [!NOTE]
 > **Per-game launch scripts** let you wrap the fully-resolved launch command with your own
-> shell script (`<script_dir>/<appid>.sh`, or `.bat` on Windows). Aurelia runs the script with
+> shell script (`<script_dir>/<appid>.sh`, or `.bat` on Windows). gaki runs the script with
 > the resolved command as its arguments (`"$@"`) and exports `GAKI_*` env vars, so a script
 > that is just `exec "$@"` is a passthrough while a custom one can prepend `gamemoderun`,
 > `mangohud` or `gamescope`. It works uniformly for native, Proton, luxtorpeda and umu launches.
@@ -466,12 +466,12 @@ aurelia scripts remove 2270           # delete the dir-based script
 > which beats the auto-detected `<script_dir>/<appid>.sh`. `play --no-script` bypasses all of them.
 
 Add `--json` to any command for machine-readable output (errors included). It's a global
-flag, so `aurelia --json <command>` and `aurelia <command> --json` are equivalent.
+flag, so `gaki-cli --json <command>` and `gaki-cli <command> --json` are equivalent.
 
-Drivers can feature-detect with `aurelia --json capabilities`: one line listing the version,
+Drivers can feature-detect with `gaki-cli --json capabilities`: one line listing the version,
 the JSON `schema` number, every command with its flags, arguments and subcommands, all `event`
 names, every error `type` with its exit code and hint, and behaviour `features` that flags
-don't reveal. Add a command path (`aurelia capabilities config game`) for one command's
+don't reveal. Add a command path (`gaki-cli capabilities config game`) for one command's
 arguments, subcommands and every flag with its short form, value, allowed values and help.
 It runs offline and never starts the daemon. Every `{"event":"result",...}` line
 also carries `"schema"`, which goes up only when an existing field changes meaning or is
@@ -500,15 +500,15 @@ results, backlog changes and QR logins end with a `{"event":"result",...}` line 
 
 Two error types apply to every command. `disk_full` (exit 85): no space or quota left, including
 `install`'s free-space check before it starts. `offline` (exit 86): no network route or DNS,
-or Steam is unreachable and Aurelia is using its cached library. A stopped install
-(`install stop`) ends as `cancelled` (83). `aurelia capabilities` lists every type with its code.
+or Steam is unreachable and gaki is using its cached library. A stopped install
+(`install stop`) ends as `cancelled` (83). `gaki-cli capabilities` lists every type with its code.
 
-Logs go to stderr. By default only warnings and errors are shown. `-v` adds Aurelia's
+Logs go to stderr. By default only warnings and errors are shown. `-v` adds gaki's
 progress and debug logs, and `-vv`/`-vvv` unmute the Steam networking stack, which helps when
 a command seems stuck. Commands run through the session daemon show the same logs at your
 `-v` level, and a verbose `play` also shows the daemon's own activity, prefixed `[daemon]`.
 `--log <FILTER>` (e.g. `--log debug,steam_vent=info`) overrides the level. A launched game's
-own output is saved per launch under `~/.config/Aurelia/logs/` (Proton's stderr in
+own output is saved per launch under `~/.config/gaki/logs/` (Proton's stderr in
 `wine_<appid>.log`).
 
 On Windows, games run natively and the Linux-only parts are switched off: `proton install`,
@@ -522,9 +522,9 @@ explanation, and `play` rejects `--proton`, `--platform linux`, `--steam-mode ru
 
 ## Configuration
 
-Aurelia stores its configuration and local data under `~/.config/Aurelia`
-(`%USERPROFILE%\.config\Aurelia` on Windows). Pass **`--config-dir <PATH>`** to relocate it.
-That is useful for an embedding driver (e.g. Heroic) that needs Aurelia's state isolated from
+gaki stores its configuration and local data under `~/.config/gaki`
+(`%USERPROFILE%\.config\gaki` on Windows). Pass **`--config-dir <PATH>`** to relocate it.
+That is useful for an embedding driver (e.g. Heroic) that needs gaki's state isolated from
 a standalone install. A session daemon serves one config directory, so pair it with
 `--socket <PATH>` (a separate daemon) or `--no-daemon`. `--no-spawn` uses a running daemon
 but never starts one.
@@ -533,8 +533,8 @@ Settings are changed with `config` commands, never environment variables: for ex
 `config keyring false` on a machine without a keyring service, `config script-dir <PATH>`
 and `config info-cache-ttl <SECONDS>`.
 
-- **Library path.** Aurelia auto-detects your existing Steam installation. Inspect the
-  resolved configuration with `aurelia config show`.
+- **Library path.** gaki auto-detects your existing Steam installation. Inspect the
+  resolved configuration with `gaki-cli config show`.
 - **Session.** Refresh tokens are persisted in `session.json` so subsequent invocations
   log in automatically.
 - **Download engine.** Installs, updates, verifications and Workshop downloads share one
@@ -567,7 +567,7 @@ and `config info-cache-ttl <SECONDS>`.
 
 ### Is there a Steam client that works without a GUI?
 
-Yes. That is exactly what Aurelia is. It is a pure CLI Steam client: no Electron, no CEF, no
+Yes. That is exactly what gaki is. It is a pure CLI Steam client: no Electron, no CEF, no
 embedded browser, no desktop session required. You can log in, install games, update them,
 sync Cloud saves and launch titles from a terminal or a shell script.
 
@@ -577,24 +577,24 @@ Yes. Library management, downloads, updates, verification, Cloud sync and Worksh
 headlessly over SSH. Launching a game still needs somewhere for it to render (a display,
 a virtual X server, or a remote-play setup), but everything up to the launch does not.
 
-### How is Aurelia different from SteamCMD?
+### How is gaki different from SteamCMD?
 
 [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) is Valve's official CLI tool,
 but it is content-only: it downloads and updates app and Workshop files and little else.
-Aurelia is a full launcher and library manager. It lists and searches your library, launches
+gaki is a full launcher and library manager. It lists and searches your library, launches
 games natively or through Proton and Wine, syncs Steam Cloud saves, manages DLC and Workshop
 subscriptions, reads achievements, and does friends & chat. SteamCMD is proprietary and ships
-as a prebuilt binary. Aurelia is open source under GPL-3.0-or-later.
+as a prebuilt binary. gaki is open source under GPL-3.0-or-later.
 
-### Is Aurelia an OpenSteamClient alternative?
+### Is gaki an OpenSteamClient alternative?
 
-It is its spiritual successor. OpenSteamClient is a C++ and Qt desktop GUI. Aurelia rebuilds
+It is its spiritual successor. OpenSteamClient is a C++ and Qt desktop GUI. gaki rebuilds
 the same idea in Rust as a scriptable CLI, without the 32-bit legacy Steam binaries, at a
 fraction of the memory footprint.
 
 ### Does it run Windows games on Linux?
 
-Yes, through Proton and Wine. Aurelia discovers installed runtimes, downloads new ones
+Yes, through Proton and Wine. gaki discovers installed runtimes, downloads new ones
 (official Valve Proton, GE-Proton, and Proton-CachyOS with AVX2 or `x86_64_v3` selection),
 pins a Proton version per game, and can route launches through
 [umu-launcher](https://github.com/Open-Wine-Components/umu-launcher) or native engines via
@@ -602,10 +602,10 @@ pins a Proton version per game, and can route launches through
 
 ### Do I need the official Steam client installed?
 
-No. Aurelia talks to Steam's real network protocols directly. For titles that insist on a
+No. gaki talks to Steam's real network protocols directly. For titles that insist on a
 Steamworks or DRM handshake, it can either bridge to a host Steam client if you have one, or
 install a self-contained Windows Steam runtime inside its own Wine prefix
-(`aurelia steam-runtime install`).
+(`gaki-cli steam-runtime install`).
 
 ### How much RAM does it use?
 
@@ -619,12 +619,12 @@ built for each release. See [Install](#install).
 ### Can I use it to script my Steam library?
 
 Yes. Every command accepts `--json` for machine-readable output, including errors, so
-Aurelia works as a backend for other launchers and for automation. `--config-dir`
+gaki works as a backend for other launchers and for automation. `--config-dir`
 relocates its state so an embedding driver can keep it isolated.
 
 ### Is it safe to use? Can I get VAC banned?
 
-Aurelia is unofficial and unaffiliated with Valve, it modifies Steam's files directly, and
+gaki is unofficial and unaffiliated with Valve, it modifies Steam's files directly, and
 third-party tools that interact with Steam carry a risk of action against your account.
 Read the disclaimer at the top of this README before using it. Use at your own risk.
 
@@ -694,4 +694,4 @@ proton launcher cli, steam library manager, rust steam client.*
 
 ## License
 
-Aurelia is released under the [GPL-3.0-or-later License](LICENSE).
+gaki is released under the [GPL-3.0-or-later License](LICENSE).

@@ -47,7 +47,7 @@ fn exe_signature() -> Option<(SystemTime, u64)> {
     Some((meta.modified().ok()?, meta.len()))
 }
 
-/// Watch the daemon's own binary; when it changes on disk (an `aurelia` upgrade)
+/// Watch the daemon's own binary; when it changes on disk (a `gaki-cli` upgrade)
 /// exit once idle so the next forwarded command auto-spawns a daemon running the
 /// new code. Without this a long-lived daemon keeps serving stale code — e.g. it
 /// would reject a newly added subcommand with "unrecognized subcommand".
@@ -78,7 +78,7 @@ pub async fn run_server() -> Result<()> {
     // also makes the thin-client auto-spawn race-safe (many clients may spawn at
     // once; the losers detect the winner and bow out).
     if transport::connect().await.is_ok() {
-        tracing::info!("an aurelia daemon is already running; exiting");
+        tracing::info!("a gaki-cli daemon is already running; exiting");
         return Ok(());
     }
 
@@ -95,7 +95,7 @@ pub async fn run_server() -> Result<()> {
             });
         }
     };
-    tracing::info!("aurelia daemon listening on {}", transport::endpoint());
+    tracing::info!("gaki-cli daemon listening on {}", transport::endpoint());
 
     // Record our version + pid so a differently-versioned thin client can detect the
     // mismatch and restart us instead of forwarding a command our CLI can't parse.

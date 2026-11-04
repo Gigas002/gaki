@@ -5,7 +5,7 @@ use crate::commands::common::*;
 use anyhow::Result;
 use libgaki::ops::market;
 
-/// `aurelia inventory <appid>`: list the logged-in account's inventory for a game.
+/// `gaki-cli inventory <appid>`: list the logged-in account's inventory for a game.
 pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Result<()> {
     let web = web_access().await?;
     let items = market::inventory(&web, app_id, context).await?;
@@ -31,7 +31,7 @@ pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Resu
     Ok(())
 }
 
-/// `aurelia wallet`: show the account's Steam Wallet balance.
+/// `gaki-cli wallet`: show the account's Steam Wallet balance.
 pub(crate) async fn cmd_wallet(json: bool) -> Result<()> {
     let web = web_access().await?;
     let w = market::wallet(&web).await?;
@@ -51,7 +51,7 @@ pub(crate) async fn cmd_wallet(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// `aurelia market price <appid> <name>`: look up an item's price (no login needed).
+/// `gaki-cli market price <appid> <name>`: look up an item's price (no login needed).
 pub(crate) async fn cmd_market_price(
     app_id: u32,
     name: String,
@@ -78,7 +78,7 @@ pub(crate) async fn cmd_market_price(
     Ok(())
 }
 
-/// `aurelia market search [query]`: search the Community Market (no login needed).
+/// `gaki-cli market search [query]`: search the Community Market (no login needed).
 pub(crate) async fn cmd_market_search(
     query: Option<String>,
     app_id: Option<u32>,
@@ -108,7 +108,7 @@ pub(crate) async fn cmd_market_search(
     Ok(())
 }
 
-/// `aurelia market listings`: the account's active listings and open buy orders.
+/// `gaki-cli market listings`: the account's active listings and open buy orders.
 pub(crate) async fn cmd_market_listings(json: bool) -> Result<()> {
     let web = web_access().await?;
     let state = market::listings(&web).await?;

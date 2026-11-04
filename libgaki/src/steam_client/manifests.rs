@@ -41,7 +41,7 @@ impl SteamClient {
 
     /// The depot → manifest ids currently recorded as installed in a game's local
     /// appmanifest (`InstalledDepots`). Empty when the game isn't installed. Used by
-    /// `aurelia pin` to snapshot what version the pin should hold the game at.
+    /// `gaki-cli pin` to snapshot what version the pin should hold the game at.
     pub async fn installed_depot_manifests(&self, appid: u32) -> Result<HashMap<u32, u64>> {
         let (manifests, _branch) = self.local_manifest_info_for_appid(appid).await?;
         Ok(manifests.into_iter().map(|(d, m)| (d as u32, m)).collect())
@@ -283,7 +283,7 @@ impl SteamClient {
     ///
     /// `pin_updates` writes `AutoUpdateBehavior "1"` ("only update on launch") instead
     /// of the default `"0"`, so the official Steam client won't eagerly re-patch a
-    /// downgraded/pinned install out from under Aurelia. Normal installs pass `false`.
+    /// downgraded/pinned install out from under gaki. Normal installs pass `false`.
     #[expect(
         clippy::too_many_arguments,
         reason = "one argument per appmanifest field"

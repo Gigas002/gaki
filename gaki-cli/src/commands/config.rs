@@ -49,7 +49,7 @@ pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>, json: boo
         cli_println!("Chat presence: {current}");
         if changed {
             cli_println!(
-                "Restart the session daemon for this to take effect (`aurelia daemon stop` or `aurelia kill`)."
+                "Restart the session daemon for this to take effect (`gaki-cli daemon stop` or `gaki-cli kill`)."
             );
         }
     }
@@ -113,7 +113,7 @@ pub(crate) async fn cmd_config_proxy(
         }
         if changed {
             cli_println!(
-                "Saved. Takes effect on the next command; restart the session daemon (`aurelia daemon stop`) to apply it there."
+                "Saved. Takes effect on the next command; restart the session daemon (`gaki-cli daemon stop`) to apply it there."
             );
         }
     }
@@ -132,7 +132,7 @@ pub(crate) async fn cmd_config_install_resume(
         return Ok(());
     }
     let label = match config.install_resume {
-        InstallResume::Manual => "manual (backlog installs wait for `aurelia install resume`)",
+        InstallResume::Manual => "manual (backlog installs wait for `gaki-cli install resume`)",
         InstallResume::Auto => {
             "auto (the daemon resumes interrupted installs when it starts; paused and stopped ones wait)"
         }
@@ -277,7 +277,7 @@ pub(crate) async fn cmd_config_protons(json: bool) -> Result<()> {
     if installed.is_empty() {
         cli_println!("No Proton/Wine runtimes installed.");
         cli_println!(
-            "Install one with `aurelia proton install <NAME>` (see `aurelia proton list`)."
+            "Install one with `gaki-cli proton install <NAME>` (see `gaki-cli proton list`)."
         );
         return Ok(());
     }

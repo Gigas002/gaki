@@ -115,7 +115,7 @@ async fn test_spawn_failure_with_synthetic_lock_shows_hint() {
     use libgaki::launch::stages::spawn_process::SpawnProcessStage;
 
     let tmp = tempfile::tempdir().unwrap();
-    let lockfile = tmp.path().join(".aurelia_launch.lock");
+    let lockfile = tmp.path().join(".gaki_launch.lock");
     std::fs::write(&lockfile, "").unwrap();
 
     let mut pipeline = LaunchPipeline::new();

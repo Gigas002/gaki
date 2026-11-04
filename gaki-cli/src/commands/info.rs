@@ -43,7 +43,7 @@ pub(crate) async fn cmd_set_dlc(
     cli_println!("DLC {app_id} {action} for base game {base}.");
     if enable {
         cli_println!(
-            "(Toggles the flag only — run `aurelia install {app_id}` if the content isn't downloaded.)"
+            "(Toggles the flag only — run `gaki-cli install {app_id}` if the content isn't downloaded.)"
         );
     }
     if restart_required {
@@ -79,7 +79,7 @@ pub(crate) async fn cmd_set_branch(app_id: u32, branch: String, json: bool) -> R
         print_json(&serde_json::json!({ "app_id": app_id, "branch": branch, "status": "set" }));
     } else {
         cli_println!(
-            "App {app_id} set to branch '{branch}'. Run `aurelia update {app_id}` to apply."
+            "App {app_id} set to branch '{branch}'. Run `gaki-cli update {app_id}` to apply."
         );
     }
     Ok(())

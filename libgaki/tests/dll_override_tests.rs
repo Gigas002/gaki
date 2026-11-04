@@ -68,7 +68,7 @@ fn test_build_dll_overrides_local_dll_skip() {
 
 #[test]
 fn test_build_dll_overrides_steam_enabled_omits_steam_overrides() {
-    // With Steam integration enabled, Aurelia must NOT neutralise the Steam client
+    // With Steam integration enabled, gaki must NOT neutralise the Steam client
     // DLLs or disable lsteamclient — Proton's defaults handle them so Steamworks
     // (online features, Family-Sharing) can initialise.
     let overrides = build_dll_overrides(true, false, false, true, false, None, false, true);

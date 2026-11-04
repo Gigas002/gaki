@@ -82,7 +82,7 @@ pub struct LaunchTargetChoice {
     /// `host` (bridge to host Steam) or `auto` (bridge a running host Steam, else
     /// standalone).
     pub steam_mode: Option<&'static str>,
-    /// `aurelia play` flags selecting it.
+    /// `gaki-cli play` flags selecting it.
     pub flags: Vec<String>,
     /// Launchable right now.
     pub available: bool,
@@ -333,7 +333,7 @@ impl SteamClient {
                     if outcome.has_conflicts() {
                         tracing::warn!(
                             appid = app.app_id,
-                            "{} Cloud save(s) diverged from local — left untouched; resolve with `aurelia cloud sync`",
+                            "{} Cloud save(s) diverged from local — left untouched; resolve with `gaki-cli cloud sync`",
                             outcome.conflicts.len()
                         );
                     }
@@ -342,7 +342,7 @@ impl SteamClient {
                     if outcome.has_skips() {
                         tracing::warn!(
                             appid = app.app_id,
-                            "{} Cloud save(s) could not be placed on disk (unmapped root token(s): {}) — the game may start without them; see `aurelia cloud sync {}`",
+                            "{} Cloud save(s) could not be placed on disk (unmapped root token(s): {}) — the game may start without them; see `gaki-cli cloud sync {}`",
                             outcome.skipped.len(),
                             outcome
                                 .skipped_tokens()
@@ -358,7 +358,7 @@ impl SteamClient {
                     if outcome.has_failures() {
                         tracing::error!(
                             appid = app.app_id,
-                            "{} Cloud save(s) FAILED to download — the save set on disk is incomplete and the game may show no progress. Run `aurelia cloud sync {} --down` before playing. First error: {}",
+                            "{} Cloud save(s) FAILED to download — the save set on disk is incomplete and the game may show no progress. Run `gaki-cli cloud sync {} --down` before playing. First error: {}",
                             outcome.failed.len(),
                             app.app_id,
                             outcome.failed.first().map_or("", |f| f.error.as_str())
@@ -393,7 +393,7 @@ impl SteamClient {
             )
             .await?;
 
-        // Record the launch so a separate `aurelia stop <app_id>` invocation can
+        // Record the launch so a separate `gaki-cli stop <app_id>` invocation can
         // find and terminate the process while we block on `wait()` below.
         let wineprefix = Some(crate::core::utils::proton_compat_prefix(
             &launcher_config,
@@ -438,7 +438,7 @@ impl SteamClient {
             match client.sync_up(app.app_id, resolver, &cloud_specs).await {
                 Ok(outcome) if outcome.has_conflicts() => tracing::warn!(
                     appid = app.app_id,
-                    "{} Cloud save(s) diverged on upload — left untouched; resolve with `aurelia cloud sync`",
+                    "{} Cloud save(s) diverged on upload — left untouched; resolve with `gaki-cli cloud sync`",
                     outcome.conflicts.len()
                 ),
                 Ok(_) => tracing::info!(appid = app.app_id, "Upload Complete"),
@@ -554,7 +554,7 @@ impl SteamClient {
                     format!(
                         "app {appid} has no installed depots to verify — it is not fully \
                          installed (its appmanifest lists no completed depots, e.g. a \
-                         staged or partial download). Run `aurelia install {appid}` to \
+                         staged or partial download). Run `gaki-cli install {appid}` to \
                          complete the installation."
                     )
                 } else {

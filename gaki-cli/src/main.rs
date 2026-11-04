@@ -13,7 +13,7 @@ use crate::cli::*;
 mod commands;
 use crate::commands::*;
 
-/// Print the top-level long help. Used for a bare `aurelia` invocation so the
+/// Print the top-level long help. Used for a bare `gaki-cli` invocation so the
 /// user sees every command.
 fn print_long_help() {
     use clap::CommandFactory;
@@ -42,7 +42,7 @@ fn main() {
     // main thread's default stack before any command runs. Run
     // the Tokio runtime on a thread with a generous stack to avoid that.
     let worker = std::thread::Builder::new()
-        .name("aurelia-main".to_string())
+        .name("gaki-main".to_string())
         .stack_size(32 * 1024 * 1024)
         .spawn(|| {
             let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -118,7 +118,7 @@ fn parse_cli() -> Cli {
         Ok(cli) => cli,
         Err(e) => {
             use clap::error::ErrorKind;
-            // Bare `aurelia` (no subcommand): print the full help instead of
+            // Bare `gaki-cli` (no subcommand): print the full help instead of
             // clap's terse "requires a subcommand" error.
             if matches!(
                 e.kind(),
@@ -143,7 +143,7 @@ async fn async_main(cli: Cli) {
         libgaki::infra::logging::init_cli_logging(cli.verbose, log);
     }
 
-    // Bare `aurelia daemon`: become the shared-session server. Never forwards.
+    // Bare `gaki-cli daemon`: become the shared-session server. Never forwards.
     if matches!(cli.command, Command::Daemon { command: None }) {
         if let Err(e) = daemon::run_server().await {
             cli_eprintln!("daemon error: {e:#}");
@@ -331,7 +331,7 @@ async fn run(cli: Cli) -> Result<()> {
             }) => cmd_install_forget(app_id, delete_files, json).await,
             None => {
                 let Some(app_id) = args.app_id else {
-                    bail!("an app id is required, e.g. `aurelia install 945360`");
+                    bail!("an app id is required, e.g. `gaki-cli install 945360`");
                 };
                 cmd_install(
                     app_id,
@@ -559,7 +559,7 @@ async fn run(cli: Cli) -> Result<()> {
         },
         // Bare `daemon` is intercepted in `async_main`; it never reaches here.
         Command::Daemon { command: None, .. } => {
-            bail!("`aurelia daemon` cannot be run as a forwarded command")
+            bail!("`gaki-cli daemon` cannot be run as a forwarded command")
         }
     }
 }

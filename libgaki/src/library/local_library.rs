@@ -1,9 +1,9 @@
 //! Discover the user's Steam library from the Steam client's *own* on-disk data.
 //!
-//! `aurelia list` normally sources the full owned library from Steam's network
-//! API (`fetch_owned_games`), which requires an `aurelia login`. On Linux the
+//! `gaki-cli list` normally sources the full owned library from Steam's network
+//! API (`fetch_owned_games`), which requires a `gaki-cli login`. On Linux the
 //! Steam client is almost always already signed in and keeps the entire library
-//! cached locally, so when Aurelia has no session (or is offline) we can still
+//! cached locally, so when gaki has no session (or is offline) we can still
 //! surface every game by reading those caches directly:
 //!
 //! * `appcache/appinfo.vdf` — binary blob mapping every app id to its `common`
@@ -14,7 +14,7 @@
 //!   pre-fetches artwork for owned titles). Broadens the set beyond apps that
 //!   merely have local config.
 //!
-//! None of this requires network access or an Aurelia login. See
+//! None of this requires network access or a gaki login. See
 //! `docs/linux-library-discovery.md` for the full rationale.
 
 use crate::core::config::detect_steam_path;

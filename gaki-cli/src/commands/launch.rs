@@ -41,7 +41,7 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
         let mark = if t.default { "*" } else { " " };
         match t.missing {
             None => cli_println!(
-                " {mark} {:<20} aurelia play {app_id} {}",
+                " {mark} {:<20} gaki-cli play {app_id} {}",
                 t.id,
                 t.flags.join(" ")
             ),
@@ -75,7 +75,7 @@ pub(crate) async fn cmd_play(
     // Otherwise the spawn fails on the missing directory with a raw OS error.
     if !game.is_installed {
         bail!(
-            "{} is not installed — install it with `aurelia install {app_id}`",
+            "{} is not installed — install it with `gaki-cli install {app_id}`",
             game.name
         );
     }
@@ -93,7 +93,7 @@ pub(crate) async fn cmd_play(
         LaunchEvent::DrmUnverified { error } => {
             let warning = format!(
                 "Steam issued no ownership ticket for {name} ({error:#}). If the game uses \
-                 Steam DRM it may not start standalone — try `aurelia play {app_id} --steam`."
+                 Steam DRM it may not start standalone — try `gaki-cli play {app_id} --steam`."
             );
             if json {
                 tracing::warn!(appid = app_id, "{warning}");
@@ -132,7 +132,7 @@ pub(crate) async fn cmd_play(
     Ok(())
 }
 
-/// `aurelia running`: list the games Aurelia currently has running (stale records
+/// `gaki-cli running`: list the games gaki currently has running (stale records
 /// whose process has exited are pruned).
 pub(crate) fn cmd_running(json: bool) -> Result<()> {
     let running = launch::running();
@@ -145,7 +145,7 @@ pub(crate) fn cmd_running(json: bool) -> Result<()> {
         return Ok(());
     }
     if running.is_empty() {
-        cli_println!("No games are running (none launched via `aurelia play`).");
+        cli_println!("No games are running (none launched via `gaki-cli play`).");
     } else {
         cli_println!("{:>9}  {:>8}  NAME", "APPID", "PID");
         for g in &running {
@@ -156,7 +156,7 @@ pub(crate) fn cmd_running(json: bool) -> Result<()> {
 }
 
 pub(crate) async fn cmd_stop(app_id: Option<u32>, force: bool, json: bool) -> Result<()> {
-    // No app id: report what Aurelia currently tracks as running.
+    // No app id: report what gaki currently tracks as running.
     let Some(app_id) = app_id else {
         return cmd_running(json);
     };
@@ -176,30 +176,30 @@ pub(crate) async fn cmd_stop(app_id: Option<u32>, force: bool, json: bool) -> Re
     Ok(())
 }
 
-/// `aurelia kill`: terminate every running aurelia process (daemon and otherwise),
+/// `gaki-cli kill`: terminate every running gaki-cli process (daemon and otherwise),
 /// except the current one.
 pub(crate) fn cmd_kill(json: bool) -> Result<()> {
-    let procs = proc_admin::find_aurelia_processes();
+    let procs = proc_admin::find_gaki_processes();
     let pids: Vec<u32> = procs.iter().map(|p| p.pid).collect();
     let killed = proc_admin::kill_pids(&pids);
 
     if json {
         print_json(&serde_json::json!({ "found": pids.len(), "killed": killed, "pids": pids }));
     } else if pids.is_empty() {
-        cli_println!("No other aurelia processes are running.");
+        cli_println!("No other gaki-cli processes are running.");
     } else {
         cli_println!(
-            "Killed {killed} of {} aurelia process(es) (including the daemon).",
+            "Killed {killed} of {} gaki-cli process(es) (including the daemon).",
             pids.len()
         );
     }
     Ok(())
 }
 
-/// `aurelia daemon stop [PID]`: terminate the session daemon(s). With a PID, stop
-/// only that daemon (erroring if it isn't a running aurelia daemon).
+/// `gaki-cli daemon stop [PID]`: terminate the session daemon(s). With a PID, stop
+/// only that daemon (erroring if it isn't a running gaki-cli daemon).
 pub(crate) fn cmd_daemon_stop(pid: Option<u32>, json: bool) -> Result<()> {
-    let daemons: Vec<_> = proc_admin::find_aurelia_processes()
+    let daemons: Vec<_> = proc_admin::find_gaki_processes()
         .into_iter()
         .filter(|p| p.is_daemon)
         .collect();
@@ -207,7 +207,7 @@ pub(crate) fn cmd_daemon_stop(pid: Option<u32>, json: bool) -> Result<()> {
     let targets: Vec<u32> = match pid {
         Some(pid) => {
             if !daemons.iter().any(|d| d.pid == pid) {
-                bail!("PID {pid} is not a running aurelia daemon (see `aurelia daemon list`)");
+                bail!("PID {pid} is not a running gaki-cli daemon (see `gaki-cli daemon list`)");
             }
             vec![pid]
         }
@@ -218,16 +218,16 @@ pub(crate) fn cmd_daemon_stop(pid: Option<u32>, json: bool) -> Result<()> {
     if json {
         print_json(&serde_json::json!({ "killed": killed, "pids": targets }));
     } else if targets.is_empty() {
-        cli_println!("No aurelia daemon is running.");
+        cli_println!("No gaki-cli daemon is running.");
     } else {
-        cli_println!("Stopped {killed} aurelia daemon(s).");
+        cli_println!("Stopped {killed} gaki-cli daemon(s).");
     }
     Ok(())
 }
 
-/// `aurelia daemon list`: show running aurelia daemon(s) and their PIDs.
+/// `gaki-cli daemon list`: show running gaki-cli daemon(s) and their PIDs.
 pub(crate) fn cmd_daemon_list(json: bool) -> Result<()> {
-    let daemons: Vec<_> = proc_admin::find_aurelia_processes()
+    let daemons: Vec<_> = proc_admin::find_gaki_processes()
         .into_iter()
         .filter(|p| p.is_daemon)
         .collect();
@@ -242,7 +242,7 @@ pub(crate) fn cmd_daemon_list(json: bool) -> Result<()> {
     }
 
     if daemons.is_empty() {
-        cli_println!("No aurelia daemon is running.");
+        cli_println!("No gaki-cli daemon is running.");
         return Ok(());
     }
     cli_println!("{:>8}  COMMAND", "PID");

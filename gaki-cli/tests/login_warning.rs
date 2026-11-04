@@ -1,4 +1,4 @@
-//! `aurelia login` must warn about an already-active session.
+//! `gaki-cli login` must warn about an already-active session.
 
 use std::fs;
 use std::path::Path;

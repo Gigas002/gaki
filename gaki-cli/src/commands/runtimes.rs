@@ -71,7 +71,7 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
             );
         }
     }
-    cli_println!("\nInstall with `aurelia proton install <NAME>`.");
+    cli_println!("\nInstall with `gaki-cli proton install <NAME>`.");
     Ok(())
 }
 
@@ -119,7 +119,7 @@ pub(crate) async fn cmd_proton_uninstall(version: String, json: bool) -> Result<
         if was_default {
             cli_eprintln!(
                 "Note: {} was the global default — set a new one with \
-                 `aurelia proton default <NAME>`.",
+                 `gaki-cli proton default <NAME>`.",
                 pkg.name
             );
         }
@@ -139,7 +139,7 @@ pub(crate) async fn cmd_proton_default(version: String, json: bool) -> Result<()
         cli_println!("Global default Proton set to {version}.");
         if !present {
             cli_eprintln!(
-                "Note: '{version}' is not installed — run `aurelia proton install {version}`."
+                "Note: '{version}' is not installed — run `gaki-cli proton install {version}`."
             );
         }
     }

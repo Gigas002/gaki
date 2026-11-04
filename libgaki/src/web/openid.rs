@@ -3,14 +3,14 @@
 //! Steam's official web sign-in for third parties is **OpenID 2.0** — Valve
 //! offers no OAuth2/OpenID **Connect** endpoint. The flow proves *who* the user
 //! is: they sign in on `steamcommunity.com` itself (their password never
-//! touches Aurelia) and Steam redirects the browser back to a localhost
+//! touches gaki) and Steam redirects the browser back to a localhost
 //! callback with a signed assertion naming their SteamID64, which we then
 //! confirm with Steam directly (`check_authentication`).
 //!
 //! Deliberate limitation, for callers: Steam issues **no session or refresh
 //! token** over OpenID, so this cannot replace a full client login — Valve
 //! provides no browser-redirect flow that can mint CM-session credentials for
-//! third-party clients. Aurelia therefore surfaces it as a secure *identity
+//! third-party clients. gaki therefore surfaces it as a secure *identity
 //! check* (`login --openid`); a full session still comes from the
 //! password/Steam Guard or QR flows.
 
@@ -26,7 +26,7 @@ pub const STEAM_OPENID_ENDPOINT: &str = "https://steamcommunity.com/openid/login
 
 /// Query parameter carrying our per-attempt random nonce inside `return_to`.
 /// Steam signs `return_to`, so the callback provably belongs to this attempt.
-const NONCE_PARAM: &str = "aurelia_nonce";
+const NONCE_PARAM: &str = "gaki_nonce";
 
 /// How long to wait for the user to finish signing in on the Steam page.
 const BROWSER_WAIT: Duration = Duration::from_secs(300);
@@ -306,9 +306,9 @@ async fn respond(stream: &mut TcpStream, status: &str, body: &str) {
     let _ = stream.shutdown().await;
 }
 
-const SUCCESS_PAGE: &str = "<!DOCTYPE html><html><head><title>Aurelia</title></head><body style=\"font-family:sans-serif;text-align:center;margin-top:4em\"><h2>Steam sign-in verified</h2><p>You can close this tab and return to the terminal.</p><p style=\"max-width:36em;margin:2em auto;color:#555\">Optional: to also enable Aurelia's web features (inventory, wallet, market listings), open <a href=\"https://steamcommunity.com/chat/clientjstoken\">steamcommunity.com/chat/clientjstoken</a> in this browser, copy the JSON shown, and run <code>aurelia login --web-token</code>.</p></body></html>";
+const SUCCESS_PAGE: &str = "<!DOCTYPE html><html><head><title>gaki</title></head><body style=\"font-family:sans-serif;text-align:center;margin-top:4em\"><h2>Steam sign-in verified</h2><p>You can close this tab and return to the terminal.</p><p style=\"max-width:36em;margin:2em auto;color:#555\">Optional: to also enable gaki's web features (inventory, wallet, market listings), open <a href=\"https://steamcommunity.com/chat/clientjstoken\">steamcommunity.com/chat/clientjstoken</a> in this browser, copy the JSON shown, and run <code>gaki-cli login --web-token</code>.</p></body></html>";
 
-const FAILURE_PAGE: &str = "<!DOCTYPE html><html><head><title>Aurelia</title></head><body style=\"font-family:sans-serif;text-align:center;margin-top:4em\"><h2>Steam sign-in not verified</h2><p>Return to the terminal for details.</p></body></html>";
+const FAILURE_PAGE: &str = "<!DOCTYPE html><html><head><title>gaki</title></head><body style=\"font-family:sans-serif;text-align:center;margin-top:4em\"><h2>Steam sign-in not verified</h2><p>Return to the terminal for details.</p></body></html>";
 
 #[cfg(test)]
 #[path = "openid_tests.rs"]

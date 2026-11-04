@@ -24,7 +24,7 @@ fn parse(args: &[&str]) -> Cli {
 #[test]
 fn install_positional_and_subcommands_coexist() {
     // Positional install (Heroic depends on this form).
-    match parse(&["aurelia", "install", "945360"]).command {
+    match parse(&["gaki-cli", "install", "945360"]).command {
         Command::Install(args) => {
             assert!(args.action.is_none());
             assert_eq!(args.app_id, Some(945360));
@@ -32,11 +32,11 @@ fn install_positional_and_subcommands_coexist() {
         _ => panic!("expected Install"),
     }
     // Management verbs.
-    match parse(&["aurelia", "install", "list"]).command {
+    match parse(&["gaki-cli", "install", "list"]).command {
         Command::Install(args) => assert!(matches!(args.action, Some(InstallAction::List))),
         _ => panic!("expected Install list"),
     }
-    match parse(&["aurelia", "install", "stop", "945360"]).command {
+    match parse(&["gaki-cli", "install", "stop", "945360"]).command {
         Command::Install(args) => {
             assert!(matches!(
                 args.action,
@@ -45,7 +45,7 @@ fn install_positional_and_subcommands_coexist() {
         }
         _ => panic!("expected Install stop"),
     }
-    match parse(&["aurelia", "install", "pause", "945360"]).command {
+    match parse(&["gaki-cli", "install", "pause", "945360"]).command {
         Command::Install(args) => {
             assert!(matches!(
                 args.action,
@@ -54,7 +54,7 @@ fn install_positional_and_subcommands_coexist() {
         }
         _ => panic!("expected Install pause"),
     }
-    match parse(&["aurelia", "install", "resume", "--all"]).command {
+    match parse(&["gaki-cli", "install", "resume", "--all"]).command {
         Command::Install(args) => {
             assert!(matches!(
                 args.action,
@@ -66,7 +66,7 @@ fn install_positional_and_subcommands_coexist() {
         }
         _ => panic!("expected Install resume"),
     }
-    match parse(&["aurelia", "install", "forget", "945360", "--delete-files"]).command {
+    match parse(&["gaki-cli", "install", "forget", "945360", "--delete-files"]).command {
         Command::Install(args) => {
             assert!(matches!(
                 args.action,
@@ -84,65 +84,67 @@ fn install_positional_and_subcommands_coexist() {
 fn interactive_login_runs_locally_not_forwarded() {
     // The regression: these were forwarded to the daemon, where rpassword ran
     // without a tty and the password was echoed in clear text.
-    assert!(must_run_locally(&parse(&["aurelia", "login"])));
-    assert!(must_run_locally(&parse(&["aurelia", "login", "-u", "me"])));
-    assert!(must_run_locally(&parse(&["aurelia", "login", "--qr"])));
-    assert!(must_run_locally(&parse(&["aurelia", "login", "--code"])));
-    assert!(must_run_locally(&parse(&["aurelia", "login", "--pin"])));
+    assert!(must_run_locally(&parse(&["gaki-cli", "login"])));
+    assert!(must_run_locally(&parse(&["gaki-cli", "login", "-u", "me"])));
+    assert!(must_run_locally(&parse(&["gaki-cli", "login", "--qr"])));
+    assert!(must_run_locally(&parse(&["gaki-cli", "login", "--code"])));
+    assert!(must_run_locally(&parse(&["gaki-cli", "login", "--pin"])));
 }
 
 #[test]
 fn daemon_oriented_and_json_login_still_forward() {
     // These need the daemon (or are non-tty), so they must NOT be pinned local.
-    assert!(!must_run_locally(&parse(&["aurelia", "login", "--health"])));
     assert!(!must_run_locally(&parse(&[
-        "aurelia",
+        "gaki-cli", "login", "--health"
+    ])));
+    assert!(!must_run_locally(&parse(&[
+        "gaki-cli",
         "login",
         "--reconnect"
     ])));
     assert!(!must_run_locally(&parse(&[
-        "aurelia", "--json", "login", "-u", "me"
+        "gaki-cli", "--json", "login", "-u", "me"
     ])));
     assert!(!must_run_locally(&parse(&[
-        "aurelia", "login", "--json", "--qr"
+        "gaki-cli", "login", "--json", "--qr"
     ])));
 }
 
 #[test]
 fn qr_timeout_parses_and_requires_qr() {
-    match parse(&["aurelia", "login", "--qr", "--timeout", "90"]).command {
+    match parse(&["gaki-cli", "login", "--qr", "--timeout", "90"]).command {
         Command::Login(args) => assert_eq!(args.timeout, Some(90)),
         _ => panic!("expected Login"),
     }
-    assert!(Cli::try_parse_from(["aurelia", "login", "--timeout", "90"]).is_err());
-    assert!(Cli::try_parse_from(["aurelia", "login", "--qr", "--timeout", "0"]).is_err());
+    assert!(Cli::try_parse_from(["gaki-cli", "login", "--timeout", "90"]).is_err());
+    assert!(Cli::try_parse_from(["gaki-cli", "login", "--qr", "--timeout", "0"]).is_err());
     // Driver QR logins still forward.
     assert!(!must_run_locally(&parse(&[
-        "aurelia", "--json", "login", "--qr", "-t", "5"
+        "gaki-cli", "--json", "login", "--qr", "-t", "5"
     ])));
 }
 
 #[test]
 fn ordinary_commands_forward_but_local_managers_do_not() {
-    assert!(!must_run_locally(&parse(&["aurelia", "list"])));
-    assert!(!must_run_locally(&parse(&["aurelia", "logout"])));
+    assert!(!must_run_locally(&parse(&["gaki-cli", "list"])));
+    assert!(!must_run_locally(&parse(&["gaki-cli", "logout"])));
     // Process/daemon managers must run in-process.
-    assert!(must_run_locally(&parse(&["aurelia", "kill"])));
+    assert!(must_run_locally(&parse(&["gaki-cli", "kill"])));
     assert!(must_run_locally(&parse(&[
-        "aurelia",
+        "gaki-cli",
         "--json",
         "capabilities"
     ])));
     assert!(must_run_locally(&parse(&[
-        "aurelia",
+        "gaki-cli",
         "capabilities",
         "config",
         "game"
     ])));
-    assert!(must_run_locally(&parse(&["aurelia", "daemon", "stop"])));
-    // Bare `aurelia daemon` (becomes the server) is handled earlier, before the
+    assert!(must_run_locally(&parse(&["gaki-cli", "daemon", "stop"])));
+    // Bare `gaki-cli daemon` (becomes the server) is handled earlier, before the
     // forward gate, so it is not flagged local here.
-    assert!(!must_run_locally(&parse(&["aurelia", "daemon"])));
+    assert!(!must_run_locally(&parse(&["gaki-cli", "daemon"])));
 }
 
 #[test]

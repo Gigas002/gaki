@@ -59,12 +59,12 @@ impl ErrorKind {
     pub fn hint(self) -> Option<&'static str> {
         match self {
             Self::RateLimited => Some("Steam is throttling this client; pause before retrying"),
-            Self::AuthRequired => Some("run `aurelia login`"),
+            Self::AuthRequired => Some("run `gaki-cli login`"),
             Self::PrivacyRestricted => Some("the profile or list is private or friends-only"),
             Self::NetworkTimeout => Some("check connectivity and retry"),
-            Self::SourceChanged => Some("Steam changed a response shape; update Aurelia"),
-            Self::LoginDenied => Some("the sign-in was declined; run `aurelia login` again"),
-            Self::LoginExpired => Some("approve sooner after scanning; run `aurelia login` again"),
+            Self::SourceChanged => Some("Steam changed a response shape; update gaki"),
+            Self::LoginDenied => Some("the sign-in was declined; run `gaki-cli login` again"),
+            Self::LoginExpired => Some("approve sooner after scanning; run `gaki-cli login` again"),
             Self::Timeout => Some("raise --timeout or retry"),
             Self::InputClosed => Some("keep stdin open while a --json command waits"),
             Self::DiskFull => Some("free space on the target drive or pick another `--library`"),

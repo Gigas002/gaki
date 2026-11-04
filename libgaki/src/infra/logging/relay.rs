@@ -1,8 +1,8 @@
 //! Output relay for commands the session daemon runs on behalf of a thin client.
 //!
-//! A forwarded command executes inside the long-lived `aurelia daemon`, whose own
+//! A forwarded command executes inside the long-lived `gaki-cli daemon`, whose own
 //! stdout/stderr are discarded. Without this module two kinds of output never reached
-//! the terminal that ran e.g. `aurelia play -v` (issue #34):
+//! the terminal that ran e.g. `gaki-cli play -v` (issue #34):
 //!
 //! * **tracing events** — the daemon's subscriber logs to its own (null) stderr at the
 //!   daemon's verbosity, not the requester's `-v` count;
@@ -115,7 +115,7 @@ pub fn attach(mut child: std::process::Child) -> std::process::Child {
 
 fn pump<R: Read + Send + 'static>(mut src: R, stream: RelayStream, relay: Relay) {
     let spawned = std::thread::Builder::new()
-        .name("aurelia-child-output".into())
+        .name("gaki-child-output".into())
         .spawn(move || {
             let mut buf = [0u8; 8192];
             loop {

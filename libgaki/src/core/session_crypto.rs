@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 
 /// Marker so a plaintext session is never mistaken for an envelope.
-const FORMAT: &str = "aurelia-session-v1";
+const FORMAT: &str = "gaki-session-v1";
 
 /// Encrypted `session.json` on-disk form.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +103,7 @@ fn keyring_enabled() -> bool {
 
 /// The keyring entry holding the session key.
 fn keyring_entry() -> keyring::Result<keyring::Entry> {
-    keyring::Entry::new("aurelia", "session-key")
+    keyring::Entry::new("gaki", "session-key")
 }
 
 /// The stored keyring session key, if reachable.

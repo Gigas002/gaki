@@ -3,7 +3,7 @@
 use super::*;
 
 const RETURN_TO: &str =
-    "http://127.0.0.1:43210/callback?aurelia_nonce=00000000000000000000000000abcdef";
+    "http://127.0.0.1:43210/callback?gaki_nonce=00000000000000000000000000abcdef";
 const STEAM_ID: &str = "76561197990935091";
 
 /// A well-formed Steam `id_res` assertion, as `(key, value)` pairs.

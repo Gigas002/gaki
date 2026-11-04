@@ -41,7 +41,7 @@ fn events_match_the_source() {
 #[test]
 fn report_has_the_contract_fields() {
     let r = capabilities();
-    assert_eq!(r["name"], "aurelia");
+    assert_eq!(r["name"], "gaki-cli");
     assert_eq!(r["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(r["schema"], JSON_SCHEMA);
     assert!(
@@ -87,7 +87,7 @@ fn errors_list_types_and_exit_codes() {
 fn list_view_is_padded_and_braced() {
     let text = render_report(&capabilities(), 120);
     let name = text.lines().find(|l| l.starts_with("Name ")).unwrap();
-    assert_eq!(name, "Name        : aurelia");
+    assert_eq!(name, "Name        : gaki-cli");
     assert!(text.contains(
         "GlobalFlags : {--json, --verbose, --log, --config-dir, --no-daemon, --no-spawn, --socket}"
     ));

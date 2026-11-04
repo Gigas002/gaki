@@ -140,7 +140,7 @@ pub fn check_stored_expiry(token: &str, now_unix: u64, leeway_secs: u64) -> Resu
     {
         bail!(
             "the stored web token expired {} — sign in on steamcommunity.com again and re-run \
-             `aurelia login --web-token`",
+             `gaki-cli login --web-token`",
             crate::steam_client::unix_to_ymd(exp as i64)
         );
     }

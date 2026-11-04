@@ -118,7 +118,7 @@ impl SteamClient {
         let steam_id = u64::from(connection.steam_id());
         let refresh_token = connection
             .access_token()
-            .context("no Steam token available for a web session; run `aurelia login`")?
+            .context("no Steam token available for a web session; run `gaki-cli login`")?
             .to_string();
 
         let mut req = CAuthentication_AccessToken_GenerateForApp_Request::new();
@@ -303,7 +303,7 @@ fn as_u64_loose(v: &Value) -> Option<u64> {
 fn parse_inventory(body: &str) -> Result<Vec<InventoryItem>> {
     let v: Value = serde_json::from_str(body).context(
         "could not parse the inventory response (the web session may be invalid — try \
-         `aurelia login --reconnect`)",
+         `gaki-cli login --reconnect`)",
     )?;
     // An explicit failure (e.g. private inventory) comes back as success:0 + error.
     if v.get("success").and_then(Value::as_i64) == Some(0) {
@@ -387,7 +387,7 @@ fn parse_inventory(body: &str) -> Result<Vec<InventoryItem>> {
 fn parse_my_listings(body: &str) -> Result<MyMarketState> {
     let v: Value = serde_json::from_str(body).context(
         "could not parse your market listings (the web session may be invalid — try \
-         `aurelia login --reconnect`)",
+         `gaki-cli login --reconnect`)",
     )?;
     // `success:false` means the request wasn't authenticated (vs. an authed account
     // that simply has no listings, which returns `success:true` + empty arrays).
@@ -396,7 +396,7 @@ fn parse_my_listings(body: &str) -> Result<MyMarketState> {
     {
         bail!(
             "the market session was rejected (no authenticated response). Run \
-             `aurelia login --reconnect`."
+             `gaki-cli login --reconnect`."
         );
     }
     let listings = parse_json_array(&v, "listings", parse_my_listing);

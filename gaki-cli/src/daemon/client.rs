@@ -35,7 +35,7 @@ pub async fn try_forward(no_spawn: bool) -> Result<Forwarded> {
 
 /// Connect to the daemon; if none is listening, spawn one and wait for it.
 ///
-/// A daemon left over from a previous `aurelia` build parses forwarded commands with its
+/// A daemon left over from a previous `gaki-cli` build parses forwarded commands with its
 /// own (stale) CLI, so it rejects newly added subcommands with "unrecognized subcommand".
 /// So when an existing daemon is a different version from this binary, stop it and start a
 /// fresh one before forwarding.
@@ -50,7 +50,7 @@ async fn connect_or_spawn(no_spawn: bool) -> Option<impl AsyncRead + AsyncWrite 
         drop(stream);
         let reported = info.as_ref().map_or("unknown", |i| i.version.as_str());
         tracing::info!(
-            "restarting aurelia daemon: it is running v{reported} but this binary is v{current}"
+            "restarting gaki-cli daemon: it is running v{reported} but this binary is v{current}"
         );
         restart_daemon(info.as_ref().map(|i| i.pid));
 
@@ -113,7 +113,7 @@ fn restart_daemon(pid: Option<u32>) {
     let killed = match pid {
         Some(pid) => crate::proc_admin::kill_pids(&[pid]),
         None => {
-            let daemons: Vec<u32> = crate::proc_admin::find_aurelia_processes()
+            let daemons: Vec<u32> = crate::proc_admin::find_gaki_processes()
                 .into_iter()
                 .filter(|p| p.is_daemon)
                 .map(|p| p.pid)
@@ -121,11 +121,11 @@ fn restart_daemon(pid: Option<u32>) {
             crate::proc_admin::kill_pids(&daemons)
         }
     };
-    tracing::info!("stopped {killed} stale aurelia daemon(s)");
+    tracing::info!("stopped {killed} stale gaki-cli daemon(s)");
     super::clear_daemon_info();
 }
 
-/// Launch a detached `aurelia daemon` process.
+/// Launch a detached `gaki-cli daemon` process.
 fn spawn_daemon() -> std::io::Result<()> {
     let exe = std::env::current_exe()?;
     let mut cmd = std::process::Command::new(exe);

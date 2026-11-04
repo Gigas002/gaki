@@ -23,7 +23,7 @@ const CORRUPT: &str = r#"{
   "chat_presence": "online"
 }"#;
 
-fn aurelia(config_dir: &Path, args: &[&str]) -> Output {
+fn gaki_cli(config_dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
         .arg("--config-dir")
         .arg(config_dir)
@@ -50,7 +50,7 @@ fn corrupt_config_is_not_overwritten_by_a_saving_command() {
     let tmp = with_corrupt_config();
     let path = tmp.path().join("config.json");
 
-    let out = aurelia(tmp.path(), &["config", "presence", "online"]);
+    let out = gaki_cli(tmp.path(), &["config", "presence", "online"]);
 
     assert!(!out.status.success(), "expected failure, got: {out:?}");
     assert_eq!(
@@ -65,7 +65,7 @@ fn corrupt_config_is_not_overwritten_by_a_saving_command() {
 #[test]
 fn corrupt_config_reports_a_parse_error() {
     let tmp = with_corrupt_config();
-    let err = stderr(&aurelia(tmp.path(), &["proton", "default", "Proton 9.0"]));
+    let err = stderr(&gaki_cli(tmp.path(), &["proton", "default", "Proton 9.0"]));
 
     assert!(err.contains("invalid launcher config"), "got: {err}");
 }
@@ -73,7 +73,7 @@ fn corrupt_config_reports_a_parse_error() {
 #[test]
 fn corrupt_config_error_names_the_file_and_location() {
     let tmp = with_corrupt_config();
-    let err = stderr(&aurelia(tmp.path(), &["config", "show"]));
+    let err = stderr(&gaki_cli(tmp.path(), &["config", "show"]));
 
     assert!(err.contains("config.json"), "got: {err}");
     assert!(err.contains("line 4"), "expected a location: {err}");
@@ -91,7 +91,7 @@ fn corrupt_config_fails_every_reading_command() {
         vec!["proton", "default", "Proton 9.0"],
         vec!["proton", "list"],
     ] {
-        let out = aurelia(tmp.path(), &args);
+        let out = gaki_cli(tmp.path(), &args);
         assert!(
             !out.status.success(),
             "`{}` silently accepted a corrupt config",
@@ -105,7 +105,7 @@ fn corrupt_config_fails_every_reading_command() {
 #[test]
 fn missing_config_still_yields_defaults() {
     let tmp = tempdir().unwrap();
-    let out = aurelia(tmp.path(), &["config", "show"]);
+    let out = gaki_cli(tmp.path(), &["config", "show"]);
 
     assert!(
         out.status.success(),
@@ -119,7 +119,7 @@ fn missing_config_still_yields_defaults() {
 #[test]
 fn missing_config_can_still_be_written() {
     let tmp = tempdir().unwrap();
-    let out = aurelia(tmp.path(), &["config", "presence", "online"]);
+    let out = gaki_cli(tmp.path(), &["config", "presence", "online"]);
     assert!(out.status.success(), "failed: {}", stderr(&out));
 
     let written = fs::read_to_string(tmp.path().join("config.json")).unwrap();

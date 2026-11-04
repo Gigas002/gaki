@@ -918,7 +918,7 @@ pub fn build_dll_overrides(
     strict_dxvk: bool,
     steam_enabled: bool,
 ) -> String {
-    // In standalone mode Aurelia neutralises Steam's client DLLs and disables
+    // In standalone mode gaki neutralises Steam's client DLLs and disables
     // `lsteamclient` so a game runs without a Steam client. When Steam is enabled
     // those must be left to Proton's defaults (`lsteamclient` loads builtin and
     // bridges to the running client), otherwise Steamworks init fails and

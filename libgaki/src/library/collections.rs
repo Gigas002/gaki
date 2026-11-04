@@ -4,15 +4,15 @@
 //! Collections live in Steam's cloud under the CloudConfigStore `user-collections`
 //! namespace: each collection is one entry keyed `user-collections.<id>` whose
 //! `value` is a JSON blob `{ id, name, added:[appid], removed:[appid],
-//! filterSpec? }`. Aurelia keeps a **local working copy** in
+//! filterSpec? }`. gaki keeps a **local working copy** in
 //! `config_dir()/collections.json` that is edited offline; changes reach Steam
 //! only via [`pull`], [`push`], and [`sync`].
 //!
 //! Collections come in two flavours:
 //! - **Static**: an explicit membership list (`added` minus `removed`). These are
-//!   the ones Aurelia can create and edit.
+//!   the ones gaki can create and edit.
 //! - **Dynamic**: membership is computed by Steam from a `filterSpec` (tags,
-//!   platforms, …). Aurelia round-trips these opaquely — it never edits or
+//!   platforms, …). gaki round-trips these opaquely — it never edits or
 //!   fabricates a `filterSpec` — so a `sync` won't clobber them.
 
 use anyhow::{Context, Result, bail};
@@ -42,7 +42,7 @@ pub struct Collection {
     #[serde(default)]
     pub removed: Vec<u32>,
     /// Opaque dynamic-collection filter. When present the collection is
-    /// *dynamic* and is round-tripped verbatim; Aurelia never edits it.
+    /// *dynamic* and is round-tripped verbatim; gaki never edits it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub filter_spec: Option<Value>,
     /// Marked for deletion; pushed to Steam as a tombstone, then dropped locally.
@@ -369,7 +369,7 @@ pub async fn push(store: &mut CollectionsStore, client: &SteamClient) -> Result<
             {
                 bail!(
                     "Steam rejected the upload — your local collections are out of date. \
-                     Run `aurelia collections pull` first, then push again. ({e})"
+                     Run `gaki-cli collections pull` first, then push again. ({e})"
                 );
             }
             return Err(e).context("failed uploading collections to Steam");

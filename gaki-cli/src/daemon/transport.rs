@@ -32,14 +32,14 @@ pub fn endpoint() -> String {
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     let uid = unsafe { libc::getuid() };
-    base.join(format!("aurelia-{uid}.sock"))
+    base.join(format!("gaki-{uid}.sock"))
         .to_string_lossy()
         .into_owned()
 }
 
 /// Filesystem path of the daemon's identity marker (version + pid), written by the
 /// running daemon and read by thin clients to detect a version mismatch. Kept next to
-/// the socket (`aurelia-{uid}.info`) so a custom `--socket` gets its own
+/// the socket (`gaki-{uid}.info`) so a custom `--socket` gets its own
 /// isolated marker.
 pub fn version_marker_path() -> PathBuf {
     PathBuf::from(endpoint()).with_extension("info")

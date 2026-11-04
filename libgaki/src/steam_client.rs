@@ -196,7 +196,7 @@ pub struct ExtendedAppInfo {
 
 /// Human-facing store metadata for an app, sourced from the `StoreBrowse.GetItems`
 /// service method over the Steam CM connection (no HTTPS storefront API). This is
-/// the protocol-native replacement for the fields Aurelia previously scraped from
+/// the protocol-native replacement for the fields gaki previously scraped from
 /// `store.steampowered.com/api/appdetails`.
 ///
 /// Note: a few storefront-only fields have no equivalent in this protocol and are
@@ -372,7 +372,7 @@ pub struct DepotInfo {
 /// One depot's current manifest on one branch, as advertised by PICS appinfo.
 /// Steam only exposes the *current* id per branch — historical (older) ids are
 /// not enumerable here and must be looked up on SteamDB. Emitted by
-/// [`SteamClient::list_depot_manifests`] (the `aurelia manifests` command).
+/// [`SteamClient::list_depot_manifests`] (the `gaki-cli manifests` command).
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DepotManifestInfo {
     pub depot_id: u32,
@@ -2131,7 +2131,7 @@ impl SteamClient {
         self.connection.as_ref().ok_or_else(|| {
             crate::core::error::TypedError::new(
                 crate::core::error::ErrorKind::AuthRequired,
-                "not logged in — run `aurelia login` first",
+                "not logged in — run `gaki-cli login` first",
             )
             .into()
         })

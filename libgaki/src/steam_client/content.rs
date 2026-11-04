@@ -157,7 +157,7 @@ impl SteamClient {
     }
 
     /// List, per depot, the *current* manifest id on every branch that PICS
-    /// advertises (the version-discovery data behind `aurelia manifests`).
+    /// advertises (the version-discovery data behind `gaki-cli manifests`).
     ///
     /// Steam's protocol only exposes the current manifest per branch, so this
     /// never returns historical/older ids — those live on SteamDB. Reuses the same

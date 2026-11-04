@@ -480,7 +480,7 @@ I make the changes, and you review, commit, and push.
     subscribe, `status` with update detection, ratings, comments). The last
     direct client calls in `commands/` (logout, appinfo debug) went through
     `ops` too.
-- [ ] **2.4** Drop the `AURELIA_*` environment variables and rename to gaki.
+- [x] **2.4** Drop the `AURELIA_*` environment variables and rename to gaki.
   Configuration comes only from CLI commands, flags and the config file.
   - [x] **2.4a** Replace every env var gaki *reads* with a flag or a config key,
     then delete the env lookup:
@@ -523,9 +523,21 @@ I make the changes, and you review, commit, and push.
     *Done.* Names live once as `launch_script::ENV_*` constants used by the
     stages, the tests and (by name) the template. The README's stale
     `AURELIA_CDN_CONCURRENCY` knob, which no code read, was dropped.
-  - [ ] **2.4c** Rename the rest: user-facing strings and command hints say gaki,
+  - [x] **2.4c** Rename the rest: user-facing strings and command hints say gaki,
     the config dir moves to `gaki/`, the keyring service and user agent change.
     Grep for `aurelia` until only acknowledgements remain.
+    *Done.* Command hints name `gaki-cli`, prose says gaki, and the config dir
+    is `~/.config/gaki` (default library `~/Games/gaki`). The keyring service,
+    user agent, session envelope tag (`gaki-session-v1`), daemon socket
+    (`gaki-<uid>.sock`), launch lockfile, OpenID nonce, store query names and
+    thread names all say gaki, and the process helpers are `GakiProcess` /
+    `find_gaki_processes`. `aurelia` remains only in the forked crate names
+    (`aurelia-steam-vent-chat`, `aurelia-steam-cdn`, Phase 6),
+    `aurelia-questions.md`, and the README's upstream install, crates,
+    acknowledgement and link sections (Phase 7).
+    **Known issue, for 2.5:** some lib unit tests (runners, preflight,
+    `steam_client`) write fixtures (`fake_env/`, `running/123.json`) into the
+    real config dir instead of a temp one.
 - [ ] **2.5** Move integration tests to their owning crate's `tests/`. Create
   `examples/` (empty placeholder until Phase 5) and move documentation into
   `docs/` (leave the README content split for Phase 7). Point the codecov

@@ -20,8 +20,8 @@ impl SteamClient {
         crate::core::utils::start_steam_detached()
     }
 
-    /// Stop a game previously launched by `aurelia play`. Looks up the launch
-    /// record Aurelia wrote (PID + start time, and for a per-game Proton/Wine
+    /// Stop a game previously launched by `gaki-cli play`. Looks up the launch
+    /// record gaki wrote (PID + start time, and for a per-game Proton/Wine
     /// launch the WINEPREFIX) and terminates the process tree, then clears the
     /// record. With `force`, processes are killed immediately (SIGKILL);
     /// otherwise they are first asked to exit (SIGTERM) so the
@@ -29,12 +29,12 @@ impl SteamClient {
     ///
     /// The record is reconciled first (see the recovery contract in
     /// `compat::running`): a recorded PID that now belongs to a different process
-    /// is never signalled. Fails if Aurelia has no record of the game running —
-    /// e.g. it was started directly through Steam rather than `aurelia play` — or
+    /// is never signalled. Fails if gaki has no record of the game running —
+    /// e.g. it was started directly through Steam rather than `gaki-cli play` — or
     /// if the record is stale, in which case it is removed.
     pub fn stop_game(app_id: u32, force: bool) -> Result<crate::compat::running::RunningGame> {
         let record = crate::compat::running::load(app_id).ok_or_else(|| {
-            anyhow!("app {app_id} is not running (no launch was recorded by Aurelia)")
+            anyhow!("app {app_id} is not running (no launch was recorded by gaki)")
         })?;
         // Drops the record (and returns None) when neither the recorded PID nor
         // any process carrying the app id is still alive.

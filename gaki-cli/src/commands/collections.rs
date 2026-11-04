@@ -30,8 +30,8 @@ pub(crate) async fn cmd_collections_list(json: bool) -> Result<()> {
     }
 
     if visible.is_empty() {
-        cli_println!("No collections. Create one with `aurelia collections create <name>`,");
-        cli_println!("or fetch your Steam collections with `aurelia collections pull`.");
+        cli_println!("No collections. Create one with `gaki-cli collections create <name>`,");
+        cli_println!("or fetch your Steam collections with `gaki-cli collections pull`.");
         return Ok(());
     }
 
@@ -98,8 +98,8 @@ pub(crate) async fn cmd_collections_create(name: String, json: bool) -> Result<(
         print_json(&serde_json::json!({ "status": "created", "id": id, "name": name }));
     } else {
         cli_println!("Created collection '{name}' ({id}).");
-        cli_println!("Add games with `aurelia collections add \"{name}\" <appid> ...`, then");
-        cli_println!("`aurelia collections push` to upload it to your Steam account.");
+        cli_println!("Add games with `gaki-cli collections add \"{name}\" <appid> ...`, then");
+        cli_println!("`gaki-cli collections push` to upload it to your Steam account.");
     }
     Ok(())
 }
@@ -111,7 +111,7 @@ pub(crate) async fn cmd_collections_delete(name: String, json: bool) -> Result<(
         print_json(&serde_json::json!({ "status": "deleted", "name": name }));
     } else {
         cli_println!("Marked collection '{name}' for deletion.");
-        cli_println!("Run `aurelia collections push` to apply it to your Steam account.");
+        cli_println!("Run `gaki-cli collections push` to apply it to your Steam account.");
     }
     Ok(())
 }

@@ -166,7 +166,7 @@ impl SteamClient {
     ///
     /// `manifest_overrides` (depot → manifest) pins specific depots to an explicit
     /// (typically older) manifest id instead of the branch's current one — the
-    /// engine behind `aurelia downgrade`. Overridden depots are always included even
+    /// engine behind `gaki-cli downgrade`. Overridden depots are always included even
     /// if the platform/language filter would otherwise drop them; depots without an
     /// override keep their current manifest. When any override is present the written
     /// appmanifest sets `AutoUpdateBehavior "1"` so the official client won't eagerly

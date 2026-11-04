@@ -1,4 +1,4 @@
-//! Global logging setup for the `aurelia` command-line binary.
+//! Global logging setup for the `gaki-cli` command-line binary.
 //!
 //! Previously the binary initialised tracing with a bare
 //! `tracing_subscriber::fmt()...init()`. That fixed the level at `info` for
@@ -11,7 +11,7 @@
 //! a stuck command can be diagnosed:
 //!
 //! * Default: warnings and errors only; a launched game's own output is hidden.
-//! * `-v`: Aurelia's progress and debug logs, plus the game/Proton output.
+//! * `-v`: gaki's progress and debug logs, plus the game/Proton output.
 //! * `-vv` / `-vvv`: progressively unmute `steam-vent` and friends.
 //! * An explicit filter (the CLI's `--log`): full manual control, overriding
 //!   the verbosity.
@@ -43,12 +43,12 @@ pub fn init_cli_logging(verbosity: u8, filter: Option<&str>) {
         .init();
 }
 
-/// Initialise global tracing for the session daemon (`aurelia daemon`).
+/// Initialise global tracing for the session daemon (`gaki-cli daemon`).
 ///
 /// The daemon's own events go to its stderr as in [`init_cli_logging`]. On top, one
 /// relay layer per verbosity level formats events raised while serving a forwarded
 /// command into that request's stderr, filtered by the *requester's* `-v` count —
-/// so `aurelia play -vv` shows the same logs whether or not a daemon ran it.
+/// so `gaki-cli play -vv` shows the same logs whether or not a daemon ran it.
 pub fn init_daemon_logging(verbosity: u8, filter: Option<&str>) {
     use tracing_subscriber::Layer;
     use tracing_subscriber::layer::SubscriberExt;

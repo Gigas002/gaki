@@ -80,7 +80,7 @@ pub async fn scan_installed_app_info() -> Result<HashMap<u32, InstalledAppInfo>>
     Ok(scan_libraries(&libraries).await)
 }
 
-/// One app installed in more than one library: the copy Aurelia uses, and the
+/// One app installed in more than one library: the copy gaki uses, and the
 /// redundant ones that can be deleted.
 #[derive(Debug, Clone)]
 pub struct DuplicateInstall {
@@ -210,7 +210,7 @@ async fn scan_libraries(libraries: &[PathBuf]) -> HashMap<u32, InstalledAppInfo>
 
 /// Of several installs of one app, the one to treat as live: most recently
 /// updated, then highest build id. Both come straight from the appmanifest, so a
-/// copy Steam or Aurelia has just written wins over one untouched for months.
+/// copy Steam or gaki has just written wins over one untouched for months.
 /// Equal on both, the first (libraries are scanned in sorted order) is kept, so
 /// the result stays deterministic.
 fn pick_live_copy(copies: Vec<InstalledAppInfo>) -> Option<InstalledAppInfo> {

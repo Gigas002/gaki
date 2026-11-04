@@ -137,7 +137,7 @@ fn decodes_octal_escapes_in_mount_points() {
 /// directories that merely sit nearby.
 #[test]
 fn probes_for_libraries_by_structure_not_by_name() {
-    let temp = std::env::temp_dir().join(format!("aurelia-probe-{}", std::process::id()));
+    let temp = std::env::temp_dir().join(format!("gaki-probe-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&temp);
 
     // A deliberately unguessable name, one nested a level down, one too deep to
@@ -165,7 +165,7 @@ fn probes_for_libraries_by_structure_not_by_name() {
 /// instead of walking a library's own `common/` tree.
 #[test]
 fn probe_does_not_descend_into_a_found_library() {
-    let temp = std::env::temp_dir().join(format!("aurelia-probe-nested-{}", std::process::id()));
+    let temp = std::env::temp_dir().join(format!("gaki-probe-nested-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&temp);
 
     let library = temp.join("SomeLibrary");

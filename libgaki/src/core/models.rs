@@ -137,7 +137,7 @@ pub struct LibraryGame {
     /// Whether the game appears to require an online connection to play, inferred
     /// from its PICS store categories (online multiplayer with no single-player
     /// support). `None` means it hasn't been determined yet — this is only
-    /// populated on demand (e.g. `aurelia list --online`) because it requires a
+    /// populated on demand (e.g. `gaki-cli list --online`) because it requires a
     /// per-app PICS fetch. See [`crate::steam_client::category_online_required`].
     #[serde(default)]
     pub online_required: Option<bool>,

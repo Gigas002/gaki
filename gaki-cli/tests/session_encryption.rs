@@ -5,7 +5,7 @@ use std::path::Path;
 use std::process::{Command, Output};
 use tempfile::{TempDir, tempdir};
 
-fn aurelia(config_dir: &Path, args: &[&str]) -> Output {
+fn gaki_cli(config_dir: &Path, args: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
         .arg("--config-dir")
         .arg(config_dir)
@@ -18,7 +18,7 @@ fn aurelia(config_dir: &Path, args: &[&str]) -> Output {
 
 /// No keyring service in CI: turn it off for this config dir.
 fn disable_keyring(config_dir: &Path) {
-    let out = aurelia(config_dir, &["config", "keyring", "false"]);
+    let out = gaki_cli(config_dir, &["config", "keyring", "false"]);
     assert!(
         out.status.success(),
         "could not disable the keyring: {out:?}"
@@ -50,7 +50,7 @@ fn with_keyring_session() -> TempDir {
 #[test]
 fn keyring_mode_without_a_keyring_names_the_keyring() {
     let tmp = with_keyring_session();
-    let out = aurelia(tmp.path(), &["account"]);
+    let out = gaki_cli(tmp.path(), &["account"]);
     assert!(!out.status.success(), "expected failure, got: {out:?}");
     let err = stderr(&out);
     assert!(
@@ -67,11 +67,11 @@ fn keyring_mode_without_a_keyring_names_the_keyring() {
 fn legacy_password_envelope_points_at_relogin() {
     let tmp = tempdir().unwrap();
     write_envelope(tmp.path(), false);
-    let out = aurelia(tmp.path(), &["account"]);
+    let out = gaki_cli(tmp.path(), &["account"]);
     assert!(!out.status.success(), "expected failure, got: {out:?}");
     let err = stderr(&out);
     assert!(
-        err.contains("legacy session password") && err.contains("aurelia login"),
+        err.contains("legacy session password") && err.contains("gaki-cli login"),
         "error must point at a re-login: {err}"
     );
     assert!(

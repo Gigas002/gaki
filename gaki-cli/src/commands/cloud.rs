@@ -91,7 +91,7 @@ pub(crate) async fn cmd_cloud_sync(
             );
         }
         cli_println!(
-            "\nResolve with: `aurelia cloud sync {app_id} --resolve cloud`  (use the Steam copy)\n            or `aurelia cloud sync {app_id} --resolve local`  (use the on-disk copy)"
+            "\nResolve with: `gaki-cli cloud sync {app_id} --resolve cloud`  (use the Steam copy)\n            or `gaki-cli cloud sync {app_id} --resolve local`  (use the on-disk copy)"
         );
     } else {
         cli_println!(
@@ -101,7 +101,7 @@ pub(crate) async fn cmd_cloud_sync(
         );
     }
 
-    // Name the destination. Aurelia can have several prefixes per game and syncing
+    // Name the destination. gaki can have several prefixes per game and syncing
     // into the wrong one looks exactly like success — the files are written, the
     // counts are right, and the game still starts with no saves.
     cli_println!("Save prefix: {}", wine_prefix.display());
@@ -120,7 +120,7 @@ pub(crate) async fn cmd_cloud_sync(
             cli_println!("  ... and {} more", outcome.failed.len() - SKIP_SAMPLE);
         }
         cli_println!(
-            "\nRe-run `aurelia cloud sync {app_id} --down` to retry just the missing files.\nDo not play until it completes — the game may overwrite a half-restored save."
+            "\nRe-run `gaki-cli cloud sync {app_id} --down` to retry just the missing files.\nDo not play until it completes — the game may overwrite a half-restored save."
         );
     }
 
@@ -130,7 +130,7 @@ pub(crate) async fn cmd_cloud_sync(
     if outcome.has_skips() {
         let tokens = outcome.skipped_tokens();
         cli_println!(
-            "\nWARNING: {} Cloud file(s) were skipped — Aurelia could not work out where they belong on disk.",
+            "\nWARNING: {} Cloud file(s) were skipped — gaki could not work out where they belong on disk.",
             outcome.skipped.len()
         );
         if tokens.is_empty() {
@@ -155,7 +155,7 @@ pub(crate) async fn cmd_cloud_sync(
         }
         if tokens.iter().any(|t| t.starts_with("Win")) {
             cli_println!(
-                "\n%Win*% roots live inside the game's Proton prefix. Check that the game is\ninstalled and that its compatdata prefix exists (`aurelia info {app_id}`)."
+                "\n%Win*% roots live inside the game's Proton prefix. Check that the game is\ninstalled and that its compatdata prefix exists (`gaki-cli info {app_id}`)."
             );
         } else {
             cli_println!(

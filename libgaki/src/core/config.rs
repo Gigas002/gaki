@@ -37,7 +37,7 @@ pub struct GameConfig {
     pub forced_proton_version: Option<String>,
     pub platform_preference: Option<String>,
     /// Per-game launch script path. When set (and not overridden/bypassed at launch),
-    /// Aurelia wraps the resolved launch command with this script. Takes precedence
+    /// gaki wraps the resolved launch command with this script. Takes precedence
     /// over the auto-detected `<script_dir>/<app_id>.sh`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub launch_script: Option<String>,
@@ -46,13 +46,13 @@ pub struct GameConfig {
     /// game at; empty when the game isn't pinned.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub pinned_manifests: HashMap<u32, u64>,
-    /// Whether Aurelia's update commands are locked for this game. A pinned game is
+    /// Whether gaki's update commands are locked for this game. A pinned game is
     /// not upgraded by `update` / `check-updates` (which report it as pinned).
     #[serde(default)]
     pub pinned: bool,
 }
 
-/// Network proxy settings applied to all of Aurelia's HTTP(S) traffic: the Steam
+/// Network proxy settings applied to all of gaki's HTTP(S) traffic: the Steam
 /// Community/store/market web endpoints, depot content downloads (steam-cdn), and the
 /// GitHub/Codeberg release lookups used by the Proton manager. Empty by default
 /// (a direct connection). See [`crate::core::net`] for how these are applied.
@@ -110,7 +110,7 @@ pub struct LauncherConfig {
     /// browser/OpenID identity check (`login --openid`) and web-token auth
     /// (`login --web-token`), which prove identity / enable web-surface commands
     /// but cannot create the full client session that library/install/launch need.
-    /// Enable with `aurelia config experimental true`.
+    /// Enable with `gaki-cli config experimental true`.
     #[serde(default)]
     pub experimental: bool,
     /// Keep `session.json` encrypted with the OS-keyring key.
@@ -151,8 +151,8 @@ impl Default for LauncherConfig {
             .map(|path| path.to_string_lossy().to_string())
             .unwrap_or_else(|| {
                 home_dir()
-                    .map(|home| home.join("Games").join("Aurelia"))
-                    .unwrap_or_else(|_| PathBuf::from("~/Games/Aurelia"))
+                    .map(|home| home.join("Games").join("gaki"))
+                    .unwrap_or_else(|_| PathBuf::from("~/Games/gaki"))
                     .to_string_lossy()
                     .into_owned()
             });
@@ -205,7 +205,7 @@ pub fn home_dir() -> Result<PathBuf> {
 static CONFIG_DIR_OVERRIDE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 /// Use `dir` as the config directory for the rest of the process, instead of
-/// `~/.config/Aurelia`. Call once, before anything reads the config; a later
+/// `~/.config/gaki`. Call once, before anything reads the config; a later
 /// call is ignored and returns `false`.
 pub fn set_config_dir(dir: PathBuf) -> bool {
     CONFIG_DIR_OVERRIDE.set(dir).is_ok()
@@ -221,7 +221,7 @@ pub fn config_dir() -> Result<PathBuf> {
         return Ok(dir.clone());
     }
     // Joined per component so Windows paths don't mix separators.
-    Ok(home_dir()?.join(".config").join("Aurelia"))
+    Ok(home_dir()?.join(".config").join("gaki"))
 }
 
 pub async fn ensure_config_dirs() -> Result<()> {
@@ -259,7 +259,7 @@ pub async fn load_session() -> Result<SessionState> {
             // Passwords are gone; a login re-keys it.
             anyhow::bail!(
                 "session.json was encrypted with a legacy session password — \
-                 run `aurelia login` again to re-key it to the OS keyring"
+                 run `gaki-cli login` again to re-key it to the OS keyring"
             );
         }
         // Keyring-keyed: automatic, never prompts.
@@ -269,7 +269,7 @@ pub async fn load_session() -> Result<SessionState> {
             .flatten()
             .context(
                 "session.json is keyed to the OS keyring, which is unavailable — \
-                 run `aurelia login` again",
+                 run `gaki-cli login` again",
             )?;
         let plain = crate::core::session_crypto::decrypt(&envelope, &key)?;
         return serde_json::from_slice(&plain)
@@ -429,7 +429,7 @@ fn parse_runtime_settings(raw: &str) -> RuntimeSettings {
     serde_json::from_str(raw).unwrap_or_default()
 }
 
-/// Pin a game to `manifests` (depot → manifest ids), locking Aurelia's update
+/// Pin a game to `manifests` (depot → manifest ids), locking gaki's update
 /// commands for it. Preserves the game's other `GameConfig` fields.
 pub async fn set_game_pin(app_id: u32, manifests: HashMap<u32, u64>) -> Result<()> {
     let mut cfg = load_launcher_config().await?;
@@ -439,7 +439,7 @@ pub async fn set_game_pin(app_id: u32, manifests: HashMap<u32, u64>) -> Result<(
     save_launcher_config(&cfg).await
 }
 
-/// Clear a game's version pin (unlock Aurelia's update commands). No-op if the
+/// Clear a game's version pin (unlock gaki's update commands). No-op if the
 /// game was never pinned.
 pub async fn clear_game_pin(app_id: u32) -> Result<()> {
     let mut cfg = load_launcher_config().await?;
@@ -479,7 +479,7 @@ pub async fn load_library_cache() -> Result<Vec<OwnedGame>> {
     read_json(&path).await
 }
 
-/// Default lifetime of a cached `aurelia info` record before it is re-fetched
+/// Default lifetime of a cached `gaki-cli info` record before it is re-fetched
 /// from Steam. Store metadata is effectively static for hours, while drivers like
 /// Heroic call `info` repeatedly; caching it collapses those into one Steam CM
 /// logon + StoreBrowse/PICS round-trip per app per window. The `info_cache_ttl`
@@ -494,7 +494,7 @@ pub fn info_cache_ttl() -> std::time::Duration {
     std::time::Duration::from_secs(secs)
 }
 
-/// A cached `aurelia info` result: the StoreBrowse metadata plus resolved DLC
+/// A cached `gaki-cli info` result: the StoreBrowse metadata plus resolved DLC
 /// `(app_id, name)` pairs, stamped with the unix time it was fetched so a reader
 /// can honour a TTL.
 #[derive(Debug, Clone, Serialize, Deserialize)]
