@@ -1403,45 +1403,88 @@ pub fn fetch_info(id: i32) -> Result<InfoJson, STError> {
     })
 }
 
-/// List a game's Steam Cloud files (`aurelia cloud list <id> --json`). The CLI
-/// wraps the per-file array under a `files` key; the top-level object also
-/// carries `app_id`, which we ignore.
+/// List a game's Steam Cloud files, sorted by name.
 pub fn cloud_list(app_id: i32) -> Result<Vec<CloudFileJson>, STError> {
-    let value = run_json(&["cloud", "list", &app_id.to_string()])?;
-    // Accept either the wrapping object (`{ "files": [..] }`) or a bare array.
-    let files = match value.get("files") {
-        Some(files) => files.clone(),
-        None => value,
-    };
-    Ok(serde_json::from_value(files)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        Ok(libgaki::ops::cloud::files(&client, app_id as u32)
+            .await?
+            .into_iter()
+            .map(|f| CloudFileJson {
+                filename: f.filename,
+                size: f.size,
+                timestamp: f.timestamp as i64,
+            })
+            .collect())
+    })
 }
 
-/// Which way a Steam Cloud sync should move files. `Both` mirrors the CLI's
-/// default (download then upload); the directional variants pass `--down` /
-/// `--up` to restrict the transfer.
+/// Which way a Steam Cloud sync should move files.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloudDirection {
-    /// Download then upload (the CLI default, `cloud sync`).
+    /// Download then upload.
     Both,
-    /// Download only (`cloud sync --down`).
+    /// Download only.
     Down,
-    /// Upload only (`cloud sync --up`).
+    /// Upload only.
     Up,
 }
 
-/// Sync a game's Steam Cloud saves (`aurelia cloud sync <id> --json`), optionally
-/// restricted to one direction via `--down` / `--up`. This is a blocking call and
-/// can be slow; errors surface via `run_json`.
+/// Sync a game's Steam Cloud saves, optionally in one direction only. A
+/// blocking call that can be slow. Diverged saves are left alone (both copies
+/// kept); they, and files that failed or had no local path, come back as an
+/// error saying so, rather than as a plain success.
 pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), STError> {
-    let id = app_id.to_string();
-    let mut args = vec!["cloud", "sync", &id];
-    match direction {
-        CloudDirection::Both => {}
-        CloudDirection::Down => args.push("--down"),
-        CloudDirection::Up => args.push("--up"),
+    use libgaki::library::cloud_sync::{ConflictPolicy, SyncDirection};
+    let request = libgaki::ops::cloud::SyncRequest {
+        app_id: app_id as u32,
+        direction: match direction {
+            CloudDirection::Both => SyncDirection::Both,
+            CloudDirection::Down => SyncDirection::Down,
+            CloudDirection::Up => SyncDirection::Up,
+        },
+        policy: ConflictPolicy::Detect,
+        remote_root: None,
+    };
+    let report = in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::cloud::sync(&client, &request).await
+    })?;
+    match sync_problem(app_id, &report.outcome) {
+        Some(problem) => Err(STError::Problem(problem)),
+        None => Ok(()),
     }
-    run_json(&args)?;
-    Ok(())
+}
+
+/// What went wrong in a sync, worst first, or `None` if nothing did.
+fn sync_problem(
+    app_id: i32,
+    outcome: &libgaki::library::cloud_sync::SyncOutcome,
+) -> Option<String> {
+    if let Some(first) = outcome.failed.first() {
+        return Some(format!(
+            "{} file(s) failed to transfer (first: {}: {})",
+            outcome.failed.len(),
+            first.filename,
+            first.error
+        ));
+    }
+    if outcome.has_conflicts() {
+        return Some(format!(
+            "{} save(s) differ between Steam Cloud and this machine; both copies were kept. \
+             Resolve with `gaki-cli cloud sync {app_id} --resolve cloud|local`",
+            outcome.conflicts.len(),
+        ));
+    }
+    if let Some(first) = outcome.skipped.first() {
+        return Some(format!(
+            "{} file(s) skipped (first: {}: {})",
+            outcome.skipped.len(),
+            first.filename,
+            first.reason
+        ));
+    }
+    None
 }
 
 /// Fetch the selected game's achievements with the logged-in user's unlock
@@ -3292,5 +3335,51 @@ mod progress_tests {
         let err = result.unwrap_err();
         assert_eq!(classify(&err).kind, ErrorKind::DiskFull);
         assert!(err.to_string().contains("disk full"));
+    }
+}
+
+#[cfg(test)]
+mod cloud_tests {
+    use super::sync_problem;
+    use libgaki::library::cloud_sync::{SyncFailure, SyncOutcome, SyncSkip};
+
+    #[test]
+    fn a_clean_sync_has_no_problem() {
+        let outcome = SyncOutcome {
+            downloaded: vec!["a.sav".into()],
+            uploaded: vec!["b.sav".into()],
+            ..Default::default()
+        };
+        assert_eq!(sync_problem(7, &outcome), None);
+    }
+
+    #[test]
+    fn failures_outrank_skips() {
+        let outcome = SyncOutcome {
+            skipped: vec![SyncSkip {
+                filename: "x.sav".into(),
+                root_token: None,
+                reason: "no prefix".into(),
+            }],
+            failed: vec![SyncFailure {
+                filename: "y.sav".into(),
+                direction: "down".into(),
+                error: "timed out".into(),
+            }],
+            ..Default::default()
+        };
+        let problem = sync_problem(7, &outcome).unwrap();
+        assert!(problem.starts_with("1 file(s) failed"), "{problem}");
+        assert!(problem.contains("y.sav: timed out"), "{problem}");
+
+        let skipped_only = SyncOutcome {
+            failed: Vec::new(),
+            ..outcome
+        };
+        let problem = sync_problem(7, &skipped_only).unwrap();
+        assert!(
+            problem.contains("skipped (first: x.sav: no prefix)"),
+            "{problem}"
+        );
     }
 }

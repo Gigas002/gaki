@@ -662,7 +662,12 @@ I make the changes, and you review, commit, and push.
     Phase 1. `steam_mode` stays as a picker label. `libgaki`'s one stray
     `println!` (MangoHud missing, `wine_tkg.rs`) is now `tracing::warn!`, so
     it can't write over the TUI.
-  - [ ] Cloud
+  - [x] Cloud (`cloud_list`, `cloud_sync`). Fixed silent partial syncs: the
+    CLI's `--json` result carried conflicts, skipped and failed files with a
+    success exit, so the TUI said "synced". Now any of them comes back as an
+    error naming the count and the first file (worst first: failed,
+    diverged, skipped). Diverged saves are still only detected; both copies
+    are kept.
   - [ ] Account and login
   - [ ] The rest
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
