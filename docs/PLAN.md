@@ -11,12 +11,12 @@ in one workspace:
 | `gaki-cli` | bin  | `gaki-cli` | Thin CLI over `libgaki`                                 |
 | `gaki-tui` | bin  | `gaki`     | Thin TUI over `libgaki` (imported from Aurelia-TUI)     |
 
-Sources: `aurelia-questions.md` (the original upstream questions plus the request
+Sources: `docs/aurelia-questions.md` (the original upstream questions plus the request
 list), `../rust-template` (ARCHITECTURE.md, CI, lint/deny/typos configs),
 `../lootrs` (the profile/games config model), and `../Aurelia-TUI` (the TUI code).
 
 Request items are referenced as **R<n>** (the numbered "Agent request" list) and
-**Q<n>** (the numbered questions at the top of `aurelia-questions.md`).
+**Q<n>** (the numbered questions at the top of `docs/aurelia-questions.md`).
 
 ---
 
@@ -533,15 +533,22 @@ I make the changes, and you review, commit, and push.
     thread names all say gaki, and the process helpers are `GakiProcess` /
     `find_gaki_processes`. `aurelia` remains only in the forked crate names
     (`aurelia-steam-vent-chat`, `aurelia-steam-cdn`, Phase 6),
-    `aurelia-questions.md`, and the README's upstream install, crates,
+    `docs/aurelia-questions.md`, and the README's upstream install, crates,
     acknowledgement and link sections (Phase 7).
-    **Known issue, for 2.5:** some lib unit tests (runners, preflight,
+    **Known issue (fixed in 2.5):** some lib unit tests (runners, preflight,
     `steam_client`) write fixtures (`fake_env/`, `running/123.json`) into the
     real config dir instead of a temp one.
-- [ ] **2.5** Move integration tests to their owning crate's `tests/`. Create
+- [x] **2.5** Move integration tests to their owning crate's `tests/`. Create
   `examples/` (empty placeholder until Phase 5) and move documentation into
   `docs/` (leave the README content split for Phase 7). Point the codecov
   matrix in `test.yml` at the new crates.
+  *Done.* The integration tests were already split in 2.1/2.2: the
+  `libgaki/tests/` ones use only the lib, and the three that drive the binary
+  sit in `gaki-cli/tests/`. `examples/` holds a README placeholder, and
+  `aurelia-questions.md` moved to `docs/`. The codecov matrix already covered
+  `libgaki` and `gaki-cli`; only its stale comment went. Also fixed the 2.4c
+  known issue: under `cfg(test)`, `config_dir()` returns a per-process temp
+  dir, so a full `cargo test` with a throwaway `HOME` writes nothing there.
 
 ### Phase 3 — import the TUI (R6, R7, R8, R9)
 
@@ -653,7 +660,7 @@ I make the changes, and you review, commit, and push.
 
 ---
 
-## Q&A carried over from `aurelia-questions.md`
+## Q&A carried over from `docs/aurelia-questions.md`
 
 | Q | Resolution |
 | - | ---------- |
@@ -668,4 +675,4 @@ I make the changes, and you review, commit, and push.
 | Q9 ProtonDB/GitHub hotkey | Step 7.1 |
 | Profiles / shared prefixes | Phase 5 |
 
-`aurelia-questions.md` can be deleted once this plan is accepted.
+`docs/aurelia-questions.md` can be deleted once this plan is accepted.

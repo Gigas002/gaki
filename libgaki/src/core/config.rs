@@ -220,7 +220,16 @@ pub fn config_dir() -> Result<PathBuf> {
     if let Some(dir) = CONFIG_DIR_OVERRIDE.get() {
         return Ok(dir.clone());
     }
+    // Unit tests never touch the real config dir: they share one throwaway
+    // directory per test process (under the system temp dir).
+    #[cfg(test)]
+    {
+        static TEST_DIR: std::sync::LazyLock<PathBuf> =
+            std::sync::LazyLock::new(|| tempfile::tempdir().expect("test config dir").keep());
+        Ok(TEST_DIR.clone())
+    }
     // Joined per component so Windows paths don't mix separators.
+    #[cfg(not(test))]
     Ok(home_dir()?.join(".config").join("gaki"))
 }
 
