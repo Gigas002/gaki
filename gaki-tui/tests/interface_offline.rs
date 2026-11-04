@@ -39,6 +39,7 @@ fn logged_out_session_is_reported_not_fetched() {
     game_data_needs_a_session();
     social_needs_a_session();
     collections_round_trip();
+    cancelled_qr_login_stops_quietly();
     pinning_reads_local_state();
     settings_round_trip();
     game_settings_round_trip();
@@ -265,4 +266,15 @@ fn collections_round_trip() {
         let err = result.expect_err(what);
         assert!(err.to_string().contains("not logged in"), "{what}: {err}");
     }
+}
+
+/// A cancelled QR attempt ends at once and never publishes a code.
+fn cancelled_qr_login_stops_quietly() {
+    use std::sync::{Arc, Mutex};
+    let cell = Arc::new(Mutex::new(None));
+    let started = std::time::Instant::now();
+    let err = aurelia::login_qr(&cell, || true).expect_err("cancelled");
+    assert!(err.to_string().contains("cancelled"), "{err}");
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    assert_eq!(*cell.lock().unwrap(), None);
 }

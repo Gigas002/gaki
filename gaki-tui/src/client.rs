@@ -12,6 +12,7 @@ use crate::util::log::log;
 use crate::util::paths::{cache_location, invalidate_cache};
 
 use std::fs;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -33,9 +34,9 @@ pub enum Command {
     Login(String),
     /// Probe the session health without a user name (stored session or daemon).
     CheckSession,
-    /// Begin a QR-code login (`aurelia login --qr`), streaming challenge URLs
-    /// into the shared QR cell.
-    LoginQr,
+    /// Begin QR-code login attempt `n`, streaming challenge URLs into the
+    /// shared QR cell while it is the current attempt.
+    LoginQr(u64),
     /// Begin a classic username/password login. The `Receiver` delivers a Steam
     /// Guard code from the UI if one is prompted for.
     LoginClassic(String, String, Receiver<String>),
@@ -128,6 +129,7 @@ fn handle_load_games(state: &Arc<Mutex<State>>) -> Result<(), STError> {
 fn execute(
     state: Arc<Mutex<State>>,
     qr: Arc<Mutex<Option<String>>>,
+    qr_attempt: Arc<AtomicU64>,
     login_phase: Arc<Mutex<LoginPhase>>,
     last_error: Arc<Mutex<Option<String>>>,
     account: Arc<Mutex<Option<String>>>,
@@ -145,17 +147,21 @@ fn execute(
             Command::CheckSession => {
                 handle_login(&state, &last_error, &account)?;
             }
-            Command::LoginQr => {
+            Command::LoginQr(attempt) => {
                 // Run the (blocking) QR login on its own thread so the worker
-                // stays responsive; it updates the shared state when it resolves.
+                // stays responsive; it updates the shared state when it
+                // resolves, unless the UI cancelled it or started another.
                 let state = state.clone();
                 let qr = qr.clone();
+                let qr_attempt = qr_attempt.clone();
                 let last_error = last_error.clone();
                 thread::spawn(move || {
-                    if let Ok(mut slot) = qr.lock() {
-                        *slot = None;
+                    let stale = || qr_attempt.load(Ordering::SeqCst) != attempt;
+                    let result = aurelia::login_qr(&qr, stale);
+                    if stale() {
+                        return;
                     }
-                    let next = match aurelia::login_qr(&qr) {
+                    let next = match result {
                         Ok(()) => State::Loaded(0, -2),
                         Err(err) => {
                             log!("QR login failed", err);
@@ -231,8 +237,10 @@ fn execute(
 pub struct Client {
     sender: Mutex<Sender<Command>>,
     state: Arc<Mutex<State>>,
-    /// Latest QR-login challenge URL, published by an in-flight `login --qr`.
+    /// Latest QR-login challenge URL, published by the current QR attempt.
     qr: Arc<Mutex<Option<String>>>,
+    /// The current QR attempt; bumping it cancels the one in flight.
+    qr_attempt: Arc<AtomicU64>,
     /// Progress of an in-flight classic (username/password) login.
     login_phase: Arc<Mutex<LoginPhase>>,
     /// Sender for delivering a Steam Guard code to the active classic login.
@@ -251,6 +259,7 @@ impl Client {
             sender: Mutex::new(tx),
             state: Arc::new(Mutex::new(State::LoggedOut)),
             qr: Arc::new(Mutex::new(None)),
+            qr_attempt: Arc::new(AtomicU64::new(0)),
             login_phase: Arc::new(Mutex::new(LoginPhase::Idle)),
             guard_tx: Mutex::new(None),
             last_error: Arc::new(Mutex::new(None)),
@@ -259,6 +268,7 @@ impl Client {
         Client::start_process(
             client.state.clone(),
             client.qr.clone(),
+            client.qr_attempt.clone(),
             client.login_phase.clone(),
             client.last_error.clone(),
             client.account.clone(),
@@ -299,10 +309,19 @@ impl Client {
     /// render and [`Client::get_state`] for completion (`Loaded(_, -2)`) or
     /// failure (`Failed`).
     pub fn login_qr(&self) -> Result<(), STError> {
+        let attempt = self.qr_attempt.fetch_add(1, Ordering::SeqCst) + 1;
         *self.state.lock()? = State::LoggedOut;
         *self.qr.lock()? = None;
         *self.last_error.lock()? = None;
-        self.sender.lock()?.send(Command::LoginQr)?;
+        self.sender.lock()?.send(Command::LoginQr(attempt))?;
+        Ok(())
+    }
+
+    /// Abandon the QR login in flight: it stops, and neither its code nor
+    /// its outcome reaches the UI.
+    pub fn cancel_qr(&self) -> Result<(), STError> {
+        self.qr_attempt.fetch_add(1, Ordering::SeqCst);
+        *self.qr.lock()? = None;
         Ok(())
     }
 
@@ -461,6 +480,7 @@ impl Client {
     fn start_process(
         state: Arc<Mutex<State>>,
         qr: Arc<Mutex<Option<String>>>,
+        qr_attempt: Arc<AtomicU64>,
         login_phase: Arc<Mutex<LoginPhase>>,
         last_error: Arc<Mutex<Option<String>>>,
         account: Arc<Mutex<Option<String>>>,
@@ -468,7 +488,15 @@ impl Client {
     ) {
         thread::spawn(move || {
             let local = state.clone();
-            if let Err(e) = execute(state, qr, login_phase, last_error, account, receiver) {
+            if let Err(e) = execute(
+                state,
+                qr,
+                qr_attempt,
+                login_phase,
+                last_error,
+                account,
+                receiver,
+            ) {
                 let mut state = local
                     .lock()
                     .expect("We need to inform the other thread that this broke.");

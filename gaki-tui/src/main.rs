@@ -604,7 +604,10 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                         placement[0],
                     ),
                     Mode::LoginQr => {
-                        frame.render_widget(App::build_qr(client.get_qr()), placement[0])
+                        frame.render_widget(
+                            App::build_qr(client.get_qr(), placement[0]),
+                            placement[0],
+                        )
                     }
                     Mode::LoginUser | Mode::LoginPass => {
                         frame.render_widget(App::build_splash(), placement[0])
@@ -1542,8 +1545,9 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                         break;
                     }
                     KeyCode::Esc => {
-                        // Abandon this attempt; the backend login times out on
-                        // its own.
+                        // Abandon this attempt; it stops and its outcome is
+                        // dropped.
+                        client.cancel_qr()?;
                         app.mode = Mode::Login;
                     }
                     _ => {}

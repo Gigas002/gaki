@@ -707,9 +707,22 @@ I make the changes, and you review, commit, and push.
     - [x] Collections. The local store is edited directly (offline);
       pull, push and sync use the session. Negative app ids are rejected
       instead of being passed through.
-- [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
+- [x] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
   `libgaki` auth flow directly, rather than scraping it from CLI output, which
   is the most likely cause of the bug. Add a render test.
+  *Done.* Root cause: in `--json` mode `gaki-cli login --qr` watches stdin
+  for a `cancel` line and takes EOF as "driver gone". The TUI spawned it with
+  stdin set to null, so the login aborted ("stdin closed; QR login
+  abandoned"), usually before Steam sent a challenge. The 4.2 port removed
+  the subprocess; the challenge now comes from `ops::auth::login_qr`
+  directly. Also fixed: Esc didn't cancel, so an abandoned attempt kept
+  running for up to 10 minutes, overwrote a newer attempt's code with its
+  rotations, and threw you off the QR page when it timed out. Each attempt
+  now has a number; a stale one stops at once and its code and outcome are
+  dropped. The page shows only the code, centred, so it fits a standard
+  80×24 terminal with its quiet zone; a smaller terminal gets the size it
+  needs instead of a clipped code. `tests/qr_view.rs` decodes the drawn
+  cells back into modules and compares them with the QR matrix.
 - [ ] **4.4** Delete the subprocess layer and drop `reqwest` blocking and
   `serde_json` CLI parsing from the TUI.
 - [ ] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,

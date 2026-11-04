@@ -9,8 +9,9 @@ use crate::config::Config;
 use crate::theme;
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
+    text::{Line, Span},
     widgets::Paragraph,
 };
 
@@ -206,32 +207,62 @@ impl App {
         )
     }
 
-    /// The QR-login page: renders the current challenge as scannable blocks.
-    pub fn build_qr(qr: Option<String>) -> Paragraph<'static> {
-        let body = match qr {
-            Some(url) => format!(
-                "Scan with the Steam Mobile app:\n\n{}\n",
-                App::render_qr_string(&url)
-            ),
-            None => "Generating QR code...".to_string(),
+    /// The QR-login page for a pane of size `area`: the current challenge as
+    /// scannable blocks (black modules on white, quiet zone included),
+    /// centred. When the pane is too small to hold the whole code, it says how
+    /// large the terminal must be instead of drawing a clipped, unscannable
+    /// code.
+    pub fn build_qr(qr: Option<String>, area: Rect) -> Paragraph<'static> {
+        let panel = theme::panel("Scan with the Steam Mobile app ([Esc] cancel, [q] quit)".into());
+        let Some(url) = qr else {
+            return Paragraph::new("Generating QR code...")
+                .alignment(Alignment::Center)
+                .block(panel);
         };
-        Paragraph::new(body)
-            .style(Style::default().fg(Color::Black).bg(Color::White))
-            .alignment(Alignment::Center)
-            .block(theme::panel(
-                "Scan to sign in ([Esc] cancel, [q] quit)".to_string(),
+        let Some(code) = App::render_qr_string(&url) else {
+            return Paragraph::new(format!("(could not render the QR code)\n{url}"))
+                .alignment(Alignment::Center)
+                .block(panel);
+        };
+        let lines: Vec<&str> = code.lines().collect();
+        let width = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0) as u16;
+        let height = lines.len() as u16;
+        // The panel border takes one cell on every side.
+        let (inner_w, inner_h) = (area.width.saturating_sub(2), area.height.saturating_sub(2));
+        if width > inner_w || height > inner_h {
+            // The help box below the pane takes 3 rows.
+            return Paragraph::new(format!(
+                "The QR code needs a terminal of at least {}×{}.\nEnlarge the window, or press [Esc] and sign in with a password.",
+                width + 2,
+                height + 2 + 3
             ))
+            .alignment(Alignment::Center)
+            .block(panel);
+        }
+        let qr_style = Style::default().fg(Color::Black).bg(Color::White);
+        let top = (inner_h - height) / 2;
+        let text: Vec<Line<'static>> = std::iter::repeat_n(Line::raw(""), top as usize)
+            .chain(
+                lines
+                    .into_iter()
+                    .map(|l| Line::from(Span::styled(l.to_string(), qr_style))),
+            )
+            .collect();
+        Paragraph::new(text)
+            .alignment(Alignment::Center)
+            .block(panel)
     }
 
-    /// Render a challenge URL as a terminal QR code (black modules on white).
-    fn render_qr_string(url: &str) -> String {
-        match qrcode::QrCode::new(url.as_bytes()) {
-            Ok(code) => code
-                .render::<qrcode::render::unicode::Dense1x2>()
+    /// Render a challenge URL as a terminal QR code, two modules per cell
+    /// vertically, with the standard quiet zone. Dark modules are block glyphs,
+    /// so it must be drawn dark-on-light.
+    fn render_qr_string(url: &str) -> Option<String> {
+        let code = qrcode::QrCode::new(url.as_bytes()).ok()?;
+        Some(
+            code.render::<qrcode::render::unicode::Dense1x2>()
                 .quiet_zone(true)
                 .build(),
-            Err(_) => format!("(could not render QR code)\n{}", url),
-        }
+        )
     }
     pub fn build_login_help() -> Paragraph<'static> {
         App::build_infobox(

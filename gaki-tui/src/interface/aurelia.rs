@@ -1670,24 +1670,41 @@ pub fn stop(app_id: i32) -> Result<(), STError> {
 
 /// Log in by QR code, publishing each challenge URL into `qr_cell` so the UI
 /// can render it. Blocks until the login resolves; returns `Ok(())` once
-/// authenticated, `Err` on failure/timeout. Intended to be run on a dedicated
-/// thread. On success the worker session adopts the new client.
-pub fn login_qr(qr_cell: &Arc<Mutex<Option<String>>>) -> Result<(), STError> {
+/// authenticated, `Err` on failure, timeout or cancellation. Intended to be
+/// run on a dedicated thread. On success the worker session adopts the new
+/// client.
+///
+/// `cancelled` is checked a few times a second: once it returns true the
+/// attempt stops (its Steam connection is dropped) and never writes to
+/// `qr_cell` again, so an abandoned attempt can't replace a newer one's code.
+pub fn login_qr(
+    qr_cell: &Arc<Mutex<Option<String>>>,
+    cancelled: impl Fn() -> bool,
+) -> Result<(), STError> {
     use libgaki::core::models::QrEvent;
     in_process(async {
         let mut client = libgaki::steam_client::SteamClient::new()?;
-        libgaki::ops::auth::login_qr(
+        let login = libgaki::ops::auth::login_qr(
             &mut client,
             libgaki::ops::auth::QR_DEFAULT_TIMEOUT,
             |event| {
                 if let QrEvent::Challenge(url) = event
+                    && !cancelled()
                     && let Ok(mut slot) = qr_cell.lock()
                 {
                     *slot = Some(url.to_string());
                 }
             },
-        )
-        .await?;
+        );
+        let watch = async {
+            while !cancelled() {
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+        };
+        tokio::select! {
+            result = login => result?,
+            () = watch => anyhow::bail!("QR login cancelled"),
+        };
         worker::global().session().set(client).await;
         Ok(())
     })
