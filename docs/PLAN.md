@@ -208,11 +208,11 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 0 — housekeeping
 
-- [ ] **0.1** Rename the branch to `master` (R0). **You do this yourself:**
+- [x] **0.1** Rename the branch to `master` (R0). **You do this yourself:**
   `git branch -m main master && git push -u origin master`, then switch the
   default branch on GitHub and delete `main`.
 - [x] **0.2** Remove `docs/` from `.gitignore`, and add this plan.
-- [ ] **0.3** Remove repo cruft (R16, R17, R18): `flake.nix`, `SECURITY.md`,
+- [x] **0.3** Remove repo cruft (R16, R17, R18): `flake.nix`, `SECURITY.md`,
   `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `scripts/aur-push.sh`,
   `.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/`, and the upstream
   `release.yml`. Also remove the `result`/`result-*` (Nix) entries from
