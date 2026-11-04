@@ -4,7 +4,8 @@ use crate::steam_urls;
 
 use crate::commands::common::*;
 
-use anyhow::{Context, Result, bail};
+use anyhow::Result;
+use libgaki::ops::library::{self, ListOptions};
 
 pub(crate) async fn cmd_list(
     installed: bool,
@@ -15,124 +16,16 @@ pub(crate) async fn cmd_list(
     json: bool,
 ) -> Result<()> {
     let mut client = restored_client().await?;
-    let mut games = load_library(&mut client).await;
-
-    // Load the local collections store (best-effort; ignore if none). Only static
-    // collections contribute here — dynamic (filter-based) collections have no
-    // explicit membership list, so their members can't be resolved offline.
-    let collections_store = libgaki::library::collections::CollectionsStore::load().ok();
-
-    // Include Family-Shared games that aren't installed (and which we don't own),
-    // such as titles only available through a family member's library.
-    if client.is_authenticated() {
-        tracing::info!("Fetching Family Sharing library from Steam ...");
-        match client.fetch_family_shared_apps().await {
-            Ok(shared) => {
-                tracing::info!("Fetched {} Family-Shared apps", shared.len());
-                merge_family_shared(&mut games, shared);
-            }
-            Err(e) => tracing::warn!("could not fetch family shared apps: {e:#}"),
-        }
-    }
-
-    if installed {
-        games.retain(|g| g.is_installed);
-    }
-    if let Some(needle) = search.as_deref().map(str::to_ascii_lowercase) {
-        games.retain(|g| g.name.to_ascii_lowercase().contains(&needle));
-    }
-    // Filter to a single collection's members when requested. Resolved against
-    // the local store (static collections only); an unknown name/id is an error.
-    if let Some(name) = collection.as_deref() {
-        let store = collections_store
-            .as_ref()
-            .context("no collections found — run `aurelia collections pull` first")?;
-        let col = store.resolve(name)?;
-        if col.is_dynamic() {
-            bail!(
-                "'{}' is a dynamic (filter-based) collection; its membership is computed by \
-                 Steam and can't be resolved offline",
-                col.name
-            );
-        }
-        let members: std::collections::HashSet<u32> = col.added.iter().copied().collect();
-        let removed: std::collections::HashSet<u32> = col.removed.iter().copied().collect();
-        games.retain(|g| members.contains(&g.app_id) && !removed.contains(&g.app_id));
-    }
-    games.sort_by(|a, b| {
-        a.name
-            .to_ascii_lowercase()
-            .cmp(&b.name.to_ascii_lowercase())
-    });
-
-    // Precompute each game's static-collection membership names for display.
-    let game_collections = |app_id: u32| -> Vec<String> {
-        collections_store
-            .as_ref()
-            .map(|s| {
-                s.collections
-                    .iter()
-                    .filter(|c| !c.deleted && !c.is_dynamic() && c.contains(app_id))
-                    .map(|c| c.name.clone())
-                    .collect()
-            })
-            .unwrap_or_default()
+    let options = ListOptions {
+        installed,
+        search,
+        collection,
+        online,
+        check_updates,
     };
-
-    // Resolve the "online required" status only when requested: it needs a PICS
-    // appinfo fetch per game, which is too costly to do on every `list`.
-    if online {
-        if client.is_authenticated() && !client.is_offline() {
-            tracing::info!(
-                "Resolving online-required status for {} game(s) ...",
-                games.len()
-            );
-            for g in &mut games {
-                match client.fetch_online_required(g.app_id).await {
-                    Ok(required) => g.online_required = Some(required),
-                    Err(e) => {
-                        tracing::warn!(
-                            "could not determine online-required for {}: {e:#}",
-                            g.app_id
-                        );
-                    }
-                }
-            }
-        } else {
-            tracing::warn!(
-                "--online needs an authenticated, online session; ONLINE column will be unknown"
-            );
-        }
-    }
-
-    // Resolve `update_available` only when requested: it reads each installed
-    // game's appmanifest and fetches its remote depot manifests, too costly for a
-    // plain `list`. `check_for_updates` compares local vs remote manifests and is
-    // ownership-agnostic, so Family-Shared games (which won't launch when stale)
-    // are flagged just like owned ones.
-    if check_updates {
-        if client.is_authenticated() && !client.is_offline() {
-            tracing::info!("Checking {} game(s) for updates ...", games.len());
-            if let Err(e) = client.check_for_updates(&mut games).await {
-                tracing::warn!("could not check for updates: {e:#}");
-            }
-        } else {
-            tracing::warn!(
-                "--check-updates needs an authenticated, online session; update status will be unknown"
-            );
-        }
-    }
-
-    // Record each installed game's depot platform so a driver (e.g. Heroic) can
-    // tell native-Linux games from Windows-via-Proton ones. Only installed games
-    // have files to inspect; the scan early-exits on the first `.exe`.
-    for g in &mut games {
-        if g.is_installed
-            && let Some(path) = g.install_path.as_deref()
-        {
-            g.platform = libgaki::library::platform::detect_installed_platform(path);
-        }
-    }
+    let listing = library::list(&mut client, &options).await?;
+    let games = &listing.games;
+    let game_collections = |app_id: u32| listing.collections_of(app_id).to_vec();
 
     if json {
         // Bake the conventional artwork/store URLs
@@ -189,7 +82,7 @@ pub(crate) async fn cmd_list(
             "COLLECTIONS"
         );
     }
-    for g in &games {
+    for g in games {
         let status = if g.is_installed {
             if g.update_available {
                 "update"
@@ -257,9 +150,7 @@ pub(crate) async fn cmd_list(
 
 pub(crate) async fn cmd_account(json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let mut data = client.get_account_data().await;
-    // Resolve the public persona
-    data.persona_name = client.own_persona_name().await;
+    let data = library::account(&client).await;
 
     if json {
         let value = serde_json::json!({
@@ -303,14 +194,10 @@ pub(crate) async fn cmd_account(json: bool) -> Result<()> {
 /// object with `--json`). Only roots that actually contain a `steamapps`
 /// directory are reported.
 pub(crate) async fn cmd_libraries(json: bool) -> Result<()> {
-    let libraries: Vec<(String, Option<u64>)> = libgaki::library::all_library_roots()
+    let libraries: Vec<(String, Option<u64>)> = library::folders()
         .await
         .into_iter()
-        .filter(|root| root.join("steamapps").is_dir())
-        .map(|root| {
-            let free = libgaki::core::utils::available_space_for(&root);
-            (root.to_string_lossy().to_string(), free)
-        })
+        .map(|f| (f.path.to_string_lossy().to_string(), f.free_bytes))
         .collect();
 
     if json {

@@ -10,8 +10,7 @@ use libgaki::steam_client::SteamClient;
 use std::io::Write;
 
 // Library operations used across the command modules.
-pub(crate) use libgaki::ops::install::InstallGuard;
-pub(crate) use libgaki::ops::library::{find_game, load_library, merge_family_shared};
+pub(crate) use libgaki::ops::library::find_game;
 pub(crate) use libgaki::ops::progress::{RateTracker, percent_of};
 
 /// Pretty-print JSON to stdout.

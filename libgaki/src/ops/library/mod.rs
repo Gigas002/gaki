@@ -4,9 +4,12 @@
 use crate::core::config::load_library_cache;
 use crate::core::error::{ErrorKind, TypedError};
 use crate::core::models::LibraryGame;
+use crate::library::collections::CollectionsStore;
 use crate::library::{build_game_library, scan_installed_app_info};
-use crate::steam_client::{SharedApp, SteamClient};
+use crate::steam_client::{AccountData, SharedApp, SteamClient};
 use anyhow::Result;
+use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 
 /// Build the merged owned + installed library.
 ///
@@ -96,6 +99,189 @@ pub async fn cached_game_name(app_id: u32) -> Option<String> {
             .find(|g| g.app_id == app_id)
             .map(|g| g.name)
     })
+}
+
+/// What [`list`] returns.
+#[derive(Debug, Clone, Default)]
+pub struct ListOptions {
+    /// Only installed games.
+    pub installed: bool,
+    /// Only games whose name contains this (case-insensitive).
+    pub search: Option<String>,
+    /// Only members of this static collection (name or id).
+    pub collection: Option<String>,
+    /// Resolve `online_required` (one appinfo fetch per game).
+    pub online: bool,
+    /// Resolve `update_available` (reads manifests; slow).
+    pub check_updates: bool,
+}
+
+/// The filtered library, sorted by name.
+#[derive(Debug, Clone, Default)]
+pub struct Listing {
+    pub games: Vec<LibraryGame>,
+    /// Static-collection names per app id.
+    pub collections: HashMap<u32, Vec<String>>,
+}
+
+impl Listing {
+    /// The static collections `app_id` belongs to.
+    pub fn collections_of(&self, app_id: u32) -> &[String] {
+        self.collections.get(&app_id).map_or(&[], Vec::as_slice)
+    }
+}
+
+/// The library with Family-Shared games, filtered and enriched per `options`.
+/// Installed games get their depot platform detected from disk.
+///
+/// Filtering by a collection needs the local collections store, and only
+/// works for static collections (`InvalidInput` for a dynamic one).
+pub async fn list(client: &mut SteamClient, options: &ListOptions) -> Result<Listing> {
+    let mut games = load_library(client).await;
+    // Only static collections have a membership list to resolve offline.
+    let store = CollectionsStore::load().ok();
+
+    if client.is_authenticated() {
+        tracing::info!("Fetching Family Sharing library from Steam ...");
+        match client.fetch_family_shared_apps().await {
+            Ok(shared) => {
+                tracing::info!("Fetched {} Family-Shared apps", shared.len());
+                merge_family_shared(&mut games, shared);
+            }
+            Err(e) => tracing::warn!("could not fetch family shared apps: {e:#}"),
+        }
+    }
+
+    if options.installed {
+        games.retain(|g| g.is_installed);
+    }
+    if let Some(needle) = options.search.as_deref().map(str::to_ascii_lowercase) {
+        games.retain(|g| g.name.to_ascii_lowercase().contains(&needle));
+    }
+    if let Some(name) = options.collection.as_deref() {
+        let store = store.as_ref().ok_or_else(|| {
+            TypedError::new(ErrorKind::NotFound, "no collections found; pull them first")
+        })?;
+        let members = static_members(store, name)?;
+        games.retain(|g| members.contains(&g.app_id));
+    }
+    games.sort_by_key(|g| g.name.to_ascii_lowercase());
+
+    let online = client.is_authenticated() && !client.is_offline();
+    if options.online {
+        if online {
+            tracing::info!(
+                "Resolving online-required status for {} game(s) ...",
+                games.len()
+            );
+            for g in &mut games {
+                match client.fetch_online_required(g.app_id).await {
+                    Ok(required) => g.online_required = Some(required),
+                    Err(e) => tracing::warn!(
+                        "could not determine online-required for {}: {e:#}",
+                        g.app_id
+                    ),
+                }
+            }
+        } else {
+            tracing::warn!("online-required status needs an authenticated, online session");
+        }
+    }
+    // Ownership-agnostic, so Family-Shared games (which won't launch when
+    // stale) are flagged too.
+    if options.check_updates {
+        if online {
+            tracing::info!("Checking {} game(s) for updates ...", games.len());
+            if let Err(e) = client.check_for_updates(&mut games).await {
+                tracing::warn!("could not check for updates: {e:#}");
+            }
+        } else {
+            tracing::warn!("update status needs an authenticated, online session");
+        }
+    }
+
+    // Native Linux vs Windows-via-Proton; the scan stops at the first `.exe`.
+    for g in &mut games {
+        if g.is_installed
+            && let Some(path) = g.install_path.as_deref()
+        {
+            g.platform = crate::library::platform::detect_installed_platform(path);
+        }
+    }
+
+    let collections = store
+        .map(|s| memberships(&s, games.iter().map(|g| g.app_id)))
+        .unwrap_or_default();
+    Ok(Listing { games, collections })
+}
+
+/// Members of a static collection, minus removals.
+fn static_members(store: &CollectionsStore, name: &str) -> Result<HashSet<u32>> {
+    let col = store.resolve(name)?;
+    if col.is_dynamic() {
+        return Err(TypedError::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "'{}' is a dynamic (filter-based) collection; its membership is computed by \
+                 Steam and can't be resolved offline",
+                col.name
+            ),
+        )
+        .into());
+    }
+    let removed: HashSet<u32> = col.removed.iter().copied().collect();
+    Ok(col
+        .added
+        .iter()
+        .copied()
+        .filter(|id| !removed.contains(id))
+        .collect())
+}
+
+/// Static-collection names for each of `app_ids` that belongs to one.
+fn memberships(
+    store: &CollectionsStore,
+    app_ids: impl Iterator<Item = u32>,
+) -> HashMap<u32, Vec<String>> {
+    app_ids
+        .filter_map(|app_id| {
+            let names: Vec<String> = store
+                .collections
+                .iter()
+                .filter(|c| !c.deleted && !c.is_dynamic() && c.contains(app_id))
+                .map(|c| c.name.clone())
+                .collect();
+            (!names.is_empty()).then_some((app_id, names))
+        })
+        .collect()
+}
+
+/// Account details, with the public persona name.
+pub async fn account(client: &SteamClient) -> AccountData {
+    let mut data = client.get_account_data().await;
+    data.persona_name = client.own_persona_name().await;
+    data
+}
+
+/// A Steam library folder that can be installed into.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct LibraryFolder {
+    pub path: PathBuf,
+    /// Free space on its drive, when known.
+    pub free_bytes: Option<u64>,
+}
+
+/// Every Steam library folder that has a `steamapps` directory.
+pub async fn folders() -> Vec<LibraryFolder> {
+    crate::library::all_library_roots()
+        .await
+        .into_iter()
+        .filter(|root| root.join("steamapps").is_dir())
+        .map(|path| LibraryFolder {
+            free_bytes: crate::core::utils::available_space_for(&path),
+            path,
+        })
+        .collect()
 }
 
 #[cfg(test)]

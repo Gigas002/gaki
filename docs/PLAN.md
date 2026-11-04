@@ -467,7 +467,12 @@ I make the changes, and you review, commit, and push.
     `check_updates`, move/relink/import, availability, manifests,
     `downgrade`, pin/unpin. Progress goes through a caller-supplied `drive`
     closure. Free space is checked before Steam is stopped.
-  - [ ] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
+  - [x] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
+    *Done.* `ops::library` (`list` with filters and collection memberships,
+    `account`, `folders`), `ops::collections`, `ops::cloud` (`sync` →
+    `SyncReport`, `files`), `ops::launch` (`targets`, `play` reporting
+    `LaunchEvent`s, `running`, `stop`). Process admin (`kill`, `daemon
+    stop/list`) stays in the CLI.
   - [ ] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
     `commands/` holds only mapping and rendering; tick 2.3.
 - [ ] **2.4** Rename identifiers: `AURELIA_*` env vars become `GAKI_*`, user-facing

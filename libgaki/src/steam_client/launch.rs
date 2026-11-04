@@ -222,7 +222,7 @@ fn pick_launch_entry(
 }
 
 /// Called once the launch target is known, with its id (`None` for native).
-pub type TargetResolvedHook = dyn Fn(Option<&str>) + Send + Sync;
+pub type TargetResolvedHook<'a> = dyn Fn(Option<&str>) + Send + Sync + 'a;
 
 impl SteamClient {
     #[expect(
@@ -238,7 +238,7 @@ impl SteamClient {
         disable_launch_script: bool,
         steam_enabled: bool,
         prefer_native_target: bool,
-        on_target_resolved: Option<&TargetResolvedHook>,
+        on_target_resolved: Option<&TargetResolvedHook<'_>>,
     ) -> Result<LaunchInfo> {
         // A Family-Shared game (licensed to another account) can only be authorised
         // by a running Steam client, so it always needs Steam integration regardless

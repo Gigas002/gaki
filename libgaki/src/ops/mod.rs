@@ -5,9 +5,12 @@
 //! share the same behaviour and differ only in presentation.
 
 pub mod auth;
+pub mod cloud;
+pub mod collections;
 pub mod config;
 pub mod info;
 pub mod install;
+pub mod launch;
 pub mod library;
 pub mod progress;
 pub mod proton;

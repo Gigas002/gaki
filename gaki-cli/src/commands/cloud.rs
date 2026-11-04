@@ -3,7 +3,7 @@
 use crate::cli::*;
 use crate::commands::common::*;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::path::PathBuf;
 
 pub(crate) async fn cmd_cloud_sync(
@@ -15,30 +15,9 @@ pub(crate) async fn cmd_cloud_sync(
     json: bool,
 ) -> Result<()> {
     use libgaki::library::cloud_sync::{ConflictPolicy, SyncDirection};
+    use libgaki::ops::cloud;
 
     let client = authed_client().await?;
-    let cloud = client.cloud_client()?;
-
-    // Classic (token-less) remote-storage files live under `<appid>/remote`; Auto-Cloud
-    // files resolve to real OS paths via their `%RootToken%` prefix. `--path` overrides
-    // only the classic base. `%GameInstall%` needs the game's install directory.
-    let remote_root = match path {
-        Some(p) => p,
-        None => libgaki::library::cloud_sync::default_cloud_root(cloud.steam_id(), app_id)
-            .context("could not resolve the local cloud save directory")?
-            .join("remote"),
-    };
-    let (_, install_path) = client.is_game_available(app_id).await;
-    // A Windows game under Proton writes its saves inside the wine prefix, so the
-    // `%Win*%` roots in its cloud filenames only resolve with the prefix in hand.
-    let launcher_config = libgaki::core::config::LauncherConfig::load().await?;
-    let wine_prefix = libgaki::core::utils::proton_compat_prefix(&launcher_config, app_id);
-    let resolver = libgaki::library::cloud_sync::CloudPathResolver::new(
-        remote_root.clone(),
-        install_path.map(PathBuf::from),
-    )
-    .with_wine_prefix(Some(wine_prefix.clone()));
-
     // No flag = full sync (down then up); `--down`/`--up` restrict the direction.
     let direction = if up {
         SyncDirection::Up
@@ -47,35 +26,21 @@ pub(crate) async fn cmd_cloud_sync(
     } else {
         SyncDirection::Both
     };
-    let direction_str = match direction {
-        SyncDirection::Up => "up",
-        SyncDirection::Down => "down",
-        SyncDirection::Both => "both",
+    let direction_str = cloud::direction_name(direction);
+    // Without `--resolve` divergent saves are only detected (both copies kept).
+    let request = cloud::SyncRequest {
+        app_id,
+        direction,
+        policy: resolve.map_or(ConflictPolicy::Detect, ConflictPolicy::from),
+        remote_root: path,
     };
-
-    // Without `--resolve` we only *detect* divergent saves (and leave both copies
-    // intact); with it, every conflict is resolved by taking the chosen side.
-    let policy = resolve.map_or(ConflictPolicy::Detect, ConflictPolicy::from);
-
-    // UFS save rules let the upload pass discover brand-new local saves.
-    let specs = client
-        .fetch_ufs_save_specs(app_id)
-        .await
-        .unwrap_or_default();
-    let outcome = cloud
-        .sync(app_id, &resolver, &specs, direction, policy)
-        .await
-        .with_context(|| format!("cloud sync failed for app {app_id}"))?;
-
-    let status = if outcome.has_failures() {
-        "failed"
-    } else if outcome.has_conflicts() {
-        "conflicts"
-    } else if outcome.has_skips() {
-        "incomplete"
-    } else {
-        "ok"
-    };
+    let report = cloud::sync(&client, &request).await?;
+    let status = report.status();
+    let cloud::SyncReport {
+        remote_root,
+        wine_prefix,
+        outcome,
+    } = report;
 
     if json {
         let conflicts: Vec<_> = outcome
@@ -208,12 +173,7 @@ const SKIP_SAMPLE: usize = 5;
 
 pub(crate) async fn cmd_cloud_list(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let cloud = client.cloud_client()?;
-    let mut files = cloud
-        .get_file_list(app_id)
-        .await
-        .with_context(|| format!("failed listing Cloud files for app {app_id}"))?;
-    files.sort_by(|a, b| a.filename.cmp(&b.filename));
+    let files = libgaki::ops::cloud::files(&client, app_id).await?;
 
     if json {
         let arr: Vec<_> = files
