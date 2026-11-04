@@ -1,7 +1,7 @@
 //! Per-game launch scripts.
 //!
-//! A launch script is a user-supplied shell script (`<app_id>.sh` on unix,
-//! `<app_id>.bat` on Windows) that Aurelia runs as a **wrapper** around the
+//! A launch script is a user-supplied shell script (`<app_id>.sh`) that Aurelia
+//! runs as a **wrapper** around the
 //! fully-resolved launch command. When a script is active for an app the pipeline
 //! rewrites the resolved [`CommandSpec`](crate::infra::runners::CommandSpec) so the
 //! script becomes the program and the previously-resolved program + args are passed
@@ -33,14 +33,9 @@ pub fn script_dir() -> PathBuf {
     }
 }
 
-/// Platform-specific script filename for an app id (`<app_id>.sh` on unix,
-/// `<app_id>.bat` on Windows).
+/// Script filename for an app id: `<app_id>.sh`.
 pub fn script_filename(app_id: u32) -> String {
-    if cfg!(windows) {
-        format!("{app_id}.bat")
-    } else {
-        format!("{app_id}.sh")
-    }
+    format!("{app_id}.sh")
 }
 
 /// Auto-detected on-disk path for an app's launch script: `script_dir()/<file>`.
@@ -94,7 +89,7 @@ pub fn resolve(
 
 /// A scaffold launch script for `app_id` / `name`, documenting the wrapper
 /// semantics and the exported `AURELIA_*` env vars, with commented examples and a
-/// final passthrough (`exec "$@"` on unix; `%AURELIA_LAUNCH_PROGRAM% %*` on Windows).
+/// final `exec "$@"` passthrough.
 pub fn template(app_id: u32, name: &str) -> String {
     let name = if name.trim().is_empty() {
         "Unknown Game"
@@ -102,62 +97,33 @@ pub fn template(app_id: u32, name: &str) -> String {
         name
     };
 
-    #[cfg(not(windows))]
-    {
-        format!(
-            "#!/usr/bin/env bash\n\
-             # Aurelia per-game launch script for app {app_id} ({name}).\n\
-             #\n\
-             # Aurelia runs this script as a WRAPPER around the fully-resolved launch\n\
-             # command: the resolved program and its arguments are passed to this script\n\
-             # as \"$@\", and the entire launch environment (WINEPREFIX, WINEDLLOVERRIDES,\n\
-             # STEAM_COMPAT_*, DXVK_HUD, ...) is already exported. A script that is just\n\
-             # `exec \"$@\"` is therefore a transparent passthrough.\n\
-             #\n\
-             # Aurelia additionally exports:\n\
-             #   AURELIA_APP_ID        - the Steam app id ({app_id})\n\
-             #   AURELIA_APP_NAME      - the game's display name\n\
-             #   AURELIA_GAME_DIR      - the game's install directory (if known)\n\
-             #   AURELIA_LAUNCH_PROGRAM - the resolved program that would have run\n\
-             #   AURELIA_LAUNCH_ARGS   - its arguments, space-joined\n\
-             #\n\
-             # Examples (uncomment one, or write your own):\n\
-             #   exec gamemoderun mangohud \"$@\"\n\
-             #   exec gamescope -W 2560 -H 1440 -- \"$@\"\n\
-             #\n\
-             # Default: run the resolved command unchanged.\n\
-             exec \"$@\"\n"
-        )
-    }
-
-    #[cfg(windows)]
-    {
-        format!(
-            "@echo off\r\n\
-             rem Aurelia per-game launch script for app {app_id} ({name}).\r\n\
-             rem\r\n\
-             rem Aurelia runs this script as a WRAPPER around the fully-resolved launch\r\n\
-             rem command: the resolved program and its arguments are passed to this script\r\n\
-             rem as %*, and the launch environment is already exported. A script that just\r\n\
-             rem runs %AURELIA_LAUNCH_PROGRAM% %* is a transparent passthrough.\r\n\
-             rem\r\n\
-             rem Aurelia additionally exports:\r\n\
-             rem   %%AURELIA_APP_ID%%         - the Steam app id ({app_id})\r\n\
-             rem   %%AURELIA_APP_NAME%%       - the game's display name\r\n\
-             rem   %%AURELIA_GAME_DIR%%       - the game's install directory (if known)\r\n\
-             rem   %%AURELIA_LAUNCH_PROGRAM%% - the resolved program that would have run\r\n\
-             rem   %%AURELIA_LAUNCH_ARGS%%    - its arguments, space-joined\r\n\
-             rem\r\n\
-             rem Examples (uncomment one, or write your own):\r\n\
-             rem   mangohud %*\r\n\
-             rem\r\n\
-             rem Default: run the resolved command unchanged.\r\n\
-             %AURELIA_LAUNCH_PROGRAM% %*\r\n"
-        )
-    }
+    format!(
+        "#!/usr/bin/env bash\n\
+         # Aurelia per-game launch script for app {app_id} ({name}).\n\
+         #\n\
+         # Aurelia runs this script as a WRAPPER around the fully-resolved launch\n\
+         # command: the resolved program and its arguments are passed to this script\n\
+         # as \"$@\", and the entire launch environment (WINEPREFIX, WINEDLLOVERRIDES,\n\
+         # STEAM_COMPAT_*, DXVK_HUD, ...) is already exported. A script that is just\n\
+         # `exec \"$@\"` is therefore a transparent passthrough.\n\
+         #\n\
+         # Aurelia additionally exports:\n\
+         #   AURELIA_APP_ID        - the Steam app id ({app_id})\n\
+         #   AURELIA_APP_NAME      - the game's display name\n\
+         #   AURELIA_GAME_DIR      - the game's install directory (if known)\n\
+         #   AURELIA_LAUNCH_PROGRAM - the resolved program that would have run\n\
+         #   AURELIA_LAUNCH_ARGS   - its arguments, space-joined\n\
+         #\n\
+         # Examples (uncomment one, or write your own):\n\
+         #   exec gamemoderun mangohud \"$@\"\n\
+         #   exec gamescope -W 2560 -H 1440 -- \"$@\"\n\
+         #\n\
+         # Default: run the resolved command unchanged.\n\
+         exec \"$@\"\n"
+    )
 }
 
-/// App ids that have a launch script: any `<id>.sh`/`<id>.bat` in [`script_dir`]
+/// App ids that have a launch script: any `<id>.sh` in [`script_dir`]
 /// plus any per-game config-pinned script. Sorted and de-duplicated.
 pub fn list_script_app_ids(config: Option<&LauncherConfig>) -> Vec<u32> {
     let mut ids = std::collections::BTreeSet::new();

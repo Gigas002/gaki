@@ -174,22 +174,16 @@ impl Runner for WineTkgRunner {
                     for file in required_files {
                         let src = master_steam_dir.join(file);
                         let dst = target_steam_dir.join(file);
-                        if src.exists() && !dst.exists() {
-                            #[cfg(unix)]
-                            {
-                                if let Err(e) = std::os::unix::fs::symlink(&src, &dst) {
-                                    tracing::warn!(
-                                        "Symlink failed for {}, falling back to copy: {}",
-                                        file,
-                                        e
-                                    );
-                                    let _ = std::fs::copy(&src, &dst);
-                                }
-                            }
-                            #[cfg(not(unix))]
-                            {
-                                let _ = std::fs::copy(&src, &dst);
-                            }
+                        if src.exists()
+                            && !dst.exists()
+                            && let Err(e) = std::os::unix::fs::symlink(&src, &dst)
+                        {
+                            tracing::warn!(
+                                "Symlink failed for {}, falling back to copy: {}",
+                                file,
+                                e
+                            );
+                            let _ = std::fs::copy(&src, &dst);
                         }
                     }
 
@@ -198,22 +192,16 @@ impl Runner for WineTkgRunner {
                     for dir in required_dirs {
                         let src = master_steam_dir.join(dir);
                         let dst = target_steam_dir.join(dir);
-                        if src.exists() && !dst.exists() {
-                            #[cfg(unix)]
-                            {
-                                if let Err(e) = std::os::unix::fs::symlink(&src, &dst) {
-                                    tracing::warn!(
-                                        "Symlink failed for {}, falling back to copy: {}",
-                                        dir,
-                                        e
-                                    );
-                                    let _ = crate::core::utils::copy_dir_all(&src, &dst);
-                                }
-                            }
-                            #[cfg(not(unix))]
-                            {
-                                let _ = crate::core::utils::copy_dir_all(&src, &dst);
-                            }
+                        if src.exists()
+                            && !dst.exists()
+                            && let Err(e) = std::os::unix::fs::symlink(&src, &dst)
+                        {
+                            tracing::warn!(
+                                "Symlink failed for {}, falling back to copy: {}",
+                                dir,
+                                e
+                            );
+                            let _ = crate::core::utils::copy_dir_all(&src, &dst);
                         }
                     }
 

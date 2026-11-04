@@ -120,7 +120,6 @@ async fn test_launch_verification_success() {
 ///
 /// Spawns a real short-lived process (like the other verification tests), so it
 /// is gated to unix where `sh` is available.
-#[cfg(unix)]
 #[tokio::test]
 async fn test_background_steam_signal_then_exit_within_grace_is_early_exit() {
     use crate::infra::runners::wine_tkg::{ReadinessGrace, reclassify_after_grace};
@@ -148,7 +147,6 @@ async fn test_background_steam_signal_then_exit_within_grace_is_early_exit() {
 }
 
 /// Counterpart: a process still alive after the grace window is genuinely ready.
-#[cfg(unix)]
 #[tokio::test]
 async fn test_background_steam_alive_after_grace_is_ready() {
     use crate::infra::runners::wine_tkg::{ReadinessGrace, reclassify_after_grace};

@@ -97,9 +97,5 @@ async fn test_colon_preservation_on_linux() {
 
     let result_dir = sanitize_install_dir(game_name);
 
-    #[cfg(not(target_os = "windows"))]
     assert_eq!(result_dir, "Game: With Colon");
-
-    #[cfg(target_os = "windows")]
-    assert_eq!(result_dir, "Game_ With Colon");
 }

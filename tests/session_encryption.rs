@@ -70,7 +70,6 @@ fn legacy_password_envelope_points_at_relogin() {
     );
 }
 
-#[cfg(unix)]
 mod daemon_e2e {
     use super::*;
     use std::time::{Duration, Instant};

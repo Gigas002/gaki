@@ -91,7 +91,6 @@ async fn test_preflight_umu_run_allowed() {
     let tmp = tempdir().unwrap();
     let umu_run = tmp.path().join("umu-run");
     fs::write(&umu_run, "#!/bin/sh\n").unwrap();
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&umu_run).unwrap().permissions();
@@ -129,7 +128,6 @@ async fn test_preflight_bogus_relative_runner_fails() {
 }
 
 #[tokio::test]
-#[cfg(unix)]
 async fn test_preflight_native_game_self_heals_exec_bit() {
     use crate::core::models::LibraryGame;
     use crate::steam_client::{LaunchInfo, LaunchTarget};
@@ -188,7 +186,6 @@ async fn test_preflight_native_ignores_path_like_argument() {
     let tmp = tempdir().unwrap();
     let exe = tmp.path().join("game.bin");
     fs::write(&exe, "dummy").unwrap();
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let mut perms = fs::metadata(&exe).unwrap().permissions();
@@ -240,7 +237,6 @@ async fn test_preflight_native_ignores_path_like_argument() {
 }
 
 #[tokio::test]
-#[cfg(unix)]
 async fn test_preflight_not_executable() {
     use std::os::unix::fs::PermissionsExt;
     let tmp = tempdir().unwrap();

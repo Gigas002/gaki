@@ -210,21 +210,17 @@ pub(crate) enum Command {
     /// Launch a game and wait for it to exit.
     Play {
         app_id: u32,
-        /// Force a specific Proton/Wine runner (Linux only; implies Windows target).
+        /// Force a specific Proton/Wine runner (implies Windows target).
         #[arg(short, long)]
         proton: Option<String>,
-        /// Run the Windows executable directly with no Proton/Wine layer.
-        /// Always implied when running on Windows.
-        #[arg(short, long)]
-        windows: bool,
         /// Route this launch through the luxtorpeda native-engine plugin (Linux only).
         /// Installs the plugin on first use; see `aurelia luxtorpeda`.
-        #[arg(short = 'n', long, conflicts_with_all = ["proton", "windows"])]
+        #[arg(short = 'n', long, conflicts_with = "proton")]
         native_engine: bool,
         /// Wrap this launch through the umu-launcher plugin (Proton via `umu-run`,
         /// Linux only). Installs the plugin on first use; see `aurelia umu`.
         /// Combine with `--proton` to pick the Proton build umu runs.
-        #[arg(short = 'u', long, conflicts_with_all = ["windows", "native_engine"])]
+        #[arg(short = 'u', long, conflicts_with = "native_engine")]
         umu: bool,
         /// Wrap this launch with a specific launch script, overriding the per-game
         /// config and the auto-detected `<script_dir>/<app_id>.sh`. The script runs
@@ -705,8 +701,8 @@ pub(crate) enum ScriptsCommand {
     /// List app ids that have a launch script (dir-based and config-pinned) and
     /// their resolved paths.
     List,
-    /// Scaffold a launch script for a game at `<script_dir>/<app_id>.sh` (or `.bat`
-    /// on Windows). Errors if one already exists unless `--force`.
+    /// Scaffold a launch script for a game at `<script_dir>/<app_id>.sh`.
+    /// Errors if one already exists unless `--force`.
     New {
         app_id: u32,
         /// Overwrite an existing script.
@@ -816,7 +812,7 @@ pub(crate) enum ChatCommand {
         count: u32,
     },
     /// Open an interactive live chat with a friend: type lines to send, incoming
-    /// messages stream in. End with Ctrl-D (Ctrl-Z on Windows). With `--json`,
+    /// messages stream in. End with Ctrl-D. With `--json`,
     /// emits one JSON event per line and reads message text from stdin lines.
     Open { steamid: u64 },
 }

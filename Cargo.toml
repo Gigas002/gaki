@@ -56,17 +56,12 @@ sysinfo = { version = "0.33", default-features = false, features = ["system", "d
 qrcode = { version = "0.14", default-features = false } # Terminal QR rendering for `login --qr`
 chacha20poly1305 = "0.10"
 argon2 = "0.5"
-keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust", "windows-native", "apple-native"] }
+keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust", "apple-native"] }
 
 [build-dependencies]
 # Pure-Rust protobuf codegen (no protoc) for the CloudConfigStore messages used by
 # library collections; version tracks the `protobuf` runtime above.
 protobuf-codegen = "3.5"
-
-[target.'cfg(windows)'.dependencies]
-# Used to stop the detached daemon from inheriting the spawning process's stdio
-# handles (otherwise a parent like Heroic never sees EOF and hangs).
-windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Console"] }
 
 [dev-dependencies]
 tempfile = "3"

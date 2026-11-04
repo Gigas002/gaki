@@ -84,7 +84,6 @@ pub(crate) async fn cmd_scripts_new(app_id: u32, force: bool, json: bool) -> Res
     std::fs::write(&path, body).with_context(|| format!("failed writing {}", path.display()))?;
 
     // Make it directly executable on unix so `exec "$@"`-style wrappers can be run.
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         let mut perms = std::fs::metadata(&path)?.permissions();

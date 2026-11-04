@@ -229,7 +229,6 @@ impl SteamClient {
         app: &LibraryGame,
         proton_path: Option<&str>,
         user_config: Option<&crate::core::models::UserAppConfig>,
-        force_windows: bool,
         force_native_engine: bool,
         force_umu: bool,
         launch_script_override: Option<PathBuf>,
@@ -246,10 +245,6 @@ impl SteamClient {
         // With Steam integration the game talks to the host Steam client; make sure
         // one is running (start it silently if not) so Steamworks/Family-Sharing can
         // initialise. Best-effort.
-        #[cfg(target_os = "windows")]
-        if steam_enabled {
-            SteamClient::ensure_host_steam_ready(std::time::Duration::from_secs(30)).await;
-        }
         #[cfg(target_os = "linux")]
         if steam_enabled {
             crate::core::utils::ensure_steam_running();
@@ -267,7 +262,7 @@ impl SteamClient {
 
         let launch_options = self.get_product_info(app.app_id).await?;
 
-        let prefer_windows_target = force_windows || proton_path.is_some();
+        let prefer_windows_target = proton_path.is_some();
         let launch_info = select_launch_entry(
             &launch_options,
             app,
@@ -278,18 +273,7 @@ impl SteamClient {
 
         let launcher_config = load_launcher_config().await?;
 
-        // Proton/Wine only exists on Linux. On Windows, a Windows game runs natively, so
-        // run its executable directly instead of routing through the Proton pipeline.
-        let native_windows = force_windows
-            || (cfg!(target_os = "windows") && launch_info.target == LaunchTarget::WindowsProton);
-
         match launch_info.target {
-            _ if native_windows => {
-                tracing::info!(
-                    app_id = app.app_id,
-                    "resolved launch platform: Windows (native)"
-                );
-            }
             LaunchTarget::NativeLinux => {
                 tracing::info!(
                     app_id = app.app_id,
@@ -305,24 +289,20 @@ impl SteamClient {
             }
         }
 
-        // None = native (Linux, or Windows without Proton); Some = the Proton runner.
+        // None = native Linux; Some = the Proton runner.
         if let Some(cb) = on_target_resolved {
             cb(match launch_info.target {
-                LaunchTarget::WindowsProton if !native_windows => {
+                LaunchTarget::WindowsProton => {
                     Some(proton_path.unwrap_or(&launcher_config.proton_version))
                 }
-                _ => None,
+                LaunchTarget::NativeLinux => None,
             });
         }
 
-        let chosen_proton_path = if native_windows {
-            None
-        } else {
-            match launch_info.target {
-                LaunchTarget::NativeLinux => None,
-                LaunchTarget::WindowsProton => {
-                    proton_path.or(Some(launcher_config.proton_version.as_str()))
-                }
+        let chosen_proton_path = match launch_info.target {
+            LaunchTarget::NativeLinux => None,
+            LaunchTarget::WindowsProton => {
+                proton_path.or(Some(launcher_config.proton_version.as_str()))
             }
         };
 
@@ -400,11 +380,8 @@ impl SteamClient {
             cloud_specs = specs;
         }
 
-        let mut child = if native_windows {
-            self.spawn_windows_native(app, &launch_info, user_config)
-                .await?
-        } else {
-            self.spawn_game_process(
+        let mut child = self
+            .spawn_game_process(
                 app,
                 &launch_info,
                 chosen_proton_path,
@@ -416,14 +393,11 @@ impl SteamClient {
                 disable_launch_script,
                 steam_enabled,
             )
-            .await?
-        };
+            .await?;
 
         // Record the launch so a separate `aurelia stop <app_id>` invocation can
         // find and terminate the process while we block on `wait()` below.
-        let wineprefix = if native_windows {
-            None
-        } else {
+        let wineprefix = {
             let user_configs = crate::core::config::load_user_configs().await?;
             let pfx = crate::core::utils::steam_wineprefix_for_game(
                 &launcher_config,

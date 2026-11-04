@@ -5,131 +5,23 @@
 use super::*;
 
 impl SteamClient {
-    /// Whether the desktop Steam client appears to be running.
-    ///
-    /// The running client caches each game's appmanifest at startup, so changes we
-    /// make on disk (e.g. enabling a DLC) aren't visible to games until Steam
-    /// re-reads them — which it does on restart.
-    ///
-    /// The client publishes its PID as `ActiveProcess\pid`; `SteamPID` is only a
-    /// fallback for older clients. A crash leaves the value stale, so the PID must
-    /// still belong to a live `steam.exe`.
-    #[cfg(target_os = "windows")]
-    pub fn steam_is_running() -> bool {
-        use sysinfo::{Pid, ProcessRefreshKind, ProcessesToUpdate, System};
-        let Some(pid) = read_registry(r"HKCU\Software\Valve\Steam\ActiveProcess", "pid")
-            .or_else(|| read_steam_registry("SteamPID"))
-            .and_then(|v| parse_reg_dword(&v))
-            .filter(|&pid| pid != 0)
-        else {
-            return false;
-        };
-        let pid = Pid::from_u32(pid);
-        let mut sys = System::new();
-        sys.refresh_processes_specifics(
-            ProcessesToUpdate::Some(&[pid]),
-            true,
-            ProcessRefreshKind::nothing(),
-        );
-        sys.process(pid)
-            .is_some_and(|p| p.name().to_string_lossy().eq_ignore_ascii_case("steam.exe"))
-    }
-
-    /// Whether the desktop Steam client has an account signed in: Steam sets
-    /// `ActiveProcess\ActiveUser` to the account id while logged on, 0 otherwise.
-    #[cfg(target_os = "windows")]
-    pub fn steam_is_logged_on() -> bool {
-        read_registry(r"HKCU\Software\Valve\Steam\ActiveProcess", "ActiveUser")
-            .and_then(|v| parse_reg_dword(&v))
-            .is_some_and(|user| user != 0)
-    }
-
-    /// Make sure the desktop Steam client is up for a `--steam` launch: start it
-    /// silently if it isn't running, then wait (up to `timeout`) for it to sign in
-    /// so Steamworks/DRM can initialise. Best-effort, like the Linux path: on
-    /// failure or timeout the game launches anyway and the reason is logged.
-    #[cfg(target_os = "windows")]
-    pub async fn ensure_host_steam_ready(timeout: std::time::Duration) {
-        if SteamClient::steam_is_running() {
-            tracing::info!("Steam client already running; not starting it");
-        } else {
-            tracing::info!("Steam client not running; starting `steam.exe -silent` (tray)");
-            if let Err(e) = SteamClient::start_steam() {
-                tracing::warn!("could not start Steam client: {e:#}");
-                return;
-            }
-        }
-        let start = std::time::Instant::now();
-        while !(SteamClient::steam_is_running() && SteamClient::steam_is_logged_on()) {
-            if start.elapsed() >= timeout {
-                tracing::warn!(
-                    "Steam not logged on within {}s; launching anyway (Steamworks auth may fail)",
-                    timeout.as_secs()
-                );
-                return;
-            }
-            tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-        }
-        tracing::info!("host Steam logged on; proceeding with launch");
-    }
-
-    #[cfg(not(target_os = "windows"))]
     pub fn steam_is_running() -> bool {
         false
     }
 
-    /// Ask the desktop Steam client to shut down, and wait for it to fully exit.
-    /// Windows only. Editing appmanifests is only reliable while Steam is stopped,
-    /// because Steam flushes its in-memory app state to disk on exit.
-    #[cfg(target_os = "windows")]
     pub fn shutdown_steam() -> Result<()> {
-        if !SteamClient::steam_is_running() {
-            return Ok(());
-        }
-        let exe = steam_exe_path().context("could not locate steam.exe to stop Steam")?;
-        Command::new(&exe)
-            .arg("-shutdown")
-            .spawn()
-            .context("failed to signal Steam shutdown")?;
-        for _ in 0..60 {
-            if !SteamClient::steam_is_running() {
-                return Ok(());
-            }
-            std::thread::sleep(std::time::Duration::from_millis(500));
-        }
-        bail!("Steam did not shut down within 30s")
+        bail!("automatic Steam control is not supported")
     }
 
-    /// Start the desktop Steam client (Windows only).
-    ///
-    /// Launched with `-silent` so it starts minimized to the system tray rather
-    /// than popping its window to the foreground — Aurelia only restarts Steam to
-    /// have it re-read state (e.g. after a DLC/move change), not to bring it up.
-    #[cfg(target_os = "windows")]
     pub fn start_steam() -> Result<()> {
-        let exe = steam_exe_path().context("could not locate steam.exe to start Steam")?;
-        Command::new(&exe)
-            .arg("-silent")
-            .spawn()
-            .context("failed to start Steam")?;
-        Ok(())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    pub fn shutdown_steam() -> Result<()> {
-        bail!("automatic Steam control is only supported on Windows")
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    pub fn start_steam() -> Result<()> {
-        bail!("automatic Steam control is only supported on Windows")
+        bail!("automatic Steam control is not supported")
     }
 
     /// Stop a game previously launched by `aurelia play`. Looks up the launch
     /// record Aurelia wrote (PID + start time, and for a per-game Proton/Wine
     /// launch the WINEPREFIX) and terminates the process tree, then clears the
-    /// record. With `force`, processes are killed immediately (SIGKILL /
-    /// `taskkill /F`); otherwise they are first asked to exit (SIGTERM) so the
+    /// record. With `force`, processes are killed immediately (SIGKILL);
+    /// otherwise they are first asked to exit (SIGTERM) so the
     /// game can shut down and save cleanly.
     ///
     /// The record is reconciled first (see the recovery contract in
@@ -152,7 +44,6 @@ impl SteamClient {
         // A Proton/Wine game runs as wine processes inside its WINEPREFIX; killing
         // the recorded runner PID alone can leave them behind. Sweep the per-game
         // prefix too when we recorded one (never the shared master prefix).
-        #[cfg(unix)]
         if let Some(prefix) = record.wineprefix.as_deref() {
             Self::kill_wine_processes_in_prefix(prefix, force);
         }
@@ -163,7 +54,6 @@ impl SteamClient {
         // wineprefix is recorded to sweep. Every one of those processes carries
         // STEAM_COMPAT_APP_ID=<app_id> in its environment, so use that as the
         // authoritative way to find and stop the whole game.
-        #[cfg(unix)]
         Self::kill_processes_for_app(app_id, force);
 
         if owns_pid {
@@ -178,7 +68,6 @@ impl SteamClient {
     /// re-parented game/steam.exe/wineserver processes that aren't in the spawned
     /// runner's tree. The master Steam client never carries a game's app id, so it
     /// is not affected.
-    #[cfg(unix)]
     pub fn kill_processes_for_app(app_id: u32, force: bool) {
         let needle = format!("STEAM_COMPAT_APP_ID={app_id}");
         let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
@@ -198,7 +87,6 @@ impl SteamClient {
     /// it yields `Some`; returns `None` if `/proc` is unreadable or no entry
     /// matched. Centralizes the directory scan + numeric-pid filter shared by the
     /// prefix-scanning helpers so each caller only expresses its own match logic.
-    #[cfg(unix)]
     fn scan_proc_pids<T>(mut f: impl FnMut(&Path, &str) -> Option<T>) -> Option<T> {
         let proc_dir = std::fs::read_dir("/proc").ok()?;
         for entry in proc_dir.flatten() {
@@ -217,21 +105,18 @@ impl SteamClient {
     }
 
     /// Lossily-decoded environ, if readable.
-    #[cfg(unix)]
     fn proc_environ(pid_path: &Path) -> Option<String> {
         let bytes = std::fs::read(pid_path.join("environ")).ok()?;
         Some(String::from_utf8_lossy(&bytes).into_owned())
     }
 
     /// Cmdline with NULs as spaces.
-    #[cfg(unix)]
     fn proc_cmdline(pid_path: &Path) -> Option<String> {
         let bytes = std::fs::read(pid_path.join("cmdline")).ok()?;
         Some(String::from_utf8_lossy(&bytes).replace('\0', " "))
     }
 
     /// Signal every process matching `pred`.
-    #[cfg(unix)]
     fn sweep_proc_pids(signal: i32, mut pred: impl FnMut(&Path) -> bool) {
         Self::scan_proc_pids(|pid_path, pid_str| {
             if pred(pid_path) {
@@ -250,7 +135,6 @@ impl SteamClient {
     /// prefix path appearing in the process environment). Used to stop a
     /// Proton/Wine game whose processes outlive the runner we spawned. Only call
     /// this for a per-game prefix — the shared master prefix also hosts Steam.
-    #[cfg(unix)]
     pub fn kill_wine_processes_in_prefix(wineprefix: &Path, force: bool) {
         let prefix_str = wineprefix.to_string_lossy().to_string();
         let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
@@ -261,53 +145,38 @@ impl SteamClient {
     }
 
     pub fn kill_steam_in_prefix(wineprefix: &Path) {
-        #[cfg(unix)]
-        {
-            let prefix_str = wineprefix.to_string_lossy().to_string();
+        let prefix_str = wineprefix.to_string_lossy().to_string();
 
-            // Kill Steam processes in this prefix.
-            Self::sweep_proc_pids(libc::SIGTERM, |pid_path| {
-                let Some(cmdline) = Self::proc_cmdline(pid_path) else {
-                    return false;
-                };
-                let cmdline = cmdline.to_lowercase();
-                (cmdline.contains("steam.exe") || cmdline.contains("steamwebhelper.exe"))
-                    && Self::proc_environ(pid_path).is_some_and(|env| env.contains(&prefix_str))
-            });
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = wineprefix;
-        }
+        // Kill Steam processes in this prefix.
+        Self::sweep_proc_pids(libc::SIGTERM, |pid_path| {
+            let Some(cmdline) = Self::proc_cmdline(pid_path) else {
+                return false;
+            };
+            let cmdline = cmdline.to_lowercase();
+            (cmdline.contains("steam.exe") || cmdline.contains("steamwebhelper.exe"))
+                && Self::proc_environ(pid_path).is_some_and(|env| env.contains(&prefix_str))
+        });
     }
 
     /// Scans /proc to find a wine process running steam.exe inside the given WINEPREFIX.
     pub fn is_steam_running_in_prefix(wineprefix: &Path) -> bool {
-        #[cfg(unix)]
-        {
-            let prefix_str = wineprefix.to_string_lossy().to_string();
+        let prefix_str = wineprefix.to_string_lossy().to_string();
 
-            Self::scan_proc_pids(|pid_path, _pid_str| {
-                // Must have steam.exe in cmdline
-                if !Self::proc_cmdline(pid_path)?
-                    .to_lowercase()
-                    .contains("steam.exe")
-                {
-                    return None;
-                }
+        Self::scan_proc_pids(|pid_path, _pid_str| {
+            // Must have steam.exe in cmdline
+            if !Self::proc_cmdline(pid_path)?
+                .to_lowercase()
+                .contains("steam.exe")
+            {
+                return None;
+            }
 
-                // Must have our WINEPREFIX in its environment
-                Self::proc_environ(pid_path)?
-                    .contains(&prefix_str)
-                    .then_some(true)
-            })
-            .unwrap_or(false)
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = wineprefix;
-            false
-        }
+            // Must have our WINEPREFIX in its environment
+            Self::proc_environ(pid_path)?
+                .contains(&prefix_str)
+                .then_some(true)
+        })
+        .unwrap_or(false)
     }
 
     /// True while a **game** launched by the in-Wine Steam is running inside
@@ -319,33 +188,25 @@ impl SteamClient {
     /// Used to wait on a game the in-Wine Steam started (via `-applaunch`), which
     /// Aurelia does not own directly and so cannot `wait()` on.
     pub fn is_game_running_in_prefix(wineprefix: &Path, installdir: &str) -> bool {
-        #[cfg(unix)]
-        {
-            let prefix_str = wineprefix.to_string_lossy().to_string();
-            let needle = installdir.to_lowercase();
-            if needle.is_empty() {
-                return false;
+        let prefix_str = wineprefix.to_string_lossy().to_string();
+        let needle = installdir.to_lowercase();
+        if needle.is_empty() {
+            return false;
+        }
+        Self::scan_proc_pids(|pid_path, _pid_str| {
+            let cmdline_str = Self::proc_cmdline(pid_path)?.to_lowercase();
+            if !(cmdline_str.contains(&needle) && cmdline_str.contains(".exe")) {
+                return None;
             }
-            Self::scan_proc_pids(|pid_path, _pid_str| {
-                let cmdline_str = Self::proc_cmdline(pid_path)?.to_lowercase();
-                if !(cmdline_str.contains(&needle) && cmdline_str.contains(".exe")) {
-                    return None;
-                }
-                // Exclude the Steam client and its CEF helper processes.
-                if cmdline_str.contains("steam.exe") || cmdline_str.contains("steamwebhelper") {
-                    return None;
-                }
-                Self::proc_environ(pid_path)?
-                    .contains(&prefix_str)
-                    .then_some(true)
-            })
-            .unwrap_or(false)
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = (wineprefix, installdir);
-            false
-        }
+            // Exclude the Steam client and its CEF helper processes.
+            if cmdline_str.contains("steam.exe") || cmdline_str.contains("steamwebhelper") {
+                return None;
+            }
+            Self::proc_environ(pid_path)?
+                .contains(&prefix_str)
+                .then_some(true)
+        })
+        .unwrap_or(false)
     }
 
     /// Writes a steam.cfg into the Steam directory that minimises UI on startup.
@@ -397,46 +258,6 @@ NoSavePersonalInfo=1
             .unwrap_or_else(|| install_dir.clone());
 
         Ok((install_dir, executable, args, game_working_dir))
-    }
-
-    /// Used on Windows hosts (and when `--windows` is forced), where the game's
-    /// native `.exe` runs without a compatibility layer.
-    pub(crate) async fn spawn_windows_native(
-        &self,
-        app: &LibraryGame,
-        launch_info: &LaunchInfo,
-        user_config: Option<&crate::core::models::UserAppConfig>,
-    ) -> Result<std::process::Child> {
-        let (_install_dir, executable, args, game_working_dir) = self
-            .resolve_exec_plan(app, launch_info, user_config)
-            .await?;
-
-        // Standard Steam identity fallback so the game can resolve its app id.
-        let app_id_path = game_working_dir.join("steam_appid.txt");
-        std::fs::write(&app_id_path, app.app_id.to_string()).unwrap_or_default();
-
-        let mut cmd = Command::new(&executable);
-        cmd.args(&args);
-        cmd.current_dir(&game_working_dir);
-        cmd.env("SteamAppId", app.app_id.to_string());
-
-        if let Some(config) = user_config {
-            for (key, val) in &config.env_variables {
-                cmd.env(key, val);
-            }
-        }
-
-        cmd.stdout(crate::infra::logging::relay::child_stdio());
-        cmd.stderr(crate::infra::logging::relay::child_stdio());
-
-        tracing::info!(
-            "Launching game (Native Windows): {:?} with args {:?}",
-            executable,
-            args
-        );
-        cmd.spawn()
-            .map(crate::infra::logging::relay::attach)
-            .with_context(|| format!("failed to spawn windows game {}", executable.display()))
     }
 
     pub(crate) async fn spawn_game_process(
@@ -502,7 +323,6 @@ NoSavePersonalInfo=1
                 let app_id_path = game_working_dir.join("steam_appid.txt");
                 std::fs::write(&app_id_path, &app_id_str).unwrap_or_default();
 
-                #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
                     if let Ok(metadata) = std::fs::metadata(&executable) {

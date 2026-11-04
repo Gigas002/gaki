@@ -30,9 +30,3 @@ fn rejects_paths_and_dot_names() {
         assert!(!is_safe_dir_name(name), "{name:?}");
     }
 }
-
-#[cfg(windows)]
-#[test]
-fn rejects_drive_prefix() {
-    assert!(!is_safe_dir_name("C:"));
-}

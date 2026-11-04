@@ -18,7 +18,6 @@ use std::process::Command;
 /// Kill processes holding `wine_prefix`.
 fn stop_prefix_processes(wine_prefix: &Path) {
     SteamClient::kill_steam_in_prefix(wine_prefix);
-    #[cfg(unix)]
     SteamClient::kill_wine_processes_in_prefix(wine_prefix, true);
 }
 
@@ -281,8 +280,7 @@ pub async fn repair_master_steam(config: &LauncherConfig) -> Result<()> {
 
     // 1. Kill any master-Steam / game processes still holding the prefix so the
     //    directory can be moved safely. Reuse the existing prefix-scoped killers
-    //    rather than inventing a new mechanism. `kill_steam_in_prefix` is
-    //    cross-platform (a no-op on Windows); the broader wine sweep is unix-only.
+    //    rather than inventing a new mechanism.
     tracing::info!(
         "Repair: stopping any processes holding the master prefix {}",
         steam_cfg.wine_prefix.display()

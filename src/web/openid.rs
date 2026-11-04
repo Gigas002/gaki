@@ -111,10 +111,6 @@ where
 /// Best-effort: open `url` in the user's default browser. Returns whether a
 /// launcher process could be spawned (the URL is always also printed).
 pub fn open_in_browser(url: &str) -> bool {
-    #[cfg(target_os = "windows")]
-    let spawned = std::process::Command::new("rundll32")
-        .args(["url.dll,FileProtocolHandler", url])
-        .spawn();
     #[cfg(target_os = "macos")]
     let spawned = std::process::Command::new("open").arg(url).spawn();
     #[cfg(all(unix, not(target_os = "macos")))]

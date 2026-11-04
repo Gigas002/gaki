@@ -15,18 +15,9 @@ fn recording_relay(verbosity: u8) -> (Relay, Arc<Mutex<Vec<(RelayStream, Vec<u8>
 }
 
 fn echo_command() -> std::process::Command {
-    #[cfg(windows)]
-    {
-        let mut cmd = std::process::Command::new("cmd");
-        cmd.args(["/C", "echo out& echo err 1>&2"]);
-        cmd
-    }
-    #[cfg(not(windows))]
-    {
-        let mut cmd = std::process::Command::new("sh");
-        cmd.args(["-c", "echo out; echo err >&2"]);
-        cmd
-    }
+    let mut cmd = std::process::Command::new("sh");
+    cmd.args(["-c", "echo out; echo err >&2"]);
+    cmd
 }
 
 fn collected(seen: &Mutex<Vec<(RelayStream, Vec<u8>)>>, stream: RelayStream) -> String {

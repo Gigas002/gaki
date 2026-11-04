@@ -44,10 +44,9 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
     let launcher_config = load_launcher_config().await?;
     let game_cfg = launcher_config.game_configs.get(&app_id);
     let platform_preference = game_cfg.and_then(|c| c.platform_preference.as_deref());
-    let prefer_windows = cfg!(target_os = "windows")
-        || platform_preference == Some("windows")
+    let prefer_windows = platform_preference == Some("windows")
         || game_cfg.is_some_and(|c| c.forced_proton_version.is_some());
-    let prefer_native = platform_preference == Some("linux") && !cfg!(target_os = "windows");
+    let prefer_native = platform_preference == Some("linux");
     let default_entry =
         aurelia::steam_client::select_launch_entry(&options, &game, prefer_windows, prefer_native)
             .map(|e| e.target);
@@ -121,7 +120,6 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
 pub(crate) async fn cmd_play(
     app_id: u32,
     proton: Option<String>,
-    windows: bool,
     native_engine: bool,
     umu: bool,
     script: Option<PathBuf>,
@@ -148,7 +146,7 @@ pub(crate) async fn cmd_play(
         anyhow::bail!("--umu (umu-launcher) is only available on Linux");
     }
     if proton.is_some() && !cfg!(target_os = "linux") {
-        bail!("--proton is only available on Linux; on Windows games run natively, so omit it");
+        bail!("--proton is only available on Linux");
     }
     if linux_target && !cfg!(target_os = "linux") {
         bail!("--platform linux runs the native Linux build, which only runs on Linux");
@@ -159,16 +157,6 @@ pub(crate) async fn cmd_play(
         bail!(
             "--steam-mode runtime: {}",
             aurelia::core::utils::steam_runtime_unsupported_msg()
-        );
-    }
-    // `--windows` runs the executable directly with no Proton/Wine layer, which
-    // can only work on a Windows host. On Linux a Windows PE can't be exec'd
-    // natively (it fails with "Permission denied"), so reject it up front and
-    // point the user at the default Proton path.
-    if windows && !cfg!(target_os = "windows") {
-        anyhow::bail!(
-            "--windows runs the game with no Proton/Wine layer and only works on a Windows host; \
-             on Linux omit it (optionally pass --proton <runner>) to run the game through Proton"
         );
     }
     let mut client = authed_client().await?;
@@ -304,9 +292,6 @@ pub(crate) async fn cmd_play(
         }
     }
 
-    // Proton/Wine is Linux-only; on Windows we always run the game natively.
-    let force_windows = windows || cfg!(target_os = "windows");
-
     let launcher_config = load_launcher_config().await?;
     let game_cfg = launcher_config.game_configs.get(&app_id);
     let forced_proton = game_cfg
@@ -318,7 +303,7 @@ pub(crate) async fn cmd_play(
         None => game_cfg.and_then(|c| c.platform_preference.as_deref()),
     };
     let prefers_windows = platform_preference == Some("windows");
-    let prefers_linux = platform_preference == Some("linux") && !force_windows;
+    let prefers_linux = platform_preference == Some("linux");
 
     // Resolution order: explicit `--proton` flag → the game's stored version →
     // (when the game targets Windows) the global default. None means run natively.
@@ -339,7 +324,6 @@ pub(crate) async fn cmd_play(
     let announce_target: &(dyn Fn(Option<&str>) + Send + Sync) =
         &|proton: Option<&str>| match proton {
             Some(p) => cli_println!("Platform: Windows via Proton ({p})"),
-            None if cfg!(target_os = "windows") => cli_println!("Platform: Windows (native)"),
             None => cli_println!("Platform: native Linux"),
         };
     client
@@ -347,7 +331,6 @@ pub(crate) async fn cmd_play(
             &game,
             proton_path.as_deref(),
             user_config,
-            force_windows,
             native_engine,
             umu,
             script,

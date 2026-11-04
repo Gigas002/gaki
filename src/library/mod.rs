@@ -396,28 +396,12 @@ fn probe_for_libraries(dir: &Path, depth: usize, found: &mut Vec<PathBuf>) {
 
 /// Roots of the volumes that could hold a Steam library.
 fn volume_roots() -> Vec<PathBuf> {
-    #[cfg(target_os = "windows")]
-    {
-        let mut roots = Vec::new();
-        for letter in b'A'..=b'Z' {
-            let drive = PathBuf::from(format!("{}:\\", letter as char));
-            if drive.exists() {
-                roots.push(drive);
-            }
-        }
-        roots
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        mounted_volume_roots()
-    }
+    mounted_volume_roots()
 }
 
 /// Roots of mounted, real (non-pseudo) filesystems that could hold a Steam
 /// library: every disk-backed mount point from `/proc/self/mounts`, plus the
 /// conventional removable-media parents for hosts without `/proc` (macOS).
-#[cfg(not(target_os = "windows"))]
 fn mounted_volume_roots() -> Vec<PathBuf> {
     // Filesystems that can hold a game install. Everything else a Linux box
     // mounts (proc, sysfs, cgroup, tmpfs, overlay, …) cannot, and walking them
@@ -471,7 +455,6 @@ fn mounted_volume_roots() -> Vec<PathBuf> {
 
 /// Decode the octal escapes (`\040` for space, `\134` for backslash, …) that
 /// `/proc/self/mounts` uses in mount-point paths.
-#[cfg(not(target_os = "windows"))]
 fn unescape_mount_target(target: &str) -> String {
     if !target.contains('\\') {
         return target.to_string();
@@ -525,42 +508,29 @@ pub async fn all_library_roots() -> Vec<PathBuf> {
 pub fn steam_root_candidates() -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
-    #[cfg(target_os = "windows")]
-    {
-        for var in ["PROGRAMFILES(X86)", "PROGRAMFILES"] {
-            if let Ok(program_files) = std::env::var(var) {
-                roots.push(PathBuf::from(program_files).join("Steam"));
-            }
+    if let Ok(home) = crate::core::config::home_dir() {
+        // Native installs. `.steam/steam` and `.steam/root` are symlinks
+        // Steam maintains into the real data directory.
+        for relative in [
+            ".steam/steam",
+            ".steam/root",
+            ".local/share/Steam",
+            // Debian/Ubuntu's steam package uses its own data directory.
+            ".steam/debian-installation",
+            // Flatpak (com.valvesoftware.Steam) and Snap sandbox their $HOME.
+            ".var/app/com.valvesoftware.Steam/.local/share/Steam",
+            ".var/app/com.valvesoftware.Steam/.steam/steam",
+            "snap/steam/common/.local/share/Steam",
+            "snap/steam/common/.steam/steam",
+            // macOS.
+            "Library/Application Support/Steam",
+        ] {
+            roots.push(home.join(relative));
         }
-        roots.push(PathBuf::from(r"C:\Program Files (x86)\Steam"));
     }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        if let Ok(home) = crate::core::config::home_dir() {
-            // Native installs. `.steam/steam` and `.steam/root` are symlinks
-            // Steam maintains into the real data directory.
-            for relative in [
-                ".steam/steam",
-                ".steam/root",
-                ".local/share/Steam",
-                // Debian/Ubuntu's steam package uses its own data directory.
-                ".steam/debian-installation",
-                // Flatpak (com.valvesoftware.Steam) and Snap sandbox their $HOME.
-                ".var/app/com.valvesoftware.Steam/.local/share/Steam",
-                ".var/app/com.valvesoftware.Steam/.steam/steam",
-                "snap/steam/common/.local/share/Steam",
-                "snap/steam/common/.steam/steam",
-                // macOS.
-                "Library/Application Support/Steam",
-            ] {
-                roots.push(home.join(relative));
-            }
-        }
-        // Honour an XDG data directory that isn't the default `~/.local/share`.
-        if let Some(xdg) = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty()) {
-            roots.push(PathBuf::from(xdg).join("Steam"));
-        }
+    // Honour an XDG data directory that isn't the default `~/.local/share`.
+    if let Some(xdg) = std::env::var_os("XDG_DATA_HOME").filter(|v| !v.is_empty()) {
+        roots.push(PathBuf::from(xdg).join("Steam"));
     }
 
     roots.retain(|root| root.exists());

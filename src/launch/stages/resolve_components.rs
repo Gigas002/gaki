@@ -114,10 +114,8 @@ impl Runner for NativeRunner {
             }
             cmd.spawn().map(crate::infra::logging::relay::attach)
         };
-        #[allow(unused_mut)]
         let mut result = spawn(&spec.program, None);
         // Shebang-less script: retry via sh.
-        #[cfg(unix)]
         if result.as_ref().err().and_then(|e| e.raw_os_error()) == Some(libc::ENOEXEC) {
             tracing::info!(
                 "{} is not executable directly (ENOEXEC); retrying via /bin/sh",

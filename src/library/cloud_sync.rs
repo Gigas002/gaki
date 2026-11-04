@@ -382,36 +382,10 @@ fn join_relative(base: &Path, rel: &str) -> PathBuf {
     out
 }
 
-/// Resolve a Steam Cloud root token (without the surrounding `%`) to an OS directory.
-/// `%GameInstall%` needs the game's install directory; the rest derive from the
-/// user's home / known folders.
-#[cfg(windows)]
-fn resolve_root_token(
-    token: &str,
-    install_dir: Option<&Path>,
-    _wine_prefix: Option<&Path>,
-) -> Option<PathBuf> {
-    let user = || std::env::var_os("USERPROFILE").map(PathBuf::from);
-    match token {
-        "GameInstall" => install_dir.map(Path::to_path_buf),
-        "WinMyDocuments" | "WinDocuments" => user().map(|u| u.join("Documents")),
-        "WinAppDataLocal" => std::env::var_os("LOCALAPPDATA")
-            .map(PathBuf::from)
-            .or_else(|| user().map(|u| u.join("AppData").join("Local"))),
-        "WinAppDataLocalLow" => user().map(|u| u.join("AppData").join("LocalLow")),
-        "WinAppDataRoaming" => std::env::var_os("APPDATA")
-            .map(PathBuf::from)
-            .or_else(|| user().map(|u| u.join("AppData").join("Roaming"))),
-        "WinSavedGames" => user().map(|u| u.join("Saved Games")),
-        _ => None,
-    }
-}
-
 /// Linux mapping. `%Win*%` tokens belong to a game running under Proton, so they
 /// resolve inside that game's wine prefix (`drive_c/users/steamuser/...`) — the path
 /// the Windows build actually writes to. With no prefix known they resolve to `None`
 /// and the file is skipped with a warning.
-#[cfg(not(windows))]
 fn resolve_root_token(
     token: &str,
     install_dir: Option<&Path>,

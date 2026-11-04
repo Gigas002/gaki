@@ -247,44 +247,21 @@ pub async fn experimental_enabled() -> bool {
 }
 
 pub fn detect_steam_path() -> Option<PathBuf> {
-    #[cfg(target_os = "windows")]
-    {
-        let candidates = [PathBuf::from(r"C:\Program Files (x86)\Steam")];
-        return candidates.into_iter().find(|path| path.exists());
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let home = std::env::var("HOME").ok()?;
-        let candidates = [
-            PathBuf::from(&home).join(".steam/steam"),
-            PathBuf::from(&home).join(".local/share/Steam"),
-            PathBuf::from(&home).join(".steam/root"),
-        ];
-        candidates.into_iter().find(|path| path.exists())
-    }
+    let home = std::env::var("HOME").ok()?;
+    let candidates = [
+        PathBuf::from(&home).join(".steam/steam"),
+        PathBuf::from(&home).join(".local/share/Steam"),
+        PathBuf::from(&home).join(".steam/root"),
+    ];
+    candidates.into_iter().find(|path| path.exists())
 }
 
-/// Resolve the user's home directory in a cross-platform way.
-///
-/// On Unix this is `HOME`; on Windows that variable is normally unset, so we
-/// fall back to `USERPROFILE` (and finally `HOMEDRIVE`+`HOMEPATH`).
+/// Resolve the user's home directory from `HOME`.
 pub fn home_dir() -> Result<PathBuf> {
-    let from = |var: &str| std::env::var_os(var).filter(|v| !v.is_empty());
-
-    if let Some(home) = from("HOME").or_else(|| from("USERPROFILE")) {
-        return Ok(PathBuf::from(home));
-    }
-
-    if let (Some(drive), Some(path)) = (from("HOMEDRIVE"), from("HOMEPATH")) {
-        let mut combined = PathBuf::from(drive);
-        combined.push(path);
-        return Ok(combined);
-    }
-
-    anyhow::bail!(
-        "could not determine home directory (none of HOME, USERPROFILE, or HOMEDRIVE/HOMEPATH are set)"
-    )
+    std::env::var_os("HOME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .context("could not determine home directory (HOME is not set)")
 }
 
 pub fn config_dir() -> Result<PathBuf> {
@@ -402,7 +379,6 @@ pub async fn save_session(session: &SessionState) -> Result<()> {
 
     // The session holds a long-lived Steam refresh token; keep it owner-only so it
     // is not world-readable on shared Unix hosts.
-    #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&session_path, std::fs::Permissions::from_mode(0o600))

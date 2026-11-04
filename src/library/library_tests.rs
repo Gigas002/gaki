@@ -115,7 +115,6 @@ fn skips_empty_and_malformed_entries() {
     assert!(library_folder_paths(vdf).is_empty());
 }
 
-#[cfg(not(target_os = "windows"))]
 #[test]
 fn decodes_octal_escapes_in_mount_points() {
     assert_eq!(
@@ -240,7 +239,6 @@ fn a_single_copy_is_returned_unchanged() {
     assert!(pick_live_copy(vec![]).is_none());
 }
 
-#[cfg(unix)]
 #[tokio::test]
 async fn symlinked_steam_roots_collapse_to_one_library() {
     // A standard install has ~/.steam/root and ~/.steam/steam both symlinked to

@@ -35,7 +35,6 @@ fn is_native_target(ctx: &PipelineContext) -> bool {
 }
 
 /// Game-owned binary safe to auto-chmod?
-#[cfg(unix)]
 fn native_game_binary(ctx: &PipelineContext, program: &Path) -> bool {
     if !is_native_target(ctx) {
         return false;
@@ -230,7 +229,6 @@ impl PipelineStage for PreflightStage {
         }
 
         // 5. Check runner executability
-        #[cfg(unix)]
         if final_res.is_ok() {
             use std::os::unix::fs::PermissionsExt;
             let mut check = PreflightCheck {

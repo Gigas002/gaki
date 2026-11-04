@@ -120,16 +120,10 @@ pub fn find_libraryfolders_vdf(roots: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// Normalise a Steam library path for comparison: unescape VDF's doubled
-/// backslashes, unify separators, drop a trailing separator, and lowercase on
-/// case-insensitive platforms.
+/// backslashes, unify separators, and drop a trailing separator.
 fn normalize_path(p: &str) -> String {
     let unified = p.replace("\\\\", "\\").replace('\\', "/");
-    let trimmed = unified.trim_end_matches('/');
-    if cfg!(windows) {
-        trimmed.to_lowercase()
-    } else {
-        trimmed.to_string()
-    }
+    unified.trim_end_matches('/').to_string()
 }
 
 /// Move app `appid`'s entry (with byte `size`) from the `from`-library's `apps`

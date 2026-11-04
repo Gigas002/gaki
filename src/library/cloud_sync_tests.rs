@@ -29,26 +29,6 @@ fn classic_file_resolves_under_remote_root() {
     );
 }
 
-#[cfg(windows)]
-#[test]
-fn auto_cloud_token_maps_to_real_os_path() {
-    // The exact case that was failing: the file landed in a phantom
-    // `%WinAppDataLocalLow%SadSocket` folder instead of real LocalLow.
-    let resolver = CloudPathResolver::new(PathBuf::from(r"C:\r\remote"), None);
-    let resolved = resolver
-        .resolve("%WinAppDataLocalLow%SadSocket/9Kings/9KingsSettings.json")
-        .unwrap();
-    let user = PathBuf::from(std::env::var_os("USERPROFILE").unwrap());
-    assert_eq!(
-        resolved,
-        user.join("AppData")
-            .join("LocalLow")
-            .join("SadSocket")
-            .join("9Kings")
-            .join("9KingsSettings.json"),
-    );
-}
-
 fn cloud(hash: &str, ts: u64) -> CloudFileEntry {
     CloudFileEntry {
         filename: "save.dat".to_string(),
@@ -197,21 +177,6 @@ fn non_recursive_spec_skips_subdirectories() {
     assert_eq!(names, vec!["%GameInstall%top.sav".to_string()]);
 }
 
-#[cfg(windows)]
-#[test]
-fn game_install_token_needs_install_dir() {
-    let with_dir =
-        CloudPathResolver::new(PathBuf::from(r"C:\r"), Some(PathBuf::from(r"C:\games\foo")));
-    assert_eq!(
-        with_dir.resolve("%GameInstall%saves/a.sav").unwrap(),
-        Path::new(r"C:\games\foo").join("saves").join("a.sav"),
-    );
-    // Without an install dir the token can't be resolved.
-    let without = CloudPathResolver::new(PathBuf::from(r"C:\r"), None);
-    assert!(without.resolve("%GameInstall%saves/a.sav").is_err());
-}
-
-#[cfg(not(windows))]
 #[test]
 fn win_token_maps_into_wine_prefix() {
     // The failing case for Proton games: every cloud filename carries a %Win*%
@@ -246,7 +211,6 @@ fn win_token_maps_into_wine_prefix() {
     );
 }
 
-#[cfg(not(windows))]
 #[test]
 fn win_token_without_prefix_is_still_an_error() {
     // No prefix known — the file genuinely can't be placed. It must fail loudly

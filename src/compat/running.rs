@@ -35,8 +35,8 @@ use std::path::PathBuf;
 pub struct RunningGame {
     pub app_id: u32,
     pub name: String,
-    /// PID of the process Aurelia spawned for this game. On Windows this is the
-    /// game executable; for a Proton/Wine launch it is the runner process.
+    /// PID of the process Aurelia spawned for this game: the game executable for a
+    /// native launch, the runner process for a Proton/Wine launch.
     pub pid: u32,
     /// Start time of `pid` as the OS reports it (seconds since the Unix epoch).
     /// Together with `pid` this identifies the process, since PIDs are recycled.
@@ -156,41 +156,33 @@ pub fn list() -> Vec<RunningGame> {
 /// re-parents the game away from the spawned runner, and script launchers
 /// (`hl.sh`-style) exit while the game keeps running.
 pub fn processes_for_app(app_id: u32) -> Vec<u32> {
-    #[cfg(unix)]
-    {
-        let compat = format!("STEAM_COMPAT_APP_ID={app_id}");
-        let native = format!("SteamAppId={app_id}");
-        let mut pids = Vec::new();
-        let Ok(proc_dir) = std::fs::read_dir("/proc") else {
-            return pids;
+    let compat = format!("STEAM_COMPAT_APP_ID={app_id}");
+    let native = format!("SteamAppId={app_id}");
+    let mut pids = Vec::new();
+    let Ok(proc_dir) = std::fs::read_dir("/proc") else {
+        return pids;
+    };
+    for entry in proc_dir.flatten() {
+        let path = entry.path();
+        let Some(pid) = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.parse::<u32>().ok())
+        else {
+            continue;
         };
-        for entry in proc_dir.flatten() {
-            let path = entry.path();
-            let Some(pid) = path
-                .file_name()
-                .and_then(|n| n.to_str())
-                .and_then(|n| n.parse::<u32>().ok())
-            else {
-                continue;
-            };
-            let Ok(environ) = std::fs::read(path.join("environ")) else {
-                continue;
-            };
-            // NUL-separated KEY=VALUE entries; exact match so 70 never matches 700.
-            if environ
-                .split(|&b| b == 0)
-                .any(|e| e == compat.as_bytes() || e == native.as_bytes())
-            {
-                pids.push(pid);
-            }
+        let Ok(environ) = std::fs::read(path.join("environ")) else {
+            continue;
+        };
+        // NUL-separated KEY=VALUE entries; exact match so 70 never matches 700.
+        if environ
+            .split(|&b| b == 0)
+            .any(|e| e == compat.as_bytes() || e == native.as_bytes())
+        {
+            pids.push(pid);
         }
-        pids
     }
-    #[cfg(not(unix))]
-    {
-        let _ = app_id;
-        Vec::new()
-    }
+    pids
 }
 
 /// The games Aurelia is running whose process is still alive. Records whose

@@ -235,10 +235,18 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 1 — removal (single crate, before the restructure, so diffs stay readable)
 
-- [ ] **1.1** Drop Windows (R1): about 46 `cfg(windows)` sites across 14 files,
-  the `windows-sys` dependency, the keyring `windows-native`/`apple-native`
-  features, Windows Steam discovery, and `.exe` handling that only exists for
-  Windows hosts. Windows *games* run under Proton and stay supported.
+- [x] **1.1** Drop Windows (R1): about 46 `cfg(windows)` sites across 14 files,
+  the `windows-sys` dependency, the keyring `windows-native` feature, and
+  `.exe` handling that only exists for Windows hosts. Windows *games* run under
+  Proton and stay supported.
+  *Done.* Also removed the `--windows` flag of `play` (it ran the `.exe`
+  directly, which only works on a Windows host), `spawn_windows_native`, the
+  Windows registry helpers, the named-pipe daemon transport, `.bat` launch
+  scripts, and the `USERPROFILE` home fallback. `cfg(unix)` gates were removed,
+  keeping their code, and `cfg(not(unix))` branches were deleted.
+  Still deferred: `windows_steam_discovery_enabled`, which scans the *in-Wine*
+  Steam, goes in 1.4. The keyring `apple-native` feature and the
+  `target_os = "linux"` gates go in 1.2.
 - [ ] **1.2** Drop macOS (D1): the 7 `target_os = "macos"` sites.
 - [ ] **1.3** Drop launch plugins (R2): `compat/{umu,luxtorpeda,plugin}.rs`,
   `infra/runners/luxtorpeda.rs`, the `umu`/`luxtorpeda`/`plugins` commands, and

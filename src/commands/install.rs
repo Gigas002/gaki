@@ -789,15 +789,8 @@ pub(crate) async fn cmd_import(
     restart_steam: bool,
     json: bool,
 ) -> Result<()> {
-    // Default to the OS we're running on for the depot/platform match.
-    let platform: DepotPlatform =
-        platform
-            .map(Into::into)
-            .unwrap_or(if cfg!(target_os = "windows") {
-                DepotPlatform::Windows
-            } else {
-                DepotPlatform::Linux
-            });
+    // Default to the host OS (Linux) for the depot/platform match.
+    let platform: DepotPlatform = platform.map(Into::into).unwrap_or(DepotPlatform::Linux);
     let human = |path: &std::path::Path| format!("Imported app {app_id} from {}.", path.display());
     steam_guarded_relocate(
         app_id,

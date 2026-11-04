@@ -69,7 +69,6 @@ fn empty_config_script_is_ignored() {
 }
 
 #[test]
-#[cfg(not(windows))]
 fn template_unix_has_shebang_and_passthrough() {
     let t = template(1234, "Test Game");
     assert!(t.starts_with("#!/usr/bin/env bash"), "missing shebang: {t}");
@@ -79,24 +78,6 @@ fn template_unix_has_shebang_and_passthrough() {
 }
 
 #[test]
-#[cfg(windows)]
-fn template_windows_has_passthrough() {
-    let t = template(1234, "Test Game");
-    assert!(t.contains("%*"), "missing %*: {t}");
-    assert!(
-        t.contains("%AURELIA_LAUNCH_PROGRAM%"),
-        "missing passthrough: {t}"
-    );
-    assert!(t.contains("1234"));
-    assert!(t.contains("AURELIA_APP_ID"));
-}
-
-#[test]
-fn filename_is_platform_specific() {
-    let f = script_filename(77);
-    if cfg!(windows) {
-        assert_eq!(f, "77.bat");
-    } else {
-        assert_eq!(f, "77.sh");
-    }
+fn filename_is_sh() {
+    assert_eq!(script_filename(77), "77.sh");
 }

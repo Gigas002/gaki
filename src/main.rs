@@ -37,7 +37,7 @@ fn main() {
 
     // The CLI's top-level async future is large (every command arm) and the Steam
     // connect/auth path is deeply nested; in debug builds this can overflow the OS
-    // main thread's default stack (~1 MB on Windows) before any command runs. Run
+    // main thread's default stack before any command runs. Run
     // the Tokio runtime on a thread with a generous stack to avoid that.
     let worker = std::thread::Builder::new()
         .name("aurelia-main".to_string())
@@ -380,7 +380,6 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Play {
             app_id,
             proton,
-            windows,
             native_engine,
             umu,
             script,
@@ -397,7 +396,6 @@ async fn run(cli: Cli) -> Result<()> {
             cmd_play(
                 app_id,
                 proton,
-                windows,
                 native_engine,
                 umu,
                 script,

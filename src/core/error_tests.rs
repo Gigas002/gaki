@@ -88,7 +88,6 @@ fn storage_full_is_disk_full() {
     assert_eq!(ErrorKind::DiskFull.exit_code(), 85);
 }
 
-#[cfg(unix)]
 #[test]
 fn enospc_and_edquot_are_disk_full() {
     for code in [28, 122] {

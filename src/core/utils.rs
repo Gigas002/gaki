@@ -306,12 +306,7 @@ pub const STEAM_RUNTIME_SUPPORTED: bool = cfg!(target_os = "linux");
 /// Why the Windows Steam runtime is unavailable on this platform, with the
 /// alternative to use instead.
 pub fn steam_runtime_unsupported_msg() -> String {
-    let alternative = if cfg!(target_os = "windows") {
-        "On Windows Aurelia uses your installed Steam client instead: install Steam and \
-         run games with `aurelia play <APP_ID> --steam`."
-    } else {
-        "Run Aurelia on Linux to use it."
-    };
+    let alternative = "Run Aurelia on Linux to use it.";
     format!(
         "the self-contained Windows Steam runtime is only supported on Linux: it runs \
          Steam under a Proton/Wine runner, whose binaries are Linux executables and \
@@ -327,12 +322,7 @@ pub const PROTON_SUPPORTED: bool = cfg!(target_os = "linux");
 /// "`what` only runs on Linux" with what to do instead, for errors and notes.
 pub fn linux_only_msg(what: &str) -> String {
     let os = std::env::consts::OS;
-    let instead = if cfg!(target_os = "windows") {
-        " On Windows Aurelia runs Windows games natively, without Proton/Wine."
-    } else {
-        ""
-    };
-    format!("{what} only runs on Linux, not on {os}.{instead}")
+    format!("{what} only runs on Linux, not on {os}.")
 }
 
 /// Fail early, before downloading or touching a prefix, when the Windows Steam
@@ -522,7 +512,6 @@ pub fn setup_fake_steam_trap(config_dir: &Path) -> Result<PathBuf> {
             return Ok(());
         }
         std::fs::write(path, dummy_script)?;
-        #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let mut perms = std::fs::metadata(path)?.permissions();
@@ -605,7 +594,6 @@ pub fn ensure_steam_running() {
         .stderr(std::process::Stdio::null());
     // Detach into its own session/process group so Steam keeps running independently
     // of this launch (and isn't torn down with the game's process tree on stop).
-    #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
         unsafe {
@@ -1479,10 +1467,7 @@ fn deploy_one_dll_symlink(src: &Path, dest: &Path, log: bool) -> Result<()> {
     if log {
         tracing::info!("Symlinking {} -> {}", src.display(), dest.display());
     }
-    #[cfg(unix)]
     std::os::unix::fs::symlink(src, dest)?;
-    #[cfg(not(unix))]
-    std::fs::copy(src, dest)?;
 
     Ok(())
 }

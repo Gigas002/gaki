@@ -137,46 +137,10 @@ fn spawn_daemon() -> std::io::Result<()> {
     Ok(())
 }
 
-#[cfg(unix)]
 fn detach(cmd: &mut std::process::Command) {
     use std::os::unix::process::CommandExt;
     // New process group so the daemon outlives the spawning shell / Heroic process.
     cmd.process_group(0);
-}
-
-#[cfg(windows)]
-fn detach(cmd: &mut std::process::Command) {
-    use std::os::windows::process::CommandExt;
-    const DETACHED_PROCESS: u32 = 0x0000_0008;
-    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
-    cmd.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
-    // Windows spawns with bInheritHandles=TRUE, so a detached child inherits every
-    // inheritable handle we hold — including the stdout/stderr pipes our own parent
-    // (e.g. Heroic) handed us. The long-lived daemon would then keep those pipes
-    // open forever and the parent would never see EOF. Clear the inherit flag on our
-    // std handles before spawning so the daemon can't capture them.
-    clear_std_handle_inheritance();
-}
-
-#[cfg(windows)]
-fn clear_std_handle_inheritance() {
-    use windows_sys::Win32::Foundation::{
-        HANDLE_FLAG_INHERIT, INVALID_HANDLE_VALUE, SetHandleInformation,
-    };
-    use windows_sys::Win32::System::Console::{
-        GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, STD_OUTPUT_HANDLE,
-    };
-    for id in [STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE] {
-        // SAFETY: GetStdHandle/SetHandleInformation are plain Win32 calls with no
-        // memory-safety preconditions; we only act on a valid, non-null handle.
-        unsafe {
-            let handle = GetStdHandle(id);
-            if !handle.is_null() && handle != INVALID_HANDLE_VALUE {
-                // dwFlags = 0 clears HANDLE_FLAG_INHERIT for this handle.
-                SetHandleInformation(handle, HANDLE_FLAG_INHERIT, 0);
-            }
-        }
-    }
 }
 
 /// Write a relayed output chunk to a local stream and flush it immediately, so the
