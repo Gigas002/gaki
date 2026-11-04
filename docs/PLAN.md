@@ -629,10 +629,13 @@ I make the changes, and you review, commit, and push.
   4.5). `tests/worker.rs` round-trips both requests against an empty temp
   config dir, with no network. The worker isn't started from `main` yet: 4.2
   wires it in along with the proxy-env setup it needs.
-- [ ] **4.2** Port `interface/aurelia.rs` (subprocess calls plus output parsing)
+- [x] **4.2** Port `interface/aurelia.rs` (subprocess calls plus output parsing)
   to direct `libgaki` calls, one view at a time: library, details, install and
   progress, launch and running, cloud, account and login, and the rest.
-  *In progress.* Pattern: each `interface/aurelia.rs` function keeps its
+  *Done.* Every command runs in-process; nothing in `interface/aurelia.rs`
+  spawns `gaki-cli` any more, and `run_json`/`json_error` are gone. Only the
+  startup version check (`bin`, `version`, `AURELIA_BIN`) still runs the
+  binary; 4.4 removes it. Pattern: each `interface/aurelia.rs` function keeps its
   signature and result type, but its body calls `libgaki::ops` through
   `in_process`, which runs the future on the shared worker
   (`app::worker::global()`, `Worker::block_on`) against its one session.
@@ -676,7 +679,7 @@ I make the changes, and you review, commit, and push.
     Logout resets the session. Presence changes are announced at once when
     logged in, instead of after a daemon restart. The QR flow now gets
     challenge URLs straight from `libgaki`; its rendering bug is 4.3.
-  - [ ] The rest
+  - [x] The rest
     - [x] Local settings: per-game config, Proton, launch scripts. Removed
       what Phase 1 had already dropped from the CLI, which the TUI still
       called and which failed at runtime: the runtime-plugins overlay
@@ -701,7 +704,9 @@ I make the changes, and you review, commit, and push.
       so a collection covers its items, as in the CLI. Market search and
       price keep their background threads; the unused blocking variants are
       gone.
-    - [ ] Collections
+    - [x] Collections. The local store is edited directly (offline);
+      pull, push and sync use the session. Negative app ids are rejected
+      instead of being passed through.
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
   `libgaki` auth flow directly, rather than scraping it from CLI output, which
   is the most likely cause of the bug. Add a render test.

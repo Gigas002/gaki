@@ -38,6 +38,7 @@ fn logged_out_session_is_reported_not_fetched() {
 
     game_data_needs_a_session();
     social_needs_a_session();
+    collections_round_trip();
     pinning_reads_local_state();
     settings_round_trip();
     game_settings_round_trip();
@@ -217,5 +218,51 @@ fn social_needs_a_session() {
     ];
     for (what, result) in web {
         assert!(result.is_err(), "{what} needs a session");
+    }
+}
+
+/// Collections are edited in the local store offline; only the Steam sync
+/// needs a login.
+fn collections_round_trip() {
+    aurelia::collection_create("Shooters").unwrap();
+    aurelia::collection_add("Shooters", &[440, 730]).unwrap();
+    let shown = aurelia::collection_show("Shooters").unwrap();
+    assert_eq!(shown.kind, "static");
+    assert!(!shown.dynamic);
+    let mut members = shown.app_ids.clone();
+    members.sort_unstable();
+    assert_eq!(members, [440, 730]);
+
+    aurelia::collection_remove("Shooters", &[730]).unwrap();
+    aurelia::collection_rename("Shooters", "Arena").unwrap();
+    let listed = aurelia::collections_list().unwrap();
+    let arena = listed
+        .iter()
+        .find(|c| c.name == "Arena")
+        .expect("renamed collection is listed");
+    assert_eq!(arena.count, Some(1));
+    assert!(listed.iter().all(|c| c.name != "Shooters"));
+
+    assert!(
+        aurelia::collection_add("Arena", &[-1]).is_err(),
+        "bad app id"
+    );
+
+    aurelia::collection_delete("Arena").unwrap();
+    assert!(
+        aurelia::collections_list()
+            .unwrap()
+            .iter()
+            .all(|c| c.name != "Arena"),
+        "deleted collections are hidden"
+    );
+
+    for (what, result) in [
+        ("pull", aurelia::collections_pull()),
+        ("push", aurelia::collection_push()),
+        ("sync", aurelia::collection_sync()),
+    ] {
+        let err = result.expect_err(what);
+        assert!(err.to_string().contains("not logged in"), "{what}: {err}");
     }
 }

@@ -919,46 +919,6 @@ fn eta_suffix(eta_seconds: Option<u64>) -> String {
     format!(" · ETA {pretty}")
 }
 
-/// The error message of an `{"error": "...", "hint": "..."}` payload, if `value`
-/// is one. Since v0.1.37 the CLI may attach a `hint` (e.g. "run `aurelia login`")
-/// to typed errors; it is appended in parentheses.
-fn json_error(value: &serde_json::Value) -> Option<String> {
-    let err = value.get("error").and_then(|e| e.as_str())?;
-    match value.get("hint").and_then(|h| h.as_str()) {
-        Some(hint) if !hint.is_empty() => Some(format!("{err} ({hint})")),
-        _ => Some(err.to_string()),
-    }
-}
-
-/// Run `aurelia <args> --json`, returning the parsed stdout JSON value.
-///
-/// Errors surface as `{"error": "..."}` on stdout; that is translated into an
-/// `STError::Problem`. stderr (tracing/diagnostics) is discarded.
-fn run_json(args: &[&str]) -> Result<serde_json::Value, STError> {
-    let output = process::Command::new(bin())
-        .args(args)
-        .arg("--json")
-        .stdin(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .output()
-        .map_err(STError::Process)?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let trimmed = stdout.trim();
-    if trimmed.is_empty() {
-        return Err(STError::Problem(format!(
-            "aurelia produced no output for `{}` (is the `aurelia` binary on PATH?)",
-            args.join(" ")
-        )));
-    }
-
-    let value: serde_json::Value = serde_json::from_str(trimmed)?;
-    if let Some(err) = json_error(&value) {
-        return Err(STError::Problem(err.to_string()));
-    }
-    Ok(value)
-}
-
 /// Run a `libgaki` call in-process on the shared worker (see
 /// [`crate::app::worker`]). Blocks the calling thread like the subprocess
 /// calls it replaces.
@@ -2423,90 +2383,93 @@ pub fn scripts_remove(app_id: i32) -> Result<(), STError> {
         .map_err(|e| STError::Problem(format!("{e:#}")))
 }
 
-/// List all library collections (`aurelia collections list --json`). The CLI
-/// wraps the list under a `collections` key (alongside `namespace_version`);
-/// accept a bare array too. An empty/null result yields an empty `Vec`.
+/// Map a local-store error to the TUI's error type.
+fn local<T>(result: anyhow::Result<T>) -> Result<T, STError> {
+    result.map_err(|e| STError::Problem(format!("{e:#}")))
+}
+
+/// A collection as the overlay shows it.
+fn collection_row(c: libgaki::ops::collections::Summary) -> CollectionJson {
+    use libgaki::ops::collections::Kind;
+    CollectionJson {
+        count: Some(c.count() as u64),
+        kind: c.kind.as_str().to_string(),
+        dynamic: c.kind == Kind::Dynamic,
+        app_ids: c.app_ids.unwrap_or_default(),
+        id: c.id,
+        name: c.name,
+    }
+}
+
+/// App ids as the store keeps them; negative ids can't be Steam apps.
+fn app_ids(ids: &[i32]) -> Result<Vec<u32>, STError> {
+    ids.iter()
+        .map(|&id| u32::try_from(id).map_err(|_| STError::Problem(format!("bad app id {id}"))))
+        .collect()
+}
+
+/// The local library collections (not deleted).
 pub fn collections_list() -> Result<Vec<CollectionJson>, STError> {
-    let value = run_json(&["collections", "list"])?;
-    let list = match value.get("collections") {
-        Some(collections) => collections.clone(),
-        None => value,
-    };
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    let (_, list) = local(libgaki::ops::collections::list())?;
+    Ok(list.into_iter().map(collection_row).collect())
 }
 
-/// Show a single collection's games (`aurelia collections show <name> --json`).
-/// Accepts a collection name or id.
+/// One collection by name or id, with its members (none for a dynamic one).
 pub fn collection_show(name: &str) -> Result<CollectionJson, STError> {
-    let value = run_json(&["collections", "show", name])?;
-    Ok(serde_json::from_value(value)?)
+    local(libgaki::ops::collections::show(name)).map(collection_row)
 }
 
-/// Create a new static collection (`aurelia collections create <name> --json`).
+/// Create a new static collection.
 pub fn collection_create(name: &str) -> Result<(), STError> {
-    run_json(&["collections", "create", name])?;
-    Ok(())
+    local(libgaki::ops::collections::create(name)).map(drop)
 }
 
-/// Mark a collection for deletion (`aurelia collections delete <name> --json`).
+/// Mark a collection for deletion; the next push removes it from Steam.
 pub fn collection_delete(name: &str) -> Result<(), STError> {
-    run_json(&["collections", "delete", name])?;
-    Ok(())
+    local(libgaki::ops::collections::delete(name))
 }
 
-/// Rename a collection (`aurelia collections rename <name> <new_name> --json`).
+/// Rename a collection.
 pub fn collection_rename(name: &str, new_name: &str) -> Result<(), STError> {
-    run_json(&["collections", "rename", name, new_name])?;
-    Ok(())
+    local(libgaki::ops::collections::rename(name, new_name))
 }
 
-/// Add app ids to a collection (`aurelia collections add <name> <ids...> --json`).
-pub fn collection_add(name: &str, app_ids: &[i32]) -> Result<(), STError> {
-    let ids: Vec<String> = app_ids.iter().map(|id| id.to_string()).collect();
-    let mut args: Vec<&str> = vec!["collections", "add", name];
-    for id in &ids {
-        args.push(id);
-    }
-    run_json(&args)?;
-    Ok(())
+/// Add games to a collection.
+pub fn collection_add(name: &str, ids: &[i32]) -> Result<(), STError> {
+    local(libgaki::ops::collections::add(name, &app_ids(ids)?))
 }
 
-/// Remove app ids from a collection
-/// (`aurelia collections remove <name> <ids...> --json`).
-pub fn collection_remove(name: &str, app_ids: &[i32]) -> Result<(), STError> {
-    let ids: Vec<String> = app_ids.iter().map(|id| id.to_string()).collect();
-    let mut args: Vec<&str> = vec!["collections", "remove", name];
-    for id in &ids {
-        args.push(id);
-    }
-    run_json(&args)?;
-    Ok(())
+/// Remove games from a collection.
+pub fn collection_remove(name: &str, ids: &[i32]) -> Result<(), STError> {
+    local(libgaki::ops::collections::remove(name, &app_ids(ids)?))
 }
 
-/// Download Steam's collections and merge them locally
-/// (`aurelia collections pull --json`). Needs a login.
+/// Download Steam's collections and merge them into the local store.
 pub fn collections_pull() -> Result<(), STError> {
-    run_json(&["collections", "pull"])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::collections::pull(&client).await
+    })
+    .map(drop)
 }
 
-/// Upload local collections to Steam (`aurelia collections push --yes --json`).
-/// `--yes` is passed because `--json` mode requires the confirmation to be
-/// skipped explicitly. This mutates the Steam account.
+/// Upload the local collections to Steam. This changes the Steam account;
+/// the overlay key is the confirmation.
 pub fn collection_push() -> Result<(), STError> {
-    run_json(&["collections", "push", "--yes"])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::collections::push(&client).await
+    })
+    .map(drop)
 }
 
-/// Reconcile local and Steam collections — pull then push
-/// (`aurelia collections sync --yes --json`). `--yes` is passed because `--json`
-/// mode requires the confirmation to be skipped explicitly. Mutates the account.
+/// Pull, then push. This changes the Steam account.
 pub fn collection_sync() -> Result<(), STError> {
-    run_json(&["collections", "sync", "--yes"])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::collections::sync(&client).await
+    })
+    .map(drop)
 }
 
 /// Apply a change to one game's launch settings and return them.
