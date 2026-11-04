@@ -10,12 +10,28 @@
 //! / `gamescope` or launch its own way. This works uniformly for native and Proton
 //! (WineTkg) launches because it operates on the final spec.
 //!
-//! Aurelia also exports `AURELIA_*` env vars (see [`template`]) alongside the full
-//! launch environment (WINEPREFIX etc.) so scripts can introspect the launch.
+//! gaki also exports `GAKI_*` env vars (see [`template`] and the `ENV_*` constants)
+//! alongside the full launch environment (WINEPREFIX etc.) so scripts can introspect
+//! the launch.
 
 use std::path::{Path, PathBuf};
 
 use crate::core::config::LauncherConfig;
+
+/// Exported to launch scripts: the Steam app id.
+pub const ENV_APP_ID: &str = "GAKI_APP_ID";
+/// Exported to launch scripts: the game's display name.
+pub const ENV_APP_NAME: &str = "GAKI_APP_NAME";
+/// Exported to launch scripts: the game's install directory, when known.
+pub const ENV_GAME_DIR: &str = "GAKI_GAME_DIR";
+/// Exported to launch scripts: the resolved program the script wraps.
+pub const ENV_LAUNCH_PROGRAM: &str = "GAKI_LAUNCH_PROGRAM";
+/// Exported to launch scripts: the resolved program's arguments, space-joined.
+pub const ENV_LAUNCH_ARGS: &str = "GAKI_LAUNCH_ARGS";
+/// Native launches: the session file the game's stdout is captured to.
+pub const ENV_STDOUT_LOG: &str = "GAKI_STDOUT_LOG";
+/// Native launches: the session file the game's stderr is captured to.
+pub const ENV_STDERR_LOG: &str = "GAKI_STDERR_LOG";
 
 /// Directory that holds per-game launch scripts.
 ///
@@ -95,7 +111,7 @@ pub fn resolve(
 }
 
 /// A scaffold launch script for `app_id` / `name`, documenting the wrapper
-/// semantics and the exported `AURELIA_*` env vars, with commented examples and a
+/// semantics and the exported `GAKI_*` env vars, with commented examples and a
 /// final `exec "$@"` passthrough.
 pub fn template(app_id: u32, name: &str) -> String {
     let name = if name.trim().is_empty() {
@@ -114,12 +130,12 @@ pub fn template(app_id: u32, name: &str) -> String {
          # STEAM_COMPAT_*, DXVK_HUD, ...) is already exported. A script that is just\n\
          # `exec \"$@\"` is therefore a transparent passthrough.\n\
          #\n\
-         # Aurelia additionally exports:\n\
-         #   AURELIA_APP_ID        - the Steam app id ({app_id})\n\
-         #   AURELIA_APP_NAME      - the game's display name\n\
-         #   AURELIA_GAME_DIR      - the game's install directory (if known)\n\
-         #   AURELIA_LAUNCH_PROGRAM - the resolved program that would have run\n\
-         #   AURELIA_LAUNCH_ARGS   - its arguments, space-joined\n\
+         # gaki additionally exports:\n\
+         #   GAKI_APP_ID         - the Steam app id ({app_id})\n\
+         #   GAKI_APP_NAME       - the game's display name\n\
+         #   GAKI_GAME_DIR       - the game's install directory (if known)\n\
+         #   GAKI_LAUNCH_PROGRAM - the resolved program that would have run\n\
+         #   GAKI_LAUNCH_ARGS    - its arguments, space-joined\n\
          #\n\
          # Examples (uncomment one, or write your own):\n\
          #   exec gamemoderun mangohud \"$@\"\n\

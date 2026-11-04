@@ -95,7 +95,7 @@ impl Runner for NativeRunner {
                 cmd.current_dir(cwd);
             }
             cmd.envs(&spec.env);
-            match session_log_file(spec, "AURELIA_STDOUT_LOG") {
+            match session_log_file(spec, crate::launch::launch_script::ENV_STDOUT_LOG) {
                 Some(file) => {
                     cmd.stdout(file);
                 }
@@ -103,7 +103,7 @@ impl Runner for NativeRunner {
                     cmd.stdout(crate::infra::logging::relay::child_stdio());
                 }
             }
-            match session_log_file(spec, "AURELIA_STDERR_LOG") {
+            match session_log_file(spec, crate::launch::launch_script::ENV_STDERR_LOG) {
                 Some(file) => {
                     cmd.stderr(file);
                 }

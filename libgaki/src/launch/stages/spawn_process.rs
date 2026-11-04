@@ -14,11 +14,11 @@ impl PipelineStage for SpawnProcessStage {
             && let (Some(session), Some(spec)) = (&ctx.session, ctx.command_spec.as_mut())
         {
             spec.env.insert(
-                "AURELIA_STDOUT_LOG".to_string(),
+                crate::launch::launch_script::ENV_STDOUT_LOG.to_string(),
                 session.stdout_path().to_string_lossy().into_owned(),
             );
             spec.env.insert(
-                "AURELIA_STDERR_LOG".to_string(),
+                crate::launch::launch_script::ENV_STDERR_LOG.to_string(),
                 session.stderr_path().to_string_lossy().into_owned(),
             );
         }

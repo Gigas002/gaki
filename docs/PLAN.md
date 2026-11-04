@@ -515,11 +515,14 @@ I make the changes, and you review, commit, and push.
     longer has `env_override`. Smoke tests use
     `gaki-cli --config-dir <tmp> --no-daemon …` (a `--socket` path must be
     short: Unix sockets cap it near 108 bytes).
-  - [ ] **2.4b** Variables gaki *exports* to launch scripts and the game process
+  - [x] **2.4b** Variables gaki *exports* to launch scripts and the game process
     (`AURELIA_APP_ID`, `_APP_NAME`, `_GAME_DIR`, `_LAUNCH_PROGRAM`,
     `_LAUNCH_ARGS`, `_STDOUT_LOG`, `_STDERR_LOG`) are the script interface and
     can't be flags: rename them to `GAKI_*`, including the generated script
     template.
+    *Done.* Names live once as `launch_script::ENV_*` constants used by the
+    stages, the tests and (by name) the template. The README's stale
+    `AURELIA_CDN_CONCURRENCY` knob, which no code read, was dropped.
   - [ ] **2.4c** Rename the rest: user-facing strings and command hints say gaki,
     the config dir moves to `gaki/`, the keyring service and user agent change.
     Grep for `aurelia` until only acknowledgements remain.

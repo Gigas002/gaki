@@ -3,7 +3,9 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 
-use crate::launch::launch_script;
+use crate::launch::launch_script::{
+    self, ENV_APP_ID, ENV_APP_NAME, ENV_GAME_DIR, ENV_LAUNCH_ARGS, ENV_LAUNCH_PROGRAM,
+};
 use crate::launch::pipeline::{LaunchError, LaunchErrorKind, PipelineContext, PipelineStage};
 
 /// Wraps the resolved launch command with a per-game launch script when one is
@@ -15,7 +17,7 @@ use crate::launch::pipeline::{LaunchError, LaunchErrorKind, PipelineContext, Pip
 /// The transform: with an active script `S` and resolved spec `{ program: P, args:
 /// [A0, A1, ...] }`, the new spec becomes `{ program: S, args: [P, A0, A1, ...] }`
 /// (cwd preserved). The script receives the resolved command as `"$@"`, so
-/// `exec "$@"` is a passthrough. Aurelia also exports `AURELIA_*` env vars alongside
+/// `exec "$@"` is a passthrough. gaki also exports `GAKI_*` env vars alongside
 /// the existing launch environment.
 pub struct ApplyLaunchScriptStage;
 
@@ -69,22 +71,19 @@ impl PipelineStage for ApplyLaunchScriptStage {
         let old_program = spec.program.clone();
         let old_args = std::mem::take(&mut spec.args);
 
-        // Export AURELIA_* env vars alongside the already-resolved launch env.
-        spec.env
-            .insert("AURELIA_APP_ID".to_string(), app_id.to_string());
-        spec.env.insert("AURELIA_APP_NAME".to_string(), app_name);
+        // Export GAKI_* env vars alongside the already-resolved launch env.
+        spec.env.insert(ENV_APP_ID.to_string(), app_id.to_string());
+        spec.env.insert(ENV_APP_NAME.to_string(), app_name);
         if let Some(dir) = &game_dir {
-            spec.env.insert(
-                "AURELIA_GAME_DIR".to_string(),
-                dir.to_string_lossy().to_string(),
-            );
+            spec.env
+                .insert(ENV_GAME_DIR.to_string(), dir.to_string_lossy().to_string());
         }
         spec.env.insert(
-            "AURELIA_LAUNCH_PROGRAM".to_string(),
+            ENV_LAUNCH_PROGRAM.to_string(),
             old_program.to_string_lossy().to_string(),
         );
         spec.env
-            .insert("AURELIA_LAUNCH_ARGS".to_string(), old_args.join(" "));
+            .insert(ENV_LAUNCH_ARGS.to_string(), old_args.join(" "));
 
         // Rewrite the spec so the script wraps the resolved command as "$@".
         let mut new_args = Vec::with_capacity(old_args.len() + 1);

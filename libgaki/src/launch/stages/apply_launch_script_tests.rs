@@ -25,15 +25,19 @@ async fn wraps_spec_with_override_script() {
     assert_eq!(spec.program, script);
     assert_eq!(spec.args, vec!["/usr/bin/proton", "run", "game.exe"]);
     assert_eq!(
-        spec.env.get("AURELIA_APP_ID").map(String::as_str),
+        spec.env.get(launch_script::ENV_APP_ID).map(String::as_str),
         Some("555")
     );
     assert_eq!(
-        spec.env.get("AURELIA_LAUNCH_PROGRAM").map(String::as_str),
+        spec.env
+            .get(launch_script::ENV_LAUNCH_PROGRAM)
+            .map(String::as_str),
         Some("/usr/bin/proton")
     );
     assert_eq!(
-        spec.env.get("AURELIA_LAUNCH_ARGS").map(String::as_str),
+        spec.env
+            .get(launch_script::ENV_LAUNCH_ARGS)
+            .map(String::as_str),
         Some("run game.exe")
     );
 }
@@ -81,7 +85,7 @@ async fn no_script_is_noop() {
     let spec = ctx.command_spec.unwrap();
     assert_eq!(spec.program, Path::new("/usr/bin/proton"));
     assert_eq!(spec.args, vec!["run"]);
-    assert!(!spec.env.contains_key("AURELIA_APP_ID"));
+    assert!(!spec.env.contains_key(launch_script::ENV_APP_ID));
     *crate::launch::launch_script::SCRIPT_DIR_TEST_OVERRIDE
         .lock()
         .unwrap() = None;

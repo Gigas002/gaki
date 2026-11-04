@@ -459,7 +459,7 @@ aurelia scripts remove 2270           # delete the dir-based script
 > [!NOTE]
 > **Per-game launch scripts** let you wrap the fully-resolved launch command with your own
 > shell script (`<script_dir>/<appid>.sh`, or `.bat` on Windows). Aurelia runs the script with
-> the resolved command as its arguments (`"$@"`) and exports `AURELIA_*` env vars, so a script
+> the resolved command as its arguments (`"$@"`) and exports `GAKI_*` env vars, so a script
 > that is just `exec "$@"` is a passthrough while a custom one can prepend `gamemoderun`,
 > `mangohud` or `gamescope`. It works uniformly for native, Proton, luxtorpeda and umu launches.
 > Resolution precedence: `play --script <path>` beats `config game --launch-script <path>`,
@@ -540,8 +540,7 @@ and `config info-cache-ttl <SECONDS>`.
 - **Download engine.** Installs, updates, verifications and Workshop downloads share one
   engine. It picks the least-loaded content servers, spreads chunk requests over a pool of
   them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per
-  depot. Set **`AURELIA_CDN_CONCURRENCY`** (1–64) to change that, e.g. lower on a shared
-  connection.
+  depot.
 - **Install backlog.** Unfinished installs are kept in `install_backlog.json` until they
   finish or you `install forget` them. See the
   [installation page](https://github.com/Drackrath/Aurelia/wiki/Usage-Installation-and-Maintenance#install-backlog)

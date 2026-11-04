@@ -84,7 +84,7 @@ fn template_unix_has_shebang_and_passthrough() {
     assert!(t.starts_with("#!/usr/bin/env bash"), "missing shebang: {t}");
     assert!(t.contains("\"$@\""), "missing \"$@\": {t}");
     assert!(t.contains("1234"));
-    assert!(t.contains("AURELIA_APP_ID"));
+    assert!(t.contains(ENV_APP_ID));
 }
 
 #[test]
