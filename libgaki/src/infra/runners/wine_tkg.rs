@@ -506,7 +506,7 @@ impl Runner for WineTkgRunner {
                     env.insert("MANGOHUD_DLSYM".to_string(), "1".to_string());
                 }
                 None => {
-                    println!("⚠️  MangoHud requested but libMangoHud.so not found — skipping");
+                    tracing::warn!("MangoHud requested but libMangoHud.so not found; skipping");
                 }
             }
         }

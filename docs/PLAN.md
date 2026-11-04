@@ -653,7 +653,15 @@ I make the changes, and you review, commit, and push.
     `RateTracker` ETA. Pause now records a resumable backlog entry
     (`signal(id, pause = true)`) instead of a plain stop. Move, relink and
     import refuse while Steam runs, as the CLI did without `--restart-steam`.
-  - [ ] Launch and running
+  - [x] Launch and running (`play`, `play_with`, `launch_targets`,
+    `running`, `stop`). The status cell follows `LaunchEvent`s (pre-launch
+    update with progress, launching, the build picked). Games still outlive
+    the TUI (no kill-on-drop or parent-death signal), and their output stays
+    off the terminal (`child_stdio` is null at verbosity 0). Dropped
+    `PlayOpts::native_engine`/`umu`: never set, and `play` lost those flags in
+    Phase 1. `steam_mode` stays as a picker label. `libgaki`'s one stray
+    `println!` (MangoHud missing, `wine_tkg.rs`) is now `tracing::warn!`, so
+    it can't write over the TUI.
   - [ ] Cloud
   - [ ] Account and login
   - [ ] The rest

@@ -21,4 +21,14 @@ fn logged_out_session_is_reported_not_fetched() {
         err.to_string().contains("not logged in"),
         "unexpected error: {err}"
     );
+
+    // Nothing was launched from this config dir.
+    assert!(aurelia::running().unwrap().is_empty());
+    assert!(aurelia::stop(945360).is_err(), "nothing to stop");
+
+    let err = aurelia::launch_targets(945360).expect_err("targets need a session");
+    assert!(
+        err.to_string().contains("not logged in"),
+        "unexpected error: {err}"
+    );
 }

@@ -1081,14 +1081,6 @@ pub struct RunningJson {
     pub pid: u32,
 }
 
-/// The top-level object from `aurelia running --json`: the list of currently
-/// running games. Only the `running` array is surfaced.
-#[derive(Debug, Clone, Deserialize)]
-struct RunningResponse {
-    #[serde(default)]
-    running: Vec<RunningJson>,
-}
-
 /// A `qr_challenge` event line from `aurelia login --qr --json` (emitted on
 /// stderr, re-emitted whenever Steam rotates the code).
 #[derive(Debug, Deserialize)]
@@ -1902,20 +1894,23 @@ pub fn proton_uninstall(name: &str) -> Result<(), STError> {
     Ok(())
 }
 
-/// List the games Aurelia is currently running (`aurelia running --json`). The
-/// CLI wraps the list in an object (`{ running: [...] }`); we unwrap and parse
-/// just the array.
+/// The games gaki launched that are still running (stale records are dropped).
 pub fn running() -> Result<Vec<RunningJson>, STError> {
-    let value = run_json(&["running"])?;
-    let parsed: RunningResponse = serde_json::from_value(value)?;
-    Ok(parsed.running)
+    Ok(libgaki::ops::launch::running()
+        .into_iter()
+        .map(|g| RunningJson {
+            app_id: g.app_id,
+            name: g.name,
+            pid: g.pid,
+        })
+        .collect())
 }
 
-/// Stop a running game (`aurelia stop <id> --json`). The returned value is
-/// ignored; only errors are propagated.
+/// Stop a running game launched by gaki.
 pub fn stop(app_id: i32) -> Result<(), STError> {
-    run_json(&["stop", &app_id.to_string()])?;
-    Ok(())
+    libgaki::ops::launch::stop(app_id as u32, false)
+        .map(|_| ())
+        .map_err(|e| STError::Problem(format!("{e:#}")))
 }
 
 /// Log in by QR code (`aurelia login --qr --json`), publishing each challenge
@@ -2391,42 +2386,10 @@ pub fn update(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
     finish(&status, outcome, "updated");
 }
 
-/// Launch a game and wait for it to exit (`aurelia play <id> --json`).
-/// Intended to be run on a dedicated thread.
+/// Launch a game and wait for it to exit. Intended to be run on a dedicated
+/// thread.
 pub fn play(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
-    set_status(&status, "launching...");
-
-    let output = process::Command::new(bin())
-        .args(["play", &id.to_string(), "--json"])
-        .stdin(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .output();
-
-    match output {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            match serde_json::from_str::<serde_json::Value>(stdout.trim()) {
-                Ok(value) => {
-                    if let Some(err) = json_error(&value) {
-                        set_status(&status, &format!("Failed: {}", err));
-                    } else {
-                        set_status(&status, "ran (finished)");
-                    }
-                }
-                Err(_) => {
-                    if output.status.success() {
-                        set_status(&status, "ran (finished)");
-                    } else {
-                        set_status(&status, "Failed to launch");
-                    }
-                }
-            }
-        }
-        Err(err) => {
-            set_status(&status, &format!("failed to launch: {}", err));
-            log!("Failed to spawn aurelia play", id, err);
-        }
-    }
+    play_with(id, PlayOpts::default(), status);
 }
 
 // ===========================================================================
@@ -2615,29 +2578,24 @@ pub struct GameConfigJson {
     pub steam_prefix_mode: Option<String>,
 }
 
-/// Extra launch flags for [`play_with`], mirroring `aurelia play`'s options.
+/// Extra launch options for [`play_with`].
 /// All default to unset/false (see [`PlayOpts::default`]).
 #[derive(Debug, Clone, Default)]
 pub struct PlayOpts {
-    /// Force a specific Proton/Wine runner (`--proton <v>`).
+    /// Force a specific Proton/Wine runner.
     pub proton: Option<String>,
-    /// Route through the luxtorpeda native-engine plugin (`--native-engine`).
-    pub native_engine: bool,
-    /// Wrap the launch through umu-launcher (`--umu`).
-    pub umu: bool,
-    /// Wrap the launch with a specific launch script (`--script <p>`).
+    /// Wrap the launch with a specific launch script.
     pub script: Option<String>,
-    /// Bypass all launch scripts for this launch (`--no-script`).
+    /// Bypass all launch scripts for this launch.
     pub no_script: bool,
-    /// Launch with real Steam integration (`--steam`).
+    /// Launch with real Steam integration (the host Steam client).
     pub steam: bool,
-    /// Run this installed build, `"linux"` or `"windows"`, for this launch only
-    /// (`--platform <p>`, v0.1.40).
+    /// Run this installed build, `"linux"` or `"windows"`, for this launch only.
     pub platform: Option<String>,
-    /// Steam integration for a Windows build, `"runtime"`, `"host"` or `"none"`,
-    /// for this launch only (`--steam-mode <m>`, v0.1.40).
+    /// The launch target's Steam mode, for display. The launch itself follows
+    /// [`PlayOpts::steam`].
     pub steam_mode: Option<String>,
-    /// Skip the pre-launch update check (`--no-update`).
+    /// Skip the pre-launch update check.
     pub no_update: bool,
 }
 
@@ -2661,12 +2619,6 @@ pub struct LaunchTargetJson {
     pub missing: Option<String>,
     #[serde(default)]
     pub flags: Vec<String>,
-}
-
-#[derive(Debug, Clone, Default, Deserialize)]
-struct LaunchTargetsJson {
-    #[serde(default)]
-    targets: Vec<LaunchTargetJson>,
 }
 
 impl LaunchTargetJson {
@@ -2694,12 +2646,25 @@ impl LaunchTargetJson {
     }
 }
 
-/// List the ways an installed game can be launched (`aurelia launch-targets
-/// <id> --json`, v0.1.40).
+/// List the ways an installed game can be launched.
 pub fn launch_targets(app_id: i32) -> Result<Vec<LaunchTargetJson>, STError> {
-    let value = run_json(&["launch-targets", &app_id.to_string()])?;
-    let parsed: LaunchTargetsJson = serde_json::from_value(value)?;
-    Ok(parsed.targets)
+    in_process(async {
+        let mut client = worker::global().session().authed().await?;
+        let targets = libgaki::ops::launch::targets(&mut client, app_id as u32, false).await?;
+        Ok(targets
+            .targets
+            .into_iter()
+            .map(|t| LaunchTargetJson {
+                id: t.id.to_string(),
+                platform: t.platform.to_string(),
+                steam_mode: t.steam_mode.map(str::to_string),
+                available: t.available,
+                default: t.default,
+                missing: t.missing.map(str::to_string),
+                flags: t.flags,
+            })
+            .collect())
+    })
 }
 
 /// List each depot's current manifest id per branch (`aurelia manifests <id>
@@ -3207,78 +3172,46 @@ pub fn config_game_clear_launch_script(app_id: i32) -> Result<(), STError> {
     Ok(())
 }
 
-/// Launch a game with extra options (`aurelia play <id> [flags] --json`),
-/// mirroring [`play`] but appending the flags set in `opts`. Intended to be run
-/// on a dedicated thread.
+/// Launch a game with extra options and wait for it to exit, reporting each
+/// stage (pre-launch update, launch, the build picked) in the status cell.
+/// Intended to be run on a dedicated thread.
 pub fn play_with(id: i32, opts: PlayOpts, status: Arc<Mutex<Option<GameStatus>>>) {
+    use libgaki::core::models::DepotPlatform;
+    use libgaki::ops::launch::{LaunchEvent, PlayRequest};
     set_status(&status, "launching...");
-
-    let id_str = id.to_string();
-    let mut args: Vec<&str> = vec!["play", &id_str];
-    if let Some(p) = &opts.proton {
-        args.push("--proton");
-        args.push(p);
-    }
-    if opts.native_engine {
-        args.push("--native-engine");
-    }
-    if opts.umu {
-        args.push("--umu");
-    }
-    if let Some(s) = &opts.script {
-        args.push("--script");
-        args.push(s);
-    }
-    if opts.no_script {
-        args.push("--no-script");
-    }
-    if opts.steam {
-        args.push("--steam");
-    }
-    if let Some(p) = &opts.platform {
-        args.push("--platform");
-        args.push(p);
-    }
-    if let Some(m) = &opts.steam_mode {
-        args.push("--steam-mode");
-        args.push(m);
-    }
-    if opts.no_update {
-        args.push("--no-update");
-    }
-    args.push("--json");
-
-    let output = process::Command::new(bin())
-        .args(&args)
-        .stdin(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .output();
-
-    match output {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            match serde_json::from_str::<serde_json::Value>(stdout.trim()) {
-                Ok(value) => {
-                    if let Some(err) = json_error(&value) {
-                        set_status(&status, &format!("Failed: {}", err));
-                    } else {
-                        set_status(&status, "ran (finished)");
-                    }
-                }
-                Err(_) => {
-                    if output.status.success() {
-                        set_status(&status, "ran (finished)");
-                    } else {
-                        set_status(&status, "Failed to launch");
-                    }
-                }
-            }
-        }
-        Err(err) => {
-            set_status(&status, &format!("failed to launch: {}", err));
-            log!("Failed to spawn aurelia play", id, err);
-        }
-    }
+    let platform = match opts.platform.as_deref() {
+        Some("linux") => Some(DepotPlatform::Linux),
+        Some("windows") => Some(DepotPlatform::Windows),
+        _ => None,
+    };
+    let request = PlayRequest {
+        proton: opts.proton,
+        script: opts.script.map(std::path::PathBuf::from),
+        no_script: opts.no_script,
+        steam: opts.steam,
+        platform,
+        no_update: opts.no_update,
+    };
+    let on_event = |event: LaunchEvent<'_>| match event {
+        LaunchEvent::Updating { required: true } => set_status(&status, "required update..."),
+        LaunchEvent::Updating { required: false } => set_status(&status, "updating..."),
+        LaunchEvent::DrmUnverified { .. } => set_status(
+            &status,
+            "no Steam ticket; launching anyway (try Steam mode)",
+        ),
+        LaunchEvent::Launching => set_status(&status, "launching..."),
+        LaunchEvent::Target { proton: Some(p) } => set_status(&status, &format!("running ({p})")),
+        LaunchEvent::Target { proton: None } => set_status(&status, "running (native)"),
+    };
+    let outcome = worker::global().block_on(async {
+        let mut client = worker::global().session().authed().await?;
+        let game = libgaki::ops::library::find_game(&mut client, id as u32).await?;
+        libgaki::ops::launch::play(&mut client, game, &request, &on_event, |rx| {
+            drive_progress(rx, &status, ProgressLabel::Update)
+        })
+        .await
+    });
+    finish(&status, outcome, "ran (finished)");
 }
 
 #[cfg(test)]
