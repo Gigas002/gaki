@@ -646,7 +646,13 @@ I make the changes, and you review, commit, and push.
     `AURELIA_NO_DAEMON` env var instead of `--no-daemon`. Classic login
     still passes `AURELIA_PASSWORD`, which gaki-cli ignores since 2.4a; it
     goes with the login port.
-  - [ ] Install and progress
+  - [x] Install and progress (`install`, `install_estimate`, `install_stop`,
+    new `install_pause`, `verify`, `update`, `uninstall`, `move_game`,
+    `relink`, `import_game`). A shared `drive_progress` turns `libgaki`'s
+    `DownloadProgress` into the same status text, with the CLI's
+    `RateTracker` ETA. Pause now records a resumable backlog entry
+    (`signal(id, pause = true)`) instead of a plain stop. Move, relink and
+    import refuse while Steam runs, as the CLI did without `--restart-steam`.
   - [ ] Launch and running
   - [ ] Cloud
   - [ ] Account and login

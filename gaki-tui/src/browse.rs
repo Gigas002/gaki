@@ -2590,13 +2590,14 @@ impl Browser {
     }
 
     /// Pause the in-flight install of `app_id`: flag its control so the worker
-    /// finalises as "paused", then ask the backend to stop the download (it is
-    /// left on disk so [`Browser::begin_install`] resumes it). A no-op if no
+    /// finalises as "paused", then pause the download (it is left on disk, and
+    /// its backlog entry stays paused, so [`Browser::begin_install`] resumes
+    /// it). A no-op if no
     /// install is tracked for the game.
     pub fn pause_install(&mut self, app_id: i32) {
         if let Some(control) = self.install_controls.get(&app_id) {
             control.set(aurelia::InstallAction::Paused);
-            let _ = aurelia::install_stop(app_id);
+            let _ = aurelia::install_pause(app_id);
         }
     }
 

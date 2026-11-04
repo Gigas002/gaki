@@ -1376,8 +1376,11 @@ pub fn libraries() -> Result<Vec<LibraryJson>, STError> {
 /// (`aurelia install <id> --dry-run --json` → `disk_size`). Returns 0 if the
 /// estimate is unavailable.
 pub fn install_estimate(id: i32) -> Result<u64, STError> {
-    let value = run_json(&["install", &id.to_string(), "--dry-run"])?;
-    Ok(value.get("disk_size").and_then(|v| v.as_u64()).unwrap_or(0))
+    in_process(async {
+        let mut client = worker::global().session().authed().await?;
+        let estimate = libgaki::ops::install::estimate(&mut client, id as u32, None).await?;
+        Ok(estimate.size.disk_size)
+    })
 }
 
 /// Fetch store metadata for a single app (`aurelia info <id> --json`).
@@ -2134,13 +2137,23 @@ impl Default for InstallControl {
     }
 }
 
-/// Ask the backend to stop a running install (`aurelia install stop <id>`).
-/// Forwards to the session daemon, which aborts the download loop; the partial
-/// download is left on disk so a later `install` resumes it. A no-op (Ok) if no
-/// such install is in flight.
+/// Stop a running install. The download loop aborts and the partial download
+/// stays on disk, so a later `install` resumes it. A no-op (Ok) if no such
+/// install is in flight.
 pub fn install_stop(app_id: i32) -> Result<(), STError> {
-    run_json(&["install", "stop", &app_id.to_string()])?;
-    Ok(())
+    signal_install(app_id, false)
+}
+
+/// Pause a running install: it stops, and its backlog entry stays `paused`
+/// so it can be resumed. A no-op (Ok) if no such install is in flight.
+pub fn install_pause(app_id: i32) -> Result<(), STError> {
+    signal_install(app_id, true)
+}
+
+fn signal_install(app_id: i32, pause: bool) -> Result<(), STError> {
+    libgaki::ops::install::signal(app_id as u32, pause)
+        .map(|_| ())
+        .map_err(|e| STError::Problem(format!("{e:#}")))
 }
 
 /// Freeze the status cell at "paused" (carrying the last-seen percent, if any),
@@ -2157,86 +2170,40 @@ fn set_status_paused(status: &Arc<Mutex<Option<GameStatus>>>) {
     }
 }
 
-/// Install a game (`aurelia install <id> --json`), streaming progress into the
-/// shared status cell. Blocks until the install finishes; intended to be run on
-/// a dedicated thread. `control` lets the UI pause (resumable) or stop (cancel)
-/// the install — when set, the worker finalises as paused/cleared instead of
-/// reporting the abort as a failure. `library` (a library root from
-/// [`libraries`]) targets a specific drive/location; `None` uses the default.
+/// Install a game, streaming progress into the shared status cell. Blocks
+/// until the install finishes; intended to be run on a dedicated thread.
+/// `control` lets the UI pause (resumable) or stop (cancel) the install — when
+/// set, the worker finalises as paused/cleared instead of reporting the abort
+/// as a failure. `library` (a library root from [`libraries`]) targets a
+/// specific drive/location; `None` uses the default.
 pub fn install(
     id: i32,
     status: Arc<Mutex<Option<GameStatus>>>,
     control: InstallControl,
     library: Option<String>,
 ) {
+    use libgaki::ops::install::{InstallRequest, prepare};
     set_status(&status, "processing...");
-
-    let id_str = id.to_string();
-    let mut args: Vec<&str> = vec!["install", &id_str, "--json"];
-    if let Some(library) = &library {
-        args.push("--library");
-        args.push(library);
-    }
-    let spawned = process::Command::new(bin())
-        .args(&args)
-        .stdin(process::Stdio::null())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(err) => {
-            set_status(&status, &format!("Failed: {}", err));
-            log!("Failed to spawn aurelia install", id, err);
-            return;
-        }
+    let request = InstallRequest {
+        app_id: id as u32,
+        platform: None,
+        restart_steam: false,
+        library,
+        on_disk: 0,
+        auto_attempts: 0,
     };
-
-    // Drain stdout (the small terminal result object) on a helper thread so the
-    // child never blocks writing it while we consume the larger stderr stream.
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
-        }
-        buf
+    let outcome = worker::global().block_on(async {
+        let mut client = worker::global().session().authed().await?;
+        let prepared = prepare(&mut client, request).await?;
+        prepared
+            .run(&client, |rx| {
+                drive_progress(rx, &status, ProgressLabel::Install)
+            })
+            .await
     });
 
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<ProgressJson>(line)
-                && event.event.as_deref() == Some("progress")
-            {
-                let label = match event.state.as_deref() {
-                    Some("verifying") => "verifying",
-                    Some("moving") => "moving",
-                    Some("queued") => "queued",
-                    _ => "downloading",
-                };
-                set_status(
-                    &status,
-                    &format!(
-                        "{} {:.1}%{}",
-                        label,
-                        event.percent.unwrap_or(0.0),
-                        eta_suffix(event.eta_seconds)
-                    ),
-                );
-            }
-        }
-    }
-
-    let result = result_handle.join().unwrap_or_default();
-    let _ = child.wait();
-
-    // If the user paused/stopped, the process exited because the daemon aborted
-    // the download — finalise on the user's intent, not the aborted result.
+    // If the user paused/stopped, the download aborted on their request —
+    // finalise on the user's intent, not the aborted result.
     match control.get() {
         InstallAction::Paused => {
             set_status_paused(&status);
@@ -2250,195 +2217,178 @@ pub fn install(
         }
         InstallAction::Running => {}
     }
+    finish(&status, outcome, "Installed!");
+}
 
-    match serde_json::from_str::<serde_json::Value>(result.trim()) {
-        Ok(value) => {
-            if let Some(err) = json_error(&value) {
-                set_status(&status, &format!("Failed: {}", err));
-            } else if value.get("status").and_then(|s| s.as_str()) == Some("installed") {
-                set_status(&status, "Installed!");
-            } else {
-                set_status(&status, "done");
+/// Which operation [`drive_progress`] is reporting, for its status label.
+#[derive(Clone, Copy)]
+enum ProgressLabel {
+    /// Downloading / verifying / moving, as the backend reports it.
+    Install,
+    Verify,
+    Update,
+}
+
+/// Feed `libgaki` download progress into the status cell until the
+/// operation completes (`Ok(true)`), fails, or its channel closes (`Ok(false)`).
+async fn drive_progress(
+    mut rx: tokio::sync::mpsc::Receiver<libgaki::core::models::DownloadProgress>,
+    status: &Arc<Mutex<Option<GameStatus>>>,
+    label: ProgressLabel,
+) -> anyhow::Result<bool> {
+    use libgaki::core::models::DownloadProgressState as State;
+    use libgaki::ops::progress::{RateTracker, percent_of};
+    let mut rate = RateTracker::new();
+    while let Some(p) = rx.recv().await {
+        match p.state {
+            State::Queued => {
+                rate.reset();
+                set_status(status, "queued 0.0%");
+            }
+            State::Downloading | State::Verifying | State::Moving => {
+                // Disk reuse isn't network speed.
+                let (_, eta) = rate.sample(
+                    p.bytes_downloaded.saturating_sub(p.reused_bytes),
+                    p.total_bytes.saturating_sub(p.reused_bytes),
+                );
+                let percent = percent_of(p.bytes_downloaded, p.total_bytes);
+                let text = match (label, p.state) {
+                    (ProgressLabel::Verify, _) => format!("verifying {percent:.1}%"),
+                    (ProgressLabel::Update, _) => {
+                        format!("updating {percent:.1}%{}", eta_suffix(eta))
+                    }
+                    (ProgressLabel::Install, State::Verifying) => {
+                        format!("verifying {percent:.1}%{}", eta_suffix(eta))
+                    }
+                    (ProgressLabel::Install, State::Moving) => {
+                        format!("moving {percent:.1}%{}", eta_suffix(eta))
+                    }
+                    (ProgressLabel::Install, _) => {
+                        format!("downloading {percent:.1}%{}", eta_suffix(eta))
+                    }
+                };
+                set_status(status, &text);
+            }
+            State::Completed => return Ok(true),
+            State::Failed => {
+                let message = format!("operation failed: {}", p.current_file);
+                return Err(match p.error_kind {
+                    Some(kind) => libgaki::core::error::TypedError::new(kind, message).into(),
+                    None => anyhow::anyhow!(message),
+                });
             }
         }
-        // No parseable result line: fall back on the exit status we already waited on.
-        Err(_) => set_status(&status, "Installed!"),
+    }
+    Ok(false)
+}
+
+/// Settle a status cell on an operation's outcome.
+fn finish(status: &Arc<Mutex<Option<GameStatus>>>, outcome: anyhow::Result<()>, done: &str) {
+    match outcome {
+        Ok(()) => set_status(status, done),
+        Err(e) => set_status(status, &format!("Failed: {e:#}")),
     }
 }
 
-/// Uninstall a game (`aurelia uninstall <id> --json`). The game's Wine prefix /
-/// compat data is left in place (no `--delete-prefix`). Blocks until the CLI
-/// reports the result; the parsed value is ignored beyond error detection.
+/// Uninstall a game. Its Wine prefix / compat data is left in place.
 pub fn uninstall(app_id: i32) -> Result<(), STError> {
-    run_json(&["uninstall", &app_id.to_string()])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::install::uninstall(&client, app_id as u32, false).await
+    })
 }
 
-/// Relocate an installed game to another Steam library folder
-/// (`aurelia move <id> <library> --json`). Blocks until the CLI finishes the
-/// file relocation (which can take a while); the parsed value is ignored beyond
-/// error detection. (`move` is a Rust keyword, hence `move_game`.)
+/// Refuse to edit Steam's files while it runs: it rewrites appmanifests and
+/// `libraryfolders.vdf` on exit.
+fn require_steam_stopped() -> anyhow::Result<()> {
+    libgaki::ops::steam::stop_for_edit(false, || {})
+        .map(|_| ())
+        .map_err(|e| {
+            if libgaki::core::error::classify(&e).kind
+                == libgaki::core::error::ErrorKind::InvalidInput
+            {
+                anyhow::anyhow!("Steam is running. Close it first, then try again.")
+            } else {
+                e
+            }
+        })
+}
+
+/// Relocate an installed game to another Steam library folder. Blocks until
+/// the files are moved (which can take a while). Steam must not be running.
+/// (`move` is a Rust keyword, hence `move_game`.)
 pub fn move_game(app_id: i32, library: &str) -> Result<(), STError> {
-    run_json(&["move", &app_id.to_string(), library])?;
-    Ok(())
+    let library = std::path::PathBuf::from(library);
+    in_process(async move {
+        require_steam_stopped()?;
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::install::move_to(&client, app_id as u32, library, |mut rx| async move {
+            use libgaki::core::models::DownloadProgressState as State;
+            while let Some(p) = rx.recv().await {
+                match p.state {
+                    State::Completed => return Ok(true),
+                    State::Failed => anyhow::bail!("operation failed: {}", p.current_file),
+                    _ => {}
+                }
+            }
+            Ok(false)
+        })
+        .await
+    })
 }
 
-/// Relink an installed game to another Steam library folder
-/// (`aurelia relink <id> <library> --json`). Blocks until the CLI finishes the
-/// relink (which can take a while); the parsed value is ignored beyond error
-/// detection.
+/// Point Steam at an install that was moved to another library folder by
+/// hand. Steam must not be running.
 pub fn relink(app_id: i32, library: &str) -> Result<(), STError> {
-    run_json(&["relink", &app_id.to_string(), library])?;
-    Ok(())
+    let library = std::path::PathBuf::from(library);
+    in_process(async move {
+        require_steam_stopped()?;
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::install::relink(&client, app_id as u32, library).await?;
+        Ok(())
+    })
 }
 
-/// Register an existing on-disk install of a game into a Steam library folder
-/// (`aurelia import <id> <library> --json`). Blocks until the CLI finishes
-/// registering the install; the parsed value is ignored beyond error detection.
-/// (Named `import_game` rather than `import` for clarity.)
+/// Register an existing on-disk install of a game into a Steam library
+/// folder. Steam must not be running. (Named `import_game` for clarity.)
 pub fn import_game(app_id: i32, library: &str) -> Result<(), STError> {
-    run_json(&["import", &app_id.to_string(), library])?;
-    Ok(())
+    let library = std::path::PathBuf::from(library);
+    in_process(async move {
+        require_steam_stopped()?;
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::install::import(&client, app_id as u32, library, None).await?;
+        Ok(())
+    })
 }
 
-/// Verify the integrity of a game's files (`aurelia verify <id> --json`),
+/// Verify the integrity of a game's files, repairing what is wrong and
 /// streaming progress into the shared status cell. Blocks until verification
 /// finishes; intended to be run on a dedicated thread.
 pub fn verify(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
     set_status(&status, "processing...");
-
-    let spawned = process::Command::new(bin())
-        .args(["verify", &id.to_string(), "--json"])
-        .stdin(process::Stdio::null())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(err) => {
-            set_status(&status, &format!("Failed: {}", err));
-            log!("Failed to spawn aurelia verify", id, err);
-            return;
-        }
-    };
-
-    // Drain stdout (the small terminal result object) on a helper thread so the
-    // child never blocks writing it while we consume the larger stderr stream.
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
-        }
-        buf
+    let outcome = worker::global().block_on(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::install::verify(&client, id as u32, |rx| {
+            drive_progress(rx, &status, ProgressLabel::Verify)
+        })
+        .await
     });
-
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<ProgressJson>(line)
-                && event.event.as_deref() == Some("progress")
-            {
-                set_status(
-                    &status,
-                    &format!("verifying {:.1}%", event.percent.unwrap_or(0.0)),
-                );
-            }
-        }
-    }
-
-    let result = result_handle.join().unwrap_or_default();
-    let _ = child.wait();
-
-    match serde_json::from_str::<serde_json::Value>(result.trim()) {
-        Ok(value) => {
-            if let Some(err) = json_error(&value) {
-                set_status(&status, &format!("Failed: {}", err));
-            } else if value.get("status").and_then(|s| s.as_str()) == Some("verified") {
-                set_status(&status, "verified");
-            } else {
-                set_status(&status, "done");
-            }
-        }
-        // No parseable result line: fall back on the exit status we already waited on.
-        Err(_) => set_status(&status, "verified"),
-    }
+    finish(&status, outcome, "verified");
 }
 
-/// Update a game to the latest version (`aurelia update <id> --json`),
-/// streaming progress into the shared status cell. Blocks until the update
-/// finishes; intended to be run on a dedicated thread.
+/// Update a game to the latest version, streaming progress into the shared
+/// status cell. Blocks until the update finishes; intended to be run on a
+/// dedicated thread. A pinned game is refused.
 pub fn update(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
     set_status(&status, "processing...");
-
-    let spawned = process::Command::new(bin())
-        .args(["update", &id.to_string(), "--json"])
-        .stdin(process::Stdio::null())
-        .stdout(process::Stdio::piped())
-        .stderr(process::Stdio::piped())
-        .spawn();
-
-    let mut child = match spawned {
-        Ok(child) => child,
-        Err(err) => {
-            set_status(&status, &format!("Failed: {}", err));
-            log!("Failed to spawn aurelia update", id, err);
-            return;
-        }
-    };
-
-    // Drain stdout (the small terminal result object) on a helper thread so the
-    // child never blocks writing it while we consume the larger stderr stream.
-    let stdout = child.stdout.take();
-    let result_handle = thread::spawn(move || {
-        let mut buf = String::new();
-        if let Some(mut out) = stdout {
-            let _ = out.read_to_string(&mut buf);
-        }
-        buf
+    let outcome = worker::global().block_on(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::install::update(&client, id as u32, false, |rx| {
+            drive_progress(rx, &status, ProgressLabel::Update)
+        })
+        .await
     });
-
-    if let Some(stderr) = child.stderr.take() {
-        for line in BufReader::new(stderr).lines().map_while(Result::ok) {
-            let line = line.trim();
-            if line.is_empty() {
-                continue;
-            }
-            if let Ok(event) = serde_json::from_str::<ProgressJson>(line)
-                && event.event.as_deref() == Some("progress")
-            {
-                set_status(
-                    &status,
-                    &format!(
-                        "updating {:.1}%{}",
-                        event.percent.unwrap_or(0.0),
-                        eta_suffix(event.eta_seconds)
-                    ),
-                );
-            }
-        }
-    }
-
-    let result = result_handle.join().unwrap_or_default();
-    let _ = child.wait();
-
-    match serde_json::from_str::<serde_json::Value>(result.trim()) {
-        Ok(value) => {
-            if let Some(err) = json_error(&value) {
-                set_status(&status, &format!("Failed: {}", err));
-            } else if value.get("status").and_then(|s| s.as_str()) == Some("updated") {
-                set_status(&status, "updated");
-            } else {
-                set_status(&status, "done");
-            }
-        }
-        // No parseable result line: fall back on the exit status we already waited on.
-        Err(_) => set_status(&status, "updated"),
-    }
+    finish(&status, outcome, "updated");
 }
 
 /// Launch a game and wait for it to exit (`aurelia play <id> --json`).
@@ -3328,5 +3278,86 @@ pub fn play_with(id: i32, opts: PlayOpts, status: Arc<Mutex<Option<GameStatus>>>
             set_status(&status, &format!("failed to launch: {}", err));
             log!("Failed to spawn aurelia play", id, err);
         }
+    }
+}
+
+#[cfg(test)]
+mod progress_tests {
+    use super::{ProgressLabel, drive_progress};
+    use crate::interface::game_status::GameStatus;
+    use libgaki::core::error::{ErrorKind, classify};
+    use libgaki::core::models::{DownloadProgress, DownloadProgressState as State};
+    use std::sync::{Arc, Mutex};
+
+    fn step(state: State, done: u64, total: u64) -> DownloadProgress {
+        DownloadProgress {
+            state,
+            bytes_downloaded: done,
+            total_bytes: total,
+            ..Default::default()
+        }
+    }
+
+    /// Feed `events` through [`drive_progress`]; returns its result and the
+    /// status text it left behind.
+    fn drive(
+        label: ProgressLabel,
+        events: Vec<DownloadProgress>,
+    ) -> (anyhow::Result<bool>, Option<String>) {
+        let status: Arc<Mutex<Option<GameStatus>>> = Arc::new(Mutex::new(None));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let result = runtime.block_on(async {
+            let (tx, rx) = tokio::sync::mpsc::channel(8);
+            for event in events {
+                tx.send(event).await.unwrap();
+            }
+            drop(tx);
+            drive_progress(rx, &status, label).await
+        });
+        let text = status.lock().unwrap().as_ref().map(|s| s.state.clone());
+        (result, text)
+    }
+
+    #[test]
+    fn progress_is_labelled_by_state_and_operation() {
+        let (result, text) = drive(
+            ProgressLabel::Install,
+            vec![
+                DownloadProgress::queued("waiting"),
+                step(State::Downloading, 25, 100),
+            ],
+        );
+        // The channel closed without a terminal event.
+        assert!(!result.unwrap());
+        assert_eq!(text.as_deref(), Some("downloading 25.0%"));
+
+        let (_, text) = drive(ProgressLabel::Install, vec![step(State::Moving, 1, 2)]);
+        assert_eq!(text.as_deref(), Some("moving 50.0%"));
+
+        let (_, text) = drive(ProgressLabel::Verify, vec![step(State::Downloading, 3, 4)]);
+        assert_eq!(text.as_deref(), Some("verifying 75.0%"));
+    }
+
+    #[test]
+    fn completion_and_failure_end_the_drive() {
+        let (result, _) = drive(
+            ProgressLabel::Update,
+            vec![
+                step(State::Downloading, 1, 2),
+                DownloadProgress::completed("done"),
+                step(State::Downloading, 2, 2),
+            ],
+        );
+        assert!(result.unwrap(), "completion ends the drive");
+
+        let mut failed = step(State::Failed, 0, 0);
+        failed.current_file = "disk full".into();
+        failed.error_kind = Some(ErrorKind::DiskFull);
+        let (result, _) = drive(ProgressLabel::Install, vec![failed]);
+        let err = result.unwrap_err();
+        assert_eq!(classify(&err).kind, ErrorKind::DiskFull);
+        assert!(err.to_string().contains("disk full"));
     }
 }
