@@ -1,4 +1,5 @@
 pub mod browser;
+pub mod bytes;
 pub mod error;
 pub mod event;
 pub mod image;

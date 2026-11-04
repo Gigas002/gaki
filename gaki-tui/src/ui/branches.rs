@@ -1,8 +1,8 @@
 //! The beta-branches overlay (modal popup): the selected game's branches with
 //! the currently-active one marked, and the highlighted row for switching.
 
-use tui::text::{Span, Spans};
-use tui::widgets::{List, ListItem};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{List, ListItem};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -49,7 +49,7 @@ pub fn branches(browser: &Browser) -> List<'static> {
                     spans.push(Span::styled(entry.description.clone(), theme::dim()));
                 }
 
-                ListItem::new(Spans::from(spans))
+                ListItem::new(Line::from(spans))
             })
             .collect()
     };

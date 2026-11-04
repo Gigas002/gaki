@@ -3,15 +3,15 @@ extern crate gaki_tui;
 use std::io;
 use std::time::Instant;
 
-use crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyCode};
-use crossterm::execute;
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
-use tui::layout::{Constraint, Direction, Layout, Rect};
-use tui::style::Style;
-use tui::widgets::{Block, Clear};
-use tui::{Terminal, backend::CrosstermBackend};
+use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyCode};
+use ratatui::crossterm::execute;
+use ratatui::crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::widgets::{Block, Clear};
+use ratatui::{Terminal, backend::CrosstermBackend};
 
-use tui_image_rgba_updated::{ColorMode, Image};
+use ratatui_image::Image;
+use ratatui_image::protocol::{Protocol, halfblocks::Halfblocks};
 
 use gaki_tui::browse::{Action, Browser, Filter, InstallPhase, View};
 use gaki_tui::theme;
@@ -87,10 +87,20 @@ fn cover_resize(
     resize(&cropped, tw, th, FilterType::Triangle)
 }
 
-/// The RGB components of a theme [`tui::style::Color::Rgb`] (falls back to black).
-fn rgb(color: tui::style::Color) -> (u8, u8, u8) {
+/// Encode `img` (already sized to `area`: one pixel per column, two per row) as
+/// half-block cells. Half-blocks colour each cell's foreground and background,
+/// so the detail text drawn on top keeps the art behind it; graphics protocols
+/// (kitty, sixel) would hide that text.
+fn halfblock_art(img: image::RgbaImage, area: Rect) -> Option<Protocol> {
+    Halfblocks::new(image::DynamicImage::ImageRgba8(img), area)
+        .ok()
+        .map(Protocol::Halfblocks)
+}
+
+/// The RGB components of a theme [`ratatui::style::Color::Rgb`] (falls back to black).
+fn rgb(color: ratatui::style::Color) -> (u8, u8, u8) {
     match color {
-        tui::style::Color::Rgb(r, g, b) => (r, g, b),
+        ratatui::style::Color::Rgb(r, g, b) => (r, g, b),
         _ => (0, 0, 0),
     }
 }
@@ -110,7 +120,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
     terminal.clear()?;
     terminal.draw(|frame| {
         let layout = App::build_layout();
-        let placement = layout.split(frame.size());
+        let placement = layout.split(frame.area());
         frame.render_widget(App::build_splash(), placement[0]);
         frame.render_widget(App::build_patience(), placement[1]);
     })?;
@@ -205,7 +215,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
         let marquee_tick = global_tick.saturating_sub(marquee_base);
 
         terminal.draw(|frame| {
-            frame.render_widget(Block::default().style(theme::canvas()), frame.size());
+            frame.render_widget(Block::default().style(theme::canvas()), frame.area());
 
             if app.mode == Mode::Browse {
                 // Library browser: tabs / [list | detail+art] / status bar.
@@ -216,7 +226,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                         Constraint::Min(2),
                         Constraint::Length(2),
                     ])
-                    .split(frame.size());
+                    .split(frame.area());
 
                 // Top bar split into two sections: the library filters on the
                 // left and the Friends & Chat tab in its own box on the right,
@@ -274,12 +284,9 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                         let mut bg =
                             cover_resize(&image, inner.width as u32, inner.height as u32 * 2);
                         fade_bottom(&mut bg, rgb(theme::BG_DARK));
-                        frame.render_widget(
-                            Image::with_img(bg)
-                                .color_mode(ColorMode::Rgba)
-                                .style(Style::default().bg(theme::BG)),
-                            inner,
-                        );
+                        if let Some(art) = halfblock_art(bg, inner) {
+                            frame.render_widget(Image::new(&art), inner);
+                        }
                     }
 
                     let content_h = ui::detail::content_height(
@@ -298,17 +305,15 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                                     as u16)
                                     .clamp(1, inner.width);
                                 let thumb = cover_resize(&image, box_w as u32, gap as u32 * 2);
-                                frame.render_widget(
-                                    Image::with_img(thumb)
-                                        .color_mode(ColorMode::Rgba)
-                                        .style(Style::default().bg(theme::BG)),
-                                    Rect {
-                                        x: inner.x,
-                                        y: inner.y,
-                                        width: box_w,
-                                        height: gap,
-                                    },
-                                );
+                                let area = Rect {
+                                    x: inner.x,
+                                    y: inner.y,
+                                    width: box_w,
+                                    height: gap,
+                                };
+                                if let Some(art) = halfblock_art(thumb, area) {
+                                    frame.render_widget(Image::new(&art), area);
+                                }
                             }
                 }
 
@@ -336,7 +341,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Achievements overlay floats above everything.
                 if browser.show_achievements {
-                    let area = ui::centered_rect(72, 82, frame.size());
+                    let area = ui::centered_rect(72, 82, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::achievements::achievements(&browser), area);
                 }
@@ -344,28 +349,28 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                 // Chat view floats above everything (the in-app conversation
                 // overlay; a chat can also be popped into its own terminal).
                 if browser.show_chat {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::chat::chat(&browser, area.width, area.height), area);
                 }
 
                 // Inventory overlay floats above everything.
                 if browser.show_inventory {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::inventory::inventory(&browser), area);
                 }
 
                 // Market listings overlay floats above everything.
                 if browser.show_market {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::market::market(&browser), area);
                 }
 
                 // Community Market search overlay floats above everything.
                 if browser.show_market_search {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     // Pass the inner content height (minus the block border) so the
                     // result window never overflows the overlay.
@@ -375,91 +380,91 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Workshop overlay floats above everything.
                 if browser.show_workshop {
-                    let area = ui::centered_rect(72, 80, frame.size());
+                    let area = ui::centered_rect(72, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::workshop::workshop(&browser), area);
                 }
 
                 // Help overlay floats above everything.
                 if browser.show_help {
-                    let area = ui::centered_rect(64, 84, frame.size());
+                    let area = ui::centered_rect(64, 84, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::help::help(browser.help_scroll), area);
                 }
 
                 // Steam Cloud overlay floats above everything.
                 if browser.show_cloud {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::cloud::cloud(&browser), area);
                 }
 
                 // Launch-options overlay floats above everything.
                 if browser.show_launch {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::launch::launch(&browser), area);
                 }
 
                 // Account overlay floats above everything.
                 if browser.show_account {
-                    let area = ui::centered_rect(50, 55, frame.size());
+                    let area = ui::centered_rect(50, 55, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::account::account(&browser), area);
                 }
 
                 // Settings overlay floats above everything.
                 if browser.show_config {
-                    let area = ui::centered_rect(55, 60, frame.size());
+                    let area = ui::centered_rect(55, 60, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::config::config(&browser), area);
                 }
 
                 // Wallet overlay floats above everything.
                 if browser.show_wallet {
-                    let area = ui::centered_rect(40, 30, frame.size());
+                    let area = ui::centered_rect(40, 30, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::wallet::wallet(&browser), area);
                 }
 
                 // Per-game Actions menu (command palette) floats above the library.
                 if browser.show_actions {
-                    let area = ui::centered_rect(60, 78, frame.size());
+                    let area = ui::centered_rect(60, 78, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::actions::actions(&browser), area);
                 }
 
                 // Versions & pinning overlay floats above everything.
                 if browser.show_versions {
-                    let area = ui::centered_rect(72, 78, frame.size());
+                    let area = ui::centered_rect(72, 78, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::versions::versions(&browser), area);
                 }
 
                 // Per-game settings overlay floats above everything.
                 if browser.show_game_config {
-                    let area = ui::centered_rect(58, 45, frame.size());
+                    let area = ui::centered_rect(58, 45, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::game_config::game_config(&browser), area);
                 }
 
                 // Collections overlay floats above everything.
                 if browser.show_collections {
-                    let area = ui::centered_rect(58, 62, frame.size());
+                    let area = ui::centered_rect(58, 62, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::collections::collections(&browser), area);
                 }
 
                 // Runtime plugins overlay floats above everything.
                 if browser.show_engine {
-                    let area = ui::centered_rect(62, 45, frame.size());
+                    let area = ui::centered_rect(62, 45, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::engine::engine(&browser), area);
                 }
 
                 // Launch targets ("Play as…") overlay floats above everything.
                 if browser.show_launch_targets {
-                    let area = ui::centered_rect(58, 40, frame.size());
+                    let area = ui::centered_rect(58, 40, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::launch_targets::launch_targets(&browser), area);
                 }
@@ -467,7 +472,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                 // "Not installed — install now?" prompt floats above the library.
                 if browser.confirm_install
                     && let Some(game) = browser.selected() {
-                        let area = ui::centered_rect(40, 20, frame.size());
+                        let area = ui::centered_rect(40, 20, frame.area());
                         frame.render_widget(Clear, area);
                         frame.render_widget(
                             ui::confirm::confirm_install(&game.get_name()),
@@ -477,7 +482,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Install-location picker floats above the library.
                 if browser.show_install_picker {
-                    let area = ui::centered_rect(64, 40, frame.size());
+                    let area = ui::centered_rect(64, 40, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::install_picker::install_picker(&browser), area);
                 }
@@ -485,7 +490,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                 // Uninstall confirmation prompt floats above the library.
                 if browser.confirm_uninstall
                     && let Some(game) = browser.selected() {
-                        let area = ui::centered_rect(40, 20, frame.size());
+                        let area = ui::centered_rect(40, 20, frame.area());
                         frame.render_widget(Clear, area);
                         frame.render_widget(
                             ui::confirm::confirm_uninstall(&game.get_name()),
@@ -495,49 +500,49 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 
                 // DLC overlay floats above everything.
                 if browser.show_dlc {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::dlc::dlc(&browser), area);
                 }
 
                 // Branches overlay floats above everything.
                 if browser.show_branches {
-                    let area = ui::centered_rect(60, 60, frame.size());
+                    let area = ui::centered_rect(60, 60, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::branches::branches(&browser), area);
                 }
 
                 // Depots overlay floats above everything.
                 if browser.show_depots {
-                    let area = ui::centered_rect(70, 80, frame.size());
+                    let area = ui::centered_rect(70, 80, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::depots::depots(&browser), area);
                 }
 
                 // Move (relocate install) prompt floats above everything.
                 if browser.show_move {
-                    let area = ui::centered_rect(60, 25, frame.size());
+                    let area = ui::centered_rect(60, 25, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::move_game::move_overlay(&browser), area);
                 }
 
                 // Relink (relink install) prompt floats above everything.
                 if browser.show_relink {
-                    let area = ui::centered_rect(60, 25, frame.size());
+                    let area = ui::centered_rect(60, 25, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::relink::relink_overlay(&browser), area);
                 }
 
                 // Import (register existing install) prompt floats above everything.
                 if browser.show_import {
-                    let area = ui::centered_rect(60, 25, frame.size());
+                    let area = ui::centered_rect(60, 25, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::import::import_overlay(&browser), area);
                 }
 
                 // Proton runtimes overlay floats above everything.
                 if browser.show_proton {
-                    let area = ui::centered_rect(60, 70, frame.size());
+                    let area = ui::centered_rect(60, 70, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::proton::proton(&browser), area);
 
@@ -545,7 +550,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                     if browser.confirm_proton_uninstall
                         && let Some(p) = browser.selected_proton() {
                             let prompt = ui::confirm::confirm_uninstall(&p.name);
-                            let confirm_area = ui::centered_rect(40, 20, frame.size());
+                            let confirm_area = ui::centered_rect(40, 20, frame.area());
                             frame.render_widget(Clear, confirm_area);
                             frame.render_widget(prompt, confirm_area);
                         }
@@ -553,14 +558,14 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Running-games overlay floats above everything.
                 if browser.show_running {
-                    let area = ui::centered_rect(60, 60, frame.size());
+                    let area = ui::centered_rect(60, 60, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::running::running(&browser), area);
                 }
 
                 // Add-friend (search/add) prompt floats above everything.
                 if browser.show_friend_add {
-                    let area = ui::centered_rect(60, 30, frame.size());
+                    let area = ui::centered_rect(60, 30, frame.area());
                     frame.render_widget(Clear, area);
                     frame.render_widget(ui::friend_add::friend_add_overlay(&browser), area);
                 }
@@ -568,7 +573,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
                 // Remove-friend confirmation prompt floats above the friends panel.
                 if browser.confirm_friend_remove
                     && let Some(friend) = browser.selected_friend() {
-                        let area = ui::centered_rect(40, 20, frame.size());
+                        let area = ui::centered_rect(40, 20, frame.area());
                         frame.render_widget(Clear, area);
                         frame.render_widget(
                             ui::confirm::confirm_remove_friend(&friend.display_name()),
@@ -578,7 +583,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 // Login / loading / terminated screens use the simple two-pane layout.
                 let layout = App::build_layout();
-                let placement = layout.split(frame.size());
+                let placement = layout.split(frame.area());
                 let help = match app.mode {
                     Mode::Terminated(_) => App::build_terminated_help(),
                     Mode::Login | Mode::Failed => App::build_login_help(),
@@ -1832,7 +1837,7 @@ fn chat_entry(steamid: u64, name: String) -> Result<(), Box<dyn std::error::Erro
     let mut ticks: u32 = 0;
     loop {
         terminal.draw(|frame| {
-            let size = frame.size();
+            let size = frame.area();
             frame.render_widget(Block::default().style(theme::canvas()), size);
             frame.render_widget(ui::chat::chat(&browser, size.width, size.height), size);
         })?;
@@ -1887,7 +1892,8 @@ fn main() {
 
 #[cfg(test)]
 mod cover_tests {
-    use super::cover_resize;
+    use super::{cover_resize, halfblock_art};
+    use ratatui::{buffer::Buffer, layout::Rect, style::Color, widgets::Widget};
 
     fn img(w: u32, h: u32) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
         image::ImageBuffer::from_pixel(w, h, image::Rgba([10, 20, 30, 255]))
@@ -1913,5 +1919,21 @@ mod cover_tests {
         let zero = image::ImageBuffer::<image::Rgba<u8>, Vec<u8>>::new(0, 0);
         let out = cover_resize(&zero, 10, 10);
         assert_eq!((out.width(), out.height()), (0, 0));
+    }
+
+    #[test]
+    fn halfblock_art_paints_every_cell_in_its_area() {
+        let area = Rect::new(0, 0, 4, 3);
+        let art = halfblock_art(img(4, 6), area).expect("encodes");
+        let mut buf = Buffer::empty(area);
+        ratatui_image::Image::new(&art).render(area, &mut buf);
+        for y in 0..area.height {
+            for x in 0..area.width {
+                let cell = buf.cell((x, y)).unwrap();
+                // A flat colour gives identical halves: a blank cell whose
+                // background is the art, so text drawn on top keeps it.
+                assert_eq!(cell.bg, Color::Rgb(10, 20, 30), "cell ({x}, {y})");
+            }
+        }
     }
 }

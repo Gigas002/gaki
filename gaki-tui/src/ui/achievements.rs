@@ -1,9 +1,9 @@
 //! The achievements overlay (modal popup): the selected game's achievements
 //! with the logged-in user's unlock state, scrollable.
 
-use tui::style::Style;
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -21,7 +21,7 @@ pub fn achievements(browser: &Browser) -> Paragraph<'static> {
         return paneled_paragraph("No achievements.", title);
     }
 
-    let lines: Vec<Spans<'static>> = items
+    let lines: Vec<Line<'static>> = items
         .iter()
         .skip(browser.ach_scroll)
         .map(|a| {
@@ -42,7 +42,7 @@ pub fn achievements(browser: &Browser) -> Paragraph<'static> {
             } else {
                 theme::dim()
             };
-            Spans::from(vec![
+            Line::from(vec![
                 Span::styled(glyph, glyph_style),
                 Span::styled(name, name_style),
                 Span::styled(format!(" ({:.1}%)", a.rarity), theme::dim()),

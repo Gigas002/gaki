@@ -1,8 +1,8 @@
 //! The market overlay (modal popup): the logged-in user's active Community
 //! Market listings and open buy orders, scrollable.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -19,7 +19,7 @@ pub fn market(browser: &Browser) -> Paragraph<'static> {
         return paneled_paragraph("No active listings.", title);
     }
 
-    let lines: Vec<Spans<'static>> = items
+    let lines: Vec<Line<'static>> = items
         .iter()
         .skip(browser.market_scroll)
         .map(|m| {
@@ -31,7 +31,7 @@ pub fn market(browser: &Browser) -> Paragraph<'static> {
                 spans.push(Span::styled(format!(" x{}", m.quantity), theme::dim()));
             }
             spans.push(Span::styled(format!("  [{}]", m.kind), theme::dim()));
-            Spans::from(spans)
+            Line::from(spans)
         })
         .collect();
 

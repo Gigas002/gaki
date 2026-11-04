@@ -8,9 +8,9 @@ use gaki_tui::interface::aurelia::{
 };
 use gaki_tui::interface::game::Game;
 use gaki_tui::{theme, ui};
-use tui::Terminal;
-use tui::backend::TestBackend;
-use tui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 /// Point the config at a throwaway dir so tests don't read/write the real one.
 fn isolate_config() {
@@ -113,7 +113,7 @@ fn browse_widgets_render_without_panicking() {
         .buffer()
         .content
         .iter()
-        .map(|c| c.symbol.clone())
+        .map(|c| c.symbol())
         .collect();
 
     assert!(text.contains("Alpha"), "list shows a game name");
@@ -153,7 +153,7 @@ fn install_picker_lists_libraries_and_marks_choice() {
     let rows: Vec<String> = (0..10)
         .map(|y| {
             (0..70)
-                .map(|x| terminal.backend().buffer().get(x, y).symbol.clone())
+                .map(|x| terminal.backend().buffer().cell((x, y)).unwrap().symbol())
                 .collect::<String>()
         })
         .collect();
@@ -219,7 +219,7 @@ fn full_browse_frame_renders() {
                     Constraint::Min(2),
                     Constraint::Length(2),
                 ])
-                .split(f.size());
+                .split(f.area());
             let tab_areas = Layout::default()
                 .direction(Direction::Horizontal)
                 .constraints([Constraint::Min(20), Constraint::Length(19)])
@@ -254,7 +254,7 @@ fn full_browse_frame_renders() {
     let buf = terminal.backend().buffer();
     let bottom: String = (28..30)
         .flat_map(|y| (0..80u16).map(move |x| (x, y)))
-        .map(|(x, y)| buf.get(x, y).symbol.clone())
+        .map(|(x, y)| buf.cell((x, y)).unwrap().symbol())
         .collect();
     assert!(
         bottom.contains("tester"),
@@ -279,7 +279,7 @@ fn cloud_overlay_shows_directional_hints() {
         .unwrap();
 
     let title: String = (0..80)
-        .map(|x| terminal.backend().buffer().get(x, 0).symbol.clone())
+        .map(|x| terminal.backend().buffer().cell((x, 0)).unwrap().symbol())
         .collect();
     assert!(
         title.contains("[s] sync"),
@@ -316,7 +316,11 @@ fn cover_and_detail_do_not_overlap() {
 
     // Find which row each panel title lands on.
     let buf = terminal.backend().buffer();
-    let row_text = |y: u16| -> String { (0..60).map(|x| buf.get(x, y).symbol.clone()).collect() };
+    let row_text = |y: u16| -> String {
+        (0..60)
+            .map(|x| buf.cell((x, y)).unwrap().symbol())
+            .collect()
+    };
     let cover_row = (0..24).find(|&y| row_text(y).contains("Cover"));
     let detail_row = (0..24).find(|&y| row_text(y).contains("Detail"));
 
@@ -349,13 +353,13 @@ fn render_proton(browser: &Browser) -> String {
     let backend = TestBackend::new(90, 16);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
-        .draw(|f| f.render_widget(ui::proton::proton(browser), f.size()))
+        .draw(|f| f.render_widget(ui::proton::proton(browser), f.area()))
         .unwrap();
     let buf = terminal.backend().buffer();
     (0..16)
         .map(|y| {
             (0..90)
-                .map(|x| buf.get(x, y).symbol.clone())
+                .map(|x| buf.cell((x, y)).unwrap().symbol())
                 .collect::<String>()
         })
         .collect::<Vec<_>>()
@@ -496,7 +500,7 @@ fn workshop_browse_pane_renders() {
         .buffer()
         .content
         .iter()
-        .map(|c| c.symbol.clone())
+        .map(|c| c.symbol())
         .collect();
 
     assert!(text.contains("aim"), "query text is shown");
@@ -605,7 +609,7 @@ fn workshop_comments_pane_renders() {
         .buffer()
         .content
         .iter()
-        .map(|c| c.symbol.clone())
+        .map(|c| c.symbol())
         .collect();
 
     assert!(text.contains("Comments"), "comments-pane title shown");
@@ -659,7 +663,11 @@ fn version_badge_sits_in_bottom_right_corner() {
             .unwrap();
         let buf = terminal.backend().buffer();
         (0..2)
-            .map(|y| (0..width).map(|x| buf.get(x, y).symbol.clone()).collect())
+            .map(|y| {
+                (0..width)
+                    .map(|x| buf.cell((x, y)).unwrap().symbol())
+                    .collect()
+            })
             .collect()
     };
 

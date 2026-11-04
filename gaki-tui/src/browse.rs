@@ -9,8 +9,8 @@ use std::thread;
 
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use tui::style::Style;
-use tui::widgets::ListState;
+use ratatui::style::Style;
+use ratatui::widgets::ListState;
 
 use crate::config::Config;
 use crate::interface::aurelia::{self, AccountJson, ConfigJson};

@@ -2,7 +2,7 @@
 //! user types the destination Steam library folder. (`move` is a Rust keyword,
 //! hence the module name `move_game`.)
 
-use tui::widgets::Paragraph;
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 

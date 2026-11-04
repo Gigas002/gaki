@@ -2,8 +2,8 @@
 //! runner (auto/umu/luxtorpeda), forced Proton, platform, Steam runtime policy,
 //! Steam prefix mode, and launch script — each a selectable row that Enter cycles.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -48,7 +48,7 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
         ("Launch script", script),
     ];
 
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
     for (i, (label, value)) in rows.iter().enumerate() {
         let selected = i == browser.game_config_index;
         let style = if selected {
@@ -57,20 +57,20 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
             theme::value()
         };
         let label_style = if selected { style } else { theme::label() };
-        lines.push(Spans::from(vec![
+        lines.push(Line::from(vec![
             Span::styled(selection_marker(selected).to_string(), style),
             Span::styled(format!("{label}: "), label_style),
             Span::styled(value.clone(), style),
         ]));
     }
 
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
     let status = if !browser.game_config_status.is_empty() {
         browser.game_config_status.clone()
     } else {
         "[Enter] change  [x] remove launch script  [Esc] close".to_string()
     };
-    lines.push(Spans::from(Span::styled(status, theme::dim())));
+    lines.push(Line::from(Span::styled(status, theme::dim())));
 
     paneled_paragraph(lines, "Game settings".to_string())
 }

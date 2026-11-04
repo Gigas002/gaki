@@ -6,10 +6,10 @@
 use gaki_tui::browse::Browser;
 use gaki_tui::interface::aurelia::{MarketPriceJson, MarketSearchResultJson};
 use gaki_tui::ui;
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::layout::Rect;
 use serde_json::json;
-use tui::Terminal;
-use tui::backend::TestBackend;
-use tui::layout::Rect;
 
 /// A partial/empty JSON payload must still deserialize (every field defaulted).
 #[test]
@@ -143,7 +143,7 @@ fn overlay_renders_query_and_results() {
         .buffer()
         .content
         .iter()
-        .map(|c| c.symbol.clone())
+        .map(|c| c.symbol())
         .collect();
 
     assert!(text.contains("Search:"), "query input label renders");

@@ -4,9 +4,9 @@
 
 use gaki_tui::app::App;
 use gaki_tui::theme;
-use tui::Terminal;
-use tui::backend::TestBackend;
-use tui::widgets::Paragraph;
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::widgets::Paragraph;
 
 #[test]
 fn panel_paints_steam_palette() {
@@ -17,7 +17,7 @@ fn panel_paints_steam_palette() {
             let p = Paragraph::new("hello")
                 .block(theme::panel("Title".to_string()))
                 .style(theme::base());
-            f.render_widget(p, f.size());
+            f.render_widget(p, f.area());
         })
         .unwrap();
 
@@ -25,13 +25,13 @@ fn panel_paints_steam_palette() {
 
     // An interior cell is the navy panel background.
     assert_eq!(
-        buffer.get(3, 2).bg,
+        buffer.cell((3, 2)).unwrap().bg,
         theme::BG,
         "panel interior should be navy"
     );
 
     // The title text (row 0) is painted in the accent colour somewhere.
-    let title_accent = (1..23).any(|x| buffer.get(x, 0).fg == theme::ACCENT);
+    let title_accent = (1..23).any(|x| buffer.cell((x, 0)).unwrap().fg == theme::ACCENT);
     assert!(title_accent, "panel title should use the accent colour");
 }
 
@@ -41,13 +41,13 @@ fn infobox_is_themed() {
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|f| {
-            f.render_widget(App::build_loading(), f.size());
+            f.render_widget(App::build_loading(), f.area());
         })
         .unwrap();
 
     let buffer = terminal.backend().buffer();
     assert_eq!(
-        buffer.get(2, 2).bg,
+        buffer.cell((2, 2)).unwrap().bg,
         theme::BG,
         "info boxes should sit on the navy panel background"
     );

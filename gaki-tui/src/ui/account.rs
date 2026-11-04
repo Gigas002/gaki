@@ -1,8 +1,8 @@
 //! The account overlay (modal popup) showing the logged-in Steam account.
 
-use tui::layout::Constraint;
-use tui::text::Span;
-use tui::widgets::{Cell, Row, Table};
+use ratatui::layout::Constraint;
+use ratatui::text::Span;
+use ratatui::widgets::{Cell, Row, Table};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -44,11 +44,12 @@ pub fn account(browser: &Browser) -> Table<'static> {
         ))])],
     };
 
-    Table::new(rows)
+    Table::default()
+        .rows(rows)
         .block(theme::panel(
             "Account ([o] log out — any other key closes)".to_string(),
         ))
         .style(theme::base())
-        .widths(&[Constraint::Percentage(28), Constraint::Percentage(72)])
+        .widths([Constraint::Percentage(28), Constraint::Percentage(72)])
         .column_spacing(1)
 }

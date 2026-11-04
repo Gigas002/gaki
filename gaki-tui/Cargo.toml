@@ -15,25 +15,14 @@ name = "gaki"
 path = "src/main.rs"
 
 [dependencies]
-pretty-bytes = "0.2.2"
-shellexpand = "2.1.0"
-
-serde_json = "1.0"
-serde = {version = "1.0", features = ["derive"] }
-
-crossterm = { version = "0.25"}
-tui = { version = "0.18", default-features = false, features = ['crossterm', 'serde'] }
-
 fuzzy-matcher = "0.3.7"
-
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 # Render the Steam login QR challenge as terminal blocks on the login page.
-qrcode = { version = "0.14", default-features = false }
-
-reqwest = { version = "0.11", features = ["blocking", "json"] }
-
-atty = "0.2"
-
-image = "0.24"
-
-[dependencies.tui-image-rgba-updated]
-version = "0.2.2"
+qrcode.workspace = true
+# Crossterm comes re-exported as `ratatui::crossterm`, which keeps the two in step.
+ratatui = { version = "0.30", features = ["serde"] }
+ratatui-image = { version = "10", default-features = false, features = ["crossterm"] }
+reqwest = { workspace = true, features = ["blocking"] }
+serde.workspace = true
+serde_json.workspace = true
+shellexpand = "2.1.0"

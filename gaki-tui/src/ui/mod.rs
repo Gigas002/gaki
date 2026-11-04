@@ -37,10 +37,10 @@ pub mod versions;
 pub mod wallet;
 pub mod workshop;
 
-use tui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use tui::style::{Modifier, Style};
-use tui::text::{Span, Spans, Text};
-use tui::widgets::{ListItem, Paragraph};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::{ListItem, Paragraph};
 
 use crate::theme;
 
@@ -48,7 +48,7 @@ use crate::theme;
 /// border) over a [`theme::base`] fill — the common scaffolding behind the
 /// scrollable list overlays (achievements, depots, inventory, market, launch …).
 ///
-/// `content` is anything convertible into a [`Text`] — a `Vec<Spans>` of rows, a
+/// `content` is anything convertible into a [`Text`] — a `Vec<Line>` of rows, a
 /// single styled `Span`, or a plain `&str` empty-state line — so each builder
 /// hands over the body it assembled and shares the block/style wiring.
 pub fn paneled_paragraph(content: impl Into<Text<'static>>, title: String) -> Paragraph<'static> {
@@ -64,12 +64,12 @@ pub fn paneled_paragraph(content: impl Into<Text<'static>>, title: String) -> Pa
 /// friend search/add prompt — a pure builder from its arguments (no `Browser`
 /// coupling) so each caller passes the fields it stores.
 pub fn prompt_overlay(label: &str, value: &str, status: &str, title: &str) -> Paragraph<'static> {
-    let mut lines: Vec<Spans<'static>> = vec![
-        Spans::from(Span::styled(
+    let mut lines: Vec<Line<'static>> = vec![
+        Line::from(Span::styled(
             label.to_string(),
             Style::default().fg(theme::TEXT),
         )),
-        Spans::from(vec![
+        Line::from(vec![
             Span::styled(value.to_string(), theme::accent()),
             Span::styled(
                 "_".to_string(),
@@ -81,8 +81,8 @@ pub fn prompt_overlay(label: &str, value: &str, status: &str, title: &str) -> Pa
     ];
 
     if !status.is_empty() {
-        lines.push(Spans::from(""));
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
             status.to_string(),
             Style::default().fg(theme::WARN).add_modifier(Modifier::DIM),
         )));
@@ -105,9 +105,9 @@ pub fn selection_marker(selected: bool) -> &'static str {
 
 /// The single dimmed placeholder row a list overlay shows when it has no
 /// entries (e.g. "No DLC.", "No branches."). Returns a one-element `Vec` so it
-/// drops straight into the `items` a [`tui::widgets::List`] is built from.
+/// drops straight into the `items` a [`ratatui::widgets::List`] is built from.
 pub fn empty_list_rows(message: impl Into<String>) -> Vec<ListItem<'static>> {
-    vec![ListItem::new(Spans::from(Span::styled(
+    vec![ListItem::new(Line::from(Span::styled(
         message.into(),
         theme::dim(),
     )))]

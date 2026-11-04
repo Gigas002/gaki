@@ -14,9 +14,9 @@ use gaki_tui::interface::aurelia::{
 };
 use gaki_tui::interface::game::Game;
 use gaki_tui::ui;
-use tui::Terminal;
-use tui::backend::TestBackend;
-use tui::layout::{Constraint, Direction, Layout, Rect};
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 fn isolate_config() {
     let dir = std::env::temp_dir().join("aurelia-tui-test-config");
@@ -47,7 +47,7 @@ fn msg(text: &str, from_self: bool) -> ChatMessageJson {
 
 /// Render `draw` into a `w`x`h` TestBackend and return the buffer as one string
 /// per row.
-fn render_rows<F: FnOnce(&mut tui::Frame<TestBackend>)>(w: u16, h: u16, draw: F) -> Vec<String> {
+fn render_rows<F: FnOnce(&mut ratatui::Frame)>(w: u16, h: u16, draw: F) -> Vec<String> {
     let backend = TestBackend::new(w, h);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| draw(f)).unwrap();
@@ -55,7 +55,7 @@ fn render_rows<F: FnOnce(&mut tui::Frame<TestBackend>)>(w: u16, h: u16, draw: F)
     (0..h)
         .map(|y| {
             (0..w)
-                .map(|x| buf.get(x, y).symbol.clone())
+                .map(|x| buf.cell((x, y)).unwrap().symbol())
                 .collect::<String>()
         })
         .collect()

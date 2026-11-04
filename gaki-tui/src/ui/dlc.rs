@@ -1,9 +1,9 @@
 //! The DLC management overlay (modal popup): the selected game's DLC with their
 //! ownership/install state, and the highlighted row for enable/disable.
 
-use tui::style::Modifier;
-use tui::text::{Span, Spans};
-use tui::widgets::{List, ListItem};
+use ratatui::style::Modifier;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{List, ListItem};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -48,7 +48,7 @@ pub fn dlc(browser: &Browser) -> List<'static> {
                     Span::styled(format!("[{}]", state), state_style),
                 ];
 
-                ListItem::new(Spans::from(spans))
+                ListItem::new(Line::from(spans))
             })
             .collect()
     };

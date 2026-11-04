@@ -3,8 +3,8 @@
 //! the highlighted row for enable/disable/install/update/uninstall (or
 //! install/repair for the runtime).
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::interface::aurelia;
@@ -53,7 +53,7 @@ pub fn engine(browser: &Browser) -> Paragraph<'static> {
         ),
     ];
 
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
     for (i, (name, desc)) in rows.iter().enumerate() {
         let selected = i == browser.engine_index;
         let style = if selected {
@@ -61,14 +61,14 @@ pub fn engine(browser: &Browser) -> Paragraph<'static> {
         } else {
             theme::value()
         };
-        lines.push(Spans::from(vec![
+        lines.push(Line::from(vec![
             Span::styled(selection_marker(selected).to_string(), style),
             Span::styled(format!("{name}  "), style),
             Span::styled(desc.clone(), theme::dim()),
         ]));
     }
 
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
     let hint = if browser.engine_index == 2 {
         "[i] install  [r] repair  [Esc] close"
     } else {
@@ -81,7 +81,7 @@ pub fn engine(browser: &Browser) -> Paragraph<'static> {
     } else {
         hint.to_string()
     };
-    lines.push(Spans::from(Span::styled(status, theme::dim())));
+    lines.push(Line::from(Span::styled(status, theme::dim())));
 
     paneled_paragraph(lines, "Runtime plugins".to_string())
 }

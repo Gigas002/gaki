@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::RwLock;
 
-use tui::style::Color;
+use ratatui::style::Color;
 
 use crate::theme;
 

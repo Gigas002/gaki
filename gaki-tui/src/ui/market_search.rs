@@ -8,9 +8,9 @@
 //! the highlighted row (`browser.market_results_index`) visible: the window start
 //! is derived from the index so the highlight never falls off the bottom edge.
 
-use tui::style::{Modifier, Style};
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -20,10 +20,10 @@ use crate::theme;
 /// results. `visible_rows` is the height of the overlay's content area; the
 /// caller passes the inner height so the result window never overflows.
 pub fn market_search(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     // Query input line with a blinking-style caret.
-    lines.push(Spans::from(vec![
+    lines.push(Line::from(vec![
         Span::styled("Search: ".to_string(), Style::default().fg(theme::TEXT)),
         Span::styled(browser.market_query.clone(), theme::accent()),
         Span::styled(
@@ -36,17 +36,17 @@ pub fn market_search(browser: &Browser, visible_rows: usize) -> Paragraph<'stati
 
     // Status / price line (search progress, errors, or a price summary).
     if !browser.market_search_status.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             browser.market_search_status.clone(),
             Style::default().fg(theme::WARN).add_modifier(Modifier::DIM),
         )));
     }
 
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
 
     let results = &browser.market_results;
     if results.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "Type a query and press [Enter] to search.".to_string(),
             theme::dim(),
         )));
@@ -92,7 +92,7 @@ pub fn market_search(browser: &Browser, visible_rows: usize) -> Paragraph<'stati
                 spans.push(Span::styled(format!("  [{}]", r.app_name), theme::dim()));
             }
 
-            lines.push(Spans::from(spans));
+            lines.push(Line::from(spans));
         }
     }
 

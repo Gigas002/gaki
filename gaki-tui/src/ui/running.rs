@@ -1,8 +1,8 @@
 //! The running-games overlay (modal popup): the games Aurelia currently has
 //! running, with the highlighted row available to stop.
 
-use tui::text::{Span, Spans};
-use tui::widgets::{List, ListItem};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{List, ListItem};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -36,7 +36,7 @@ pub fn running(browser: &Browser) -> List<'static> {
                     Span::styled(format!("pid {}", entry.pid), theme::dim()),
                 ];
 
-                ListItem::new(Spans::from(spans))
+                ListItem::new(Line::from(spans))
             })
             .collect()
     };

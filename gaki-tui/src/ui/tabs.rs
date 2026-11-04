@@ -4,8 +4,8 @@
 //! right. Each section carries its own headline and highlights only when it is
 //! the active view.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Tabs;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Tabs;
 
 use crate::browse::{Browser, Filter, View};
 use crate::theme;
@@ -21,7 +21,7 @@ pub fn library_tabs(browser: &Browser) -> Tabs<'static> {
     // section is inactive we must dim each title span explicitly — otherwise only
     // the selected filter greys out (e.g. just "Favourites") while the rest stay
     // bright.
-    let titles: Vec<Spans<'static>> = Filter::TABS
+    let titles: Vec<Line<'static>> = Filter::TABS
         .iter()
         .map(|f| {
             let label = f.label().to_string();
@@ -30,7 +30,7 @@ pub fn library_tabs(browser: &Browser) -> Tabs<'static> {
             } else {
                 Span::styled(label, theme::tab_inactive())
             };
-            Spans::from(span)
+            Line::from(span)
         })
         .collect();
 
@@ -49,7 +49,7 @@ pub fn library_tabs(browser: &Browser) -> Tabs<'static> {
 /// The Friends & Chat tab (right section), headlined "Friends, Chat". It
 /// highlights only while the Friends view is active.
 pub fn friends_tabs(browser: &Browser) -> Tabs<'static> {
-    let titles = vec![Spans::from(Span::raw("Friends".to_string()))];
+    let titles = vec![Line::from(Span::raw("Friends".to_string()))];
 
     let active = browser.view == View::Friends;
     Tabs::new(titles)

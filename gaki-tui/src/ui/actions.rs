@@ -3,8 +3,8 @@
 //! base-keymap accelerator shown next to each row. This is the primary way to
 //! reach the many per-game actions without memorising the hotkeys.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -16,7 +16,7 @@ use crate::ui::{paneled_paragraph, selection_marker};
 /// line at the top echoes what the user has typed.
 pub fn actions(browser: &Browser) -> Paragraph<'static> {
     let rows = browser.filtered_actions();
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     // Filter / hint line.
     let header = if browser.actions_filter.is_empty() {
@@ -24,11 +24,11 @@ pub fn actions(browser: &Browser) -> Paragraph<'static> {
     } else {
         format!("filter: {}", browser.actions_filter)
     };
-    lines.push(Spans::from(Span::styled(header, theme::dim())));
-    lines.push(Spans::from(""));
+    lines.push(Line::from(Span::styled(header, theme::dim())));
+    lines.push(Line::from(""));
 
     if rows.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "No matching actions.".to_string(),
             theme::dim(),
         )));
@@ -37,7 +37,7 @@ pub fn actions(browser: &Browser) -> Paragraph<'static> {
         for (i, row) in rows.iter().enumerate() {
             if row.category != current_category {
                 current_category = row.category;
-                lines.push(Spans::from(Span::styled(
+                lines.push(Line::from(Span::styled(
                     current_category.to_string(),
                     theme::title_style(),
                 )));
@@ -56,7 +56,7 @@ pub fn actions(browser: &Browser) -> Paragraph<'static> {
                 spans.push(Span::raw("  ".to_string()));
                 spans.push(Span::styled(format!("[{}]", row.key), theme::dim()));
             }
-            lines.push(Spans::from(spans));
+            lines.push(Line::from(spans));
         }
     }
 

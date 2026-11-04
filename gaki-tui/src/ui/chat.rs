@@ -17,10 +17,10 @@
 //!   speaker label on the first line), and the bottom two content rows are
 //!   reserved for the composer (a separator line and the input line).
 
-use tui::layout::Alignment;
-use tui::style::{Modifier, Style};
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::layout::Alignment;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -156,7 +156,7 @@ pub fn chat(browser: &Browser, width: u16, height: u16) -> Paragraph<'static> {
     // If there isn't even room for the composer's two rows, render whatever we
     // can without panicking — an empty paragraph inside the block.
     if content_h < 2 {
-        return Paragraph::new(Text::from(Vec::<Spans<'static>>::new()))
+        return Paragraph::new(Text::from(Vec::<Line<'static>>::new()))
             .block(block)
             .style(theme::base())
             .alignment(Alignment::Left);
@@ -193,9 +193,9 @@ pub fn chat(browser: &Browser, width: u16, height: u16) -> Paragraph<'static> {
         rendered.drain(0..drop);
     }
 
-    // --- Convert each rendered line into a finished `Spans`, applying the
+    // --- Convert each rendered line into a finished `Line`, applying the
     //     per-message alignment via left-padding for own messages. ---
-    let mut msg_lines: Vec<Spans<'static>> = Vec::with_capacity(msg_h);
+    let mut msg_lines: Vec<Line<'static>> = Vec::with_capacity(msg_h);
     for line in rendered {
         if line.from_self {
             // Right-align: left-pad with spaces so the right edge hits content_w.
@@ -205,27 +205,27 @@ pub fn chat(browser: &Browser, width: u16, height: u16) -> Paragraph<'static> {
                 spans.push(Span::raw(" ".repeat(pad)));
             }
             spans.extend(line.spans);
-            msg_lines.push(Spans::from(spans));
+            msg_lines.push(Line::from(spans));
         } else {
             // Left-align: no leading pad.
-            msg_lines.push(Spans::from(line.spans));
+            msg_lines.push(Line::from(line.spans));
         }
     }
 
     // --- Top-pad with blank rows so the block hugs the bottom ---
-    let mut lines: Vec<Spans<'static>> = Vec::with_capacity(msg_h + 2);
+    let mut lines: Vec<Line<'static>> = Vec::with_capacity(msg_h + 2);
     let pad_rows = msg_h.saturating_sub(msg_lines.len());
     for _ in 0..pad_rows {
-        lines.push(Spans::from(Vec::<Span<'static>>::new()));
+        lines.push(Line::from(Vec::<Span<'static>>::new()));
     }
     lines.extend(msg_lines);
 
     // --- Composer: separator + input line (the reserved bottom 2 rows) ---
-    lines.push(Spans::from(Span::styled(
+    lines.push(Line::from(Span::styled(
         "─".repeat(content_w),
         Style::default().fg(theme::BORDER),
     )));
-    lines.push(Spans::from(vec![
+    lines.push(Line::from(vec![
         Span::styled("> ".to_string(), theme::accent()),
         Span::styled(browser.chat_input.clone(), theme::value()),
         Span::styled(

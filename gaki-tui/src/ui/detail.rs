@@ -1,11 +1,11 @@
 //! The detail pane for the selected game.
 
-use pretty_bytes::converter::convert;
+use crate::util::bytes::convert;
 
-use tui::layout::Constraint;
-use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::{Block, BorderType, Borders, Cell, Row, Table};
+use ratatui::layout::Constraint;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, Table};
 
 use crate::interface::game::Game;
 use crate::theme;
@@ -56,7 +56,7 @@ fn transparent_panel() -> Block<'static> {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(theme::BORDER).bg(theme::BG))
-        .title(Spans::from(Span::styled("Detail", theme::title_style())))
+        .title(Line::from(Span::styled("Detail", theme::title_style())))
 }
 
 /// An empty, height-1 row used both as a section separator and as top padding.
@@ -179,7 +179,7 @@ fn build_content(
                 let text = Text::from(
                     lines
                         .into_iter()
-                        .map(|l| Spans::from(Span::styled(l, theme::value())))
+                        .map(|l| Line::from(Span::styled(l, theme::value())))
                         .collect::<Vec<_>>(),
                 );
                 push(
@@ -231,7 +231,8 @@ pub fn detail(game: Option<&Game>, expand: bool, width: u16, height: u16) -> Tab
 
     // No `.style(...)`: the table must not paint a background, so the cover art
     // rendered behind it remains visible between the rows.
-    Table::new(rows)
+    Table::default()
+        .rows(rows)
         .block(transparent_panel())
-        .widths(&[Constraint::Percentage(18), Constraint::Percentage(82)])
+        .widths([Constraint::Percentage(18), Constraint::Percentage(82)])
 }

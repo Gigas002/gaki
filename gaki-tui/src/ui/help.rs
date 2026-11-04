@@ -1,9 +1,9 @@
 //! The help overlay (modal popup) listing every key binding.
 
-use tui::layout::Alignment;
-use tui::style::{Modifier, Style};
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::layout::Alignment;
+use ratatui::style::{Modifier, Style};
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::theme;
 
@@ -131,14 +131,14 @@ pub fn help(scroll: u16) -> Paragraph<'static> {
     let half = entries.len().div_ceil(2);
     let (left, right) = entries.split_at(half);
 
-    let mut lines: Vec<Spans<'static>> = Vec::with_capacity(half);
+    let mut lines: Vec<Line<'static>> = Vec::with_capacity(half);
     for (row, entry) in left.iter().enumerate() {
         let mut spans = entry_spans(entry);
         spans.push(Span::raw("  "));
         if let Some(entry) = right.get(row) {
             spans.extend(entry_spans(entry));
         }
-        lines.push(Spans::from(spans));
+        lines.push(Line::from(spans));
     }
 
     let text = Text::from(lines);

@@ -1,10 +1,10 @@
 //! The footer status bar: counts, active filter/query/sort, session, and a
 //! contextual key-hint line.
 
-use tui::layout::{Alignment, Rect};
-use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::layout::{Alignment, Rect};
+use ratatui::style::Style;
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::interface::aurelia;
@@ -71,7 +71,7 @@ pub fn version_badge(version: Option<&str>) -> Paragraph<'static> {
     } else {
         theme::dim()
     };
-    Paragraph::new(Spans::from(Span::styled(text, style))).alignment(Alignment::Right)
+    Paragraph::new(Line::from(Span::styled(text, style))).alignment(Alignment::Right)
 }
 
 /// Build the footer status bar (a borderless two-line footer).
@@ -144,7 +144,7 @@ pub fn status_bar(browser: &Browser, account: Option<&str>) -> Paragraph<'static
         line2.push(Span::styled(desc.to_string(), theme::dim()));
     }
 
-    let text = Text::from(vec![Spans::from(line1), Spans::from(line2)]);
+    let text = Text::from(vec![Line::from(line1), Line::from(line2)]);
 
     Paragraph::new(text).style(theme::base())
 }

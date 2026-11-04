@@ -593,9 +593,26 @@ I make the changes, and you review, commit, and push.
   `interface/game.rs`, the README sections, and the `regex` dependency
   (HLTB-only). `assets/` keeps only `splash.txt`, which `app.rs` embeds; the
   logo, screenshots and the unused ASCII banner went with `scripts/`.
-- [ ] **3.4** Migrate `tui` 0.18 to `ratatui`, update crossterm, remove `atty`
+- [x] **3.4** Migrate `tui` 0.18 to `ratatui`, update crossterm, remove `atty`
   (use `std::io::IsTerminal`), and replace `tui-image-rgba-updated` with a
   maintained ratatui image widget, or drop images if none fits (D5).
+  *Done.* `tui` 0.18 → `ratatui` 0.30 (`serde` feature). Crossterm comes
+  re-exported as `ratatui::crossterm` (0.29), so the two can't drift.
+  Mechanical changes: `Spans` → `Line`, `Table::default().rows(..)`,
+  constraint/width arrays without `.as_ref()`, `Frame` without a backend
+  parameter, `frame.area()`, and `Buffer::cell` / `Cell::symbol()` in tests.
+  `atty` → `std::io::IsTerminal`. Images use `ratatui-image` 10 (ratatui org;
+  `crossterm` feature only, no chafa or AVIF encoder) with the half-block
+  protocol, built directly from the pre-sized art. Half-blocks keep the
+  existing look, where the detail text is drawn over the faded background;
+  kitty/sixel can't sit under text. `image` 0.24 → 0.25 (jpeg/png/webp).
+  Beyond the plan: reqwest 0.11 + native-tls → the workspace's rustls reqwest
+  0.13 with `blocking`, so OpenSSL leaves the tree and CI drops
+  `libssl-dev`; `pretty-bytes` (unmaintained, pulled `atty`) → a local
+  `util::bytes::convert` with the same output; `qrcode`, `serde` and
+  `serde_json` use the workspace versions. `schannel` remains in
+  `Cargo.lock` only as a Windows-target dependency of rustls-platform-verifier
+  (as for libgaki).
 
 ### Phase 4 — TUI on `libgaki` (R23)
 

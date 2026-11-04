@@ -7,11 +7,11 @@
 //!
 //! Both are pure builders from `browse::Browser` + `theme`.
 
-use pretty_bytes::converter::convert;
+use crate::util::bytes::convert;
 
-use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -38,40 +38,40 @@ fn comments(browser: &Browser) -> Paragraph<'static> {
         "Comments — item {} (Esc: back)",
         browser.workshop_comments_id()
     );
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     if browser.workshop_comments_loading {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "Loading comments…",
             theme::accent(),
         )));
     } else if !browser.workshop_comments_status.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             browser.workshop_comments_status.clone(),
             theme::dim(),
         )));
     } else {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             format!("{} comment(s)", browser.workshop_comments.len()),
             theme::dim(),
         )));
     }
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
 
     for comment in browser
         .workshop_comments
         .iter()
         .skip(browser.workshop_comments_scroll)
     {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             comment.display_author(),
             theme::accent(),
         )));
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             comment.message.clone(),
             theme::value(),
         )));
-        lines.push(Spans::from(""));
+        lines.push(Line::from(""));
     }
 
     Paragraph::new(Text::from(lines))
@@ -88,8 +88,8 @@ fn subscribed(browser: &Browser) -> Paragraph<'static> {
 
     if items.is_empty() {
         return Paragraph::new(Text::from(vec![
-            Spans::from(Span::styled("No workshop items.", theme::base())),
-            Spans::from(Span::styled(
+            Line::from(Span::styled("No workshop items.", theme::base())),
+            Line::from(Span::styled(
                 "Press 'b' to browse and subscribe.",
                 theme::dim(),
             )),
@@ -98,7 +98,7 @@ fn subscribed(browser: &Browser) -> Paragraph<'static> {
         .style(theme::base());
     }
 
-    let lines: Vec<Spans<'static>> = items
+    let lines: Vec<Line<'static>> = items
         .iter()
         .skip(browser.workshop_scroll)
         .map(|item| {
@@ -117,7 +117,7 @@ fn subscribed(browser: &Browser) -> Paragraph<'static> {
                     theme::dim(),
                 ));
             }
-            Spans::from(spans)
+            Line::from(spans)
         })
         .collect();
 
@@ -131,10 +131,10 @@ fn subscribed(browser: &Browser) -> Paragraph<'static> {
 fn browse(browser: &Browser) -> Paragraph<'static> {
     let title = "Workshop browse — Enter: search, Tab: sub, F1/F2: rate, F3: comments, Esc: back"
         .to_string();
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     // Query input line.
-    lines.push(Spans::from(vec![
+    lines.push(Line::from(vec![
         Span::styled("Search: ", theme::dim()),
         Span::styled(browser.workshop_query.clone(), theme::value()),
         Span::styled("_", theme::accent()),
@@ -151,11 +151,11 @@ fn browse(browser: &Browser) -> Paragraph<'static> {
             theme::dim(),
         )
     };
-    lines.push(Spans::from(status));
-    lines.push(Spans::from(""));
+    lines.push(Line::from(status));
+    lines.push(Line::from(""));
 
     if browser.workshop_results.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "Type a query and press Enter to search the Workshop.",
             theme::dim(),
         )));
@@ -184,7 +184,7 @@ fn browse(browser: &Browser) -> Paragraph<'static> {
                     theme::dim(),
                 ));
             }
-            lines.push(Spans::from(spans));
+            lines.push(Line::from(spans));
         }
     }
 

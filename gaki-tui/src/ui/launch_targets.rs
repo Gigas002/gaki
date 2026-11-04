@@ -3,8 +3,8 @@
 //! Steam mode — from `aurelia launch-targets`. Enter launches the highlighted one
 //! for this run only, without changing the saved per-game config.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -14,10 +14,10 @@ use crate::ui::{paneled_paragraph, selection_marker};
 /// target label, tagged `default` (what plain `play` picks) or with what is
 /// missing when it is unavailable. A status/hint line closes it.
 pub fn launch_targets(browser: &Browser) -> Paragraph<'static> {
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     if browser.launch_targets.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "No launch targets.".to_string(),
             theme::dim(),
         )));
@@ -46,16 +46,16 @@ pub fn launch_targets(browser: &Browser) -> Paragraph<'static> {
                 theme::dim(),
             ));
         }
-        lines.push(Spans::from(spans));
+        lines.push(Line::from(spans));
     }
 
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
     let status = if !browser.launch_targets_status.is_empty() {
         browser.launch_targets_status.clone()
     } else {
         "[Enter] launch  [Esc] close".to_string()
     };
-    lines.push(Spans::from(Span::styled(status, theme::dim())));
+    lines.push(Line::from(Span::styled(status, theme::dim())));
 
     paneled_paragraph(lines, "Play as…".to_string())
 }

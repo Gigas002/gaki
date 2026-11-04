@@ -1,7 +1,7 @@
 //! The import (register existing install) overlay (modal popup): a text prompt
 //! where the user types the library folder that already holds the game's files.
 
-use tui::widgets::Paragraph;
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 

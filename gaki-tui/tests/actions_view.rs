@@ -11,10 +11,10 @@ use gaki_tui::interface::aurelia::{
 };
 use gaki_tui::interface::game::Game;
 use gaki_tui::ui;
+use ratatui::Terminal;
+use ratatui::backend::TestBackend;
+use ratatui::layout::Rect;
 use std::collections::BTreeMap;
-use tui::Terminal;
-use tui::backend::TestBackend;
-use tui::layout::Rect;
 
 fn isolate_config() {
     let dir = std::env::temp_dir().join("aurelia-tui-test-config");
@@ -42,7 +42,7 @@ fn game(id: u32, name: &str, installed: bool) -> Game {
 }
 
 /// Flatten a rendered `TestBackend` buffer into one string for assertions.
-fn render<F: FnOnce(&mut tui::Frame<TestBackend>)>(w: u16, h: u16, draw: F) -> String {
+fn render<F: FnOnce(&mut ratatui::Frame)>(w: u16, h: u16, draw: F) -> String {
     let backend = TestBackend::new(w, h);
     let mut terminal = Terminal::new(backend).unwrap();
     terminal.draw(|f| draw(f)).unwrap();
@@ -51,7 +51,7 @@ fn render<F: FnOnce(&mut tui::Frame<TestBackend>)>(w: u16, h: u16, draw: F) -> S
         .buffer()
         .content
         .iter()
-        .map(|c| c.symbol.clone())
+        .map(|c| c.symbol())
         .collect()
 }
 

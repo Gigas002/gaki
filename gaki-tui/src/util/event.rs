@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::util::log::log;
 
-use crossterm::event::{
+use ratatui::crossterm::event::{
     Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, read,
 };
 

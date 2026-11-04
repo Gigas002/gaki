@@ -3,8 +3,8 @@
 //! plus create/delete and cloud pull/push/sync. Shows an inline name prompt
 //! while creating.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -15,16 +15,16 @@ use crate::ui::{paneled_paragraph, selection_marker};
 /// collections (each with a game count and a dynamic marker) and a status/hint
 /// line.
 pub fn collections(browser: &Browser) -> Paragraph<'static> {
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     if let Some(input) = &browser.collections_input {
-        lines.push(Spans::from(vec![
+        lines.push(Line::from(vec![
             Span::styled("New collection name: ".to_string(), theme::label()),
             Span::styled(input.clone(), theme::accent()),
             Span::styled("_".to_string(), theme::key()),
         ]));
-        lines.push(Spans::from(""));
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
             "Enter to create · Esc to cancel".to_string(),
             theme::dim(),
         )));
@@ -32,7 +32,7 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
     }
 
     if browser.collections.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "No collections. [n] to create one.".to_string(),
             theme::dim(),
         )));
@@ -49,7 +49,7 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| c.app_ids.len().to_string());
             let kind = if c.dynamic { " · dynamic" } else { "" };
-            lines.push(Spans::from(vec![
+            lines.push(Line::from(vec![
                 Span::styled(selection_marker(selected).to_string(), style),
                 Span::styled(c.name.clone(), style),
                 Span::raw("  ".to_string()),
@@ -58,14 +58,14 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
         }
     }
 
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
     let status = if !browser.collections_status.is_empty() {
         browser.collections_status.clone()
     } else {
         "[a] add game  [r] remove game  [n] new  [x] delete  [P] pull [U] push [S] sync  [Esc] close"
             .to_string()
     };
-    lines.push(Spans::from(Span::styled(status, theme::dim())));
+    lines.push(Line::from(Span::styled(status, theme::dim())));
 
     paneled_paragraph(lines, "Collections".to_string())
 }

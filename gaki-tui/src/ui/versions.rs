@@ -2,11 +2,11 @@
 //! current manifests, its pin state, and a prompt to downgrade the highlighted
 //! depot to a specific (usually older) manifest id.
 
-use pretty_bytes::converter::convert;
+use crate::util::bytes::convert;
 
-use tui::style::Modifier;
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::style::Modifier;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -17,7 +17,7 @@ use crate::ui::{paneled_paragraph, selection_marker};
 /// and any pinned manifest), and either the downgrade prompt or a status/hint
 /// line.
 pub fn versions(browser: &Browser) -> Paragraph<'static> {
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     // Pin banner + install path.
     let pin_span = if browser.is_pinned() {
@@ -28,23 +28,23 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
     } else {
         Span::styled("not pinned".to_string(), theme::dim())
     };
-    lines.push(Spans::from(vec![
+    lines.push(Line::from(vec![
         Span::styled("Version pin: ".to_string(), theme::label()),
         pin_span,
     ]));
     if let Some(av) = &browser.versions_available
         && let Some(path) = &av.install_path
     {
-        lines.push(Spans::from(vec![
+        lines.push(Line::from(vec![
             Span::styled("Installed at: ".to_string(), theme::label()),
             Span::styled(path.clone(), theme::dim()),
         ]));
     }
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
 
     // Depot rows.
     if browser.versions_manifests.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "No depot manifests (the game may not be installed or owned).".to_string(),
             theme::dim(),
         )));
@@ -75,7 +75,7 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
                     }
                 })
                 .unwrap_or_default();
-            lines.push(Spans::from(vec![
+            lines.push(Line::from(vec![
                 Span::styled(selection_marker(selected).to_string(), style),
                 Span::styled(name, style),
                 Span::raw("  ".to_string()),
@@ -87,11 +87,11 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
         }
     }
 
-    lines.push(Spans::from(""));
+    lines.push(Line::from(""));
 
     // Downgrade prompt or status/hint line.
     if let Some(input) = &browser.versions_input {
-        lines.push(Spans::from(vec![
+        lines.push(Line::from(vec![
             Span::styled(
                 "Downgrade highlighted depot to manifest id: ".to_string(),
                 theme::label(),
@@ -99,7 +99,7 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
             Span::styled(input.clone(), theme::accent()),
             Span::styled("_".to_string(), theme::key()),
         ]));
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "Enter to start · Esc to cancel · (find older ids on SteamDB)".to_string(),
             theme::dim(),
         )));
@@ -111,7 +111,7 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
         } else {
             "[p] pin  [u] unpin  [d] downgrade selected  [Esc] close".to_string()
         };
-        lines.push(Spans::from(Span::styled(status, theme::dim())));
+        lines.push(Line::from(Span::styled(status, theme::dim())));
     }
 
     paneled_paragraph(lines, "Versions & pinning".to_string())

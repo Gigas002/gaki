@@ -1,6 +1,6 @@
 macro_rules! log{
     ($($elem: expr),+ ) => {
-        if !atty::is(atty::Stream::Stderr) {
+        if !std::io::IsTerminal::is_terminal(&std::io::stderr()) {
             eprintln!(concat!($(concat!(stringify!($elem), " - {:?}\n")),+), $($elem),+);
         }
     };

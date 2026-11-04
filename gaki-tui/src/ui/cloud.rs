@@ -1,11 +1,11 @@
 //! The Steam Cloud overlay: lists the selected game's Cloud save files, with
 //! keys to sync them — `s` both ways, `d` download-only, `u` upload-only.
 
-use pretty_bytes::converter::convert;
+use crate::util::bytes::convert;
 
-use tui::layout::Constraint;
-use tui::text::Span;
-use tui::widgets::{Cell, Row, Table};
+use ratatui::layout::Constraint;
+use ratatui::text::Span;
+use ratatui::widgets::{Cell, Row, Table};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -39,7 +39,8 @@ pub fn cloud(browser: &Browser) -> Table<'static> {
         }
     }
 
-    Table::new(rows)
+    Table::default()
+        .rows(rows)
         .header(Row::new(vec![
             Cell::from(Span::styled("NAME", theme::label())),
             Cell::from(Span::styled("SIZE", theme::label())),
@@ -48,5 +49,5 @@ pub fn cloud(browser: &Browser) -> Table<'static> {
             "Steam Cloud ([s] sync  [d] down  [u] up)".to_string(),
         ))
         .style(theme::base())
-        .widths(&[Constraint::Percentage(75), Constraint::Percentage(25)])
+        .widths([Constraint::Percentage(75), Constraint::Percentage(25)])
 }

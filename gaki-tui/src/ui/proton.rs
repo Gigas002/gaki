@@ -1,9 +1,9 @@
 //! The Proton/Wine runtime overlay (modal popup): the available runtimes with
 //! their installed/default state, and the highlighted row for set-default.
 
-use tui::style::Modifier;
-use tui::text::{Span, Spans};
-use tui::widgets::{List, ListItem};
+use ratatui::style::Modifier;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{List, ListItem};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -57,7 +57,7 @@ pub fn proton(browser: &Browser) -> List<'static> {
                     ));
                 }
 
-                ListItem::new(Spans::from(spans))
+                ListItem::new(Line::from(spans))
             })
             .collect()
     };

@@ -1,9 +1,9 @@
 //! The settings overlay (modal popup) showing the launcher configuration, with
 //! keys for friends/chat presence and proxy editing.
 
-use tui::layout::Constraint;
-use tui::text::Span;
-use tui::widgets::{Cell, Row, Table};
+use ratatui::layout::Constraint;
+use ratatui::text::Span;
+use ratatui::widgets::{Cell, Row, Table};
 
 use crate::browse::Browser;
 use crate::theme;
@@ -76,9 +76,10 @@ pub fn config(browser: &Browser) -> Table<'static> {
         "Settings ([o] presence · [e] edit proxy · [c] clear proxy)".to_string()
     };
 
-    Table::new(rows)
+    Table::default()
+        .rows(rows)
         .block(theme::panel(title))
         .style(theme::base())
-        .widths(&[Constraint::Percentage(32), Constraint::Percentage(68)])
+        .widths([Constraint::Percentage(32), Constraint::Percentage(68)])
         .column_spacing(1)
 }

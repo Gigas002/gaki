@@ -3,11 +3,11 @@
 //! space, plus the game's estimated on-disk size. Drives without room are
 //! marked and can't be chosen.
 
-use pretty_bytes::converter::convert;
+use crate::util::bytes::convert;
 
-use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -16,20 +16,20 @@ use crate::theme;
 /// estimated install size, each drive's free space, and the current highlight.
 pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
     let estimate = browser.install_estimate;
-    let mut lines: Vec<Spans<'static>> = Vec::new();
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
     // Header: the estimated on-disk size this install needs.
     if let Some(est) = estimate {
-        lines.push(Spans::from(vec![
+        lines.push(Line::from(vec![
             Span::styled("Needs ", theme::dim()),
             Span::styled(convert(est as f64), theme::value()),
             Span::styled(" on disk".to_string(), theme::dim()),
         ]));
-        lines.push(Spans::from(""));
+        lines.push(Line::from(""));
     }
 
     if browser.install_libraries.is_empty() {
-        lines.push(Spans::from(Span::styled(
+        lines.push(Line::from(Span::styled(
             "No Steam library folders found.".to_string(),
             theme::dim(),
         )));
@@ -71,7 +71,7 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
                     ));
                 }
             }
-            lines.push(Spans::from(spans));
+            lines.push(Line::from(spans));
         }
     }
 

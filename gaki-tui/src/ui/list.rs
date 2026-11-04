@@ -1,7 +1,7 @@
 //! The game list with status badges.
 
-use tui::text::{Span, Spans};
-use tui::widgets::{List, ListItem};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{List, ListItem};
 
 use crate::browse::{Browser, badge};
 use crate::theme;
@@ -62,7 +62,7 @@ pub fn list(browser: &Browser, width: u16, marquee_tick: usize) -> List<'static>
                     clip(&raw, name_budget)
                 };
                 let pad = content_w.saturating_sub(GLYPH_W + name.chars().count() + pct_w);
-                return ListItem::new(Spans::from(vec![
+                return ListItem::new(Line::from(vec![
                     Span::styled(b.glyph.to_string(), b.style),
                     Span::raw(" ".to_string()),
                     Span::styled(name, name_style),
@@ -98,7 +98,7 @@ pub fn list(browser: &Browser, width: u16, marquee_tick: usize) -> List<'static>
                 spans.push(Span::styled(format!("  {}", note), theme::dim()));
             }
 
-            ListItem::new(Spans::from(spans))
+            ListItem::new(Line::from(spans))
         })
         .collect();
 

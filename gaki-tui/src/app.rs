@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::theme;
 
-use tui::{
+use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout},
     style::{Color, Style},
     widgets::Paragraph,
@@ -58,7 +58,7 @@ impl App {
     pub fn build_layout() -> Layout {
         Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Min(2), Constraint::Length(3)].as_ref())
+            .constraints([Constraint::Min(2), Constraint::Length(3)])
     }
     pub fn build_splash_terminated(err: String) -> Paragraph<'static> {
         App::build_infobox(

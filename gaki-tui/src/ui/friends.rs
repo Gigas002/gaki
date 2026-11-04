@@ -13,9 +13,9 @@
 //! highlight is softened (marker only, no selection background) so it is obvious
 //! that keyboard input is going somewhere else.
 
-use tui::style::Style;
-use tui::text::{Span, Spans, Text};
-use tui::widgets::Paragraph;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span, Text};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -65,7 +65,7 @@ pub fn friends(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
     // Enumerate over the FULL vec first so `i` is the ABSOLUTE friend index, then
     // slice the window with skip/take. This keeps `i == friends_index` correct
     // regardless of how far the list has scrolled.
-    let lines: Vec<Spans<'static>> = items
+    let lines: Vec<Line<'static>> = items
         .iter()
         .enumerate()
         .skip(start)
@@ -113,7 +113,7 @@ pub fn friends(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
                 spans.push(Span::styled(format!(" — {}", game), theme::accent()));
             }
 
-            Spans::from(spans)
+            Line::from(spans)
         })
         .collect();
 

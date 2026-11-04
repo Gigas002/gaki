@@ -2,8 +2,8 @@
 //! the selected game (a normal launch, a level editor, an OS-specific binary,
 //! ...), scrollable.
 
-use tui::text::{Span, Spans};
-use tui::widgets::Paragraph;
+use ratatui::text::{Line, Span};
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 use crate::theme;
@@ -20,7 +20,7 @@ pub fn launch(browser: &Browser) -> Paragraph<'static> {
         return paneled_paragraph(Span::styled("No launch options.", theme::dim()), title);
     }
 
-    let lines: Vec<Spans<'static>> = items
+    let lines: Vec<Line<'static>> = items
         .iter()
         .skip(browser.launch_scroll)
         .map(|o| {
@@ -30,7 +30,7 @@ pub fn launch(browser: &Browser) -> Paragraph<'static> {
                 spans.push(Span::styled(format!("  {}", command), theme::dim()));
             }
             spans.push(Span::styled(format!("  [{}]", o.os_tag()), theme::accent()));
-            Spans::from(spans)
+            Line::from(spans)
         })
         .collect();
 

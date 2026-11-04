@@ -1,6 +1,6 @@
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
-use tui::widgets::ListState;
+use ratatui::widgets::ListState;
 
 pub trait Named {
     fn get_name(&self) -> String;

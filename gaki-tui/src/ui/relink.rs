@@ -1,7 +1,7 @@
 //! The relink (relink install) overlay (modal popup): a text prompt where the
 //! user types the destination Steam library folder.
 
-use tui::widgets::Paragraph;
+use ratatui::widgets::Paragraph;
 
 use crate::browse::Browser;
 

@@ -4,9 +4,9 @@
 //! Steam dark look is navy panels on a near-black canvas, a light-blue accent,
 //! soft blue borders, and light blue-grey text with bright white headings.
 
-use tui::style::{Color, Modifier, Style};
-use tui::text::{Span, Spans};
-use tui::widgets::{Block, BorderType, Borders};
+use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Block, BorderType, Borders};
 
 // --- Palette (Steam dark theme) ---
 
@@ -129,6 +129,6 @@ pub fn panel(title: String) -> Block<'static> {
         .borders(Borders::ALL)
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(BORDER).bg(BG))
-        .title(Spans::from(Span::styled(title, title_style())))
+        .title(Line::from(Span::styled(title, title_style())))
         .style(base())
 }
