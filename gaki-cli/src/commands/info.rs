@@ -1,6 +1,6 @@
 //! `info` command handlers.
 
-use crate::steam_urls;
+use libgaki::core::steam_urls;
 
 use crate::commands::common::*;
 

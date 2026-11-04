@@ -1,6 +1,6 @@
 //! Conventional Steam CDN / storefront URL builders.
 //!
-//! These are baked into the `--json` responses (`list`, `info`, `dlc`) so a
+//! Shared by the CLI's `--json` responses (`list`, `info`, `dlc`) and the TUI, so a
 //! consuming driver (e.g. Heroic) gets ready-to-use artwork and store URLs
 //! instead of hard-coding the base paths and reconstructing them from app ids.
 

@@ -14,6 +14,7 @@ use std::thread;
 
 use serde::Deserialize;
 
+use crate::app::worker;
 use crate::interface::game_status::GameStatus;
 use crate::util::error::STError;
 use crate::util::log::log;
@@ -866,7 +867,7 @@ pub fn market_price(app_id: u32, name: &str) -> Result<MarketPriceJson, STError>
     Ok(serde_json::from_value(value)?)
 }
 
-/// Run `aurelia <args> --json` standalone (`AURELIA_NO_DAEMON=1`), parsing the
+/// Run `aurelia <args> --json` standalone (`--no-daemon`), parsing the
 /// stdout JSON. This mirrors [`run_json`] but forces a no-daemon invocation, as
 /// used by the threaded market workers so they never share the UI process's
 /// daemon connection. stderr (diagnostics) is discarded.
@@ -874,7 +875,7 @@ fn run_json_standalone(args: &[&str]) -> Result<serde_json::Value, STError> {
     let output = process::Command::new(bin())
         .args(args)
         .arg("--json")
-        .env("AURELIA_NO_DAEMON", "1")
+        .arg("--no-daemon")
         .stdin(process::Stdio::null())
         .stderr(process::Stdio::null())
         .output()
@@ -897,7 +898,7 @@ fn run_json_standalone(args: &[&str]) -> Result<serde_json::Value, STError> {
 }
 
 /// Run a Community Market search off the UI thread, publishing the outcome into
-/// `cell` when it completes. The CLI is invoked standalone (`AURELIA_NO_DAEMON`),
+/// `cell` when it completes. The CLI is invoked standalone (`--no-daemon`),
 /// matching the other threaded calls. Intended to be spawned on its own thread so
 /// the UI never blocks on the search subprocess.
 ///
@@ -931,7 +932,7 @@ pub fn market_search_async(
 }
 
 /// Run a Community Market price lookup off the UI thread, publishing the outcome
-/// into `cell` when it completes. Invoked standalone (`AURELIA_NO_DAEMON`) like
+/// into `cell` when it completes. Invoked standalone (`--no-daemon`) like
 /// the other threaded calls.
 pub fn market_price_async(app_id: u32, name: String, cell: Arc<Mutex<MarketPriceState>>) {
     let result =
@@ -1200,28 +1201,47 @@ fn run_json(args: &[&str]) -> Result<serde_json::Value, STError> {
     Ok(value)
 }
 
+/// Run a `libgaki` call in-process on the shared worker (see
+/// [`crate::app::worker`]). Blocks the calling thread like the subprocess
+/// calls it replaces.
+fn in_process<T>(
+    future: impl std::future::Future<Output = anyhow::Result<T>>,
+) -> Result<T, STError> {
+    worker::global()
+        .block_on(future)
+        .map_err(|e| STError::Problem(format!("{e:#}")))
+}
+
 /// Report whether a Steam session is currently authenticated.
 pub fn health() -> Result<HealthJson, STError> {
-    let value = run_json(&["login", "--health"])?;
-    Ok(serde_json::from_value(value)?)
+    in_process(async {
+        let client = worker::global().session().ensure().await?;
+        let status = libgaki::ops::auth::session_status(Some(&client)).await;
+        Ok(HealthJson {
+            logged_in: status.authenticated,
+            account: status.account,
+            steam_id: status.steam_id,
+            daemon: false,
+        })
+    })
 }
 
 /// Fetch the logged-in Steam account (`aurelia account --json`).
 pub fn account() -> Result<AccountJson, STError> {
-    let value = run_json(&["account"])?;
-    let mut account: AccountJson = serde_json::from_value(value)?;
-    // `aurelia account --json` reports the login (account) name but no persona /
-    // display name. Resolve the persona for the player's own SteamID via
-    // `friends search`, which shares the `persona_name` key. Best-effort: a
-    // failure (e.g. offline) just leaves `persona_name` `None` so the account
-    // name is shown instead.
-    if account.persona_name.is_none()
-        && account.steam_id != 0
-        && let Ok(found) = friends_search(&account.steam_id.to_string())
-    {
-        account.persona_name = found.persona_name.filter(|n| !n.is_empty());
-    }
-    Ok(account)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let data = libgaki::ops::library::account(&client).await;
+        Ok(AccountJson {
+            steam_id: data.steam_id,
+            account_name: data.account_name,
+            persona_name: data.persona_name.filter(|n| !n.is_empty()),
+            country: data.country,
+            email: data.email,
+            email_validated: data.email_validated,
+            authed_machines: data.authed_machines,
+            vac_bans: data.vac_bans,
+        })
+    })
 }
 
 /// Fetch the launcher configuration (`aurelia config show --json`).
@@ -1297,8 +1317,34 @@ pub fn wallet() -> Result<WalletJson, STError> {
 
 /// Fetch the full library (`aurelia list --json`).
 pub fn fetch_library() -> Result<Vec<LibraryGameJson>, STError> {
-    let value = run_json(&["list"])?;
-    Ok(serde_json::from_value(value)?)
+    use libgaki::core::steam_urls;
+    in_process(async {
+        let mut client = worker::global().session().ensure().await?;
+        let options = libgaki::ops::library::ListOptions::default();
+        let listing = libgaki::ops::library::list(&mut client, &options).await?;
+        Ok(listing
+            .games
+            .into_iter()
+            .map(|g| LibraryGameJson {
+                assets: Some(AssetsJson {
+                    header: Some(steam_urls::header_url(g.app_id)),
+                    capsule: Some(steam_urls::capsule_url(g.app_id)),
+                    hero: Some(steam_urls::hero_url(g.app_id)),
+                    logo: Some(steam_urls::logo_url(g.app_id)),
+                }),
+                store_url: Some(steam_urls::store_url(g.app_id)),
+                app_id: g.app_id,
+                name: g.name,
+                is_installed: g.is_installed,
+                install_path: g.install_path,
+                update_available: g.update_available,
+                is_owned: g.is_owned,
+                is_family_shared: g.is_family_shared,
+                platform: g.platform,
+                active_branch: Some(g.active_branch),
+            })
+            .collect())
+    })
 }
 
 /// One Steam library folder (a root containing `steamapps`), from
@@ -1314,9 +1360,16 @@ pub struct LibraryJson {
 /// List the Steam library folders games can be installed into, one per
 /// drive/location, with each drive's free space (`aurelia libraries --json`).
 pub fn libraries() -> Result<Vec<LibraryJson>, STError> {
-    let value = run_json(&["libraries"])?;
-    let list = value.get("libraries").cloned().unwrap_or(value);
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        Ok(libgaki::ops::library::folders()
+            .await
+            .into_iter()
+            .map(|f| LibraryJson {
+                path: f.path.to_string_lossy().into_owned(),
+                free_bytes: f.free_bytes,
+            })
+            .collect())
+    })
 }
 
 /// Estimate the on-disk install size of a game, in bytes
@@ -1329,8 +1382,30 @@ pub fn install_estimate(id: i32) -> Result<u64, STError> {
 
 /// Fetch store metadata for a single app (`aurelia info <id> --json`).
 pub fn fetch_info(id: i32) -> Result<InfoJson, STError> {
-    let value = run_json(&["info", &id.to_string()])?;
-    Ok(serde_json::from_value(value)?)
+    use libgaki::ops::info::{InfoRequest, app_info};
+    in_process(async {
+        let request = InfoRequest {
+            app_ids: vec![id as u32],
+            extended: false,
+            no_cache: false,
+            country: libgaki::ops::store::resolve_country(None)?,
+        };
+        let session = worker::global().session();
+        let mut infos = app_info(&request, async || session.authed().await).await?;
+        let details = infos
+            .pop()
+            .ok_or_else(|| anyhow::anyhow!("no store data for app {id}"))?
+            .details;
+        Ok(InfoJson {
+            app_id: details.app_id,
+            name: details.name,
+            app_type: details.app_type,
+            developers: details.developers,
+            publishers: details.publishers,
+            description: details.short_description,
+            reviews: details.review_summary,
+        })
+    })
 }
 
 /// List a game's Steam Cloud files (`aurelia cloud list <id> --json`). The CLI
@@ -1845,13 +1920,13 @@ pub fn stop(app_id: i32) -> Result<(), STError> {
 /// returns `Ok(())` once authenticated, `Err` on failure/timeout. Intended to
 /// be run on a dedicated thread.
 ///
-/// Forced to run standalone (`AURELIA_NO_DAEMON`) so it authenticates in this
+/// Forced to run standalone (`--no-daemon`) so it authenticates in this
 /// process and writes `session.json`; any running daemon then reloads that
 /// session by mtime on its next forwarded command.
 pub fn login_qr(qr_cell: &Arc<Mutex<Option<String>>>) -> Result<(), STError> {
     let spawned = process::Command::new(bin())
         .args(["login", "--qr", "--json"])
-        .env("AURELIA_NO_DAEMON", "1")
+        .arg("--no-daemon")
         .stdin(process::Stdio::null())
         .stdout(process::Stdio::piped())
         .stderr(process::Stdio::piped())
@@ -1912,7 +1987,7 @@ fn set_phase(phase: &Arc<Mutex<LoginPhase>>, value: LoginPhase) {
 /// never appears in the process's argument list. Steam Guard codes are read by
 /// `aurelia` from stdin: when a `guard_required` event arrives we publish a
 /// `GuardCode` phase, block on `guard_rx` until the UI supplies the code, then
-/// write it to the child's stdin. Runs standalone (`AURELIA_NO_DAEMON`) so it
+/// write it to the child's stdin. Runs standalone (`--no-daemon`) so it
 /// authenticates here and writes `session.json`. Intended to run on a dedicated
 /// thread; returns `Ok(())` once authenticated.
 pub fn login_classic(
@@ -1926,7 +2001,7 @@ pub fn login_classic(
     let spawned = process::Command::new(bin())
         .args(["login", "--json", "-u", username])
         .env("AURELIA_PASSWORD", password)
-        .env("AURELIA_NO_DAEMON", "1")
+        .arg("--no-daemon")
         .stdin(process::Stdio::piped())
         .stdout(process::Stdio::piped())
         .stderr(process::Stdio::piped())

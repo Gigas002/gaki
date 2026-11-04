@@ -632,6 +632,25 @@ I make the changes, and you review, commit, and push.
 - [ ] **4.2** Port `interface/aurelia.rs` (subprocess calls plus output parsing)
   to direct `libgaki` calls, one view at a time: library, details, install and
   progress, launch and running, cloud, account and login, and the rest.
+  *In progress.* Pattern: each `interface/aurelia.rs` function keeps its
+  signature and result type, but its body calls `libgaki::ops` through
+  `in_process`, which runs the future on the shared worker
+  (`app::worker::global()`, `Worker::block_on`) against its one session.
+  Callers that were blocking on the subprocess block the same way for now;
+  moving the UI-thread ones onto `Request`/`poll` follows once every view is
+  in-process. `steam_urls` moved from `gaki-cli` to `libgaki::core`. `main`
+  installs the proxy env before any thread starts.
+  - [x] Session check, library list, library folders, store details, account
+    (`health`, `fetch_library`, `libraries`, `fetch_info`, `account`).
+    Also fixed a 2.4a regression: the standalone CLI calls passed the dropped
+    `AURELIA_NO_DAEMON` env var instead of `--no-daemon`. Classic login
+    still passes `AURELIA_PASSWORD`, which gaki-cli ignores since 2.4a; it
+    goes with the login port.
+  - [ ] Install and progress
+  - [ ] Launch and running
+  - [ ] Cloud
+  - [ ] Account and login
+  - [ ] The rest
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
   `libgaki` auth flow directly, rather than scraping it from CLI output, which
   is the most likely cause of the bug. Add a render test.

@@ -1865,6 +1865,10 @@ fn chat_entry(steamid: u64, name: String) -> Result<(), Box<dyn std::error::Erro
 }
 
 fn main() {
+    // Route libgaki's (and the artwork loader's) HTTP through the configured
+    // proxy. This sets env vars, so it must run before any thread starts.
+    libgaki::core::net::install_proxy_env(&libgaki::core::config::load_proxy_config_blocking());
+
     // `aurelia-tui --chat <steamid> <name>` opens a dedicated chat window.
     let args: Vec<String> = std::env::args().collect();
     if let Some(pos) = args.iter().position(|a| a == "--chat")

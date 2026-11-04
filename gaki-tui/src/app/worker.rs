@@ -8,10 +8,16 @@
 //!
 //! The session is shared: requests run against cheap clones of one
 //! [`SteamClient`], the way the CLI daemon serves commands over one connection.
+//!
+//! While the views move off the `gaki-cli` subprocess (Phase 4.2), the
+//! synchronous `interface` functions run their `libgaki` calls on this
+//! runtime through [`Worker::block_on`]. They are called from the UI thread or
+//! from the views' own background threads, never from inside the runtime.
 
-use std::sync::Arc;
+use std::future::Future;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -55,8 +61,10 @@ const SHUTDOWN_GRACE: Duration = Duration::from_secs(1);
 /// The UI's handle on the `libgaki` worker. Dropping it shuts the worker down.
 pub struct Worker {
     runtime: Option<Runtime>,
+    session: Session,
     requests: async_mpsc::UnboundedSender<(Ticket, Request)>,
-    replies: mpsc::Receiver<Reply>,
+    // Behind a mutex so the worker can be shared (see [`global`]).
+    replies: std::sync::Mutex<mpsc::Receiver<Reply>>,
     next_ticket: AtomicU64,
 }
 
@@ -73,11 +81,13 @@ impl Worker {
             .context("could not start the async runtime")?;
         let (requests, inbox) = async_mpsc::unbounded_channel();
         let (outbox, replies) = mpsc::channel();
-        runtime.spawn(serve(inbox, outbox));
+        let session = Session::default();
+        runtime.spawn(serve(inbox, outbox, session.clone()));
         Ok(Self {
             runtime: Some(runtime),
+            session,
             requests,
-            replies,
+            replies: std::sync::Mutex::new(replies),
             next_ticket: AtomicU64::new(0),
         })
     }
@@ -93,13 +103,27 @@ impl Worker {
 
     /// The next finished reply, if any. Never blocks.
     pub fn poll(&self) -> Option<Reply> {
-        self.replies.try_recv().ok()
+        self.replies.lock().ok()?.try_recv().ok()
+    }
+
+    /// Run `future` on the worker's runtime and wait for it. Blocks the calling
+    /// thread, so it must not be called from inside the runtime.
+    pub fn block_on<F: Future>(&self, future: F) -> F::Output {
+        self.runtime
+            .as_ref()
+            .expect("the runtime lives until the worker is dropped")
+            .block_on(future)
+    }
+
+    /// The shared Steam session.
+    pub fn session(&self) -> &Session {
+        &self.session
     }
 
     /// Wait up to `timeout` for the next reply. For tests and shutdown paths;
     /// the UI loop uses [`Worker::poll`].
     pub fn wait(&self, timeout: Duration) -> Option<Reply> {
-        self.replies.recv_timeout(timeout).ok()
+        self.replies.lock().ok()?.recv_timeout(timeout).ok()
     }
 }
 
@@ -111,23 +135,51 @@ impl Drop for Worker {
     }
 }
 
+/// The process-wide worker, started on first use. The interface layer and
+/// the views share it, and with it one Steam session.
+pub fn global() -> &'static Worker {
+    static WORKER: OnceLock<Worker> = OnceLock::new();
+    WORKER.get_or_init(|| Worker::start().expect("could not start the libgaki worker"))
+}
+
 /// The one Steam session the worker holds. Cloning shares it.
 #[derive(Clone, Default)]
-struct Session(Arc<Mutex<Option<SteamClient>>>);
+pub struct Session(Arc<Mutex<Option<SteamClient>>>);
 
 impl Session {
     /// The current client, if a session was restored or logged in.
-    async fn client(&self) -> Option<SteamClient> {
+    pub async fn client(&self) -> Option<SteamClient> {
         self.0.lock().await.clone()
     }
 
     /// Restore the stored session and keep the result. Holding the lock
     /// across the restore makes concurrent restores wait for the first.
-    async fn restore(&self) -> Result<SteamClient> {
+    pub async fn restore(&self) -> Result<SteamClient> {
         let mut slot = self.0.lock().await;
         let client = libgaki::ops::session::restore_client().await?;
         *slot = Some(client.clone());
         Ok(client)
+    }
+
+    /// The current client if it is logged in; otherwise restore the stored
+    /// session first. A failed restore still returns a (logged-out) client.
+    pub async fn ensure(&self) -> Result<SteamClient> {
+        if let Some(client) = self.client().await
+            && client.is_authenticated()
+        {
+            return Ok(client);
+        }
+        self.restore().await
+    }
+
+    /// A logged-in client, or a typed error saying why there isn't one.
+    pub async fn authed(&self) -> Result<SteamClient> {
+        libgaki::ops::session::require_authenticated(self.ensure().await?, None)
+    }
+
+    /// Forget the session, so the next use restores it again.
+    pub async fn reset(&self) {
+        *self.0.lock().await = None;
     }
 }
 
@@ -135,8 +187,8 @@ impl Session {
 async fn serve(
     mut inbox: async_mpsc::UnboundedReceiver<(Ticket, Request)>,
     outbox: mpsc::Sender<Reply>,
+    session: Session,
 ) {
-    let session = Session::default();
     while let Some((ticket, request)) = inbox.recv().await {
         let session = session.clone();
         let outbox = outbox.clone();

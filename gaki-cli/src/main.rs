@@ -5,7 +5,6 @@ use clap::Parser;
 mod output;
 mod daemon;
 mod proc_admin;
-mod steam_urls;
 
 mod cli;
 use crate::cli::*;
