@@ -3,29 +3,11 @@
 use crate::cli::*;
 use crate::commands::common::*;
 
-use anyhow::{Context, Result, bail};
-use libgaki::core::config::load_launcher_config;
+use anyhow::{Context, Result};
 use libgaki::core::error::{ErrorKind, TypedError, classify};
-use libgaki::core::models::{DepotPlatform, DownloadState, LibraryGame};
-use libgaki::library::backlog;
-use libgaki::steam_client::{InstallOptions, SteamClient};
+use libgaki::ops::install::{self, InstallRequest, Signalled};
+use libgaki::steam_client::SteamClient;
 use std::path::PathBuf;
-use std::sync::atomic::Ordering;
-use std::sync::{Arc, RwLock};
-
-/// Prefer the Windows depot; Proton runs it on Linux.
-///
-/// Native Linux builds are often older or fussier than the Windows build under
-/// Proton/DXVK, so Windows is the default everywhere; `--platform linux` opts
-/// into the native build explicitly.
-fn auto_select_platform(platforms: &[DepotPlatform]) -> DepotPlatform {
-    platforms
-        .iter()
-        .copied()
-        .find(|p| *p == DepotPlatform::Windows)
-        .or_else(|| platforms.first().copied())
-        .unwrap_or(DepotPlatform::Windows)
-}
 
 pub(crate) async fn cmd_install(
     app_id: u32,
@@ -43,7 +25,7 @@ pub(crate) async fn cmd_install(
     }
     let request = InstallRequest {
         app_id,
-        platform,
+        platform: platform.map(Into::into),
         restart_steam,
         library,
         on_disk: 0,
@@ -52,151 +34,27 @@ pub(crate) async fn cmd_install(
     run_install(request, json).await
 }
 
-/// One install, fresh or resumed.
-pub(crate) struct InstallRequest {
-    pub(crate) app_id: u32,
-    pub(crate) platform: Option<PlatformArg>,
-    pub(crate) restart_steam: bool,
-    pub(crate) library: Option<String>,
-    /// Bytes a resume already has.
-    pub(crate) on_disk: u64,
-    pub(crate) auto_attempts: u32,
-}
-
 /// Install, keeping the backlog in step.
 pub(crate) async fn run_install(request: InstallRequest, json: bool) -> Result<()> {
-    let InstallRequest {
-        app_id,
-        platform,
-        restart_steam,
-        library,
-        on_disk,
-        auto_attempts,
-    } = request;
+    let app_id = request.app_id;
+    let restart_steam = request.restart_steam;
     let mut client = authed_client().await?;
-
-    // Note whether this is a DLC so we can refresh Steam's view afterward.
-    let is_dlc = client.resolve_dlc_parent(app_id).await.is_some();
-
-    // For a DLC, stop Steam before editing its base appmanifest (Steam overwrites it
-    // on exit), then restart it afterward so the running client picks up the change.
-    let manage_steam = steam_guard_stop_optional(restart_steam && is_dlc, json)?;
-
-    let (platform, cached_vdf) = match platform {
-        Some(p) => (p.into(), None),
-        None => {
-            let (platforms, buffer) = client
-                .get_available_platforms(app_id)
-                .await
-                .context("failed to detect available platforms")?;
-            let chosen = auto_select_platform(&platforms);
-            if !json {
-                cli_println!("Auto-selected platform: {chosen:?}");
-            }
-            (chosen, Some(buffer))
-        }
-    };
-
-    // Refuse to start if the target drive can't hold the game. (DLC installs go
-    // into the base game's library and aren't covered by the base-game estimate,
-    // so they're skipped here.)
-    let library_root = match &library {
-        Some(lib) => lib.clone(),
-        None => load_launcher_config().await?.steam_library_path,
-    };
-    if !is_dlc {
-        let est = client
-            .estimate_install_size(app_id, platform)
-            .await
-            .with_context(|| format!("failed to estimate install size for app {app_id}"))?;
-        if let Some(free) =
-            libgaki::core::utils::available_space_for(std::path::Path::new(&library_root))
-        {
-            // A resume's partial files already count.
-            if est.disk_size.saturating_sub(on_disk) > free {
-                return Err(libgaki::core::error::TypedError::new(
-                    libgaki::core::error::ErrorKind::DiskFull,
-                    format!(
-                        "not enough space on {library_root}: needs {} but only {} free",
-                        human_bytes(est.disk_size),
-                        human_bytes(free)
-                    ),
-                )
-                .into());
-            }
-        }
+    let prepared = install::prepare(&mut client, request).await?;
+    if prepared.auto_selected && !json {
+        cli_println!("Auto-selected platform: {:?}", prepared.platform);
     }
+    let is_dlc = prepared.is_dlc;
 
-    // Share this install's state via a process-global registry so `install stop`
-    // / `install list` (served on other daemon connections) can reach it. The
-    // guard removes the entry when this function returns (success, error, abort).
-    // Verified chunks count themselves; don't seed.
-    let state = Arc::new(RwLock::new(DownloadState::default()));
-    let _install_guard = InstallGuard::register(app_id, Arc::clone(&state))?;
-
-    // Recorded first, so a crash stays resumable.
-    let platform_name = format!("{platform:?}").to_lowercase();
-    let started = backlog::now();
-    let mut record = backlog::BacklogEntry {
-        app_id,
-        name: String::new(),
-        state: backlog::BacklogState::Interrupted,
-        platform: platform_name,
-        library: library_root.clone(),
-        install_dir: None,
-        is_dlc,
-        restart_steam,
-        downloaded_bytes: on_disk,
-        total_bytes: 0,
-        reason: Some("install did not finish".into()),
-        error_type: None,
-        auto_attempts,
-        added_at: started,
-        updated_at: started,
-    };
-    note_backlog(backlog::upsert(record.clone()));
-
-    let outcome = match client
-        .install_game(
-            app_id,
-            platform,
-            InstallOptions {
-                cached_vdf,
-                library_override: Some(library_root.clone()),
-                ..Default::default()
-            },
-            Arc::clone(&state),
-        )
+    // A DLC edits its base game's appmanifest, which a running Steam overwrites
+    // on exit: stop Steam first and restart it afterwards.
+    let manage_steam = steam_guard_stop_optional(restart_steam && is_dlc, json)?;
+    let settled = prepared
+        .run(&client, |rx| drive_progress_until(rx, json))
         .await
-    {
-        Ok(rx) => {
-            // `install_game` resolves and creates the target before returning.
-            // Persist it now so a daemon crash still leaves `forget --delete-files`
-            // with enough information to safely clean up the partial directory.
-            if let Ok(s) = state.read() {
-                record.name = s.app_name.clone();
-                record.install_dir = s.install_dir.clone();
-                record.total_bytes = s.total_bytes;
-            }
-            note_backlog(backlog::upsert(record.clone()));
-            match drive_progress_until(rx, json).await {
-                Ok(true) => Ok(()),
-                Ok(false) if stop_requested(&state) => Err(anyhow::anyhow!(TypedError::new(
-                    ErrorKind::Cancelled,
-                    "download stopped"
-                ))),
-                Ok(false) => bail!("install of app {app_id} ended without a result"),
-                Err(err) => Err(err),
-            }
-        }
-        Err(err) => Err(err).with_context(|| format!("failed to start install for app {app_id}")),
-    };
+        .map_err(|e| resume_hint(app_id, e));
     // Always restore a Steam client that we stopped, including when the download
-    // failed or was cancelled. Otherwise a failed DLC install can leave Steam
-    // stopped and hide the original install error behind cleanup failure.
-    let settled = finish_backlog(app_id, record, &state, outcome);
-    let restart = steam_guard_restart(manage_steam, json);
-    if let Err(restart_err) = restart {
+    // failed or was cancelled, without hiding the install error behind it.
+    if let Err(restart_err) = steam_guard_restart(manage_steam, json) {
         if settled.is_err() {
             tracing::error!("failed restarting Steam after an install error: {restart_err:#}");
         } else {
@@ -204,7 +62,6 @@ pub(crate) async fn run_install(request: InstallRequest, json: bool) -> Result<(
         }
     }
     settled?;
-    let steam_restarted = manage_steam;
 
     // A newly installed DLC is invisible to an already-running Steam client until it
     // re-reads the appmanifest (which it does at startup).
@@ -226,74 +83,29 @@ pub(crate) async fn run_install(request: InstallRequest, json: bool) -> Result<(
             "status": "installed",
             "dlc": is_dlc,
             "steam_restart_required": steam_restart_required,
-            "steam_restarted": steam_restarted,
+            "steam_restarted": manage_steam,
         }));
     }
     Ok(())
 }
 
-/// Log, never fail on, backlog writes.
-fn note_backlog<T>(result: Result<T>) {
-    if let Err(e) = result {
-        tracing::warn!("install backlog not updated: {e:#}");
-    }
-}
-
-/// Whether pause or stop was asked.
-fn stop_requested(state: &Arc<RwLock<DownloadState>>) -> bool {
-    state
-        .read()
-        .map(|s| s.abort_signal.load(Ordering::SeqCst))
-        .unwrap_or(false)
-}
-
-/// Settle the backlog entry from `outcome`.
-fn finish_backlog(
-    app_id: u32,
-    mut record: backlog::BacklogEntry,
-    state: &Arc<RwLock<DownloadState>>,
-    outcome: Result<()>,
-) -> Result<()> {
-    let Err(err) = outcome else {
-        note_backlog(backlog::remove(app_id));
-        return Ok(());
-    };
-    let paused = state.read().map(|s| s.is_paused).unwrap_or(false);
-    if let Ok(s) = state.read() {
-        record.name = s.app_name.clone();
-        record.install_dir = s.install_dir.clone();
-        record.downloaded_bytes = record.downloaded_bytes.max(s.downloaded_bytes);
-        record.total_bytes = s.total_bytes;
-    }
-    let kind = classify(&err).kind;
-    record.updated_at = backlog::now();
-    let err = if kind == ErrorKind::Cancelled {
-        record.reason = None;
-        record.error_type = None;
-        if paused {
-            record.state = backlog::BacklogState::Paused;
-            anyhow::anyhow!(TypedError::new(
-                ErrorKind::Cancelled,
-                format!(
-                    "install of app {app_id} paused; continue with `aurelia install resume {app_id}`"
-                ),
-            ))
-        } else {
-            record.state = backlog::BacklogState::Aborted;
-            err.context(format!(
-                "install of app {app_id} stopped; it stays in the backlog"
-            ))
-        }
+/// Point a paused install at `install resume`.
+fn resume_hint(app_id: u32, e: anyhow::Error) -> anyhow::Error {
+    let paused = libgaki::library::backlog::get(app_id)
+        .ok()
+        .flatten()
+        .is_some_and(|entry| entry.state == libgaki::library::backlog::BacklogState::Paused);
+    if paused && classify(&e).kind == ErrorKind::Cancelled {
+        TypedError::new(
+            ErrorKind::Cancelled,
+            format!(
+                "install of app {app_id} paused; continue with `aurelia install resume {app_id}`"
+            ),
+        )
+        .into()
     } else {
-        record.state = backlog::BacklogState::Interrupted;
-        record.reason = Some(format!("{err:#}"));
-        record.error_type = serde_json::to_value(kind)
-            .ok()
-            .and_then(|v| v.as_str().map(str::to_string));
-        err
-    };
-    note_backlog(backlog::upsert(record));
-    Err(err)
+        e
+    }
 }
 
 /// Report the estimated download/disk size for installing `app_id` without
@@ -304,21 +116,10 @@ pub(crate) async fn cmd_install_dry_run(
     platform: Option<PlatformArg>,
     json: bool,
 ) -> Result<()> {
-    let platform: DepotPlatform = match platform {
-        Some(p) => p.into(),
-        None => {
-            let (platforms, _) = client
-                .get_available_platforms(app_id)
-                .await
-                .context("failed to detect available platforms")?;
-            auto_select_platform(&platforms)
-        }
-    };
-
-    let est = client
-        .estimate_install_size(app_id, platform)
-        .await
-        .with_context(|| format!("failed to estimate install size for app {app_id}"))?;
+    let install::Estimate {
+        platform,
+        size: est,
+    } = install::estimate(client, app_id, platform.map(Into::into)).await?;
 
     let platform_str = format!("{platform:?}").to_lowercase();
     if json {
@@ -351,19 +152,9 @@ pub(crate) async fn cmd_install_pause(app_id: u32, json: bool) -> Result<()> {
 
 /// Stop or pause a running or queued install.
 fn signal_install(app_id: u32, pause: bool, json: bool) -> Result<()> {
-    let state = active_installs()
-        .lock()
-        .ok()
-        .and_then(|map| map.get(&app_id).cloned());
-    let target = if pause {
-        backlog::BacklogState::Paused
-    } else {
-        backlog::BacklogState::Aborted
-    };
-
-    let Some(state) = state else {
-        // Not running: just relabel its entry.
-        if backlog::set_state(app_id, target)? {
+    match install::signal(app_id, pause)? {
+        Signalled::Running => {}
+        Signalled::Relabelled(target) => {
             if json {
                 print_result_line(serde_json::json!({
                     "app_id": app_id,
@@ -377,23 +168,19 @@ fn signal_install(app_id: u32, pause: bool, json: bool) -> Result<()> {
             }
             return Ok(());
         }
-        if json {
-            print_json(&serde_json::json!({
-                "event": "not_found",
-                "app_id": app_id,
-            }));
-        } else {
-            cli_eprintln!(
-                "no active install for app {app_id} (is the daemon running, and is an install in progress?)"
-            );
+        Signalled::NotFound => {
+            if json {
+                print_json(&serde_json::json!({
+                    "event": "not_found",
+                    "app_id": app_id,
+                }));
+            } else {
+                cli_eprintln!(
+                    "no active install for app {app_id} (is the daemon running, and is an install in progress?)"
+                );
+            }
+            return Ok(());
         }
-        return Ok(());
-    };
-
-    // Pause first; the abort reads it.
-    if let Ok(mut guard) = state.write() {
-        guard.is_paused = pause;
-        guard.abort_signal.store(true, Ordering::SeqCst);
     }
 
     if json {
@@ -416,56 +203,9 @@ fn signal_install(app_id: u32, pause: bool, json: bool) -> Result<()> {
     Ok(())
 }
 
-/// One `install list` row.
-struct ListRow {
-    app_id: u32,
-    name: String,
-    total: u64,
-    done: u64,
-    status: String,
-    downloading: bool,
-    state: &'static str,
-    entry: Option<backlog::BacklogEntry>,
-}
-
 /// `aurelia install list`: running installs, then the backlog.
 pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
-    // Snapshot under the lock, then release it before printing.
-    let mut rows: Vec<ListRow> = Vec::new();
-    if let Ok(map) = active_installs().lock() {
-        for state in map.values() {
-            if let Ok(s) = state.read() {
-                rows.push(ListRow {
-                    app_id: s.app_id,
-                    name: s.app_name.clone(),
-                    total: s.total_bytes,
-                    done: s.downloaded_bytes,
-                    status: s.status_text.clone(),
-                    downloading: s.is_downloading,
-                    state: "running",
-                    entry: None,
-                });
-            }
-        }
-    }
-    rows.sort_by_key(|r| r.app_id);
-    // A running install's entry is itself.
-    let running: Vec<u32> = rows.iter().map(|r| r.app_id).collect();
-    for entry in backlog::load()? {
-        if running.contains(&entry.app_id) {
-            continue;
-        }
-        rows.push(ListRow {
-            app_id: entry.app_id,
-            name: entry.name.clone(),
-            total: entry.total_bytes,
-            done: entry.downloaded_bytes,
-            status: entry.reason.clone().unwrap_or_default(),
-            downloading: false,
-            state: entry.state.as_str(),
-            entry: Some(entry),
-        });
-    }
+    let rows = install::list()?;
 
     if json {
         let arr: Vec<_> = rows
@@ -474,11 +214,11 @@ pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
                 let mut v = serde_json::json!({
                     "app_id": r.app_id,
                     "name": r.name,
-                    "downloaded_bytes": r.done,
-                    "total_bytes": r.total,
-                    "percent": percent_of(r.done, r.total),
+                    "downloaded_bytes": r.downloaded_bytes,
+                    "total_bytes": r.total_bytes,
+                    "percent": percent_of(r.downloaded_bytes, r.total_bytes),
                     "status": r.status,
-                    "is_downloading": r.downloading,
+                    "is_downloading": r.is_downloading,
                     "state": r.state,
                 });
                 if let Some(e) = &r.entry {
@@ -508,7 +248,11 @@ pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
         ""
     );
     for r in &rows {
-        let progress = format!("{} / {}", human_bytes(r.done), human_bytes(r.total));
+        let progress = format!(
+            "{} / {}",
+            human_bytes(r.downloaded_bytes),
+            human_bytes(r.total_bytes)
+        );
         let label = match (r.name.is_empty(), r.status.is_empty()) {
             (false, true) => r.name.clone(),
             (true, _) => r.status.clone(),
@@ -520,7 +264,7 @@ pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
             r.app_id,
             r.state,
             progress,
-            percent_of(r.done, r.total),
+            percent_of(r.downloaded_bytes, r.total_bytes),
             label
         );
     }
@@ -529,20 +273,17 @@ pub(crate) async fn cmd_install_list(json: bool) -> Result<()> {
 
 /// `aurelia install resume <app_id>|--all`.
 pub(crate) async fn cmd_install_resume(app_id: Option<u32>, all: bool, json: bool) -> Result<()> {
-    let entries = backlog::load()?;
-    let ids: Vec<u32> = if all {
-        entries.iter().map(|e| e.app_id).collect()
-    } else {
-        let id = app_id.unwrap_or_default();
-        if !entries.iter().any(|e| e.app_id == id) {
-            return Err(TypedError::new(
+    let ids = install::resume_targets(app_id, all).map_err(|e| {
+        if classify(&e).kind == ErrorKind::NotFound {
+            TypedError::new(
                 ErrorKind::NotFound,
-                format!("app {id} is not in the install backlog (see `aurelia install list`)"),
+                format!("{e} (see `aurelia install list`)"),
             )
-            .into());
+            .into()
+        } else {
+            e
         }
-        vec![id]
-    };
+    })?;
     if ids.is_empty() {
         if !json {
             cli_println!("The install backlog is empty.");
@@ -558,15 +299,9 @@ pub(crate) async fn cmd_install_resume(app_id: Option<u32>, all: bool, json: boo
 pub(crate) async fn resume_entries(ids: &[u32], auto: bool, json: bool) -> Result<()> {
     let mut failures: Vec<(u32, anyhow::Error)> = Vec::new();
     for &app_id in ids {
-        let Some(entry) = backlog::get(app_id)? else {
+        let Some((request, entry)) = install::resume_request(app_id, auto)? else {
             continue;
         };
-        if active_installs()
-            .lock()
-            .is_ok_and(|m| m.contains_key(&app_id))
-        {
-            continue;
-        }
         if !json {
             let name = if entry.name.is_empty() {
                 format!("app {app_id}")
@@ -575,31 +310,6 @@ pub(crate) async fn resume_entries(ids: &[u32], auto: bool, json: bool) -> Resul
             };
             cli_println!("Resuming {name} ({}) ...", entry.state.as_str());
         }
-        // Counted now, so early failures count.
-        let auto_attempts = if auto {
-            match backlog::bump_auto_attempts(app_id) {
-                Ok(Some(n)) => n,
-                Ok(None) => continue,
-                Err(e) => {
-                    tracing::warn!("install backlog not updated: {e:#}");
-                    continue;
-                }
-            }
-        } else {
-            0
-        };
-        let request = InstallRequest {
-            app_id,
-            platform: Some(if entry.platform == "linux" {
-                PlatformArg::Linux
-            } else {
-                PlatformArg::Windows
-            }),
-            restart_steam: entry.restart_steam,
-            library: Some(entry.library.clone()),
-            on_disk: entry.downloaded_bytes,
-            auto_attempts,
-        };
         if let Err(e) = run_install(request, json).await {
             if ids.len() == 1 {
                 return Err(e);
@@ -636,34 +346,12 @@ pub(crate) async fn resume_entries(ids: &[u32], auto: bool, json: bool) -> Resul
 
 /// `aurelia install forget <app_id> [--delete-files]`.
 pub(crate) async fn cmd_install_forget(app_id: u32, delete_files: bool, json: bool) -> Result<()> {
-    if active_installs()
-        .lock()
-        .is_ok_and(|m| m.contains_key(&app_id))
-    {
-        bail!("app {app_id} is downloading; stop it first with `aurelia install stop {app_id}`");
+    if install::is_running(app_id) {
+        anyhow::bail!(
+            "app {app_id} is downloading; stop it first with `aurelia install stop {app_id}`"
+        );
     }
-    let Some(entry) = backlog::get(app_id)? else {
-        return Err(TypedError::new(
-            ErrorKind::NotFound,
-            format!("app {app_id} is not in the install backlog"),
-        )
-        .into());
-    };
-    let mut deleted: Option<PathBuf> = None;
-    if delete_files {
-        let Some(dir) = backlog::deletable_dir(&entry) else {
-            bail!(
-                "won't delete files for app {app_id}: its folder is unknown, shared with a base \
-                 game, or belongs to a finished install. Remove it by hand if needed."
-            );
-        };
-        if dir.exists() {
-            std::fs::remove_dir_all(&dir)
-                .with_context(|| format!("failed deleting {}", dir.display()))?;
-        }
-        deleted = Some(dir);
-    }
-    backlog::remove(app_id)?;
+    let deleted = install::forget(app_id, delete_files)?;
     if json {
         print_result_line(serde_json::json!({
             "app_id": app_id,
@@ -681,10 +369,7 @@ pub(crate) async fn cmd_install_forget(app_id: u32, delete_files: bool, json: bo
 
 pub(crate) async fn cmd_uninstall(app_id: u32, delete_prefix: bool, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    client
-        .uninstall_game(app_id, delete_prefix)
-        .await
-        .with_context(|| format!("failed to uninstall app {app_id}"))?;
+    install::uninstall(&client, app_id, delete_prefix).await?;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
@@ -708,13 +393,12 @@ pub(crate) async fn cmd_move(
     // Steam rewrites appmanifests and libraryfolders.vdf on exit, so it must not be
     // running while we move things.
     let managed = steam_guard_stop(restart_steam, json)?;
-    let rx = client
-        .move_install(app_id, library.clone())
-        .await
-        .with_context(|| format!("failed to start moving app {app_id}"))?;
-    let outcome = drive_progress(rx, json).await;
+    let outcome = install::move_to(&client, app_id, library.clone(), |rx| {
+        drive_progress_until(rx, json)
+    })
+    .await;
     steam_guard_restart(managed, json)?;
-    outcome.with_context(|| format!("failed to move app {app_id}"))?;
+    outcome?;
 
     if json {
         print_json(&serde_json::json!({
@@ -729,31 +413,23 @@ pub(crate) async fn cmd_move(
     Ok(())
 }
 
-/// Steam-guarded relink/import shared body.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "shared relink/import body; reshaped when commands move to libgaki (2.3)"
-)]
-async fn steam_guarded_relocate<F, Fut>(
+/// Run a relink/import with Steam stopped, then report it.
+async fn relocate_guarded<Fut>(
     app_id: u32,
     library: PathBuf,
     restart_steam: bool,
     json: bool,
     status: &'static str,
-    verb: &'static str,
-    human: impl FnOnce(&std::path::Path) -> String,
-    op: F,
-) -> Result<()>
+    op: impl FnOnce(SteamClient, PathBuf) -> Fut,
+) -> Result<PathBuf>
 where
-    F: FnOnce(SteamClient, PathBuf) -> Fut,
-    Fut: Future<Output = Result<std::path::PathBuf>>,
+    Fut: Future<Output = Result<PathBuf>>,
 {
     let client = authed_client().await?;
     let managed = steam_guard_stop(restart_steam, json)?;
     let result = op(client, library.clone()).await;
     steam_guard_restart(managed, json)?;
-    let path = result.with_context(|| format!("failed to {verb} app {app_id}"))?;
-
+    let path = result?;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
@@ -762,10 +438,8 @@ where
             "install_path": path.to_string_lossy(),
             "steam_restarted": managed,
         }));
-    } else {
-        cli_println!("{}", human(&path));
     }
-    Ok(())
+    Ok(path)
 }
 
 pub(crate) async fn cmd_relink(
@@ -774,18 +448,19 @@ pub(crate) async fn cmd_relink(
     restart_steam: bool,
     json: bool,
 ) -> Result<()> {
-    let human = |_: &std::path::Path| format!("Relinked app {app_id} to {}.", library.display());
-    steam_guarded_relocate(
+    relocate_guarded(
         app_id,
         library.clone(),
         restart_steam,
         json,
         "relinked",
-        "relink",
-        human,
-        |client, lib| async move { client.relink_install(app_id, lib).await },
+        |client, lib| async move { install::relink(&client, app_id, lib).await },
     )
-    .await
+    .await?;
+    if !json {
+        cli_println!("Relinked app {app_id} to {}.", library.display());
+    }
+    Ok(())
 }
 
 pub(crate) async fn cmd_import(
@@ -795,31 +470,30 @@ pub(crate) async fn cmd_import(
     restart_steam: bool,
     json: bool,
 ) -> Result<()> {
-    // Default to the host OS (Linux) for the depot/platform match.
-    let platform: DepotPlatform = platform.map(Into::into).unwrap_or(DepotPlatform::Linux);
-    let human = |path: &std::path::Path| format!("Imported app {app_id} from {}.", path.display());
-    steam_guarded_relocate(
+    let platform = platform.map(Into::into);
+    let path = relocate_guarded(
         app_id,
         library,
         restart_steam,
         json,
         "imported",
-        "import",
-        human,
-        move |client, lib| async move { client.import_install(app_id, lib, platform).await },
+        move |client, lib| async move { install::import(&client, app_id, lib, platform).await },
     )
-    .await
+    .await?;
+    if !json {
+        cli_println!("Imported app {app_id} from {}.", path.display());
+    }
+    Ok(())
 }
 
 pub(crate) async fn cmd_available(app_id: u32, json: bool) -> Result<()> {
-    // `is_game_available` only reads the local appmanifest and checks the files on
-    // disk, so we deliberately build a client *without* restoring the Steam session.
-    // A driver like Heroic calls `available` per game on every refresh; restoring
-    // the session here would mean one Steam CM logon per call (and Steam throttles
-    // repeated logons hard) for data we never fetch over the wire.
-    let client = SteamClient::new()?;
-    let (available, install_path) = client.is_game_available(app_id).await;
-    let (pinned, pinned_manifests) = libgaki::core::config::game_pin_state(app_id).await;
+    // Local files only: no session, so per-game polling costs no Steam logon.
+    let install::Availability {
+        available,
+        install_path,
+        pinned,
+        pinned_manifests,
+    } = install::availability(app_id).await?;
     if json {
         print_json(&serde_json::json!({
             "app_id": app_id,
@@ -854,13 +528,7 @@ fn manifests_json(
 
 pub(crate) async fn cmd_verify(app_id: u32, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    // Registered so `install stop`
-    let (_install_guard, state) = InstallGuard::begin(app_id)?;
-    let rx = client
-        .verify_game(app_id, state)
-        .await
-        .with_context(|| format!("failed to verify app {app_id}"))?;
-    drive_progress(rx, json).await?;
+    install::verify(&client, app_id, |rx| drive_progress_until(rx, json)).await?;
     report_operation(app_id, "verified", json);
     Ok(())
 }
@@ -869,16 +537,13 @@ pub(crate) async fn cmd_update(app_id: u32, force: bool, json: bool) -> Result<(
     // A pinned (downgraded) game must not be silently upgraded. `--force` overrides.
     let (pinned, _) = libgaki::core::config::game_pin_state(app_id).await;
     if pinned && !force {
-        bail!("app {app_id} is pinned — run `aurelia unpin {app_id}` first (or pass --force)");
+        anyhow::bail!(
+            "app {app_id} is pinned — run `aurelia unpin {app_id}` first (or pass --force)"
+        );
     }
 
     let client = authed_client().await?;
-    let (_install_guard, state) = InstallGuard::begin(app_id)?;
-    let rx = client
-        .update_game(app_id, state)
-        .await
-        .with_context(|| format!("failed to update app {app_id}"))?;
-    drive_progress(rx, json).await?;
+    install::update(&client, app_id, force, |rx| drive_progress_until(rx, json)).await?;
     report_operation(app_id, "updated", json);
     Ok(())
 }
@@ -887,13 +552,8 @@ pub(crate) async fn cmd_update(app_id: u32, force: bool, json: bool) -> Result<(
 /// has a newer build available than what's on disk.
 pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
     let mut client = authed_client().await?;
-    if client.is_offline() {
-        bail!("offline — connect to Steam to check for updates");
-    }
-
-    let mut games = load_library(&mut client).await;
-    games.retain(|g| g.is_installed);
-    if games.is_empty() {
+    let check = install::check_updates(&mut client).await?;
+    if check.installed == 0 {
         if json {
             print_json(&serde_json::json!({ "updates": [] }));
         } else {
@@ -901,23 +561,9 @@ pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
         }
         return Ok(());
     }
-
-    tracing::info!("Checking {} installed game(s) for updates ...", games.len());
-    client.check_for_updates(&mut games).await?;
-
-    // A pinned game is deliberately held at an older build — report it as pinned,
-    // never as "update available".
-    let cfg = load_launcher_config().await?;
-    let is_pinned = |app_id: u32| cfg.game_configs.get(&app_id).is_some_and(|g| g.pinned);
-
-    let mut updates: Vec<&LibraryGame> = games
-        .iter()
-        .filter(|g| g.update_available && !is_pinned(g.app_id))
-        .collect();
-    updates.sort_by_key(|a| a.name.to_lowercase());
-
-    let mut pinned: Vec<&LibraryGame> = games.iter().filter(|g| is_pinned(g.app_id)).collect();
-    pinned.sort_by_key(|a| a.name.to_lowercase());
+    let install::UpdateCheck {
+        updates, pinned, ..
+    } = check;
 
     if json {
         let arr: Vec<_> = updates
@@ -961,75 +607,12 @@ pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
     Ok(())
 }
 
-/// Turn the parallel `--depot` / `--manifest` lists (or the combined
-/// `--manifest <depot>:<manifest>` form) into a depot → manifest override map.
-///
-/// Bare `--manifest` values pair by position with `--depot`; entries containing a
-/// `:` carry their own depot. Rejects unequal parallel-list lengths, duplicate
-/// depots, non-numeric ids, and an empty result — all with a clear message.
-fn parse_manifest_overrides(
-    depots: &[u32],
-    manifests: &[String],
-) -> Result<std::collections::HashMap<u32, u64>> {
-    use std::collections::HashMap;
-    let mut map: HashMap<u32, u64> = HashMap::new();
-    let mut bare: Vec<u64> = Vec::new();
-
-    for m in manifests {
-        if let Some((d, mm)) = m.split_once(':') {
-            let depot: u32 = d
-                .trim()
-                .parse()
-                .with_context(|| format!("invalid depot id in --manifest {m:?}"))?;
-            let manifest: u64 = mm
-                .trim()
-                .parse()
-                .with_context(|| format!("invalid manifest id in --manifest {m:?}"))?;
-            if map.insert(depot, manifest).is_some() {
-                bail!("depot {depot} specified more than once");
-            }
-        } else {
-            let manifest: u64 = m.trim().parse().with_context(|| {
-                format!("invalid manifest id {m:?} (use a number, or <depot>:<manifest>)")
-            })?;
-            bare.push(manifest);
-        }
-    }
-
-    if !bare.is_empty() || !depots.is_empty() {
-        if depots.len() != bare.len() {
-            bail!(
-                "--depot and --manifest must be given in equal numbers (got {} depot(s) and {} bare manifest(s)); \
-                 pair each --depot with a --manifest, or use --manifest <depot>:<manifest>",
-                depots.len(),
-                bare.len()
-            );
-        }
-        for (d, m) in depots.iter().zip(bare) {
-            if map.insert(*d, m).is_some() {
-                bail!("depot {d} specified more than once");
-            }
-        }
-    }
-
-    if map.is_empty() {
-        bail!("provide at least one depot/manifest pair, e.g. --depot 1234 --manifest 5678");
-    }
-    Ok(map)
-}
-
 /// `aurelia manifests <app_id>`: list each depot's current manifest id per branch
 /// (version discovery). Steam only exposes *current* ids; the printed SteamDB
 /// links are where historical/older ids can be found for a `downgrade`.
 pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -> Result<()> {
     let client = authed_client().await?;
-    let mut manifests = client
-        .list_depot_manifests(app_id)
-        .await
-        .with_context(|| format!("failed listing manifests for app {app_id}"))?;
-    if let Some(d) = depot {
-        manifests.retain(|m| m.depot_id == d);
-    }
+    let manifests = install::manifests(&client, app_id, depot).await?;
 
     if json {
         let arr: Vec<_> = manifests
@@ -1089,7 +672,7 @@ pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -
 /// `aurelia downgrade`: install specific (usually older) depot manifests and pin
 /// them, streaming progress via the same path as `install`.
 pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()> {
-    let overrides = parse_manifest_overrides(&args.depots, &args.manifests)?;
+    let overrides = install::parse_manifest_overrides(&args.depots, &args.manifests)?;
 
     if args.branch_password.is_some() && !json {
         cli_eprintln!(
@@ -1098,14 +681,6 @@ pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()>
     }
 
     let mut client = authed_client().await?;
-
-    // Auto-detect the platform for the non-pinned depots; overridden depots are
-    // force-included by install_game regardless of platform.
-    let (platforms, cached_vdf) = client
-        .get_available_platforms(args.app_id)
-        .await
-        .context("failed to detect available platforms")?;
-    let platform = platforms.first().copied().unwrap_or(DepotPlatform::Windows);
 
     if !json {
         cli_println!(
@@ -1120,50 +695,25 @@ pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()>
         }
     }
 
-    let state = Arc::new(RwLock::new(DownloadState::default()));
-    let _install_guard = InstallGuard::register(args.app_id, Arc::clone(&state))?;
-    let rx = client
-        .install_game(
-            args.app_id,
-            platform,
-            InstallOptions {
-                cached_vdf: Some(cached_vdf),
-                library_override: args.library.clone(),
-                manifest_overrides: Some(overrides.clone()),
-                branch: args.branch.clone(),
-                ..Default::default()
-            },
-            Arc::clone(&state),
-        )
-        .await
-        .with_context(|| format!("failed to start downgrade for app {}", args.app_id))?;
-    drive_progress(rx, json).await?;
-
-    // Optional integrity pass. `verify_game` checks against the just-written
-    // (downgraded) manifest ids in the appmanifest, not the current build.
-    if args.verify {
-        if !json {
+    let pinned = !args.no_pin;
+    let request = install::Downgrade {
+        app_id: args.app_id,
+        manifests: overrides.clone(),
+        library: args.library.clone(),
+        branch: args.branch.clone(),
+        verify: args.verify,
+        pin: pinned,
+    };
+    // The second drive is the verify pass.
+    let mut passes = 0;
+    install::downgrade(&mut client, &request, |rx| {
+        passes += 1;
+        if passes == 2 && !json {
             cli_println!("Verifying ...");
         }
-        let vstate = Arc::new(RwLock::new(DownloadState::default()));
-        let vrx = client
-            .verify_game(args.app_id, vstate)
-            .await
-            .with_context(|| format!("failed to verify app {}", args.app_id))?;
-        drive_progress(vrx, json).await?;
-    }
-
-    let pinned = !args.no_pin;
-    if pinned {
-        libgaki::core::config::set_game_pin(args.app_id, overrides.clone())
-            .await
-            .with_context(|| {
-                format!(
-                    "downgrade succeeded but failed to record the pin for app {}",
-                    args.app_id
-                )
-            })?;
-    }
+        drive_progress_until(rx, json)
+    })
+    .await?;
 
     if json {
         print_json(&serde_json::json!({
@@ -1194,16 +744,7 @@ pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()>
 /// `aurelia pin <app_id>`: lock Aurelia's update commands for a game, recording
 /// its currently-installed manifests.
 pub(crate) async fn cmd_pin(app_id: u32, json: bool) -> Result<()> {
-    // Reading the local appmanifest needs no Steam session.
-    let client = SteamClient::new()?;
-    let manifests = client
-        .installed_depot_manifests(app_id)
-        .await
-        .with_context(|| format!("failed reading installed manifests for app {app_id}"))?;
-    if manifests.is_empty() {
-        bail!("app {app_id} has no installed depots to pin (is it installed?)");
-    }
-    libgaki::core::config::set_game_pin(app_id, manifests.clone()).await?;
+    let manifests = install::pin(app_id).await?;
 
     if json {
         print_json(&serde_json::json!({
@@ -1222,8 +763,7 @@ pub(crate) async fn cmd_pin(app_id: u32, json: bool) -> Result<()> {
 
 /// `aurelia unpin <app_id>`: release a game's version pin.
 pub(crate) async fn cmd_unpin(app_id: u32, json: bool) -> Result<()> {
-    let (was_pinned, _) = libgaki::core::config::game_pin_state(app_id).await;
-    libgaki::core::config::clear_game_pin(app_id).await?;
+    let was_pinned = install::unpin(app_id).await?;
 
     if json {
         print_json(&serde_json::json!({
@@ -1238,10 +778,6 @@ pub(crate) async fn cmd_unpin(app_id: u32, json: bool) -> Result<()> {
     }
     Ok(())
 }
-
-#[cfg(test)]
-#[path = "install_downgrade_tests.rs"]
-mod downgrade_tests;
 
 /// Report games installed in more than one Steam library.
 ///
@@ -1272,7 +808,7 @@ pub(crate) async fn cmd_duplicates(json: bool) -> Result<()> {
                         "manifest_path": s.manifest_path.to_string_lossy(),
                         "last_updated": s.last_updated,
                         "build_id": s.build_id,
-                        "size_bytes": dir_size(&s.install_path),
+                        "size_bytes": libgaki::library::relocate::dir_size(&s.install_path),
                     })).collect::<Vec<_>>(),
                 })
             })
@@ -1307,7 +843,7 @@ pub(crate) async fn cmd_duplicates(json: bool) -> Result<()> {
             d.live.build_id
         );
         for s in &d.stale {
-            let size = dir_size(&s.install_path);
+            let size = libgaki::library::relocate::dir_size(&s.install_path);
             reclaimable += size;
             cli_println!(
                 "  remove  {}  (updated {}, build {}, {})",
@@ -1342,18 +878,6 @@ pub(crate) async fn cmd_duplicates(json: bool) -> Result<()> {
          still advertises the copy, and discovery would keep finding it."
     );
     Ok(())
-}
-
-/// Total size of a directory tree, or 0 if it can't be read. Best-effort: this
-/// only sizes the report, so an unreadable subdirectory must not fail the command.
-fn dir_size(path: &std::path::Path) -> u64 {
-    walkdir::WalkDir::new(path)
-        .into_iter()
-        .filter_map(std::result::Result::ok)
-        .filter(|e| e.file_type().is_file())
-        .filter_map(|e| e.metadata().ok())
-        .map(|m| m.len())
-        .sum()
 }
 
 /// Single-quote a path for a POSIX shell so a copy-pasted `rm` is safe with

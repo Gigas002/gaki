@@ -1387,6 +1387,25 @@ pub fn normalize_country(raw: &str) -> Option<String> {
     Some(if code == "UK" { "GB".to_string() } else { code })
 }
 
+/// Format a byte count as a human-readable size (binary units).
+pub fn human_bytes(bytes: u64) -> String {
+    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
+    if bytes == 0 {
+        return "0 B".to_string();
+    }
+    let mut value = bytes as f64;
+    let mut unit = 0;
+    while value >= 1024.0 && unit < UNITS.len() - 1 {
+        value /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{value:.2} {}", UNITS[unit])
+    }
+}
+
 #[cfg(test)]
 #[path = "utils_wait_until_tests.rs"]
 mod wait_until_tests;

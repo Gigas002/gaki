@@ -460,8 +460,13 @@ I make the changes, and you review, commit, and push.
     depots, achievements, launch options, DRM check, artwork) and
     `ops::store` (prices, search/deals/similar, wishlist, assets, news,
     reviews, tags). JSON shapes unchanged.
-  - [ ] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
+  - [x] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
     move/relink/import, DLC, downgrade.
+    *Done.* `ops::install`: `prepare` → `PreparedInstall::run` (backlog
+    bookkeeping), `signal`/`list`/`resume_request`/`forget`, verify, update,
+    `check_updates`, move/relink/import, availability, manifests,
+    `downgrade`, pin/unpin. Progress goes through a caller-supplied `drive`
+    closure. Free space is checked before Steam is stopped.
   - [ ] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
   - [ ] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
     `commands/` holds only mapping and rendering; tick 2.3.

@@ -10,7 +10,7 @@ use libgaki::steam_client::SteamClient;
 use std::io::Write;
 
 // Library operations used across the command modules.
-pub(crate) use libgaki::ops::install::{InstallGuard, active_installs};
+pub(crate) use libgaki::ops::install::InstallGuard;
 pub(crate) use libgaki::ops::library::{find_game, load_library, merge_family_shared};
 pub(crate) use libgaki::ops::progress::{RateTracker, percent_of};
 
@@ -164,24 +164,7 @@ pub(crate) fn yesno(b: bool) -> &'static str {
     if b { "yes" } else { "no" }
 }
 
-/// Format a byte count as a human-readable size (binary units).
-pub(crate) fn human_bytes(bytes: u64) -> String {
-    const UNITS: [&str; 6] = ["B", "KiB", "MiB", "GiB", "TiB", "PiB"];
-    if bytes == 0 {
-        return "0 B".to_string();
-    }
-    let mut value = bytes as f64;
-    let mut unit = 0;
-    while value >= 1024.0 && unit < UNITS.len() - 1 {
-        value /= 1024.0;
-        unit += 1;
-    }
-    if unit == 0 {
-        format!("{bytes} B")
-    } else {
-        format!("{value:.2} {}", UNITS[unit])
-    }
-}
+pub(crate) use libgaki::core::utils::human_bytes;
 
 /// Refuse an edit while Steam runs, or stop it with `--restart-steam`.
 /// Returns whether Steam was stopped (pass it to [`steam_guard_restart`]).
