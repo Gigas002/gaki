@@ -37,6 +37,7 @@ fn logged_out_session_is_reported_not_fetched() {
     assert!(!aurelia::health().unwrap().logged_in);
 
     game_data_needs_a_session();
+    social_needs_a_session();
     pinning_reads_local_state();
     settings_round_trip();
     game_settings_round_trip();
@@ -174,4 +175,47 @@ fn pinning_reads_local_state() {
     let err = aurelia::pin(id).expect_err("nothing installed to pin");
     assert!(err.to_string().contains("no installed depots"), "{err}");
     assert!(!aurelia::unpin(id).unwrap(), "was not pinned");
+}
+
+/// Friends, chat and Workshop ask for a login; the web-surface calls
+/// (wallet, inventory, market listings) fail without one too.
+fn social_needs_a_session() {
+    type Outcome = Result<(), gaki_tui::util::error::STError>;
+    let needs_login: [(&str, Outcome); 11] = [
+        ("friends", aurelia::friends().map(drop)),
+        ("friends search", aurelia::friends_search("gaben").map(drop)),
+        ("friends add", aurelia::friends_add("gaben")),
+        ("friends remove", aurelia::friends_remove(76561197960287930)),
+        (
+            "chat history",
+            aurelia::chat_history(76561197960287930, 5).map(drop),
+        ),
+        ("chat send", aurelia::chat_send(76561197960287930, "hi")),
+        ("workshop list", aurelia::workshop_list(945360).map(drop)),
+        (
+            "workshop browse",
+            aurelia::workshop_browse(945360, "").map(drop),
+        ),
+        ("workshop subscribe", aurelia::workshop_subscribe(1)),
+        ("workshop rate", aurelia::workshop_rate(1, true)),
+        (
+            "workshop comments",
+            aurelia::workshop_comments(1, 5).map(drop),
+        ),
+    ];
+    for (what, result) in needs_login {
+        let err = result.expect_err(what);
+        assert!(
+            err.to_string().contains("not logged in"),
+            "{what}: unexpected error: {err}"
+        );
+    }
+    let web: [(&str, Outcome); 3] = [
+        ("wallet", aurelia::wallet().map(drop)),
+        ("inventory", aurelia::inventory(440).map(drop)),
+        ("market listings", aurelia::market_listings().map(drop)),
+    ];
+    for (what, result) in web {
+        assert!(result.is_err(), "{what} needs a session");
+    }
 }

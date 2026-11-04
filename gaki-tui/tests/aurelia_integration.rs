@@ -1,9 +1,10 @@
-//! End-to-end checks against a real `aurelia` binary. Ignored by default
-//! because they require the `aurelia` CLI (>= 0.1.40) on PATH (or via
-//! `AURELIA_BIN`) and an authenticated session. Run explicitly with:
+//! End-to-end checks against real Steam, run in-process through `libgaki`.
+//! Ignored by default because they need network access and, for most, a
+//! logged-in session in the default config dir (`gaki-cli login`). Run
+//! explicitly with:
 //!
 //! ```text
-//! AURELIA_BIN=/path/to/aurelia cargo test --test aurelia_integration -- --ignored
+//! cargo test -p gaki-tui --test aurelia_integration -- --ignored
 //! ```
 
 use gaki_tui::interface::aurelia;
@@ -100,17 +101,30 @@ fn info_parses_developers_and_publishers() {
 #[test]
 #[ignore]
 fn market_search_then_price_round_trips() {
+    use aurelia::{MarketPriceState, MarketSearchState};
+    use std::sync::{Arc, Mutex};
+
     // Both calls are read-only and need no login. Search for a well-known TF2
     // item, then price the first result by its (app_id, market hash name).
-    let results = aurelia::market_search("Mann Co").expect("market search --json should parse");
+    let search = Arc::new(Mutex::new((0, MarketSearchState::Idle)));
+    aurelia::market_search_async("Mann Co".to_string(), 7, search.clone());
+    let (generation, state) = search.lock().unwrap().clone();
+    assert_eq!(generation, 7, "the result carries the search generation");
+    let results = match state {
+        MarketSearchState::Ready(results) => results,
+        other => panic!("market search failed: {other:?}"),
+    };
     assert!(!results.is_empty(), "expected at least one market result");
 
     let first = &results[0];
     assert!(!first.market_hash_name.is_empty(), "result has a hash name");
 
-    let price = aurelia::market_price(first.app_id, &first.market_hash_name)
-        .expect("market price --json should parse");
-    // The CLI echoes the queried name back; at least one price field should be set.
+    let price = Arc::new(Mutex::new(MarketPriceState::Idle));
+    aurelia::market_price_async(first.app_id, first.market_hash_name.clone(), price.clone());
+    let price = match price.lock().unwrap().clone() {
+        MarketPriceState::Ready(price) => price,
+        other => panic!("market price failed: {other:?}"),
+    };
     assert_eq!(price.market_hash_name, first.market_hash_name);
     assert!(
         price.summary().is_some(),

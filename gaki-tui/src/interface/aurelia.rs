@@ -765,97 +765,29 @@ impl MarketPriceJson {
     }
 }
 
-/// The top-level object from `aurelia market search <query> --json`: the matched
-/// results array. Only the `results` array is surfaced.
-#[derive(Debug, Clone, Default, Deserialize)]
-struct MarketSearchResponse {
-    #[serde(default)]
-    results: Vec<MarketSearchResultJson>,
-}
-
-/// Search the Community Market (`aurelia market search <query> --json`). No login
-/// required. The CLI wraps the matches under a `results` key; accept either that
-/// or a bare array. An empty/`null` result yields an empty `Vec`.
-pub fn market_search(query: &str) -> Result<Vec<MarketSearchResultJson>, STError> {
-    let value = run_json(&["market", "search", query])?;
-    // Accept either the wrapping object (`{ "results": [..] }`) or a bare array.
-    if value.get("results").is_some() {
-        let parsed: MarketSearchResponse = serde_json::from_value(value)?;
-        Ok(parsed.results)
-    } else if value.is_null() {
-        Ok(Vec::new())
-    } else {
-        Ok(serde_json::from_value(value)?)
-    }
-}
-
-/// Look up a single item's Community Market price
-/// (`aurelia market price <app_id> <name> --json`). No login required; `name` is
-/// the exact (case-sensitive) market hash name.
-pub fn market_price(app_id: u32, name: &str) -> Result<MarketPriceJson, STError> {
-    let value = run_json(&["market", "price", &app_id.to_string(), name])?;
-    // A `null` payload (e.g. no price history for the item) is "no data", not a
-    // parse error: deserializing `null` into the struct would fail, so treat it
-    // as an empty result (rendered as "no price data").
-    if value.is_null() {
-        return Ok(MarketPriceJson::default());
-    }
-    Ok(serde_json::from_value(value)?)
-}
-
-/// Run `aurelia <args> --json` standalone (`--no-daemon`), parsing the
-/// stdout JSON. This mirrors [`run_json`] but forces a no-daemon invocation, as
-/// used by the threaded market workers so they never share the UI process's
-/// daemon connection. stderr (diagnostics) is discarded.
-fn run_json_standalone(args: &[&str]) -> Result<serde_json::Value, STError> {
-    let output = process::Command::new(bin())
-        .args(args)
-        .arg("--json")
-        .arg("--no-daemon")
-        .stdin(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .output()
-        .map_err(STError::Process)?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let trimmed = stdout.trim();
-    if trimmed.is_empty() {
-        return Err(STError::Problem(format!(
-            "aurelia produced no output for `{}`",
-            args.join(" ")
-        )));
-    }
-
-    let value: serde_json::Value = serde_json::from_str(trimmed)?;
-    if let Some(err) = json_error(&value) {
-        return Err(STError::Problem(err.to_string()));
-    }
-    Ok(value)
-}
-
-/// Run a Community Market search off the UI thread, publishing the outcome into
-/// `cell` when it completes. The CLI is invoked standalone (`--no-daemon`),
-/// matching the other threaded calls. Intended to be spawned on its own thread so
-/// the UI never blocks on the search subprocess.
-///
-/// The published payload is tagged with `search_gen`, the search generation
-/// captured at spawn time, so the UI can drop an out-of-order result whose query
-/// has since been superseded (see `Browser::poll_market`).
+/// Search the Community Market (no login needed) and publish the outcome,
+/// tagged with `search_gen`, into `cell`. Intended to run on a dedicated
+/// thread so the UI stays responsive.
 pub fn market_search_async(
     query: String,
     search_gen: u64,
     cell: Arc<Mutex<(u64, MarketSearchState)>>,
 ) {
-    let result = run_json_standalone(&["market", "search", &query]).and_then(|value| {
-        if value.get("results").is_some() {
-            let parsed: MarketSearchResponse = serde_json::from_value(value)?;
-            Ok(parsed.results)
-        } else if value.is_null() {
-            Ok(Vec::new())
-        } else {
-            Ok(serde_json::from_value(value)?)
-        }
-    });
+    let result =
+        in_process(libgaki::ops::market::search(Some(&query), None, 20)).map(|(_, results)| {
+            results
+                .into_iter()
+                .map(|r| MarketSearchResultJson {
+                    app_id: r.app_id,
+                    app_name: r.app_name,
+                    market_hash_name: r.market_hash_name,
+                    name: r.name,
+                    sell_listings: u64::from(r.sell_listings),
+                    sell_price: r.sell_price,
+                    sell_price_text: r.sell_price_text,
+                })
+                .collect()
+        });
     if let Ok(mut slot) = cell.lock() {
         *slot = (
             search_gen,
@@ -867,19 +799,15 @@ pub fn market_search_async(
     }
 }
 
-/// Run a Community Market price lookup off the UI thread, publishing the outcome
-/// into `cell` when it completes. Invoked standalone (`--no-daemon`) like
-/// the other threaded calls.
+/// Look up an item's Community Market price in USD (no login needed) and
+/// publish the outcome into `cell`. Intended to run on a dedicated thread.
 pub fn market_price_async(app_id: u32, name: String, cell: Arc<Mutex<MarketPriceState>>) {
     let result =
-        run_json_standalone(&["market", "price", &app_id.to_string(), &name]).and_then(|value| {
-            // A `null` payload is "no data", not a parse error (deserializing
-            // `null` into the struct would fail); treat it as an empty result.
-            if value.is_null() {
-                Ok(MarketPriceJson::default())
-            } else {
-                Ok(serde_json::from_value(value)?)
-            }
+        in_process(libgaki::ops::market::price(app_id, &name, 1)).map(|p| MarketPriceJson {
+            market_hash_name: p.market_hash_name,
+            lowest_price: p.lowest_price,
+            median_price: p.median_price,
+            volume: p.volume,
         });
     if let Ok(mut slot) = cell.lock() {
         *slot = match result {
@@ -917,38 +845,6 @@ pub enum MarketPriceState {
     Ready(MarketPriceJson),
     /// The lookup failed; the `String` is the error message.
     Failed(String),
-}
-
-/// One active sell listing, from the `listings` array of `aurelia market
-/// listings --json`.
-#[derive(Debug, Clone, Default, Deserialize)]
-struct MyListingJson {
-    #[serde(default)]
-    market_hash_name: String,
-    #[serde(default)]
-    price: u64,
-}
-
-/// One open buy order, from the `buy_orders` array of `aurelia market listings
-/// --json`.
-#[derive(Debug, Clone, Default, Deserialize)]
-struct MyBuyOrderJson {
-    #[serde(default)]
-    market_hash_name: String,
-    #[serde(default)]
-    price: u64,
-    #[serde(default)]
-    quantity: u64,
-}
-
-/// The top-level object from `aurelia market listings --json`: the account's
-/// active sell listings and open buy orders.
-#[derive(Debug, Clone, Default, Deserialize)]
-struct MyMarketStateJson {
-    #[serde(default)]
-    listings: Vec<MyListingJson>,
-    #[serde(default)]
-    buy_orders: Vec<MyBuyOrderJson>,
 }
 
 /// One Proton/Wine runtime: an official build Steam can install, or a runtime
@@ -1202,10 +1098,26 @@ pub fn logout() -> Result<(), STError> {
     })
 }
 
-/// Fetch the Steam Wallet balance (`aurelia wallet --json`).
+/// The Steam Wallet balance.
 pub fn wallet() -> Result<WalletJson, STError> {
-    let value = run_json(&["wallet"])?;
-    Ok(serde_json::from_value(value)?)
+    in_process(async {
+        let web = web_session().await?;
+        let w = libgaki::ops::market::wallet(&web).await?;
+        Ok(WalletJson {
+            balance_cents: w.balance_cents,
+            currency: w.currency,
+            country: w.country,
+            formatted: w.formatted,
+        })
+    })
+}
+
+/// A web session for the web-surface calls (inventory, wallet, market
+/// listings): minted off the logged-in session, or built from a stored
+/// browser web token.
+async fn web_session() -> anyhow::Result<libgaki::web::web_session::WebSession> {
+    let client = worker::global().session().ensure().await?;
+    libgaki::ops::session::web_session(&client).await
 }
 
 /// Fetch the full library (`aurelia list --json`).
@@ -1406,107 +1318,102 @@ pub fn achievements(app_id: i32) -> Result<Vec<AchievementJson>, STError> {
     })
 }
 
-/// Fetch the logged-in user's friends (`aurelia friends --json`). The CLI emits
-/// a bare array, but accept an object-wrapped form (`{ "friends": [...] }`) too.
+/// The logged-in user's friends, with status and current game. The roster
+/// fills in over a few seconds after connecting, so this may be partial.
 pub fn friends() -> Result<Vec<FriendJson>, STError> {
-    let value = run_json(&["friends"])?;
-    let list = match value.get("friends") {
-        Some(friends) => friends.clone(),
-        None => value,
-    };
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let friends =
+            libgaki::ops::social::friends(&client, libgaki::ops::social::FRIENDS_WAIT).await?;
+        Ok(friends
+            .into_iter()
+            .map(|f| FriendJson {
+                steam_id: f.steam_id,
+                persona_name: f.persona_name,
+                persona_state: f.persona_state,
+                game_app_id: f.game_app_id,
+                game_name: f.game_name,
+            })
+            .collect())
+    })
 }
 
-/// Resolve a friend reference (SteamID64, profile URL, or vanity name) to a
-/// concrete account via `aurelia friends search <query> --json`. Read-only: it
-/// needs no login and sends nothing. The CLI returns a single object with the
-/// resolved `steam_id`, `persona_name`, and `profile_url`.
+/// Look up a Steam user by SteamID, profile URL, vanity name or friend name.
+/// Read-only.
 pub fn friends_search(query: &str) -> Result<FriendSearchJson, STError> {
-    let value = run_json(&["friends", "search", query])?;
-    Ok(serde_json::from_value(value)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let steam_id = libgaki::ops::session::resolve_user_ident(&client, query, None).await?;
+        let profile = libgaki::ops::social::profile(&client, steam_id).await?;
+        Ok(FriendSearchJson {
+            steam_id: profile.steam_id,
+            persona_name: profile.persona_name,
+            profile_url: Some(profile.profile_url).filter(|u| !u.is_empty()),
+        })
+    })
 }
 
-/// Send a friend request to the account named by `query` (SteamID64, profile
-/// URL, or vanity name) via `aurelia friends add <query> --json`. The returned
-/// value is ignored; only errors are propagated.
+/// Send a friend request to the user `query` resolves to.
 pub fn friends_add(query: &str) -> Result<(), STError> {
-    run_json(&["friends", "add", query])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let steam_id = libgaki::ops::session::resolve_user_ident(&client, query, None).await?;
+        libgaki::ops::social::add_friend(&client, steam_id).await
+    })
+    .map(drop)
 }
 
-/// Remove a friend, or cancel/decline a pending request, by SteamID64 via
-/// `aurelia friends remove <steamid> --json`. The returned value is ignored;
-/// only errors are propagated.
+/// Remove a friend or cancel a pending request.
 pub fn friends_remove(steamid: u64) -> Result<(), STError> {
-    run_json(&["friends", "remove", &steamid.to_string()])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::social::remove_friend(&client, steamid).await
+    })
 }
 
-/// Fetch the recent chat history with a friend (`aurelia chat history <id>
-/// --count <n> --json`). The CLI serializes the message array directly, but
-/// accept an object-wrapped form (`{ "messages": [...] }`) too. An empty/null
-/// result yields an empty `Vec`.
+/// The most recent `count` messages with a friend, oldest first.
 pub fn chat_history(steamid: u64, count: u32) -> Result<Vec<ChatMessageJson>, STError> {
-    let value = run_json(&[
-        "chat",
-        "history",
-        &steamid.to_string(),
-        "--count",
-        &count.to_string(),
-    ])?;
-    let list = match value.get("messages") {
-        Some(messages) => messages.clone(),
-        None => value,
-    };
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let messages = libgaki::ops::social::history(&client, steamid, count).await?;
+        Ok(messages
+            .into_iter()
+            .map(|m| ChatMessageJson {
+                sender: m.sender,
+                from_self: m.from_self,
+                message: m.message,
+                timestamp: i64::from(m.timestamp),
+            })
+            .collect())
+    })
 }
 
-/// Send a direct message to a friend (`aurelia chat send --json <id> <message>`).
-///
-/// The CLI declares the message as a trailing var-arg (`<MESSAGE>...` — "all
-/// remaining words are joined with spaces"), so it greedily absorbs everything
-/// after the SteamID. `--json` must therefore come BEFORE the message: routing
-/// through `run_json` (which appends `--json` last) would let the flag be
-/// swallowed into the message text and literally sent to the friend. The
-/// returned value is ignored; only an explicit `{"error": …}` is propagated.
+/// Send a direct message to a friend.
 pub fn chat_send(steamid: u64, message: &str) -> Result<(), STError> {
-    let output = process::Command::new(bin())
-        .args(["chat", "send", "--json", &steamid.to_string(), message])
-        .stdin(process::Stdio::null())
-        .stderr(process::Stdio::null())
-        .output()
-        .map_err(STError::Process)?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let trimmed = stdout.trim();
-    if let Ok(value) = serde_json::from_str::<serde_json::Value>(trimmed)
-        && let Some(err) = json_error(&value)
-    {
-        return Err(STError::Problem(err.to_string()));
-    }
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::social::send_message(&client, steamid, message.to_string()).await
+    })
+    .map(drop)
 }
 
-/// Fetch the logged-in user's inventory for a game (`aurelia inventory <id>
-/// --json`). The CLI emits a bare array of item stacks; accept either that or an
-/// object wrapping it under an `items` key, parsing just the array.
+/// The account's inventory for a game (context 2, the game-items context).
 pub fn inventory(app_id: i32) -> Result<Vec<InventoryItemJson>, STError> {
-    let value = run_json(&["inventory", &app_id.to_string()])?;
-    // Accept either the wrapping object (`{ "items": [..] }`) or a bare array.
-    let list = match value.get("items") {
-        Some(items) => items.clone(),
-        None => value,
-    };
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let web = web_session().await?;
+        let items = libgaki::ops::market::inventory(&web, app_id as u32, 2).await?;
+        Ok(items
+            .into_iter()
+            .map(|i| InventoryItemJson {
+                name: i.name,
+                market_hash_name: i.market_hash_name,
+                item_type: i.item_type,
+                amount: i.amount,
+                tradable: i.tradable,
+                marketable: i.marketable,
+            })
+            .collect())
+    })
 }
 
 /// A base game's DLC with ownership and install state.
@@ -1567,117 +1474,102 @@ pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOptionJson>, STError> {
     })
 }
 
-/// List the user's subscribed Workshop items for a game
-/// (`aurelia workshop list <id> --json`). The CLI emits a bare array of items,
-/// but tolerate an object that wraps the list under `items`/`workshop`.
+/// The Workshop items the user is subscribed to for a game.
 pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItemJson>, STError> {
-    let value = run_json(&["workshop", "list", &app_id.to_string()])?;
-    // Accept either a bare array or a wrapping object (`{ "items": [..] }`).
-    let list = value
-        .get("items")
-        .or_else(|| value.get("workshop"))
-        .cloned()
-        .unwrap_or(value);
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let items = libgaki::ops::workshop::subscribed(&client, app_id as u32).await?;
+        Ok(items.into_iter().map(|i| workshop_row(i, true)).collect())
+    })
 }
 
-/// Browse/search a game's Workshop to discover items to subscribe to
-/// (`aurelia workshop browse <id> [--search <text>] --json`). The CLI emits an
-/// object with an `items` array (alongside `next_cursor`/`total`, which we
-/// ignore here); tolerate a bare array or an object wrapping the list under
-/// `items`/`results`. An empty `search` browses the default (trending) feed.
-///
-/// Intended to be called from a worker thread — it shells out to the CLI, which
-/// makes a network round-trip, so it must never run on the UI/render thread.
+/// A Workshop item as the overlay shows it.
+fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> WorkshopItemJson {
+    WorkshopItemJson {
+        id: Some(item.id),
+        title: item.title,
+        installed: false,
+        subscribed,
+        file_size: item.file_size,
+    }
+}
+
+/// Browse a game's Workshop, optionally filtered by `search`. Rows start as
+/// not subscribed; the overlay flips the flag on a successful subscribe.
 pub fn workshop_browse(app_id: i32, search: &str) -> Result<Vec<WorkshopItemJson>, STError> {
-    let app = app_id.to_string();
-    let mut args: Vec<&str> = vec!["workshop", "browse", &app];
-    let trimmed = search.trim();
-    if !trimmed.is_empty() {
-        args.push("--search");
-        args.push(trimmed);
-    }
-    let value = run_json(&args)?;
-    // Accept either a bare array or a wrapping object (`{ "items": [..] }`).
-    let list = value
-        .get("items")
-        .or_else(|| value.get("results"))
-        .cloned()
-        .unwrap_or(value);
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    let mut items: Vec<WorkshopItemJson> = serde_json::from_value(list)?;
-    // `workshop browse` rows never carry a `subscribed` field, so the struct's
-    // `default = "default_true"` (which is correct for `workshop list`, whose
-    // rows are all subscribed) would wrongly mark every browse row subscribed.
-    // Force it off here: browse rows are "not subscribed unless we learn
-    // otherwise" (the overlay flips the flag locally on a successful subscribe).
-    for item in items.iter_mut() {
-        item.subscribed = false;
-    }
-    Ok(items)
+    let search = Some(search.trim().to_string()).filter(|s| !s.is_empty());
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let query = libgaki::ops::workshop::Query {
+            app_id: app_id as u32,
+            search,
+            sort: libgaki::ops::workshop::Sort::Trend,
+            cursor: "*".to_string(),
+            count: 20,
+            tags: Vec::new(),
+        };
+        let page = libgaki::ops::workshop::browse(&client, &query).await?;
+        Ok(page
+            .items
+            .into_iter()
+            .map(|i| workshop_row(i, false))
+            .collect())
+    })
 }
 
-/// Subscribe to a single Workshop item (`aurelia workshop subscribe <id>
-/// --json`). Returns the backend error on failure; the success payload is
-/// ignored. Network-bound — call off the UI thread.
+/// Subscribe to a Workshop item (a collection subscribes to its items too).
 pub fn workshop_subscribe(item_id: u64) -> Result<(), STError> {
-    run_json(&["workshop", "subscribe", &item_id.to_string()])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        for item in libgaki::ops::workshop::resolve(&client, vec![item_id], true).await? {
+            libgaki::ops::workshop::subscribe(&client, &item).await?;
+        }
+        Ok(())
+    })
 }
 
-/// Unsubscribe from a single Workshop item (`aurelia workshop unsubscribe <id>
-/// --json`). Returns the backend error on failure; the success payload is
-/// ignored. Network-bound — call off the UI thread.
+/// Unsubscribe from a Workshop item (a collection unsubscribes its items too).
 pub fn workshop_unsubscribe(item_id: u64) -> Result<(), STError> {
-    run_json(&["workshop", "unsubscribe", &item_id.to_string()])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        for item in libgaki::ops::workshop::resolve(&client, vec![item_id], true).await? {
+            libgaki::ops::workshop::unsubscribe(&client, &item).await?;
+        }
+        Ok(())
+    })
 }
 
-/// Rate a single Workshop item thumbs-up or thumbs-down
-/// (`aurelia workshop rate <id> <up|down> --json`). `up` is `true`, `down` is
-/// `false`. Returns the backend error on failure; the success payload is
-/// ignored. Network-bound — call off the UI thread.
+/// Vote a Workshop item up or down.
 pub fn workshop_rate(item_id: u64, up: bool) -> Result<(), STError> {
-    let vote = if up { "up" } else { "down" };
-    run_json(&["workshop", "rate", &item_id.to_string(), vote])?;
-    Ok(())
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::workshop::rate(&client, item_id, up).await
+    })
 }
 
-/// Read the comments on a single Workshop item
-/// (`aurelia workshop comments <id> --count <n> --json`). The CLI emits a bare
-/// array of comments; tolerate an object wrapping the list under
-/// `comments`/`items`. Network-bound — call off the UI thread.
+/// The first `count` comments on a Workshop item. Authors are SteamIDs.
 pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopCommentJson>, STError> {
-    let id = item_id.to_string();
-    let count = count.to_string();
-    // `<ID>` is a fixed positional and `--count` is a flag, so `--json` (appended
-    // by `run_json`) lands after both without swallowing a var-arg positional.
-    let value = run_json(&["workshop", "comments", &id, "--count", &count])?;
-    // Accept either a bare array or a wrapping object (`{ "comments": [..] }`).
-    let list = value
-        .get("comments")
-        .or_else(|| value.get("items"))
-        .cloned()
-        .unwrap_or(value);
-    if list.is_null() {
-        return Ok(Vec::new());
-    }
-    Ok(serde_json::from_value(list)?)
+    let count = i32::try_from(count).unwrap_or(i32::MAX);
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let comments = libgaki::ops::workshop::comments(&client, item_id, 0, count).await?;
+        Ok(comments
+            .into_iter()
+            .map(|c| WorkshopCommentJson {
+                author: c.author.to_string(),
+                message: c.text,
+                timestamp: c.timestamp,
+            })
+            .collect())
+    })
 }
 
-/// Fetch the logged-in account's active market listings and open buy orders
-/// (`aurelia market listings --json`). The CLI emits an object with separate
-/// `listings`/`buy_orders` arrays; we flatten them into one `Vec`, tagging each
-/// row's `kind` so the overlay can label it. An account with none yields an
-/// empty `Vec`.
+/// The account's active market listings and open buy orders, as one list.
 pub fn market_listings() -> Result<Vec<MarketListingJson>, STError> {
-    let value = run_json(&["market", "listings"])?;
-    let state: MyMarketStateJson = serde_json::from_value(value)?;
+    let state = in_process(async {
+        let web = web_session().await?;
+        libgaki::ops::market::listings(&web).await
+    })?;
     let mut rows = Vec::with_capacity(state.listings.len() + state.buy_orders.len());
     for l in state.listings {
         rows.push(MarketListingJson {

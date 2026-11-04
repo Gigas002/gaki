@@ -693,7 +693,14 @@ I make the changes, and you review, commit, and push.
       through the shared `drive_progress` (new `Downgrade` label); pin state
       is still read from local files without a Steam logon. That was the
       last streaming subprocess, so the NDJSON progress parser is gone too.
-    - [ ] Social and market: friends, chat, wallet, inventory, market, workshop
+    - [x] Social and market: friends, chat, wallet, inventory, market,
+      workshop. Fields are mapped from `libgaki` types directly instead of
+      parsing the CLI's JSON. That fixes Workshop comments, which never
+      loaded: the CLI gave the author as a numeric SteamID and the TUI
+      expected a string. Subscribe and unsubscribe resolve the item first,
+      so a collection covers its items, as in the CLI. Market search and
+      price keep their background threads; the unused blocking variants are
+      gone.
     - [ ] Collections
 - [ ] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
   `libgaki` auth flow directly, rather than scraping it from CLI output, which
