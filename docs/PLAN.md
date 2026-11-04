@@ -221,10 +221,15 @@ I make the changes, and you review, commit, and push.
   `Cargo.toml` (R25). This probably also fixes the AUR LTO link error (Q2),
   because the forced `lto = "thin"` and `panic = "abort"` combination goes away.
   Recheck that error once a PKGBUILD exists.
-- [ ] **0.5** Add `.typos.toml`, `deny.toml`, `.github/dependabot.yml`, and the
+- [x] **0.5** Add `.typos.toml`, `deny.toml`, `.github/dependabot.yml`, and the
   `build`/`lint`/`test`/`deny`/`typos`/`doc`/`deploy` workflows from
   `rust-template` (R11, R12, Q3). Adapt the workflows to a single crate for
   now. Add the typos allowlist entries that Steam/Proton jargon needs.
+  *Done.* CI installs `libdbus-1-dev`, which keyring's Secret Service backend
+  needs. `typos` and `cargo deny check licenses` pass. `aws-lc-sys` has an
+  OpenSSL-license exception (see 7.3). `test.yml` codecov points at
+  `aurelia-steam`, and `deploy.yml` already uses the final crate names; it runs
+  only on tags. The `lint` and `doc` workflows stay red until step 1.8.
 - [ ] **0.6** Copy `rust-template/docs/ARCHITECTURE.md` to `docs/ARCHITECTURE.md`
   (R10). Add a short gaki section covering crate roles and the features table.
 
@@ -255,6 +260,11 @@ I make the changes, and you review, commit, and push.
   Keep the English defaults.
 - [ ] **1.7** Act on D2 and D3: delete `assets/` and the banner, and decide the
   fate of the protos. If they stay, they move in Phase 2.
+- [ ] **1.8** Make the lint gates green. Fix the roughly 140 clippy findings
+  (`-D warnings`, at all three feature levels) left after the removals. Most
+  are collapsible `if` statements and field assignments outside initializers.
+  Also fix the rustdoc `-D warnings` errors, which are public docs linking to
+  private items. From here on, every ARCHITECTURE §8 gate stays green.
 
 ### Phase 2 — rename and restructure (R3, R4, R5, R13, R14, R15)
 
@@ -275,7 +285,8 @@ I make the changes, and you review, commit, and push.
   Grep for `aurelia` until only acknowledgements remain.
 - [ ] **2.5** Move integration tests to their owning crate's `tests/`. Create
   `examples/` (empty placeholder until Phase 5) and move documentation into
-  `docs/` (leave the README content split for Phase 7).
+  `docs/` (leave the README content split for Phase 7). Point the codecov
+  matrix in `test.yml` at the new crates.
 
 ### Phase 3 — import the TUI (R6, R7, R8, R9)
 
@@ -363,7 +374,14 @@ I make the changes, and you review, commit, and push.
   `steam-vent-proto`, `-proto-common`, `protobuf`, `rand`, and `directories`
   are matched to steam-vent on purpose. The forks `aurelia-steam-vent-chat` and
   `aurelia-steam-cdn` may need gaki-owned forks, or replacement with upstream
-  crates if those have caught up. Get `cargo deny check` green.
+  crates if those have caught up. Get `cargo deny check` green, covering
+  advisories as well as licenses. Known issues: `webpki-roots` (the
+  distrusted emSign roots advisory), yanked `spin` and `chacha20`, duplicate
+  `rand` and `getrandom` versions, and a future-incompat warning in `binrw`.
+  Also replace `aws-lc-sys` (rustls' default provider, under the OpenSSL
+  license, which is GPL-incompatible) with the `ring` provider, then drop the
+  exception in `deny.toml`. Once `cargo deny check` passes in full, switch
+  `deny.yml` from `check licenses` to `check`.
 - [ ] **7.4** Refactor tests to the ARCHITECTURE layout (R32): convert the
   `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
   integration tests under each crate's `tests/`.

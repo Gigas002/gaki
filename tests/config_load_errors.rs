@@ -19,7 +19,7 @@ use tempfile::{TempDir, tempdir};
 const CORRUPT: &str = r#"{
   "steam_library_path": "/mnt/games/SteamLibrary",
   "proton_version": "GE-Proton9-20",
-  "enable_cloud_sync": tru,
+  "enable_cloud_sync": yes,
   "steam_runtime_runner": "wine-tkg-9.0",
   "preferred_launch_options": { "570": "-novid -high" },
   "language": "german"

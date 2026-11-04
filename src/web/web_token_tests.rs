@@ -179,11 +179,11 @@ fn stored_token_expiry_is_enforced_with_leeway() {
 
 #[test]
 fn b64url_roundtrips() {
-    for data in [&b""[..], b"f", b"fo", b"foo", b"foob", b"\xff\x00\xfe"] {
+    for data in [&b""[..], b"a", b"ab", b"abc", b"abcd", b"\xff\x00\xfe"] {
         assert_eq!(b64url_decode(&b64url_encode(data)).unwrap(), data);
     }
     // Padding is tolerated, non-alphabet bytes are not.
-    assert_eq!(b64url_decode("Zm8=").unwrap(), b"fo");
+    assert_eq!(b64url_decode("YWI=").unwrap(), b"ab");
     assert!(b64url_decode("Zm+8").is_err()); // '+' is base64, not base64url
 }
 
