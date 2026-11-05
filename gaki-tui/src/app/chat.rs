@@ -1,4 +1,4 @@
-//! The stand-alone chat window: `gaki --chat <steamid> --name <name>`. The
+//! The stand-alone chat window: `gaki-tui --chat <steamid> --name <name>`. The
 //! Friends panel's "open in new terminal" action (`t`) starts it in a new
 //! console window. It reuses the chat widget and the `Browser` chat state.
 

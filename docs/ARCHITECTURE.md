@@ -325,7 +325,7 @@ layout is tracked in [`PLAN.md`](PLAN.md).
 | ---------- | ---- | ---------- | ---------- | -------------- |
 | `libgaki`  | lib  | —          | —          | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config/profile model and resolver |
 | `gaki-cli` | bin  | `gaki-cli` | `libgaki`  | Argument parsing, output formatting, session daemon |
-| `gaki-tui` | bin  | `gaki`     | `libgaki`  | Terminal UI (ratatui) |
+| `gaki-tui` | bin  | `gaki-tui` | `libgaki`  | Terminal UI (ratatui) |
 
 - `libgaki` is the **only** source of logic. The binaries never shell out to each
   other or parse each other's output.

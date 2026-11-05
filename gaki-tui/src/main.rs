@@ -12,7 +12,7 @@ fn main() -> ExitCode {
     let settings = match Settings::resolve(cli) {
         Ok(settings) => settings,
         Err(err) => {
-            eprintln!("gaki: {err:#}");
+            eprintln!("gaki-tui: {err:#}");
             return ExitCode::FAILURE;
         }
     };
@@ -22,7 +22,7 @@ fn main() -> ExitCode {
     // Still on a cooked terminal, so a warning here is readable. Running
     // without a log file beats refusing to start.
     if let Err(err) = logger::init(&settings) {
-        eprintln!("gaki: logging disabled: {err:#}");
+        eprintln!("gaki-tui: logging disabled: {err:#}");
     }
 
     let result = match settings.start {
@@ -34,7 +34,7 @@ fn main() -> ExitCode {
         Err(err) => {
             // The run loop's terminal guard has restored the console by now.
             tracing::error!(error = %err, "gaki-tui exited with an error");
-            eprintln!("gaki: {err}");
+            eprintln!("gaki-tui: {err}");
             ExitCode::FAILURE
         }
     }

@@ -1,7 +1,7 @@
 use super::*;
 
 fn parse(args: &[&str]) -> Result<CliOptions, clap::Error> {
-    CliOptions::try_parse_from(std::iter::once("gaki").chain(args.iter().copied()))
+    CliOptions::try_parse_from(std::iter::once("gaki-tui").chain(args.iter().copied()))
 }
 
 #[test]

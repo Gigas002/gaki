@@ -74,18 +74,26 @@ fn proxy_config_omits_empty_and_round_trips() {
 }
 
 #[test]
-fn state_dir_uses_an_absolute_xdg_state_home() {
-    let dir = state_dir_from(Some("/xdg/state".into()), || unreachable!()).unwrap();
+fn xdg_dir_uses_an_absolute_value() {
+    let dir = xdg_dir(Some("/xdg/state".into()), || unreachable!(), ".local/state").unwrap();
     assert_eq!(dir, PathBuf::from("/xdg/state/gaki"));
 }
 
 #[test]
-fn state_dir_ignores_unset_or_relative_xdg_state_home() {
+fn xdg_dir_ignores_an_unset_or_relative_value() {
     let home = || Ok(PathBuf::from("/home/u"));
-    let expected = PathBuf::from("/home/u/.local/state/gaki");
-    assert_eq!(state_dir_from(None, home).unwrap(), expected);
+    let expected = PathBuf::from("/home/u/.cache/gaki");
+    assert_eq!(xdg_dir(None, home, ".cache").unwrap(), expected);
     assert_eq!(
-        state_dir_from(Some("rel/state".into()), home).unwrap(),
+        xdg_dir(Some("rel/cache".into()), home, ".cache").unwrap(),
         expected
     );
+}
+
+#[test]
+fn xdg_dir_ignores_an_empty_value() {
+    // An empty `XDG_CONFIG_HOME=` is relative, so it falls back too.
+    let home = || Ok(PathBuf::from("/home/u"));
+    let dir = xdg_dir(Some("".into()), home, ".config").unwrap();
+    assert_eq!(dir, PathBuf::from("/home/u/.config/gaki"));
 }

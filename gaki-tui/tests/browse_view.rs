@@ -12,11 +12,12 @@ use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
 /// Point the config at a throwaway dir so tests don't read/write the real one.
 fn isolate_config() {
-    let dir = std::env::temp_dir().join("aurelia-tui-test-config");
+    let dir = std::env::temp_dir().join("gaki-tui-test-config");
+    // A repeat call in the same process keeps the first dir, which is fine.
+    libgaki::core::config::set_config_dir(dir.clone());
     // SAFETY: set before any Config::cached() call in this test process.
     unsafe {
-        std::env::set_var("AURELIA_TUI_DIR", &dir);
-        std::env::set_var("AURELIA_TUI_CACHE_DIR", &dir);
+        std::env::set_var("XDG_CACHE_HOME", &dir);
     }
 }
 
@@ -616,7 +617,7 @@ fn workshop_comment_without_author_is_anonymous() {
 fn version_badge_sits_in_bottom_right_corner() {
     isolate_config();
     let browser = Browser::new(vec![game(1, "Alpha", true, false)]);
-    let badge = format!("gaki v{}", env!("CARGO_PKG_VERSION"));
+    let badge = format!("gaki-tui v{}", env!("CARGO_PKG_VERSION"));
     let render = |width: u16| -> Vec<String> {
         let mut terminal = Terminal::new(TestBackend::new(width, 2)).unwrap();
         let area = Rect::new(0, 0, width, 2);

@@ -3,8 +3,8 @@ use clap::Parser;
 use super::*;
 
 fn merge(args: &[&str]) -> Settings {
-    let cli =
-        CliOptions::try_parse_from(std::iter::once("gaki").chain(args.iter().copied())).unwrap();
+    let cli = CliOptions::try_parse_from(std::iter::once("gaki-tui").chain(args.iter().copied()))
+        .unwrap();
     Settings::merge(
         cli,
         PathBuf::from("/state/gaki-tui.log"),

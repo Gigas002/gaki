@@ -42,12 +42,12 @@ It's a standard Rust project:
 
 ```bash
 cargo build --release
-./target/release/aurelia-tui
+./target/release/gaki-tui
 ```
 
 ## Usage
 
-Launch `aurelia-tui` and you're off — the in-app help bar always shows the keys
+Launch `gaki-tui` and you're off — the in-app help bar always shows the keys
 for the current screen.
 
 On startup it checks your session with `aurelia login --health --json` (which
@@ -137,7 +137,7 @@ the list down to just your favourites.
 ### Hiding games
 
 `H` hides the selected game. Hidden games are recorded in
-`~/.config/aurelia-tui/config.json`.
+`~/.config/gaki/tui/config.json`.
 
 ### Showing other app types (demos, tools, …)
 
@@ -147,11 +147,14 @@ field in the config to include any of `Game`, `DLC`, `Driver`, `Application`,
 
 ## Configuration & data
 
-| Path | Contents | Override |
-| --- | --- | --- |
-| `~/.config/aurelia-tui/` | `config.json` (favourites, hidden games, allowed types, highlight colour) | `AURELIA_TUI_DIR` |
-| `~/.cache/aurelia-tui/` | cached library (`games.json`) | `AURELIA_TUI_CACHE_DIR` |
-| `~/.cache/aurelia-tui/icons/` | cached cover art | `AURELIA_TUI_ICON_DIR` |
+| Path | Contents |
+| --- | --- |
+| `$XDG_CONFIG_HOME/gaki/tui/` (`~/.config/gaki/tui/`) | `config.json` (favourites, hidden games, allowed types, highlight colour) |
+| `$XDG_CACHE_HOME/gaki/tui/` (`~/.cache/gaki/tui/`) | cached library (`games.json`) and cover art (`icons/`) |
+| `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `gaki-tui.log` |
+
+A `config.json` left in the old `~/.config/aurelia-tui/` is copied over on
+the first start. The old directories can be deleted afterwards.
 
 Launching, Proton/Wine, and runtime concerns are all handled by `aurelia play`,
 so there are no wrapper scripts or separate runtimes to manage on your side.

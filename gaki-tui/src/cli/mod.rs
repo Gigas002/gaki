@@ -8,7 +8,7 @@ mod tests;
 
 /// Terminal UI for the gaki Steam client.
 #[derive(Debug, Parser)]
-#[command(name = "gaki", version, about)]
+#[command(name = "gaki-tui", version, about)]
 pub struct CliOptions {
     /// Open a full-screen chat with this friend instead of the library. The
     /// Friends panel's "open in new terminal" action (`t`) starts this.

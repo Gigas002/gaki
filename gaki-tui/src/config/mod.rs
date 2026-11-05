@@ -1,7 +1,6 @@
 //! The TUI's own settings file: the default user, hidden and favourite
-//! games, the shown game types, and the highlight colour. It's still
-//! `config.json` under the old `aurelia-tui` directory; step 4.6 moves it and
-//! Phase 5 turns it into TOML.
+//! games, the shown game types, and the highlight colour, in
+//! `gaki/tui/config.json` under the config dir. Phase 5 turns it into TOML.
 
 use crate::utils::error::STError;
 use crate::utils::paths::config_location;

@@ -17,11 +17,12 @@ use ratatui::layout::Rect;
 use std::collections::BTreeMap;
 
 fn isolate_config() {
-    let dir = std::env::temp_dir().join("aurelia-tui-test-config");
+    let dir = std::env::temp_dir().join("gaki-tui-test-config");
+    // A repeat call in the same process keeps the first dir, which is fine.
+    libgaki::core::config::set_config_dir(dir.clone());
     // SAFETY: set before any Config::cached() call in this test process.
     unsafe {
-        std::env::set_var("AURELIA_TUI_DIR", &dir);
-        std::env::set_var("AURELIA_TUI_CACHE_DIR", &dir);
+        std::env::set_var("XDG_CACHE_HOME", &dir);
     }
 }
 

@@ -1,6 +1,5 @@
 use crate::app::client::Command;
 
-use shellexpand::LookupError;
 use std::error;
 use std::fmt;
 use std::fmt::Debug;
@@ -34,12 +33,6 @@ impl From<serde_json::Error> for STError {
 
 impl<T> From<PoisonError<T>> for STError {
     fn from(err: PoisonError<T>) -> STError {
-        STError::Problem(format!("{:?}", err))
-    }
-}
-
-impl<T: Debug> From<LookupError<T>> for STError {
-    fn from(err: LookupError<T>) -> STError {
         STError::Problem(format!("{:?}", err))
     }
 }

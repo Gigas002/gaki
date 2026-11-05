@@ -29,7 +29,7 @@ const HINTS: [(&str, &str); 9] = [
 
 /// The footer's version badge text.
 fn version_badge_text() -> String {
-    format!("gaki v{}", env!("CARGO_PKG_VERSION"))
+    format!("gaki-tui v{}", env!("CARGO_PKG_VERSION"))
 }
 
 /// Where the version badge fits in a footer `area`: the bottom row when the

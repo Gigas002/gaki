@@ -205,7 +205,7 @@ pub fn home_dir() -> Result<PathBuf> {
 static CONFIG_DIR_OVERRIDE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 /// Use `dir` as the config directory for the rest of the process, instead of
-/// `~/.config/gaki`. Call once, before anything reads the config; a later
+/// `$XDG_CONFIG_HOME/gaki`. Call once, before anything reads the config; a later
 /// call is ignored and returns `false`.
 pub fn set_config_dir(dir: PathBuf) -> bool {
     CONFIG_DIR_OVERRIDE.set(dir).is_ok()
@@ -216,6 +216,8 @@ pub fn config_dir_override() -> Option<&'static Path> {
     CONFIG_DIR_OVERRIDE.get().map(PathBuf::as_path)
 }
 
+/// gaki's config directory: the one set with [`set_config_dir`], else
+/// `$XDG_CONFIG_HOME/gaki`, else `~/.config/gaki`.
 pub fn config_dir() -> Result<PathBuf> {
     if let Some(dir) = CONFIG_DIR_OVERRIDE.get() {
         return Ok(dir.clone());
@@ -228,9 +230,8 @@ pub fn config_dir() -> Result<PathBuf> {
             std::sync::LazyLock::new(|| tempfile::tempdir().expect("test config dir").keep());
         Ok(TEST_DIR.clone())
     }
-    // Joined per component so Windows paths don't mix separators.
     #[cfg(not(test))]
-    Ok(home_dir()?.join(".config").join("gaki"))
+    xdg_dir(std::env::var_os("XDG_CONFIG_HOME"), home_dir, ".config")
 }
 
 pub async fn ensure_config_dirs() -> Result<()> {
@@ -249,21 +250,29 @@ pub fn data_dir() -> Result<PathBuf> {
     config_dir()
 }
 
+/// gaki's cache directory: `$XDG_CACHE_HOME/gaki`, or `~/.cache/gaki`.
+/// Holds data that can be fetched again, such as cached art and listings.
+pub fn cache_dir() -> Result<PathBuf> {
+    xdg_dir(std::env::var_os("XDG_CACHE_HOME"), home_dir, ".cache")
+}
+
 /// gaki's state directory: `$XDG_STATE_HOME/gaki`, or `~/.local/state/gaki`.
 /// Holds data worth keeping between runs that isn't config, such as logs.
 pub fn state_dir() -> Result<PathBuf> {
-    state_dir_from(std::env::var_os("XDG_STATE_HOME"), home_dir)
+    xdg_dir(std::env::var_os("XDG_STATE_HOME"), home_dir, ".local/state")
 }
 
-/// [`state_dir`] with its environment passed in. The XDG spec says a relative
-/// `XDG_STATE_HOME` is invalid and must be ignored, the same as an unset one.
-fn state_dir_from(
-    xdg_state_home: Option<std::ffi::OsString>,
+/// `<base>/gaki` for one XDG base directory: `value` (the variable's value)
+/// when set, else `fallback` under the home directory. The XDG spec says a
+/// relative value is invalid and must be ignored, the same as an unset one.
+fn xdg_dir(
+    value: Option<std::ffi::OsString>,
     home: impl FnOnce() -> Result<PathBuf>,
+    fallback: &str,
 ) -> Result<PathBuf> {
-    let base = match xdg_state_home.map(PathBuf::from) {
+    let base = match value.map(PathBuf::from) {
         Some(dir) if dir.is_absolute() => dir,
-        _ => home()?.join(".local").join("state"),
+        _ => home()?.join(fallback),
     };
     Ok(base.join("gaki"))
 }

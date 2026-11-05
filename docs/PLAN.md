@@ -905,11 +905,32 @@ I make the changes, and you review, commit, and push.
     JSON output. They're plain view models now, and renaming them touches
     every view, so that's a separate cleanup. The `aurelia-tui` directory
     names wait for 4.6.
-- [ ] **4.6** Rename the TUI binary from `gaki` to `gaki-tui` (D7): the `[[bin]]` name,
+- [x] **4.6** Rename the TUI binary from `gaki` to `gaki-tui` (D7): the `[[bin]]` name,
   the clap command name, the footer badge (`gaki-tui vX.Y.Z`), help text,
   `deploy.yml` artifacts, and docs. Move the TUI's own settings and cache from
   `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`) to
   `gaki/tui/` under the gaki XDG dirs, so both binaries share one config root.
+  *Done.* The binary, the clap name, the footer badge (`gaki-tui vX.Y.Z`), the
+  error prefixes, `deploy.yml` and the ARCHITECTURE table all say `gaki-tui`.
+  libgaki now has one `xdg_dir()` helper behind `config_dir()` (which now
+  honours `XDG_CONFIG_HOME`, the gap found in 4.5a), a new `cache_dir()`
+  (`XDG_CACHE_HOME`) and `state_dir()`. The TUI keeps its files in
+  `gaki/tui/` under the config and cache dirs. The `AURELIA_TUI_DIR`,
+  `AURELIA_TUI_CACHE_DIR` and `AURELIA_TUI_ICON_DIR` overrides are gone (per
+  2.4a), and so is the `shellexpand` dependency that expanded them. On the
+  first start, a `config.json` in the old `~/.config/aurelia-tui` is copied
+  over, so favourites and hidden games survive. The old file is left in
+  place, and a dir set with `set_config_dir` skips the copy. The old cache
+  isn't migrated, since it refills itself. The integration tests isolate
+  themselves through `set_config_dir` and `XDG_CACHE_HOME` instead of the old
+  variables. Also replaced the splash's AURELIA wordmark and its "terminal
+  client for the aurelia Steam CLI" tagline with GAKI and "a terminal Steam
+  client". **Behaviour change:** anyone with a non-default `XDG_CONFIG_HOME`
+  now gets `$XDG_CONFIG_HOME/gaki` rather than `~/.config/gaki`, so their
+  session and config have to move or be redone once. `data_dir()` still
+  returns the config dir; moving data to `XDG_DATA_HOME` belongs with
+  Phase 5. Most of `gaki-tui/README.md` still describes the subprocess era;
+  7.2 rewrites it.
 
 ### Phase 5 — configuration overhaul (R26, R29, R30, R27)
 
