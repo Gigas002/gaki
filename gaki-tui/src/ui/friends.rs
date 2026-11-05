@@ -17,7 +17,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::theme;
 
 /// Build the Friends panel content from the browse state.

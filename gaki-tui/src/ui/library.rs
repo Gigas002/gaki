@@ -4,7 +4,7 @@
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 
-use crate::browse::{Browser, View};
+use crate::app::browser::{Browser, View};
 use crate::ui;
 use crate::utils::image::ImgBuf;
 

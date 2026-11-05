@@ -47,8 +47,8 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, ListItem, Paragraph};
 
+use crate::app::browser::Browser;
 use crate::app::{App, Mode};
-use crate::browse::Browser;
 use crate::client::Client;
 use crate::theme;
 use crate::utils::image::ImgBuf;

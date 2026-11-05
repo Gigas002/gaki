@@ -366,7 +366,7 @@ impl Client {
     }
 
     /// Queues installation of the provided game. `control` lets the UI pause or
-    /// stop the in-flight download (see [`crate::browse::Browser::begin_install`]); `library`
+    /// stop the in-flight download (see [`crate::app::browser::Browser::begin_install`]); `library`
     /// is the chosen install location (a library root), `None` for default.
     pub fn install(
         &self,

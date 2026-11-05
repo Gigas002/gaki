@@ -7,7 +7,7 @@ use ratatui::layout::Constraint;
 use ratatui::text::Span;
 use ratatui::widgets::{Cell, Row, Table};
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::theme;
 
 /// Build the Steam Cloud file table from the browser's fetched state. Each row

@@ -7,7 +7,7 @@
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Tabs;
 
-use crate::browse::{Browser, Filter, View};
+use crate::app::browser::{Browser, Filter, View};
 use crate::theme;
 
 /// The library filter tabs (left section). The active filter is highlighted

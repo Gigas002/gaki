@@ -5,7 +5,7 @@ use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::theme;
 
 /// Build the DLC overlay list from the browser's open DLC state. Each row shows

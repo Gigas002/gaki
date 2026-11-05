@@ -2,7 +2,7 @@
 //! browse widgets into tui's off-screen `TestBackend` to prove they lay out and
 //! paint the expected content.
 
-use gaki_tui::browse::{Browser, Filter};
+use gaki_tui::app::browser::{Browser, Filter};
 use gaki_tui::interface::aurelia::{
     LibraryGameJson, ProtonJson, WorkshopCommentJson, WorkshopItemJson,
 };

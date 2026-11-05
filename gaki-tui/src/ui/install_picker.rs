@@ -9,7 +9,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::theme;
 
 /// Build the install-location picker from the fetched library folders, with the

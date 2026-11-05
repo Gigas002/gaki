@@ -12,7 +12,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::theme;
 
 /// Build the market search overlay content from the browse state: a query input

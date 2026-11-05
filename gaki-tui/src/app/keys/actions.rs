@@ -6,8 +6,8 @@ use ratatui::crossterm::event::KeyCode;
 
 use super::shared;
 use crate::app::AppResult;
+use crate::app::browser::Action;
 use crate::app::library::Library;
-use crate::browse::Action;
 
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
     let Library {

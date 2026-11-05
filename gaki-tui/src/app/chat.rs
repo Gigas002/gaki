@@ -5,8 +5,8 @@
 use ratatui::crossterm::event::KeyCode;
 
 use crate::app::AppResult;
+use crate::app::browser::Browser;
 use crate::app::terminal::{self, TerminalGuard};
-use crate::browse::Browser;
 use crate::ui;
 use crate::utils::event::{Event, Events};
 

@@ -5,7 +5,7 @@
 //! * a browse/search pane (toggled with `b`): a query input over a list of
 //!   discoverable Workshop items, with subscribe/unsubscribe on the highlight.
 //!
-//! Both are pure builders from `browse::Browser` + `theme`.
+//! Both are pure builders from `app::browser::Browser` + `theme`.
 
 use crate::utils::bytes::convert;
 
@@ -13,7 +13,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::theme;
 
 /// Build the Workshop overlay content. Dispatches to the browse pane or the

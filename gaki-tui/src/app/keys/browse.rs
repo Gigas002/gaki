@@ -4,9 +4,9 @@
 use ratatui::crossterm::event::KeyCode;
 
 use super::{Flow, actions, overlays, shared};
+use crate::app::browser::Filter;
 use crate::app::library::Library;
 use crate::app::{AppResult, Mode};
-use crate::browse::Filter;
 
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
     // Any keypress dismisses the previous action's notice (this action sets

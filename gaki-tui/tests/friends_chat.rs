@@ -8,7 +8,7 @@
 //! The `*_screenshot` tests dump the rendered buffer as text; run them with
 //! `cargo test --test friends_chat -- --nocapture` to eyeball the layout.
 
-use gaki_tui::browse::{Browser, View};
+use gaki_tui::app::browser::{Browser, View};
 use gaki_tui::interface::aurelia::{
     ChatMessageJson, FriendJson, FriendSearchJson, LibraryGameJson,
 };

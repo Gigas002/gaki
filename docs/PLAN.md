@@ -870,8 +870,24 @@ I make the changes, and you review, commit, and push.
     the calls did nothing. Checked in a scripted pty: sign-in page, username
     entry, Esc, quit with exit 0, and the `--chat` window. `HEAD` showed the
     quit error under the same script.
-  - [ ] **4.5c** Split `browse.rs` (the `Browser` state machine) into
+  - [x] **4.5c** Split `browse.rs` (the `Browser` state machine) into
     `app/browser/`, one file per view's state and actions.
+    *Done.* `browse.rs` is gone. `app/browser/mod.rs` keeps the `Browser`
+    struct, `new()` and the `Slot` type, and re-exports the public types. The
+    methods sit in 23 files, one per view (`library`, `install`, `actions`,
+    `relocate` for move/relink/import, `account` for account/settings/wallet,
+    then one per overlay). The types moved with their view (`Filter`, `View`,
+    `Sort`, `Counts` and `Badge` to `library`, `InstallPhase` to `install`,
+    `Action` and `ActionRow` to `actions`), and `install_tests` became
+    `install.rs`'s tests. Every `crate::browse::` path is now
+    `crate::app::browser::`. Only `reset_selection` and `clamp_selection`
+    became `pub(super)`; nothing else changed visibility. **Not done:** the
+    fields still all live on `Browser` rather than in per-view sub-structs.
+    That change would touch every `ui/` builder and integration test that
+    reads `browser.show_*` and friends, so it fits better with 7.4 or with
+    feature gating (6.x), where each view's state needs a `cfg` anyway. Some
+    integration-test comments still describe `main.rs` layouts that no longer
+    exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.4 covers them.
   - [ ] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
     `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
     `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,

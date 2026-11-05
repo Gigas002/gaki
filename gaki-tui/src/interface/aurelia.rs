@@ -340,7 +340,7 @@ pub struct BranchJson {
     pub name: String,
     pub description: String,
     /// Whether this is the branch the install is currently tracking. The current
-    /// CLI doesn't report it, so it stays `false`; [`crate::browse::Browser::open_branches`]
+    /// CLI doesn't report it, so it stays `false`; [`crate::app::browser::Browser::open_branches`]
     /// marks the active branch by name when one is known.
     pub active: bool,
 }

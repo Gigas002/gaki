@@ -3,7 +3,7 @@
 
 use ratatui::widgets::Paragraph;
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 
 /// Build the import prompt content from the current browser state: a label, the
 /// typed library path (with a trailing caret), and the status line if any.

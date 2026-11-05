@@ -1,8 +1,8 @@
 //! Game actions shared by the Actions menu, the library's accelerators and
 //! the prompts, so each one behaves the same from every place it's reached.
 
+use crate::app::browser::{Browser, InstallPhase};
 use crate::app::{App, AppResult, Mode};
-use crate::browse::{Browser, InstallPhase};
 use crate::client::Client;
 use crate::config::Config;
 use crate::interface::game::Game;

@@ -4,7 +4,7 @@
 //! they lay out and paint without panicking. State is set through the public
 //! fields directly so the tests never reach Steam.
 
-use gaki_tui::browse::{Action, Browser};
+use gaki_tui::app::browser::{Action, Browser};
 use gaki_tui::interface::aurelia::{
     AvailableJson, CollectionJson, ConfigJson, DepotManifestInfo, GameConfigJson, LaunchTargetJson,
     LibraryGameJson, ProxyJson,

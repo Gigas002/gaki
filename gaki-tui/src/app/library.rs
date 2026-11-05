@@ -3,11 +3,11 @@
 use std::time::{Duration, Instant};
 
 use crate::app::artwork::Artwork;
+use crate::app::browser::Browser;
 use crate::app::keys::Flow;
 use crate::app::marquee::Marquee;
 use crate::app::terminal::{self, TerminalGuard};
 use crate::app::{App, AppResult, Mode};
-use crate::browse::Browser;
 use crate::client::{Client, State};
 use crate::config::Config;
 use crate::interface::aurelia::LoginPhase;

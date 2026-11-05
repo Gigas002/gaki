@@ -1,6 +1,7 @@
 //! Application state, the run loops, and the `libgaki` worker ([`worker`]).
 
 mod artwork;
+pub mod browser;
 pub mod chat;
 mod keys;
 pub mod library;

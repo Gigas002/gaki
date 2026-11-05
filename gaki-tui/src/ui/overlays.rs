@@ -4,7 +4,7 @@
 use ratatui::Frame;
 use ratatui::widgets::Clear;
 
-use crate::browse::Browser;
+use crate::app::browser::Browser;
 use crate::ui;
 use crate::utils::stateful::Named;
 

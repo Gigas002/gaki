@@ -3,7 +3,7 @@
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
-use crate::browse::{Browser, badge};
+use crate::app::browser::{Browser, badge};
 use crate::theme;
 use crate::utils::stateful::Named;
 
