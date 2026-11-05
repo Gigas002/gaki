@@ -13,7 +13,6 @@ fn settings() -> LaunchSettings {
         debug: false,
         env: BTreeMap::new(),
         args: Vec::new(),
-        script: None,
         cloud_sync: true,
         steam: Default::default(),
     }
@@ -70,4 +69,24 @@ fn wrappers_nest_outermost_first() {
             "/game/game.exe"
         ]
     );
+}
+
+#[test]
+fn gaki_variables_describe_the_unwrapped_command() {
+    let mut command = spec();
+    crate::launch::game_env::export(
+        &mut command,
+        10,
+        "Game",
+        Some(std::path::Path::new("/games/g")),
+    );
+    let mut s = settings();
+    s.wrappers = vec!["/home/u/run.sh".into()];
+    apply(&s, &mut command);
+    assert_eq!(command.program, std::path::Path::new("/home/u/run.sh"));
+    assert_eq!(command.env["GAKI_APP_ID"], "10");
+    assert_eq!(command.env["GAKI_APP_NAME"], "Game");
+    assert_eq!(command.env["GAKI_GAME_DIR"], "/games/g");
+    assert_eq!(command.env["GAKI_LAUNCH_PROGRAM"], "/proton/proton");
+    assert_eq!(command.env["GAKI_LAUNCH_ARGS"], "run /game/game.exe");
 }

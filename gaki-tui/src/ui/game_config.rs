@@ -1,6 +1,5 @@
 //! The per-game settings overlay (modal popup): a game's config overrides —
-//! forced Proton, platform, and launch script — each a selectable row that
-//! Enter cycles.
+//! forced Proton and platform — each a selectable row that Enter cycles.
 
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -10,7 +9,7 @@ use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
 /// Build the game-settings overlay from the browser's open game-config state.
-/// Three rows (Forced Proton, Platform, Launch script) show the current value;
+/// Two rows (Forced Proton, Platform) show the current value;
 /// the highlighted row gets a selection bar. A status/hint line closes it.
 pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     let cfg = browser.game_config.as_ref();
@@ -20,16 +19,7 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     let platform = cfg
         .and_then(|c| c.platform_preference.clone())
         .unwrap_or_else(|| "(auto)".to_string());
-    let script = match browser.game_script.as_ref() {
-        Some(s) if s.exists => s.path.clone().unwrap_or_else(|| "(set)".to_string()),
-        _ => "(none)".to_string(),
-    };
-
-    let rows: [(&str, String); 3] = [
-        ("Forced Proton", proton),
-        ("Platform", platform),
-        ("Launch script", script),
-    ];
+    let rows: [(&str, String); 2] = [("Forced Proton", proton), ("Platform", platform)];
 
     let mut lines: Vec<Line<'static>> = Vec::new();
     for (i, (label, value)) in rows.iter().enumerate() {
@@ -51,7 +41,7 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     let status = if !browser.game_config_status.is_empty() {
         browser.game_config_status.clone()
     } else {
-        "[Enter] change  [x] remove launch script  [Esc] close".to_string()
+        "[Enter] change  [Esc] close".to_string()
     };
     lines.push(Line::from(Span::styled(status, theme::dim())));
 

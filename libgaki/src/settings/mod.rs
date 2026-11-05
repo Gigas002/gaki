@@ -34,10 +34,6 @@ pub struct Overrides {
     /// Proton build (a Steam build name or a path), overriding the profile's.
     /// Implies the Windows build.
     pub proton: Option<String>,
-    /// Launch script, instead of the game's.
-    pub script: Option<PathBuf>,
-    /// Run without any launch script.
-    pub no_script: bool,
     /// Steam integration (`--steam` is `Host`).
     pub steam: Option<SteamIntegration>,
 }
@@ -87,15 +83,13 @@ pub struct LaunchSettings {
     /// applies only if the launch picks the Windows build.
     pub proton: Option<ProtonSettings>,
     pub runner_args: Vec<String>,
-    /// Outermost first.
+    /// Outermost first: the profile's, then the game's.
     pub wrappers: Vec<String>,
     pub debug: bool,
     /// The profile's variables, then the game's on top.
     pub env: BTreeMap<String, String>,
     /// Arguments passed to the game.
     pub args: Vec<String>,
-    /// The launch script, `~` expanded.
-    pub script: Option<PathBuf>,
     pub cloud_sync: bool,
     pub steam: SteamIntegration,
 }
@@ -231,18 +225,12 @@ pub fn resolve(
 
     let proton = proton_settings(profile, overrides.proton.as_deref(), platform, home);
     let mut env = profile.map(|p| p.env.clone()).unwrap_or_default();
+    let mut wrappers = profile.map(|p| p.wrappers.clone()).unwrap_or_default();
     let mut args = Vec::new();
-    let mut script = None;
     if let Some(game) = game {
         env.extend(game.env.clone());
+        wrappers.extend(game.wrappers.iter().cloned());
         args.clone_from(&game.args);
-        script.clone_from(&game.script);
-    }
-    if overrides.script.is_some() {
-        script.clone_from(&overrides.script);
-    }
-    if overrides.no_script {
-        script = None;
     }
 
     Ok(LaunchSettings {
@@ -251,11 +239,13 @@ pub fn resolve(
         platform,
         proton,
         runner_args: profile.map(|p| p.runner_args.clone()).unwrap_or_default(),
-        wrappers: profile.map(|p| p.wrappers.clone()).unwrap_or_default(),
+        wrappers: wrappers
+            .into_iter()
+            .map(|wrapper| expand_wrapper(&wrapper, home))
+            .collect(),
         debug: profile.is_some_and(|p| p.debug),
         env,
         args,
-        script: script.map(|script| expand_tilde(&script, home)),
         cloud_sync: config.cloud_sync,
         steam: overrides
             .steam
@@ -263,6 +253,15 @@ pub fn resolve(
             .or_else(|| profile.and_then(|p| p.steam))
             .unwrap_or_default(),
     })
+}
+
+/// `wrapper` with a leading `~/` in its command expanded, so a script in the
+/// home directory can be named the way the rest of the config names paths.
+fn expand_wrapper(wrapper: &str, home: &Path) -> String {
+    match wrapper.trim_start().strip_prefix("~/") {
+        Some(rest) => home.join(rest).to_string_lossy().into_owned(),
+        None => wrapper.to_owned(),
+    }
 }
 
 /// The build a runner runs. Only called for supported runners.

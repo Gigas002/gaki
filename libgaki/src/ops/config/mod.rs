@@ -78,7 +78,6 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("no_proxy", KeyKind::Text),
     ("install_resume", KeyKind::Text),
     ("experimental", KeyKind::Bool),
-    ("script_dir", KeyKind::Path),
     ("info_cache_ttl", KeyKind::Integer),
 ];
 
@@ -208,14 +207,47 @@ impl CheckReport {
 pub fn check() -> Result<CheckReport> {
     let catalog = Catalog::load_user()?;
     let home = crate::core::config::home_dir()?;
+    let mut issues = catalog.validate(&ValidationContext { home: &home });
+    issues.extend(leftover_scripts(&crate::core::config::config_dir()?));
     Ok(CheckReport {
         load_errors: catalog
             .load_errors
             .iter()
             .map(ToString::to_string)
             .collect(),
-        issues: catalog.validate(&ValidationContext { home: &home }),
+        issues,
     })
+}
+
+/// A warning for each `<config dir>/scripts/<app id>.sh`, which gaki no longer
+/// runs: a game's `wrappers` replaced launch scripts.
+pub fn leftover_scripts(config_dir: &std::path::Path) -> Vec<crate::config::Issue> {
+    let Ok(entries) = std::fs::read_dir(config_dir.join("scripts")) else {
+        return Vec::new();
+    };
+    let mut paths: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+        .filter(|path| path.extension().is_some_and(|ext| ext == "sh"))
+        .collect();
+    paths.sort();
+    paths
+        .into_iter()
+        .map(|path| {
+            let app_id = path
+                .file_stem()
+                .map(|stem| stem.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            crate::config::Issue {
+                severity: Severity::Warning,
+                subject: crate::config::Subject::File(path.clone()),
+                message: format!(
+                    "launch scripts are no longer run; add it to the game's `wrappers` in \
+                     games.toml instead (`gaki-cli config game {app_id} --wrapper {}`)",
+                    path.display()
+                ),
+            }
+        })
+        .collect()
 }
 
 /// One profile, for `profiles list`/`profiles show`.
@@ -436,7 +468,7 @@ pub struct GameEntryChange {
     pub name: Change<String>,
     pub profile: Change<String>,
     pub platform: Change<Platform>,
-    pub script: Change<PathBuf>,
+    pub wrappers: Change<Vec<String>>,
     pub steam: Change<SteamIntegration>,
 }
 
@@ -447,7 +479,7 @@ impl GameEntryChange {
                 matches!(self.name, Change::Keep),
                 matches!(self.profile, Change::Keep),
                 matches!(self.platform, Change::Keep),
-                matches!(self.script, Change::Keep),
+                matches!(self.wrappers, Change::Keep),
                 matches!(self.steam, Change::Keep),
             ]
             .iter()
@@ -466,7 +498,8 @@ pub struct GameEntry {
     /// The resolved platform; `None` runs the installed build.
     pub platform: Option<Platform>,
     pub steam: SteamIntegration,
-    pub script: Option<PathBuf>,
+    /// Every wrapper, the profile's first.
+    pub wrappers: Vec<String>,
     /// Which platform payloads are installed, as `(linux, windows)`.
     #[serde(skip)]
     pub installed_platforms: Option<(bool, bool)>,
@@ -474,7 +507,7 @@ pub struct GameEntry {
 
 /// Apply `change` to `app_id`'s `games.toml` entry and return the result.
 /// Setting anything also drops the game's old `config.json` launch settings
-/// (forced Proton, platform, launch script), which would otherwise still win.
+/// (forced Proton, platform), which would otherwise still win.
 /// Returns whether anything changed.
 pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(GameEntry, bool)> {
     let mut file = TomlFile::open(&games_toml_path()?)?;
@@ -502,11 +535,18 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
                 "platform",
                 text(change.platform.map(|p| p.as_str().to_owned())),
             ),
-            (
-                "script",
-                text(change.script.map(|p| p.to_string_lossy().into_owned())),
-            ),
             ("steam", text(change.steam.map(|s| s.as_str().to_owned()))),
+            (
+                "wrappers",
+                match change.wrappers {
+                    Change::Keep => None,
+                    Change::Clear => Some(None),
+                    Change::Set(list) if list.is_empty() => Some(None),
+                    Change::Set(list) => {
+                        Some(Some(toml_edit::Value::Array(list.into_iter().collect())))
+                    }
+                },
+            ),
         ];
         for (key, value) in fields {
             if let Some(value) = value {
@@ -540,8 +580,7 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
         let mut config = load().await?;
         if let Some(legacy) = config.game_configs.get_mut(&app_id) {
             let had = legacy.forced_proton_version.take().is_some()
-                | legacy.platform_preference.take().is_some()
-                | legacy.launch_script.take().is_some();
+                | legacy.platform_preference.take().is_some();
             if had {
                 save_launcher_config(&config)
                     .await
@@ -564,7 +603,7 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
             profile: settings.profile,
             platform: settings.platform,
             steam: settings.steam,
-            script: crate::launch::launch_script::resolve(app_id, None, None, false),
+            wrappers: settings.wrappers,
             installed_platforms: installed_platforms(app_id).await,
         },
         changed,
@@ -579,7 +618,6 @@ pub struct GameSettingsChange {
     pub reset: bool,
     pub proton: Change<String>,
     pub platform: Change<DepotPlatform>,
-    pub launch_script: Change<PathBuf>,
 }
 
 /// One game's launch settings, plus what they fall back to.
@@ -588,7 +626,6 @@ pub struct GameSettings {
     pub app_id: u32,
     pub forced_proton_version: Option<String>,
     pub platform_preference: Option<String>,
-    pub launch_script: Option<String>,
     /// The global default Proton version, used when none is forced.
     #[serde(skip)]
     pub default_proton_version: String,
@@ -618,15 +655,9 @@ pub async fn update_game(app_id: u32, change: GameSettingsChange) -> Result<(Gam
             Change::Clear => Change::Clear,
             Change::Set(p) => Change::Set(platform_name(p).to_string()),
         };
-        let script = match change.launch_script {
-            Change::Keep => Change::Keep,
-            Change::Clear => Change::Clear,
-            Change::Set(p) => Change::Set(p.to_string_lossy().into_owned()),
-        };
         // Evaluate every change; `|` doesn't short-circuit.
         change.proton.apply_to(&mut entry.forced_proton_version)
             | platform.apply_to(&mut entry.platform_preference)
-            | script.apply_to(&mut entry.launch_script)
     };
     if changed {
         save_launcher_config(&config)
@@ -644,7 +675,6 @@ pub async fn update_game(app_id: u32, change: GameSettingsChange) -> Result<(Gam
             app_id,
             forced_proton_version: entry.forced_proton_version,
             platform_preference: entry.platform_preference,
-            launch_script: entry.launch_script,
             default_proton_version: config.proton_version,
             installed_platforms: installed_platforms(app_id).await,
         },

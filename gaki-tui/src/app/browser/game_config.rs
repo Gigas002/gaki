@@ -1,18 +1,17 @@
-//! The per-game settings overlay (config overrides and launch script).
+//! The per-game settings overlay.
 
 use super::Browser;
 use crate::app::steam;
 
 impl Browser {
     /// Number of editable rows in the game-settings overlay: Forced Proton,
-    /// Platform, Launch script.
-    pub const GAME_CONFIG_ROWS: usize = 3;
+    /// Platform.
+    pub const GAME_CONFIG_ROWS: usize = 2;
 
-    /// Fetch the game's per-game config, launch-script state, and the installed
+    /// Fetch the game's per-game config and the installed
     /// Proton list (for cycling the forced runtime) and open the overlay.
     pub fn open_game_config(&mut self, app_id: i32) {
         self.game_config = steam::config_game_show(app_id).ok();
-        self.game_script = steam::scripts_show(app_id).ok();
         self.game_config_protons = steam::proton_list()
             .map(|v| {
                 v.into_iter()
@@ -30,7 +29,6 @@ impl Browser {
     pub fn close_game_config(&mut self) {
         self.show_game_config = false;
         self.game_config = None;
-        self.game_script = None;
         self.game_config_protons.clear();
         self.game_config_index = 0;
     }
@@ -50,7 +48,6 @@ impl Browser {
     fn refresh_game_config(&mut self) {
         let id = self.game_config_app_id;
         self.game_config = steam::config_game_show(id).ok();
-        self.game_script = steam::scripts_show(id).ok();
     }
 
     /// Activate (Enter) the highlighted settings row, cycling its value.
@@ -84,7 +81,7 @@ impl Browser {
                 };
             }
             // Platform: auto → windows → linux → auto.
-            1 => {
+            _ => {
                 let cur = self
                     .game_config
                     .as_ref()
@@ -99,31 +96,7 @@ impl Browser {
                     Err(e) => format!("Failed: {e}"),
                 };
             }
-            // Launch script: create one if none, else clear the per-game override.
-            _ => {
-                let has_script = self.game_script.as_ref().map(|s| s.exists).unwrap_or(false);
-                let res = if has_script {
-                    steam::config_game_clear_launch_script(id)
-                } else {
-                    steam::scripts_new(id, false).map(|_| ())
-                };
-                self.game_config_status = match res {
-                    Ok(()) if has_script => "Launch-script override cleared.".to_string(),
-                    Ok(()) => "Launch script created.".to_string(),
-                    Err(e) => format!("Failed: {e}"),
-                };
-            }
         }
-        self.refresh_game_config();
-    }
-
-    /// Delete the game's launch-script file.
-    pub fn game_config_remove_script(&mut self) {
-        let id = self.game_config_app_id;
-        self.game_config_status = match steam::scripts_remove(id) {
-            Ok(()) => "Launch script removed.".to_string(),
-            Err(e) => format!("Failed: {e}"),
-        };
         self.refresh_game_config();
     }
 }

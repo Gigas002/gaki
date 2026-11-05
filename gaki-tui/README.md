@@ -98,8 +98,8 @@ selected game — type to narrow it, `Enter` to run. Two entries live only here:
 - **Play as…** lists every way the game can be started: the native Linux build, or the Windows build with the host
   Steam client or without Steam. Launching one applies to that
   run only; unavailable targets say what's missing.
-- **Game settings** holds the per-game overrides: forced Proton, platform
-  (auto / windows / linux), and launch script.
+- **Game settings** holds the per-game overrides: forced Proton and platform
+  (auto / windows / linux).
 
 Selecting a game fetches its details lazily — developer/publisher metadata
 (Steam store info), the ProtonDB compatibility tier, and cover art all load in the

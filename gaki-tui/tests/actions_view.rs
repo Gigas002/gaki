@@ -197,7 +197,6 @@ fn game_settings_overlay_renders_rows() {
         app_id: 1,
         forced_proton_version: Some("GE-Proton9".to_string()),
         platform_preference: Some("windows".to_string()),
-        launch_script: None,
     });
     let text = render(70, 12, |f| {
         f.render_widget(
@@ -210,8 +209,7 @@ fn game_settings_overlay_renders_rows() {
         "forced proton renders"
     );
     assert!(text.contains("Platform: windows"), "platform renders");
-    assert!(text.contains("Launch script: (none)"), "script row renders");
-    for gone in ["Runner", "Steam runtime", "Steam prefix"] {
+    for gone in ["Runner", "Steam runtime", "Steam prefix", "Launch script"] {
         assert!(!text.contains(gone), "{gone} row is gone");
     }
 }

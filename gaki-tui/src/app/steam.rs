@@ -1842,7 +1842,7 @@ pub fn play(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
 }
 
 // ===========================================================================
-// Version pinning + downgrade, launch scripts, collections, per-game config
+// Version pinning + downgrade, collections, per-game config
 // overrides, and launch targets.
 // ===========================================================================
 
@@ -1877,16 +1877,6 @@ pub struct PinResult {
     pub manifests: std::collections::BTreeMap<String, u64>,
 }
 
-/// A game's resolved launch script. With no script, `exists` is false and
-/// `path` is `None`.
-#[derive(Debug, Clone, Default)]
-pub struct LaunchScript {
-    pub app_id: u32,
-    pub path: Option<String>,
-    pub exists: bool,
-    pub contents: Option<String>,
-}
-
 /// One library collection. `kind` is `"built-in"`, `"static"`, or
 /// `"dynamic"`; a dynamic one has no `app_ids` (Steam computes its members).
 #[derive(Debug, Clone, Default)]
@@ -1907,7 +1897,6 @@ pub struct GameSettings {
     pub app_id: u32,
     pub forced_proton_version: Option<String>,
     pub platform_preference: Option<String>,
-    pub launch_script: Option<String>,
 }
 
 /// Extra launch options for [`play_with`].
@@ -1916,10 +1905,6 @@ pub struct GameSettings {
 pub struct PlayOpts {
     /// Force a specific Proton/Wine runner.
     pub proton: Option<String>,
-    /// Wrap the launch with a specific launch script.
-    pub script: Option<String>,
-    /// Bypass all launch scripts for this launch.
-    pub no_script: bool,
     /// Launch with real Steam integration (the host Steam client).
     pub steam: bool,
     /// Run this installed build, `"linux"` or `"windows"`, for this launch only.
@@ -2076,37 +2061,6 @@ pub fn downgrade(
     finish(&status, outcome, "downgraded");
 }
 
-/// A game's resolved launch script and its contents.
-pub fn scripts_show(app_id: i32) -> Result<LaunchScript, TuiError> {
-    let view = in_process(libgaki::ops::scripts::show(app_id as u32))?;
-    Ok(match view {
-        Some(view) => LaunchScript {
-            app_id: app_id as u32,
-            path: Some(view.path.display().to_string()),
-            exists: view.contents.is_some(),
-            contents: view.contents,
-        },
-        None => LaunchScript {
-            app_id: app_id as u32,
-            ..Default::default()
-        },
-    })
-}
-
-/// Scaffold a launch script for a game, returning its path. Refuses to
-/// overwrite an existing one unless `force`.
-pub fn scripts_new(app_id: i32, force: bool) -> Result<String, TuiError> {
-    let path = in_process(libgaki::ops::scripts::create(app_id as u32, force))?;
-    Ok(path.display().to_string())
-}
-
-/// Delete a game's dir-based launch script; a missing one is not an error.
-pub fn scripts_remove(app_id: i32) -> Result<(), TuiError> {
-    libgaki::ops::scripts::remove(app_id as u32)
-        .map(drop)
-        .map_err(|e| TuiError::Problem(format!("{e:#}")))
-}
-
 /// Map a local-store error to the TUI's error type.
 fn local<T>(result: anyhow::Result<T>) -> Result<T, TuiError> {
     result.map_err(|e| TuiError::Problem(format!("{e:#}")))
@@ -2206,7 +2160,6 @@ fn update_game_config(
         app_id: settings.app_id,
         forced_proton_version: settings.forced_proton_version,
         platform_preference: settings.platform_preference,
-        launch_script: settings.launch_script,
     })
 }
 
@@ -2273,18 +2226,6 @@ pub fn config_game_clear_platform(app_id: i32) -> Result<(), TuiError> {
     .map(drop)
 }
 
-/// Clear a game's per-game launch script, falling back to the auto-detected one.
-pub fn config_game_clear_launch_script(app_id: i32) -> Result<(), TuiError> {
-    update_game_config(
-        app_id,
-        GameSettingsChange {
-            launch_script: Change::Clear,
-            ..Default::default()
-        },
-    )
-    .map(drop)
-}
-
 /// Launch a game with extra options and wait for it to exit, reporting each
 /// stage (pre-launch update, launch, the build picked) in the status cell.
 /// Intended to be run on a dedicated thread.
@@ -2299,8 +2240,6 @@ pub fn play_with(id: i32, opts: PlayOpts, status: Arc<Mutex<Option<GameStatus>>>
     };
     let request = PlayRequest {
         proton: opts.proton,
-        script: opts.script.map(std::path::PathBuf::from),
-        no_script: opts.no_script,
         steam: opts.steam,
         platform,
         no_update: opts.no_update,

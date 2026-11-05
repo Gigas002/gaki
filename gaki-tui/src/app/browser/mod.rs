@@ -380,13 +380,11 @@ pub struct Browser {
     /// worker thread (mirrors a game's install status).
     pub versions_busy: Arc<Mutex<Option<GameStatus>>>,
 
-    // --- Game settings overlay (per-game config overrides + launch script) ---
+    // --- Game settings overlay (per-game config overrides) ---
     /// Whether the per-game settings overlay is open.
     pub show_game_config: bool,
     /// The game's current config overrides.
     pub game_config: Option<steam::GameSettings>,
-    /// The game's launch-script state.
-    pub game_script: Option<steam::LaunchScript>,
     /// Installed Proton runtime names, for cycling the per-game forced runtime.
     pub game_config_protons: Vec<String>,
     /// The highlighted settings row.
@@ -565,7 +563,6 @@ impl Browser {
             versions_busy: Arc::new(Mutex::new(None)),
             show_game_config: false,
             game_config: None,
-            game_script: None,
             game_config_protons: Vec::new(),
             game_config_index: 0,
             game_config_app_id: 0,

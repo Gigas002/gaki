@@ -235,7 +235,6 @@ impl SteamClient {
         proton_path: Option<&str>,
         user_config: Option<&crate::core::models::UserAppConfig>,
         settings: &crate::settings::LaunchSettings,
-        disable_launch_script: bool,
         steam_enabled: bool,
         prefer_native_target: bool,
         on_target_resolved: Option<&TargetResolvedHook<'_>>,
@@ -395,7 +394,6 @@ impl SteamClient {
                 &launcher_config,
                 user_config,
                 settings,
-                disable_launch_script,
                 steam_enabled,
             )
             .await?;

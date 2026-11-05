@@ -384,17 +384,10 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Play {
             app_id,
             proton,
-            script,
-            no_script,
             steam,
             platform,
             no_update,
-        } => {
-            cmd_play(
-                app_id, proton, script, no_script, steam, platform, no_update, json,
-            )
-            .await
-        }
+        } => cmd_play(app_id, proton, steam, platform, no_update, json).await,
         Command::LaunchTargets { app_id, steam } => cmd_launch_targets(app_id, steam, json).await,
         Command::Running => cmd_running(json),
         Command::Stop { app_id, force } => cmd_stop(app_id, force, json).await,
@@ -486,9 +479,6 @@ async fn run(cli: Cli) -> Result<()> {
             ConfigCommand::Experimental { enabled } => cmd_config_experimental(enabled, json).await,
             ConfigCommand::InstallResume { mode } => cmd_config_install_resume(mode, json).await,
             ConfigCommand::Keyring { enabled } => cmd_config_keyring(enabled, json).await,
-            ConfigCommand::ScriptDir { path, clear } => {
-                cmd_config_script_dir(change(clear, path), json).await
-            }
             ConfigCommand::InfoCacheTtl { seconds, clear } => {
                 cmd_config_info_cache_ttl(change(clear, seconds), json).await
             }
@@ -553,13 +543,6 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Profiles { command } => match command {
             ProfilesCommand::List => cmd_profiles_list(json),
             ProfilesCommand::Show { name } => cmd_profiles_show(&name, json),
-        },
-        Command::Scripts { command } => match command {
-            ScriptsCommand::Dir => cmd_scripts_dir(json).await,
-            ScriptsCommand::List => cmd_scripts_list(json).await,
-            ScriptsCommand::New { app_id, force } => cmd_scripts_new(app_id, force, json).await,
-            ScriptsCommand::Show { app_id } => cmd_scripts_show(app_id, json).await,
-            ScriptsCommand::Remove { app_id } => cmd_scripts_remove(app_id, json).await,
         },
         Command::Kill => cmd_kill(json),
         Command::Capabilities { path } => cmd_capabilities(&path, json),

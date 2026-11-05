@@ -187,7 +187,7 @@ name = "witcher3"                    # alias usable everywhere an app id is
 profile = "proton-cachyos"
 platform = "windows"
 args = ["-skipIntro"]
-script = "~/games/run_scripts/witcher3/script.sh"   # Q8: named, any path
+wrappers = ["~/games/run_scripts/witcher3/script.sh"]  # Q8: any path; inside the profile's
 [game.env]
 DXVK_HUD = "fps"
 ```
@@ -199,8 +199,9 @@ defaults. Each binary resolves these once, in its own `settings/` module, and
 The following settings are removed: `steam_prefix_mode`, `use_shared_compat_data`,
 `windows_steam_discovery_enabled`, `steam_runtime_runner`, `steam_runtime_policy`,
 `luxtorpeda_*`, `umu_*`, `language`, `game_configs` (replaced by `games.toml`),
-`preferred_launch_options` (replaced by `args`), and the per-app-id `scripts/<id>.sh`
-convention (replaced by `script`, with a fallback to the old path if it exists).
+`preferred_launch_options` (replaced by `args`), and launch scripts: both the
+per-app-id `scripts/<id>.sh` convention and the named `script` (5.5) are
+replaced by per-game `wrappers` (5.7c); a script is just a wrapper.
 
 **Migration:** none is planned. gaki uses a fresh config directory. A one-off
 `gaki-cli config import-aurelia` command can be added later if wanted.
@@ -1075,7 +1076,19 @@ I make the changes, and you review, commit, and push.
     through the daemon (they only read files), and follow `profiles_dir`.
     Profiles with a lootrs-only runner now report just that error, not
     warnings about fields that mean something else in lootrs.
-  - [ ] **5.7c** TUI: `game_config` on `games.toml` with profile selection;
+  - [x] **5.7c** Drop launch scripts for per-game `wrappers`. A script was
+    already run exactly like a wrapper (the command as `"$@"`), so wrappers
+    cover it. *Done.* `games.toml` entries take `wrappers`, applied inside
+    the profile's (a leading `~/` is expanded); every launch exports the
+    `GAKI_*` variables (`launch::game_env`) before wrapping. Removed: the
+    `script` key, `script_dir`, the `scripts/<app id>.sh` fallback,
+    `launch_script`, `ApplyLaunchScriptStage`, `ops::scripts`, the
+    `scripts` command, `play --script/--no-script`, `config script-dir`,
+    `config game --script` (now `--wrapper`/`--no-wrappers`), and the
+    TUI's launch-script row. `config check` warns about each leftover
+    `<config dir>/scripts/*.sh` and how to keep it as a wrapper. An old
+    `script` key in `games.toml` fails to load with "unknown field".
+  - [ ] **5.7d** TUI: `game_config` on `games.toml` with profile selection;
     drop the JSON `update_game`.
 - [ ] **5.8** Remove the JSON config code paths. Caches can stay JSON, because
   ARCHITECTURE requires TOML only for user configuration files. Confirm that
@@ -1184,7 +1197,7 @@ I make the changes, and you review, commit, and push.
 | Q5 default platform | Step 5.4 |
 | Q6 slim builds | Phase 6 |
 | Q7 umu download / PATH | Moot. umu support is removed (step 1.3). |
-| Q8 named scripts | Step 5.5 |
+| Q8 named scripts | Steps 5.5, 5.7c (scripts became per-game `wrappers`) |
 | Q9 ProtonDB/GitHub hotkey | Step 7.1 |
 | Profiles / shared prefixes | Phase 5 |
 | plans2: reuse liblootrs profiles | D9: shared file format, no dependency (5.1) |

@@ -43,7 +43,6 @@ fn logged_out_session_is_reported_not_fetched() {
     pinning_reads_local_state();
     settings_round_trip();
     game_settings_round_trip();
-    scripts_round_trip();
     proton_default_is_saved();
 }
 
@@ -100,27 +99,6 @@ fn game_settings_round_trip() {
     let cfg = steam::config_game_show(id).unwrap();
     assert_eq!(cfg.forced_proton_version, None);
     assert_eq!(cfg.platform_preference, None);
-}
-
-/// A scaffolded launch script shows up, refuses a second scaffold, and goes
-/// away again.
-fn scripts_round_trip() {
-    let id = 945360;
-    assert!(!steam::scripts_show(id).unwrap().exists);
-
-    let path = steam::scripts_new(id, false).unwrap();
-    let shown = steam::scripts_show(id).unwrap();
-    assert!(shown.exists);
-    assert_eq!(shown.path.as_deref(), Some(path.as_str()));
-    assert!(shown.contents.unwrap_or_default().contains("945360"));
-    assert!(
-        steam::scripts_new(id, false).is_err(),
-        "no silent overwrite"
-    );
-
-    steam::scripts_remove(id).unwrap();
-    assert!(!steam::scripts_show(id).unwrap().exists);
-    steam::scripts_remove(id).expect("removing nothing is fine");
 }
 
 /// The official builds are always listed, and a new default is marked.

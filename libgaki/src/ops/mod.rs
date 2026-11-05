@@ -15,7 +15,6 @@ pub mod library;
 pub mod market;
 pub mod progress;
 pub mod proton;
-pub mod scripts;
 pub mod session;
 pub mod social;
 pub mod steam;

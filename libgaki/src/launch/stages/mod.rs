@@ -1,4 +1,3 @@
-pub mod apply_launch_script;
 pub mod apply_settings;
 pub mod build_command;
 pub mod finalize;

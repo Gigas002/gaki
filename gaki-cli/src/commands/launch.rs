@@ -7,7 +7,6 @@ use crate::commands::common::*;
 use crate::cli::PlatformArg;
 use anyhow::{Result, bail};
 use libgaki::ops::launch::{self, LaunchEvent, PlayRequest};
-use std::path::PathBuf;
 
 pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> Result<()> {
     let mut client = authed_client().await?;
@@ -51,15 +50,9 @@ pub(crate) async fn cmd_launch_targets(app_id: u32, steam: bool, json: bool) -> 
     Ok(())
 }
 
-#[expect(
-    clippy::too_many_arguments,
-    reason = "one argument per CLI flag; replaced by resolved settings in Phase 5"
-)]
 pub(crate) async fn cmd_play(
     app_id: u32,
     proton: Option<String>,
-    script: Option<PathBuf>,
-    no_script: bool,
     steam: bool,
     platform: Option<PlatformArg>,
     no_update: bool,
@@ -82,8 +75,6 @@ pub(crate) async fn cmd_play(
 
     let request = PlayRequest {
         proton,
-        script,
-        no_script,
         steam,
         platform: platform.map(Into::into),
         no_update,

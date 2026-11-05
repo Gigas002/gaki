@@ -187,7 +187,6 @@ impl SteamClient {
         launcher_config: &crate::core::config::LauncherConfig,
         user_config: Option<&crate::core::models::UserAppConfig>,
         settings: &crate::settings::LaunchSettings,
-        disable_launch_script: bool,
         steam_enabled: bool,
     ) -> Result<std::process::Child> {
         use crate::infra::logging::{EventLogger, LaunchSession};
@@ -199,9 +198,7 @@ impl SteamClient {
         ctx.launcher_config = Some(launcher_config.clone());
         ctx.user_config = user_config.cloned();
         ctx.proton_path = proton_path.map(|s| s.to_string());
-        ctx.launch_script_override = settings.script.clone();
         ctx.settings = Some(settings.clone());
-        ctx.disable_launch_script = disable_launch_script;
         ctx.steam_enabled = steam_enabled;
 
         if let Ok(config_dir) = crate::core::config::config_dir() {

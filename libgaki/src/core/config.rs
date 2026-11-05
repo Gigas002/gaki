@@ -36,11 +36,6 @@ async fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
 pub struct GameConfig {
     pub forced_proton_version: Option<String>,
     pub platform_preference: Option<String>,
-    /// Per-game launch script path. When set (and not overridden/bypassed at launch),
-    /// gaki wraps the resolved launch command with this script. Takes precedence
-    /// over the auto-detected `<script_dir>/<app_id>.sh`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub launch_script: Option<String>,
     /// Depot → manifest ids this game is pinned to (recorded when the game is
     /// downgraded or pinned). Used to display what an update lock is holding the
     /// game at; empty when the game isn't pinned.
@@ -121,10 +116,6 @@ pub struct LauncherConfig {
     /// headless machines and CI, where no keyring service runs.
     #[serde(default = "default_true")]
     pub use_keyring: bool,
-    /// Directory holding per-game launch scripts; `None` is
-    /// `<config dir>/scripts`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub script_dir: Option<String>,
     /// Lifetime of a cached `info` record in seconds; `None` is the default
     /// (6h) and `0` disables the cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -169,7 +160,6 @@ impl Default for LauncherConfig {
             experimental: false,
             encrypt_session: false,
             use_keyring: true,
-            script_dir: None,
             info_cache_ttl: None,
         }
     }
@@ -481,9 +471,6 @@ impl TomlOverlay {
         if self.has("experimental") {
             config.experimental = toml.experimental;
         }
-        if let Some(dir) = &toml.script_dir {
-            config.script_dir = Some(self.path_string(dir));
-        }
         if toml.info_cache_ttl.is_some() {
             config.info_cache_ttl = toml.info_cache_ttl;
         }
@@ -530,14 +517,13 @@ pub fn load_proxy_config_blocking() -> ProxyConfig {
     proxy
 }
 
-/// The settings read from synchronous code paths (the keyring gate, the script
-/// directory, the info cache TTL). Parsed leniently from `config.json`: other
+/// The settings read from synchronous code paths (the keyring gate, the info
+/// cache TTL). Parsed leniently from `config.json`: other
 /// fields are ignored, and a missing or unreadable file yields the defaults.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default)]
 pub struct RuntimeSettings {
     pub use_keyring: bool,
-    pub script_dir: Option<String>,
     pub info_cache_ttl: Option<u64>,
 }
 
@@ -545,7 +531,6 @@ impl Default for RuntimeSettings {
     fn default() -> Self {
         Self {
             use_keyring: true,
-            script_dir: None,
             info_cache_ttl: None,
         }
     }
@@ -558,13 +543,10 @@ pub fn load_runtime_settings_blocking() -> RuntimeSettings {
         .and_then(|dir| std::fs::read_to_string(dir.join("config.json")).ok())
         .map(|raw| parse_runtime_settings(&raw))
         .unwrap_or_default();
-    if let Some(toml) = TomlOverlay::load_lenient() {
-        if let Some(dir) = &toml.config.script_dir {
-            settings.script_dir = Some(toml.path_string(dir));
-        }
-        if toml.config.info_cache_ttl.is_some() {
-            settings.info_cache_ttl = toml.config.info_cache_ttl;
-        }
+    if let Some(toml) = TomlOverlay::load_lenient()
+        && toml.config.info_cache_ttl.is_some()
+    {
+        settings.info_cache_ttl = toml.config.info_cache_ttl;
     }
     settings
 }

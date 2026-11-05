@@ -12,7 +12,6 @@ use crate::settings::{LaunchSettings, Overrides};
 use crate::steam_client::{LaunchTargetChoice, SteamClient};
 use anyhow::{Context, Result};
 use std::future::Future;
-use std::path::PathBuf;
 use std::time::Duration;
 use tokio::sync::mpsc::Receiver;
 
@@ -107,10 +106,6 @@ impl BuildPreference {
 pub struct PlayRequest {
     /// Proton to use, overriding the game's and the global setting.
     pub proton: Option<String>,
-    /// Launch script overriding the game's.
-    pub script: Option<PathBuf>,
-    /// Run without the game's launch script.
-    pub no_script: bool,
     /// Run with Steam integration (the host Steam client), overriding the
     /// game's and profile's `steam` setting.
     pub steam: bool,
@@ -163,8 +158,6 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
     let launcher_config = load_launcher_config().await?;
     let overrides = Overrides {
         proton: request.proton.clone(),
-        script: request.script.clone(),
-        no_script: request.no_script,
         platform: request.platform.map(Platform::from),
         steam: request.steam.then_some(SteamIntegration::Host),
         ..Default::default()
@@ -221,7 +214,6 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
             proton_path.as_deref(),
             user_configs.get(&app_id),
             &settings,
-            request.no_script,
             settings.steam == SteamIntegration::Host,
             preference.platform == Some(Platform::Linux),
             Some(&on_target),

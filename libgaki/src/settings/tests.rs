@@ -132,7 +132,7 @@ fn layers_override_in_order() {
     game.platform = Some(Platform::Windows);
     game.env.insert("B".into(), "game".into());
     game.args = vec!["-skipIntro".into()];
-    game.script = Some("~/scripts/game.sh".into());
+    game.wrappers = vec!["~/bin/game.sh --fast".into()];
     let mut catalog = catalog(Some("proton"), vec![game]);
     catalog.config.default_platform = Some(Platform::Linux);
 
@@ -151,13 +151,13 @@ fn layers_override_in_order() {
     assert_eq!(settings.env["B"], "game", "game env beats profile env");
     assert_eq!(settings.args, ["-skipIntro"]);
     assert_eq!(
-        settings.script,
-        Some(PathBuf::from("/home/user/scripts/game.sh"))
+        settings.wrappers,
+        ["gamemoderun", "/home/user/bin/game.sh --fast"],
+        "the profile's wrappers, then the game's, `~` expanded"
     );
 
     let overrides = Overrides {
         profile: Some("proton".into()),
-        script: Some("/cli.sh".into()),
         ..Overrides::default()
     };
     let settings = run(&catalog, 10, &overrides).unwrap();
@@ -166,13 +166,6 @@ fn layers_override_in_order() {
         Some("proton"),
         "CLI beats game"
     );
-    assert_eq!(settings.script, Some(PathBuf::from("/cli.sh")));
-
-    let overrides = Overrides {
-        no_script: true,
-        ..Overrides::default()
-    };
-    assert_eq!(run(&catalog, 10, &overrides).unwrap().script, None);
 }
 
 #[test]

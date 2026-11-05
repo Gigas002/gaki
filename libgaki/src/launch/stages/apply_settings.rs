@@ -1,10 +1,11 @@
 //! Applies the runner-independent parts of the resolved settings to the
-//! command: the profile's and game's environment, the game's arguments, and
-//! the profile's wrappers.
+//! command: the `GAKI_*` variables, the profile's and game's environment, the
+//! game's arguments, and the wrappers.
 //!
 //! Runs after `PreflightStage`, which checks the runner binary itself, and
-//! before `ApplyLaunchScriptStage`, so a launch script receives the wrapped
-//! command as `"$@"`.
+//! right before the spawn.
+
+use std::path::PathBuf;
 
 use async_trait::async_trait;
 
@@ -21,16 +22,27 @@ impl PipelineStage for ApplySettingsStage {
     }
 
     async fn execute(&self, ctx: &mut PipelineContext) -> std::result::Result<(), LaunchError> {
-        let (Some(settings), Some(spec)) = (&ctx.settings, ctx.command_spec.as_mut()) else {
+        let name = ctx.app.as_ref().map(|a| a.name.clone()).unwrap_or_default();
+        let game_dir = ctx.resolved_install_dir.clone().or_else(|| {
+            ctx.app
+                .as_ref()
+                .and_then(|a| a.install_path.as_ref().map(PathBuf::from))
+        });
+        let app_id = ctx.app_id;
+        let Some(spec) = ctx.command_spec.as_mut() else {
             return Ok(());
         };
-        apply(settings, spec);
+        crate::launch::game_env::export(spec, app_id, &name, game_dir.as_deref());
+        if let Some(settings) = &ctx.settings {
+            apply(settings, spec);
+        }
         Ok(())
     }
 }
 
 /// Set `settings`' env on top of the runner's, append the game's arguments,
-/// and wrap the command in the wrappers, outermost first.
+/// and wrap the command in the wrappers, outermost first: the profile's, then
+/// the game's.
 pub fn apply(settings: &LaunchSettings, spec: &mut CommandSpec) {
     spec.env
         .extend(settings.env.iter().map(|(k, v)| (k.clone(), v.clone())));

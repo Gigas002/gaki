@@ -45,10 +45,6 @@ pub struct Config {
     /// Opt-in gate for experimental features.
     #[serde(default)]
     pub experimental: bool,
-    /// Directory of the old per-app-id `<app id>.sh` scripts, the fallback when
-    /// a game sets no `script`. `None` is `<config dir>/scripts`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub script_dir: Option<PathBuf>,
     /// Lifetime of a cached `info` record in seconds. `None` is 6 hours, `0`
     /// disables the cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -72,7 +68,6 @@ impl Default for Config {
             no_proxy: None,
             install_resume: InstallResume::default(),
             experimental: false,
-            script_dir: None,
             info_cache_ttl: None,
         }
     }
@@ -91,7 +86,6 @@ impl Config {
         for (field, path) in [
             ("steam_library", &self.steam_library),
             ("profiles_dir", &self.profiles_dir),
-            ("script_dir", &self.script_dir),
         ] {
             if let Some(path) = path {
                 issues.absolute(field, path, ctx.home);

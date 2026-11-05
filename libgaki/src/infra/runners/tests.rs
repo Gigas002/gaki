@@ -247,7 +247,6 @@ async fn profile_prefix_and_overrides_reach_the_proton_env() {
         debug: true,
         env: Default::default(),
         args: Vec::new(),
-        script: None,
         cloud_sync: true,
         steam: Default::default(),
     });

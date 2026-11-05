@@ -243,15 +243,6 @@ pub(crate) enum Command {
         /// Force a specific Proton/Wine runner (implies Windows target).
         #[arg(short, long)]
         proton: Option<String>,
-        /// Wrap this launch with a specific launch script, overriding the per-game
-        /// config and the auto-detected `<script_dir>/<app_id>.sh`. The script runs
-        /// with the resolved launch command as its arguments. See `gaki-cli scripts`.
-        #[arg(short = 'x', long, value_name = "PATH")]
-        script: Option<PathBuf>,
-        /// Bypass all launch scripts for this launch (ignore the per-game config and
-        /// any auto-detected script).
-        #[arg(short = 'X', long, conflicts_with = "script")]
-        no_script: bool,
         /// Run with real Steam integration: bridge to the host Steam client
         /// (started silently if not running) so Steamworks online features work.
         /// Same as `steam = "host"` in `games.toml` or the profile, which it
@@ -475,11 +466,6 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: ProfilesCommand,
     },
-    /// Manage per-game launch scripts.
-    Scripts {
-        #[command(subcommand)]
-        command: ScriptsCommand,
-    },
     /// Manage Steam library collections (categories/groups).
     Collections {
         #[command(subcommand)]
@@ -594,14 +580,6 @@ pub(crate) enum ConfigCommand {
         /// `true` or `false`. Omit to print the current setting.
         enabled: Option<bool>,
     },
-    /// View or set the directory holding per-game launch scripts.
-    ScriptDir {
-        /// Directory path. Omit to print the current setting.
-        path: Option<String>,
-        /// Revert to `<config_dir>/scripts`.
-        #[arg(short = 'c', long, conflicts_with = "path")]
-        clear: bool,
-    },
     /// View or set how long `info` results are cached, in seconds (`0` disables
     /// the cache).
     InfoCacheTtl {
@@ -629,7 +607,7 @@ pub(crate) enum ConfigCommand {
         #[arg(short = 'c', long, conflicts_with_all = ["url", "no_proxy"])]
         clear: bool,
     },
-    /// View or set a game's `games.toml` entry (profile, platform, script,
+    /// View or set a game's `games.toml` entry (profile, platform, wrappers,
     /// Steam integration, alias).
     Game {
         #[command(flatten)]
@@ -660,35 +638,6 @@ pub(crate) enum ProtonCommand {
     Uninstall { version: String },
     /// Set the global default Proton/Wine version (used when a game has none set).
     Default { version: String },
-}
-
-#[derive(Subcommand)]
-pub(crate) enum ScriptsCommand {
-    /// Print the resolved launch-script directory (`config script-dir`, or
-    /// `<config_dir>/scripts`).
-    Dir,
-    /// List app ids that have a launch script (dir-based and config-pinned) and
-    /// their resolved paths.
-    List,
-    /// Scaffold a launch script for a game at `<script_dir>/<app_id>.sh`.
-    /// Errors if one already exists unless `--force`.
-    New {
-        #[arg(value_parser = app_ref)]
-        app_id: u32,
-        /// Overwrite an existing script.
-        #[arg(short = 'f', long)]
-        force: bool,
-    },
-    /// Print the resolved launch-script path for a game and its contents.
-    Show {
-        #[arg(value_parser = app_ref)]
-        app_id: u32,
-    },
-    /// Delete the dir-based launch script for a game.
-    Remove {
-        #[arg(value_parser = app_ref)]
-        app_id: u32,
-    },
 }
 
 #[derive(Subcommand)]
@@ -1241,12 +1190,14 @@ pub(crate) struct GameConfigArgs {
     /// Remove the game's platform (back to the profile or `default_platform`).
     #[arg(short = 'T', long, conflicts_with = "platform")]
     pub(crate) no_platform: bool,
-    /// Wrap the launch in this script. See `gaki-cli scripts`.
-    #[arg(short = 's', long, value_name = "PATH")]
-    pub(crate) script: Option<PathBuf>,
-    /// Remove the game's script (falls back to `<script_dir>/<app_id>.sh`).
-    #[arg(short = 'S', long, conflicts_with = "script")]
-    pub(crate) no_script: bool,
+    /// Wrap the launch in this command, inside the profile's wrappers; repeat
+    /// for several, outermost first. Replaces the game's wrappers. A script
+    /// works: it gets the command as `"$@"` and the `GAKI_*` variables.
+    #[arg(short = 'w', long = "wrapper", value_name = "COMMAND")]
+    pub(crate) wrappers: Vec<String>,
+    /// Remove the game's wrappers (the profile's still apply).
+    #[arg(short = 'W', long, conflicts_with = "wrappers")]
+    pub(crate) no_wrappers: bool,
     /// Steam integration: `auto`, `host` or `none`.
     #[arg(long, value_name = "MODE")]
     pub(crate) steam: Option<SteamArg>,
@@ -1261,7 +1212,7 @@ pub(crate) struct GameConfigArgs {
     pub(crate) no_name: bool,
     /// Remove the game's entry and its old per-game settings.
     #[arg(long, conflicts_with_all = ["profile", "no_profile", "platform", "no_platform",
-        "script", "no_script", "steam", "no_steam", "name", "no_name"])]
+        "wrappers", "no_wrappers", "steam", "no_steam", "name", "no_name"])]
     pub(crate) clear: bool,
 }
 

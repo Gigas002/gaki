@@ -261,27 +261,6 @@ pub(crate) async fn cmd_config_keyring(enabled: Option<bool>, json: bool) -> Res
     Ok(())
 }
 
-/// `config script-dir [PATH|--clear]`.
-pub(crate) async fn cmd_config_script_dir(change: Change<String>, json: bool) -> Result<()> {
-    let (config, changed) = set_optional("script_dir", change)?;
-    let effective = libgaki::launch::launch_script::script_dir();
-    if json {
-        print_json(&serde_json::json!({
-            "script_dir": config.script_dir,
-            "effective": effective.display().to_string(),
-        }));
-        return Ok(());
-    }
-    match &config.script_dir {
-        Some(dir) => cli_println!("Script dir: {}", dir.display()),
-        None => cli_println!("Script dir: {} (default)", effective.display()),
-    }
-    if changed {
-        cli_println!("Saved.");
-    }
-    Ok(())
-}
-
 /// `config info-cache-ttl [SECONDS|--clear]`.
 pub(crate) async fn cmd_config_info_cache_ttl(change: Change<u64>, json: bool) -> Result<()> {
     let (config, changed) = set_optional("info_cache_ttl", change.map(|s| s.to_string()))?;
@@ -395,8 +374,8 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         no_profile,
         platform,
         no_platform,
-        script,
-        no_script,
+        wrappers,
+        no_wrappers,
         steam,
         no_steam,
         name,
@@ -414,7 +393,7 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
                 libgaki::config::Platform::from(libgaki::core::models::DepotPlatform::from(p))
             }),
         ),
-        script: change(no_script, script),
+        wrappers: change(no_wrappers, (!wrappers.is_empty()).then_some(wrappers)),
         steam: change(no_steam, steam.map(Into::into)),
     };
     let (game, changed) = libgaki::ops::config::update_game_entry(app_id, change).await?;
@@ -466,17 +445,16 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
             format!("resolved: {}", game.steam)
         )
     );
+    let own = entry.map(|e| e.wrappers.len()).unwrap_or(0);
     cli_println!(
-        "  Script   : {}",
-        set_or(
-            entry
-                .and_then(|e| e.script.as_ref())
-                .map(|p| p.display().to_string()),
-            match &game.script {
-                Some(p) => format!("fallback: {}", p.display()),
-                None => "none".into(),
-            }
-        )
+        "  Wrappers : {}",
+        if game.wrappers.is_empty() {
+            "(none)".to_owned()
+        } else if own == 0 {
+            format!("(profile: {})", game.wrappers.join(" "))
+        } else {
+            game.wrappers.join(" ")
+        }
     );
     if changed {
         cli_println!("Saved.");

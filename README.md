@@ -369,15 +369,9 @@ gaki-cli config game 2270 --native-engine   # route one game through a native en
 gaki-cli play 2270 --native-engine     # one-off launch via luxtorpeda
 gaki-cli luxtorpeda uninstall          # remove the downloaded payload
 
-# Per-game launch scripts (wrap the resolved launch command with your own script)
-gaki-cli scripts new 2270              # scaffold <script_dir>/2270.sh (2270.bat on Windows)
-gaki-cli scripts list                  # app ids with a script + resolved paths
-gaki-cli scripts show 2270             # print the resolved script + its contents
-gaki-cli play 2270                     # runs through the script (e.g. gamemoderun, mangohud)
-gaki-cli config game 2270 --launch-script ~/my/wrap.sh   # pin a specific script per game
-gaki-cli play 2270 --script ~/other.sh # one-off override for a single launch
-gaki-cli play 2270 --no-script         # bypass all scripts for this launch
-gaki-cli scripts remove 2270           # delete the dir-based script
+# Per-game wrappers (inside the profile's), e.g. your own script
+gaki-cli config game 2270 --wrapper mangohud --wrapper ~/my/wrap.sh
+gaki-cli config game 2270 --no-wrappers
 ```
 
 > [!NOTE]
@@ -400,13 +394,10 @@ gaki-cli scripts remove 2270           # delete the dir-based script
 <!-- -->
 
 > [!NOTE]
-> **Per-game launch scripts** let you wrap the fully-resolved launch command with your own
-> shell script (`<script_dir>/<appid>.sh`, or `.bat` on Windows). gaki runs the script with
-> the resolved command as its arguments (`"$@"`) and exports `GAKI_*` env vars, so a script
-> that is just `exec "$@"` is a passthrough while a custom one can prepend `gamemoderun`,
-> `mangohud` or `gamescope`. It works uniformly for native, Proton, luxtorpeda and umu launches.
-> Resolution precedence: `play --script <path>` beats `config game --launch-script <path>`,
-> which beats the auto-detected `<script_dir>/<appid>.sh`. `play --no-script` bypasses all of them.
+> **Wrappers** (`wrappers` in a profile or a `games.toml` entry) wrap the fully-resolved
+> launch command, the profile's outside the game's. Each gets the rest of the command as its
+> arguments (`"$@"`), and gaki exports `GAKI_*` env vars, so your own script ending in
+> `exec "$@"` works as a wrapper as well as `gamemoderun`, `mangohud` or `gamescope -f --`.
 
 Add `--json` to any command for machine-readable output (errors included). It's a global
 flag, so `gaki-cli --json <command>` and `gaki-cli <command> --json` are equivalent.
@@ -473,8 +464,8 @@ a standalone install. A session daemon serves one config directory, so pair it w
 but never starts one.
 
 Settings are changed with `config` commands, never environment variables: for example
-`config keyring false` on a machine without a keyring service, `config script-dir <PATH>`
-and `config info-cache-ttl <SECONDS>`.
+`config keyring false` on a machine without a keyring service, or
+`config info-cache-ttl <SECONDS>`.
 
 - **Library path.** gaki auto-detects your existing Steam installation. Inspect the
   resolved configuration with `gaki-cli config show`.

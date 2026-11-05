@@ -82,12 +82,6 @@ pub struct PipelineContext {
     /// The resolved configuration (profile, game entry, overrides). Filled in by
     /// `ResolveProfileStage` when the caller didn't.
     pub settings: Option<crate::settings::LaunchSettings>,
-    /// One-off launch-script override (e.g. `gaki-cli play --script <PATH>`) that
-    /// takes precedence over the per-game config and the auto-detected dir script.
-    pub launch_script_override: Option<std::path::PathBuf>,
-    /// One-off request (e.g. `gaki-cli play --no-script`) to bypass all launch
-    /// scripts for this launch.
-    pub disable_launch_script: bool,
     /// Run the game with real Steam integration
     pub steam_enabled: bool,
 
@@ -198,8 +192,6 @@ impl PipelineContext {
             user_config: None,
             proton_path: None,
             settings: None,
-            launch_script_override: None,
-            disable_launch_script: false,
             steam_enabled: false,
             resolved_install_dir: None,
             resolved_executable_path: None,
@@ -623,9 +615,6 @@ impl LaunchPipeline {
         pipeline.add_stage(Box::new(crate::launch::stages::preflight::PreflightStage));
         pipeline.add_stage(Box::new(
             crate::launch::stages::apply_settings::ApplySettingsStage,
-        ));
-        pipeline.add_stage(Box::new(
-            crate::launch::stages::apply_launch_script::ApplyLaunchScriptStage,
         ));
         pipeline.add_stage(Box::new(
             crate::launch::stages::spawn_process::SpawnProcessStage,

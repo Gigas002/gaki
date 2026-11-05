@@ -1,7 +1,7 @@
 //! `games.toml`: per-game overrides. A game only needs an entry when it
 //! overrides something.
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -33,10 +33,11 @@ pub struct Game {
     /// Arguments passed to the game.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub args: Vec<String>,
-    /// A script the launch is wrapped in; it gets the game command as its
-    /// arguments.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub script: Option<PathBuf>,
+    /// Commands the launch is wrapped in, inside the profile's: each gets the
+    /// rest of the command as its arguments, so a script that ends in
+    /// `exec "$@"` works.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub wrappers: Vec<String>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
     /// Steam integration, instead of the profile's.
@@ -52,7 +53,7 @@ impl Game {
             profile: None,
             platform: None,
             args: Vec::new(),
-            script: None,
+            wrappers: Vec::new(),
             env: BTreeMap::new(),
             steam: None,
         }
@@ -67,7 +68,7 @@ impl Game {
 
     /// Checks this entry on its own; duplicates and profile references are
     /// checked by [`super::Catalog::validate`].
-    pub fn validate(&self, ctx: &ValidationContext) -> Vec<Issue> {
+    pub fn validate(&self, _ctx: &ValidationContext) -> Vec<Issue> {
         let mut issues = Issues::new(self.subject());
         if self.app_id == 0 {
             issues.error("`app_id` must not be 0");
@@ -83,8 +84,10 @@ impl Game {
         if let Some(profile) = &self.profile {
             issues.name(profile);
         }
-        if let Some(script) = &self.script {
-            issues.absolute("script", script, ctx.home);
+        for wrapper in &self.wrappers {
+            if wrapper.trim().is_empty() {
+                issues.error("`wrappers` must not contain empty commands");
+            }
         }
         issues.env(&self.env);
         issues.finish()

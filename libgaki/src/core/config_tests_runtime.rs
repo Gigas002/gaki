@@ -13,23 +13,18 @@ fn runtime_settings_ignore_other_fields() {
     let s = parse_runtime_settings(raw);
     assert!(!s.use_keyring);
     assert_eq!(s.info_cache_ttl, Some(0));
-    assert_eq!(s.script_dir.as_deref(), Some("/s"));
 }
 
 #[test]
 fn new_settings_round_trip_through_launcher_config() {
-    let mut config = LauncherConfig {
+    let config = LauncherConfig {
         use_keyring: false,
         info_cache_ttl: Some(60),
         ..Default::default()
     };
-    config.script_dir = Some("/scripts".into());
     let raw = serde_json::to_string(&config).unwrap();
     let back: LauncherConfig = serde_json::from_str(&raw).unwrap();
     assert!(!back.use_keyring);
     assert_eq!(back.info_cache_ttl, Some(60));
-    assert_eq!(
-        parse_runtime_settings(&raw).script_dir.as_deref(),
-        Some("/scripts")
-    );
+    assert_eq!(parse_runtime_settings(&raw).info_cache_ttl, Some(60));
 }

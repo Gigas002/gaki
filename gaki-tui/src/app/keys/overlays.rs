@@ -60,7 +60,6 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Down | KeyCode::Char('j') => browser.game_config_next(),
             KeyCode::Up | KeyCode::Char('k') => browser.game_config_previous(),
             KeyCode::Char('\n') | KeyCode::Enter => browser.game_config_activate(),
-            KeyCode::Char('x') => browser.game_config_remove_script(),
             _ => {}
         }
     } else if browser.show_collections {
