@@ -5,5 +5,6 @@ pub mod infra;
 pub mod launch;
 pub mod library;
 pub mod ops;
+pub mod settings;
 pub mod steam_client;
 pub mod web;

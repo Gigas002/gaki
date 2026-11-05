@@ -977,9 +977,19 @@ I make the changes, and you review, commit, and push.
   stays out of `games.toml`: it is written by gaki, not the user. A proton
   profile's `prefix` is optional; without one each game keeps its own Steam
   `compatdata/<app id>`. Nothing reads the new files yet (5.2, 5.3).
-- [ ] **5.2** Add a `libgaki::settings` resolver that merges the layers in the
+- [x] **5.2** Add a `libgaki::settings` resolver that merges the layers in the
   order CLI > game > profile > config > defaults and produces a resolved
   `LaunchSettings` for each game.
+  *Done.* `settings::resolve(catalog, app_id, &Overrides, home)` is pure: no
+  I/O, `~` expanded. The profile comes from the CLI, then the game, then
+  `default_profile`. The platform comes from the CLI (`--proton` implies
+  Windows), then the game, then an explicitly chosen profile's runner, then
+  `default_platform`; unset, the launch picks from the game's builds. An
+  explicit profile that contradicts the platform is an error, while the
+  default profile is just left out. Proton-only values (build, prefix, DLL
+  overrides, anti-cheat) sit in `LaunchSettings::proton`. Env merges profile
+  then game. The `scripts/<app id>.sh` fallback is left to 5.5, and the
+  launch path doesn't call the resolver yet (5.3).
 - [ ] **5.3** Rework the launch pipeline (`launch/stages/resolve_profile.rs`,
   `prepare_prefix.rs`, and `build_environment.rs`) to use the resolved profile:
   the shared prefix becomes `STEAM_COMPAT_DATA_PATH`, and the pipeline adds

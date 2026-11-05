@@ -29,3 +29,31 @@ fn examples_load_and_validate() {
     );
     assert!(issues.is_empty(), "examples should not warn: {issues:#?}");
 }
+
+#[test]
+fn examples_resolve() {
+    use libgaki::settings::{Overrides, ProtonBuild, resolve};
+
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples");
+    let home = Path::new("/home/user");
+    let catalog = Catalog::load(&dir, home);
+
+    let witcher = resolve(&catalog, 292030, &Overrides::default(), home).unwrap();
+    assert_eq!(witcher.profile.as_deref(), Some("proton-cachyos"));
+    assert_eq!(witcher.platform, Some(Platform::Windows));
+    let proton = witcher.proton.unwrap();
+    assert_eq!(
+        proton.build,
+        ProtonBuild::Path("/usr/share/steam/compatibilitytools.d/proton-cachyos".into())
+    );
+    assert_eq!(witcher.env["DXVK_HUD"], "fps");
+
+    let dota = resolve(&catalog, 570, &Overrides::default(), home).unwrap();
+    assert_eq!(dota.platform, Some(Platform::Linux));
+    assert!(dota.proton.is_none());
+
+    // Not in games.toml: `default_platform = "linux"` drops the proton default.
+    let other = resolve(&catalog, 10, &Overrides::default(), home).unwrap();
+    assert_eq!(other.profile, None);
+    assert_eq!(other.platform, Some(Platform::Linux));
+}
