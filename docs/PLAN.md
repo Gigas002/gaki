@@ -1174,10 +1174,21 @@ I make the changes, and you review, commit, and push.
   first, so a session that can't be restored can still be removed. Removed:
   `config keyring`, the `keyring`/`encrypt_session` keys, `argon2`,
   `chacha20poly1305`; `hex` stays (the depot browser uses it).
-- [ ] **5.10** Token hygiene. Wrap tokens in `secrecy::SecretString`:
+- [x] **5.10** Token hygiene. Wrap tokens in `secrecy::SecretString`:
   redacted `Debug`, zeroized on drop, and no `Serialize`. Add a test that
   `{:?}` of every session type contains no token. Grep `tracing` calls for
   token fields.
+  *Done.* `SessionState`'s `refresh_token`/`web_token`, `WebTokenInfo::token`,
+  `WebSession`'s cookie header (it carries `steamLoginSecure`) and, beyond
+  the plan, `PasswordLogin::password` are `SecretString`s; `SessionState`
+  lost `Serialize`/`Deserialize` (`account.toml` has its own type), and
+  `WebSession` got a `Debug` that shows only the SteamID and the redacted
+  cookie. `auth::redaction_tests` checks `{:?}` and `{:#?}` of all four.
+  The `tracing`/print grep found no token values logged (the CDN auth token
+  is logged by length only), and no token is put in a URL, so request
+  errors can't echo one. Left as is: the plain copies handed to
+  steam-vent's `Connection::access`/login and the TUI's password input
+  buffer.
 - [ ] **5.11** Make logout revoke at Steam. Call
   `Authentication.RevokeRefreshToken` before deleting the local copy. If
   steam-vent doesn't expose it, hand-wire it as the CloudConfigStore RPC is.

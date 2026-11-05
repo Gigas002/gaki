@@ -6,6 +6,7 @@ use super::store::{
 };
 use crate::core::models::SessionState;
 use anyhow::{Context, Result, anyhow};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -116,9 +117,9 @@ pub async fn load_session() -> Result<SessionState> {
         account_name: account.account_name,
         persona_name: account.persona_name,
         steam_id: account.steam_id,
-        refresh_token: secrets.0,
+        refresh_token: secrets.0.map(SecretString::from),
         client_instance_id: account.client_instance_id,
-        web_token: secrets.1,
+        web_token: secrets.1.map(SecretString::from),
     })
 }
 
@@ -127,7 +128,10 @@ pub async fn load_session() -> Result<SessionState> {
 /// this fails. Also removes what an older gaki left (`session.json` and its
 /// keyring key) and the tokens of an account this one replaces.
 pub async fn save_session(session: &SessionState) -> Result<()> {
-    let present = |t: &Option<String>| t.as_deref().is_some_and(|t| !t.trim().is_empty());
+    let present = |t: &Option<SecretString>| {
+        t.as_ref()
+            .is_some_and(|t| !t.expose_secret().trim().is_empty())
+    };
     let (refresh, web) = (present(&session.refresh_token), present(&session.web_token));
     let steam_id = session.steam_id;
     if (refresh || web) && steam_id.is_none() {
@@ -141,11 +145,11 @@ pub async fn save_session(session: &SessionState) -> Result<()> {
     with_store(move |store| {
         if let Some(id) = steam_id {
             match &tokens.0 {
-                Some(token) => store.set(&refresh_token_key(id), token)?,
+                Some(token) => store.set(&refresh_token_key(id), token.expose_secret())?,
                 None => store.delete(&refresh_token_key(id))?,
             }
             match &tokens.1 {
-                Some(token) => store.set(&web_token_key(id), token)?,
+                Some(token) => store.set(&web_token_key(id), token.expose_secret())?,
                 None => store.delete(&web_token_key(id))?,
             }
         }

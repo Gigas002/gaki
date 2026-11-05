@@ -301,7 +301,11 @@ impl SteamClient {
         let refresh_token = persisted
             .refresh_token
             .clone()
-            .filter(|value| !value.trim().is_empty())
+            .filter(|value| {
+                !secrecy::ExposeSecret::expose_secret(value)
+                    .trim()
+                    .is_empty()
+            })
             .ok_or_else(|| anyhow!("no persisted refresh_token found"))?;
 
         self.connect().await?;
@@ -311,7 +315,12 @@ impl SteamClient {
         self.state = LoginState::AwaitingAccessTokenLogon;
 
         let server_list = self.resolve_server_list().await?;
-        let connection = access_with_retry(&server_list, &account_name, &refresh_token).await?;
+        let connection = access_with_retry(
+            &server_list,
+            &account_name,
+            secrecy::ExposeSecret::expose_secret(&refresh_token),
+        )
+        .await?;
 
         self.connection = Some(connection);
         let mut session = self
@@ -573,7 +582,7 @@ impl SteamClient {
                         account_name: Some(account_name),
                         persona_name: None,
                         steam_id,
-                        refresh_token: Some(refresh_token.to_string()),
+                        refresh_token: Some(refresh_token.into()),
                         client_instance_id: None,
                         // A full client session supersedes any pasted web token
                         // (web tokens are minted fresh off the CM session instead).
@@ -595,7 +604,7 @@ impl SteamClient {
             account_name: Some(account_name),
             persona_name: None,
             steam_id: Some(steam_id),
-            refresh_token: connection.access_token().map(ToString::to_string),
+            refresh_token: connection.access_token().map(Into::into),
             client_instance_id: None,
             web_token: None,
         })

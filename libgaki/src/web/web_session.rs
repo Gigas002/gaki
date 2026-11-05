@@ -24,8 +24,18 @@ pub struct WebSession {
     /// The `sessionid` CSRF token. Steam only checks that this cookie matches the
     /// `sessionid` form field on POSTs, so a client-generated value is accepted.
     sessionid: String,
-    /// Pre-rendered `Cookie:` header value.
-    cookie: String,
+    /// Pre-rendered `Cookie:` header value; holds the `steamLoginSecure`
+    /// token, so it is redacted in `Debug` and zeroed on drop.
+    cookie: secrecy::SecretString,
+}
+
+impl std::fmt::Debug for WebSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("WebSession")
+            .field("steam_id", &self.steam_id)
+            .field("cookie", &self.cookie)
+            .finish_non_exhaustive()
+    }
 }
 
 impl WebSession {
@@ -57,7 +67,7 @@ impl WebSession {
             http,
             steam_id,
             sessionid,
-            cookie,
+            cookie: cookie.into(),
         })
     }
 
@@ -75,10 +85,10 @@ impl WebSession {
     /// common failure modes (rate limiting, an expired/invalid session) to clear,
     /// actionable errors.
     pub async fn get_text(&self, url: &str) -> Result<String> {
-        let request = self
-            .http
-            .get(url)
-            .header(reqwest::header::COOKIE, &self.cookie);
+        let request = self.http.get(url).header(
+            reqwest::header::COOKIE,
+            secrecy::ExposeSecret::expose_secret(&self.cookie),
+        );
         let resp = crate::core::net::send_with_retry(&self.http, request).await?;
         read_checked(resp).await
     }

@@ -1477,7 +1477,7 @@ pub fn login_classic(
         let mut client = libgaki::steam_client::SteamClient::new()?;
         let mut request = PasswordLogin {
             username: username.to_string(),
-            password: password.to_string(),
+            password: password.to_string().into(),
             guard_code: None,
             read_code_from_stdin: false,
             timeout: Some(libgaki::ops::auth::LOGIN_TIMEOUT),

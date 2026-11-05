@@ -110,7 +110,7 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
     // for a code when Steam asks for one.
     let mut request = PasswordLogin {
         username,
-        password,
+        password: password.into(),
         guard_code: guard,
         read_code_from_stdin: code,
         timeout: None,
@@ -399,7 +399,7 @@ pub(crate) async fn cmd_login_json(
 
     let mut request = PasswordLogin {
         username,
-        password,
+        password: password.into(),
         guard_code: guard,
         read_code_from_stdin: false,
         timeout: Some(libgaki::ops::auth::LOGIN_TIMEOUT),

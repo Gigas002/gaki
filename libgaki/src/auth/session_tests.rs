@@ -1,10 +1,11 @@
 use super::*;
+use secrecy::ExposeSecret;
 
 /// The unit-test process shares one config dir and one memory store, so the
 /// session tests run as one sequence.
 #[tokio::test]
 async fn session_round_trip() {
-    assert_eq!(load_session().await.unwrap().refresh_token, None);
+    assert!(load_session().await.unwrap().refresh_token.is_none());
     assert_eq!(stored_account(), StoredAccount::None);
 
     // A session.json from before the keyring asks for a login.
@@ -29,8 +30,12 @@ async fn session_round_trip() {
     assert!(text.contains("refresh_token = true"), "{text}");
 
     let back = load_session().await.unwrap();
-    assert_eq!(back.refresh_token.as_deref(), Some("refresh-secret"));
-    assert_eq!(back.web_token.as_deref(), Some("web-secret"));
+    let expose = |t: &Option<SecretString>| t.as_ref().map(|t| t.expose_secret().to_owned());
+    assert_eq!(
+        expose(&back.refresh_token).as_deref(),
+        Some("refresh-secret")
+    );
+    assert_eq!(expose(&back.web_token).as_deref(), Some("web-secret"));
     assert_eq!(stored_account(), StoredAccount::Account("Persona".into()));
 
     // A token the store lost is an error, not a silent logout.

@@ -47,7 +47,8 @@ pub enum LoginStep {
 #[derive(Debug, Clone)]
 pub struct PasswordLogin {
     pub username: String,
-    pub password: String,
+    /// Redacted in `Debug`, zeroed on drop.
+    pub password: secrecy::SecretString,
     /// A Steam Guard code, when the caller already has one.
     pub guard_code: Option<String>,
     /// Let the Steam client read a Guard code from stdin itself.
@@ -63,7 +64,7 @@ pub struct PasswordLogin {
 pub async fn login(client: &mut SteamClient, request: &PasswordLogin) -> Result<LoginStep> {
     let attempt = client.login(
         request.username.clone(),
-        request.password.clone(),
+        secrecy::ExposeSecret::expose_secret(&request.password).to_owned(),
         request.guard_code.clone(),
         request.read_code_from_stdin,
     );
@@ -178,9 +179,11 @@ pub async fn session_status(client: Option<&SteamClient>) -> SessionStatus {
         steam_id: client
             .and_then(|c| c.steam_id())
             .or(stored.as_ref().and_then(|s| s.steam_id)),
-        web_token: stored
-            .as_ref()
-            .is_some_and(|s| s.web_token.as_deref().is_some_and(|t| !t.is_empty())),
+        web_token: stored.as_ref().is_some_and(|s| {
+            s.web_token
+                .as_ref()
+                .is_some_and(|t| !secrecy::ExposeSecret::expose_secret(t).is_empty())
+        }),
     }
 }
 

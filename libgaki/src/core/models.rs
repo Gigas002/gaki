@@ -1,3 +1,4 @@
+use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -79,20 +80,21 @@ pub struct UserAppConfig {
 
 pub type UserConfigStore = HashMap<u32, UserAppConfig>;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+/// The signed-in account and its tokens. The tokens are [`SecretString`]s:
+/// redacted in `Debug`, zeroed when dropped, and never serialized (they are
+/// stored only through [`crate::auth::store`]).
+#[derive(Debug, Clone, Default)]
 pub struct SessionState {
     pub account_name: Option<String>,
     /// Public display (persona) name, for messages.
-    #[serde(default)]
     pub persona_name: Option<String>,
     pub steam_id: Option<u64>,
-    pub refresh_token: Option<String>,
+    pub refresh_token: Option<SecretString>,
     pub client_instance_id: Option<u64>,
     /// Web-scoped access token pasted from the browser (`login --web-token`).
     /// Enables the web-surface commands (inventory/wallet/listings) without a
     /// CM session; short-lived (expiry is inside the JWT). Not a refresh token.
-    #[serde(default)]
-    pub web_token: Option<String>,
+    pub web_token: Option<SecretString>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
