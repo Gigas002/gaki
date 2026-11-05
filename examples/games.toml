@@ -1,0 +1,17 @@
+# Per-game overrides: ~/.config/gaki/games.toml
+# A game only needs an entry when it overrides something.
+
+[[game]]
+app_id = 292030
+name = "witcher3"                 # alias usable everywhere an app id is
+profile = "proton-cachyos"
+platform = "windows"
+args = ["-skipIntro"]
+script = "~/games/run_scripts/witcher3/script.sh"
+[game.env]
+DXVK_HUD = "fps"
+
+[[game]]
+app_id = 570
+name = "dota2"
+profile = "native"

@@ -166,10 +166,11 @@ the same way lootrs reports a runner left out of its build.
 ```toml
 name = "proton"
 runner = "proton"                    # proton | native
-proton = "experimental"              # official Steam-installed build name, or a path
-                                     # e.g. "/usr/share/steam/compatibilitytools.d/proton-cachyos"
 prefix = "~/prefixes/proton"         # STEAM_COMPAT_DATA_PATH; shared across games
 wrappers = ["mangohud", "gamemoderun"]
+[proton]
+build = "experimental"               # official Steam-installed build name, or a path
+                                     # e.g. "/usr/share/steam/compatibilitytools.d/proton-cachyos"
 [env]
 PROTON_ENABLE_WAYLAND = "1"
 [dll_overrides]
@@ -959,10 +960,23 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 5 — configuration overhaul (R26, R29, R30, R27)
 
-- [ ] **5.1** Add a `libgaki::config` module with TOML types for `config.toml`,
+- [x] **5.1** Add a `libgaki::config` module with TOML types for `config.toml`,
   `profiles/*.toml`, and `games.toml`, and loaders that discover XDG paths. Add
   `examples/` files and a test that parses every example, as lootrs does in
   `liblootrs/tests/examples.rs`.
+  *Done.* `Catalog::load(config_dir, home)` reads all three files
+  (`Catalog::load_user()` uses gaki's config dir). A missing file means
+  defaults; an unreadable or unparsable one becomes a `LoadError` and the rest
+  still loads. `Catalog::validate` returns lootrs-style `Issue`s: names,
+  absolute paths after `~`, profile `name` matching the file stem, lootrs-only
+  runners (`wine`, `umu`), duplicate app ids or aliases, all-digit aliases, and
+  dangling profile references. `config.toml` and `games.toml` reject unknown
+  keys; profiles ignore them, so lootrs' `dxvk`/`vkd3d`/`[wine]`/`[umu]` load.
+  `config.toml` takes over `LauncherConfig`'s keys except `proton_version`
+  (profiles replace it) and the keyring flags (5.9 replaces them). Pin state
+  stays out of `games.toml`: it is written by gaki, not the user. A proton
+  profile's `prefix` is optional; without one each game keeps its own Steam
+  `compatdata/<app id>`. Nothing reads the new files yet (5.2, 5.3).
 - [ ] **5.2** Add a `libgaki::settings` resolver that merges the layers in the
   order CLI > game > profile > config > defaults and produces a resolved
   `LaunchSettings` for each game.

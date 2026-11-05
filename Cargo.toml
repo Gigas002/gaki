@@ -40,7 +40,9 @@ steam-vent-proto-common = "0.5.1" # RpcMethod/RpcMessage traits for the hand-wir
 steamid-ng = "3" # Matches steam-vent's steamid-ng
 sysinfo = { version = "0.33", default-features = false, features = ["system", "disk"] } # Process listing for `kill`/`daemon`; `disk` for free-space checks
 tempfile = "3"
+thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "fs", "time", "net", "io-util", "sync", "io-std", "process"] }
+toml = "1"
 tokio-stream = "0.1" # Consume steam-vent's notification broadcast streams (friend chat events)
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

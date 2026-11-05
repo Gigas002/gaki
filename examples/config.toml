@@ -1,0 +1,27 @@
+# gaki's global settings: ~/.config/gaki/config.toml
+# Every key is optional. Paths may start with `~`.
+
+# Where games install. Default: the detected Steam library.
+steam_library = "~/.local/share/Steam"
+
+# The profile a game uses when games.toml names none.
+default_profile = "proton"
+
+# Which build to run when a game ships both: windows | linux.
+# Unset: Windows for Windows-only games, Linux otherwise.
+default_platform = "linux"
+
+cloud_sync = true
+
+# Steam presence while gaki is signed in: offline | online.
+presence = "offline"
+
+# Resume interrupted installs when the daemon starts: manual | auto.
+install_resume = "manual"
+
+# Route all HTTP(S) traffic through a proxy.
+# proxy = "socks5://127.0.0.1:1080"
+# no_proxy = "localhost,127.0.0.1"
+
+# Share profiles with lootrs.
+# profiles_dir = "~/.config/lootrs/profiles"
