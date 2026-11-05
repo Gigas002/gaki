@@ -1,61 +1,64 @@
-//! Encrypted-session error-surfacing regression tests.
+//! The stored session's error surfacing: `account.toml` plus the secret
+//! store. Every config dir sets `secret_store = "memory"`, so no test touches
+//! the real keyring and each process starts with no secrets.
 
 use std::fs;
 use std::path::Path;
 use std::process::{Command, Output};
 use tempfile::{TempDir, tempdir};
 
+fn gaki() -> Command {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_gaki-cli"));
+    cmd.stdin(std::process::Stdio::null());
+    cmd
+}
+
+/// A config dir that keeps secrets in memory.
+fn config_dir() -> TempDir {
+    let tmp = tempdir().unwrap();
+    fs::write(
+        tmp.path().join("config.toml"),
+        "secret_store = \"memory\"\n",
+    )
+    .unwrap();
+    tmp
+}
+
 fn gaki_cli(config_dir: &Path, args: &[&str]) -> Output {
-    Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
+    gaki()
         .arg("--config-dir")
         .arg(config_dir)
         .arg("--no-daemon")
         .args(args)
-        .stdin(std::process::Stdio::null())
         .output()
         .expect("failed running the gaki-cli binary")
-}
-
-/// No keyring service in CI: turn it off for this config dir.
-fn disable_keyring(config_dir: &Path) {
-    let out = gaki_cli(config_dir, &["config", "keyring", "false"]);
-    assert!(
-        out.status.success(),
-        "could not disable the keyring: {out:?}"
-    );
 }
 
 fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).to_string()
 }
 
-// Tokenless session: restore fails before networking.
-fn write_envelope(dir: &Path, keyring: bool) {
-    disable_keyring(dir);
-    let mut envelope = libgaki::core::session_crypto::encrypt(b"{}", "irrelevant").unwrap();
-    envelope.keyring = keyring;
+/// An account whose refresh token the store doesn't have: a keyring that
+/// lost it, or a memory store in a new process.
+fn with_lost_token() -> TempDir {
+    let tmp = config_dir();
     fs::write(
-        dir.join("session.json"),
-        serde_json::to_string(&envelope).unwrap(),
+        tmp.path().join("account.toml"),
+        "account_name = \"tester\"\nsteam_id = 76561198000000001\nrefresh_token = true\n",
     )
     .unwrap();
-}
-
-fn with_keyring_session() -> TempDir {
-    let tmp = tempdir().unwrap();
-    write_envelope(tmp.path(), true);
     tmp
 }
 
 #[test]
-fn keyring_mode_without_a_keyring_names_the_keyring() {
-    let tmp = with_keyring_session();
+fn a_lost_token_asks_for_a_login() {
+    let tmp = with_lost_token();
     let out = gaki_cli(tmp.path(), &["account"]);
     assert!(!out.status.success(), "expected failure, got: {out:?}");
     let err = stderr(&out);
     assert!(
-        err.contains("OS keyring"),
-        "error must name the keyring: {err}"
+        err.contains("refresh-token") && err.contains("gaki-cli login"),
+        "error must say what is missing: {err}"
     );
     assert!(
         !err.contains("not logged in"),
@@ -64,20 +67,30 @@ fn keyring_mode_without_a_keyring_names_the_keyring() {
 }
 
 #[test]
-fn legacy_password_envelope_points_at_relogin() {
-    let tmp = tempdir().unwrap();
-    write_envelope(tmp.path(), false);
+fn an_old_session_json_asks_for_a_login() {
+    let tmp = config_dir();
+    fs::write(
+        tmp.path().join("session.json"),
+        r#"{"account_name":"tester","refresh_token":"tok"}"#,
+    )
+    .unwrap();
     let out = gaki_cli(tmp.path(), &["account"]);
     assert!(!out.status.success(), "expected failure, got: {out:?}");
     let err = stderr(&out);
     assert!(
-        err.contains("legacy session password") && err.contains("gaki-cli login"),
-        "error must point at a re-login: {err}"
+        err.contains("session.json") && err.contains("keyring") && err.contains("gaki-cli login"),
+        "error must explain the move: {err}"
     );
-    assert!(
-        !err.contains("not logged in"),
-        "must not misreport as logged out: {err}"
-    );
+}
+
+#[test]
+fn logout_clears_the_account() {
+    let tmp = with_lost_token();
+    fs::write(tmp.path().join("session.json"), "{}").unwrap();
+    let out = gaki_cli(tmp.path(), &["logout"]);
+    assert!(out.status.success(), "logout failed: {}", stderr(&out));
+    assert!(!tmp.path().join("account.toml").exists());
+    assert!(!tmp.path().join("session.json").exists());
 }
 
 mod daemon_e2e {
@@ -95,14 +108,12 @@ mod daemon_e2e {
     }
 
     fn spawn_daemon(config_dir: &Path, socket: &Path) -> DaemonProc {
-        disable_keyring(config_dir);
-        let child = Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
+        let child = gaki()
             .arg("--config-dir")
             .arg(config_dir)
             .arg("--socket")
             .arg(socket)
             .arg("daemon")
-            .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .spawn()
@@ -117,22 +128,23 @@ mod daemon_e2e {
         DaemonProc(child)
     }
 
+    fn account_via(config_dir: &Path, socket: &Path) -> Output {
+        gaki()
+            .arg("--config-dir")
+            .arg(config_dir)
+            .arg("--socket")
+            .arg(socket)
+            .args(["--no-spawn", "account"])
+            .output()
+            .expect("failed running the gaki-cli binary")
+    }
+
     #[test]
     fn logged_out_stays_a_plain_not_logged_in() {
-        let tmp = tempdir().unwrap();
+        let tmp = config_dir();
         let socket = tmp.path().join("daemon.sock");
         let _daemon = spawn_daemon(tmp.path(), &socket);
-
-        let out = Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
-            .arg("--config-dir")
-            .arg(tmp.path())
-            .arg("--socket")
-            .arg(&socket)
-            .args(["--no-spawn", "account"])
-            .stdin(std::process::Stdio::null())
-            .output()
-            .expect("failed running the gaki-cli binary");
-
+        let out = account_via(tmp.path(), &socket);
         assert!(!out.status.success(), "expected failure, got: {out:?}");
         assert!(
             stderr(&out).contains("not logged in"),
@@ -143,24 +155,14 @@ mod daemon_e2e {
 
     #[test]
     fn daemon_surfaces_the_restore_error() {
-        let tmp = with_keyring_session();
+        let tmp = with_lost_token();
         let socket = tmp.path().join("daemon.sock");
         let _daemon = spawn_daemon(tmp.path(), &socket);
-
-        let out = Command::new(env!("CARGO_BIN_EXE_gaki-cli"))
-            .arg("--config-dir")
-            .arg(tmp.path())
-            .arg("--socket")
-            .arg(&socket)
-            .args(["--no-spawn", "account"])
-            .stdin(std::process::Stdio::null())
-            .output()
-            .expect("failed running the gaki-cli binary");
-
+        let out = account_via(tmp.path(), &socket);
         assert!(!out.status.success(), "expected failure, got: {out:?}");
         let err = stderr(&out);
         assert!(
-            err.contains("could not restore the stored session") && err.contains("OS keyring"),
+            err.contains("could not restore the stored session") || err.contains("refresh-token"),
             "unexpected error: {err}"
         );
         assert!(

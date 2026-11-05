@@ -4,8 +4,7 @@ use super::*;
 fn launcher_config_fills_defaults() {
     let config = LauncherConfig::from_config(&crate::config::Config::default(), None);
     assert_eq!(config.proton_version, DEFAULT_PROTON);
-    assert!(config.use_keyring && config.enable_cloud_sync);
-    assert!(!config.encrypt_session);
+    assert!(config.enable_cloud_sync);
     assert_eq!(config.proxy, ProxyConfig::default());
 }
 
@@ -14,14 +13,12 @@ fn launcher_config_takes_the_toml_settings() {
     let config: crate::config::Config = toml::from_str(
         "steam_library = \"~/games/steam\"\n\
          default_proton = \"GE-Proton9\"\n\
-         keyring = false\n\
          proxy = \"socks5://127.0.0.1:1080\"\n",
     )
     .unwrap();
     let config = LauncherConfig::from_config(&config, Some(Path::new("/home/u")));
     assert_eq!(config.steam_library_path, "/home/u/games/steam");
     assert_eq!(config.proton_version, "GE-Proton9");
-    assert!(!config.use_keyring);
     assert_eq!(config.proxy.url.as_deref(), Some("socks5://127.0.0.1:1080"));
 }
 

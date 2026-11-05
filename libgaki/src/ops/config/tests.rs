@@ -24,8 +24,9 @@ fn leftover_json_settings_are_reported() {
     std::fs::write(dir.path().join("config.json"), "{}").unwrap();
     std::fs::write(dir.path().join("user_apps.json"), "{}").unwrap();
     std::fs::write(dir.path().join("collections.json"), "{}").unwrap();
+    std::fs::write(dir.path().join("session.json"), "{}").unwrap();
     let issues = leftover_json(dir.path());
-    assert_eq!(issues.len(), 3);
+    assert_eq!(issues.len(), 4);
     assert!(
         issues[0].message.contains("config.toml"),
         "{}",

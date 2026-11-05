@@ -96,7 +96,7 @@ impl Runner for WineTkgRunner {
         );
 
         // Add user identity context if available
-        if let Ok(session) = crate::core::config::load_session().await {
+        if let Ok(session) = crate::auth::load_session().await {
             if let Some(steam_id) = session.steam_id {
                 env.insert("SteamUser".to_string(), steam_id.to_string());
             }

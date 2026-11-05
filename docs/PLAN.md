@@ -1149,7 +1149,7 @@ I make the changes, and you review, commit, and push.
 "Authentication and session security". They come after 5.1, which adds the
 `config.toml` keys.
 
-- [ ] **5.9** Add a `libgaki::auth::store` module with a `SecretStore` trait
+- [x] **5.9** Add a `libgaki::auth::store` module with a `SecretStore` trait
   and two backends, `Keyring` (one Secret Service item per secret:
   `gaki`/`refresh-token:<steamid>` and `gaki`/`web-token:<steamid>`) and
   `Memory`. Add `session_store`. Delete `session.json`, the ChaCha/Argon2
@@ -1158,6 +1158,22 @@ I make the changes, and you review, commit, and push.
   `hex` dependencies if nothing else uses them. Never fall back to plaintext.
   Non-secret account metadata goes to `$XDG_STATE_HOME/gaki/account.toml`.
   A user with an old `session.json` logs in once; gaki then deletes the file.
+  *Done.* `libgaki::auth`: `store` (the trait, `Keyring`, `Memory`,
+  `session_store`, `set_session_store`) and `session` (`load_session`,
+  `save_session`, `delete_session`, `stored_account`). `account.toml` holds
+  the names, SteamID and which tokens the store has, so a token the keyring
+  lost is a "log in again" error naming the store instead of a silent
+  logout; it sits in the config dir instead when one is set for the process
+  (`--config-dir`, tests). A save also removes the tokens of an account it
+  replaces, an old `session.json`, and the old `gaki`/`session-key` item.
+  An old `session.json` without `account.toml` asks for a login (`config
+  check` warns about it too). Without a keyring the error says so and
+  points at `secret_store = "memory"`, a new `config.toml` key (settings
+  are never environment variables) that keeps tokens in the running daemon
+  only. The daemon now watches `account.toml`. `logout` no longer restores
+  first, so a session that can't be restored can still be removed. Removed:
+  `config keyring`, the `keyring`/`encrypt_session` keys, `argon2`,
+  `chacha20poly1305`; `hex` stays (the depot browser uses it).
 - [ ] **5.10** Token hygiene. Wrap tokens in `secrecy::SecretString`:
   redacted `Debug`, zeroized on drop, and no `Serialize`. Add a test that
   `{:?}` of every session type contains no token. Grep `tracing` calls for

@@ -60,8 +60,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("install_resume", KeyKind::Text),
     ("experimental", KeyKind::Bool),
     ("info_cache_ttl", KeyKind::Integer),
-    ("keyring", KeyKind::Bool),
-    ("encrypt_session", KeyKind::Bool),
+    ("secret_store", KeyKind::Text),
 ];
 
 fn config_toml_path() -> Result<PathBuf> {
@@ -247,6 +246,10 @@ pub fn leftover_json(config_dir: &std::path::Path) -> Vec<crate::config::Issue> 
         (
             "user_apps.json",
             "per-game settings now live in games.toml (`gaki-cli config game`)",
+        ),
+        (
+            "session.json",
+            "tokens now live in the OS keyring; `gaki-cli login` once deletes it",
         ),
         (
             "collections.json",

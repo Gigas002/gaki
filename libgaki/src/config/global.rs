@@ -53,15 +53,21 @@ pub struct Config {
     /// disables the cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub info_cache_ttl: Option<u64>,
-    /// Whether the OS keyring may hold the session key. Off for headless
-    /// machines, where no keyring service runs. Until the credential store
-    /// replaces it (5.9).
-    #[serde(default = "default_true")]
-    pub keyring: bool,
-    /// Keep `session.json` encrypted with the keyring key; set by the first
-    /// login. Until the credential store replaces it (5.9).
+    /// Where the session's tokens are kept: `keyring` (the OS keyring) or
+    /// `memory` (the running daemon only, for machines without a keyring).
     #[serde(default)]
-    pub encrypt_session: bool,
+    pub secret_store: SecretStoreKind,
+}
+
+/// The `secret_store` setting.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SecretStoreKind {
+    /// The OS keyring (Secret Service).
+    #[default]
+    Keyring,
+    /// The process's memory: gone when it exits.
+    Memory,
 }
 
 fn default_true() -> bool {
@@ -83,8 +89,7 @@ impl Default for Config {
             install_resume: InstallResume::default(),
             experimental: false,
             info_cache_ttl: None,
-            keyring: true,
-            encrypt_session: false,
+            secret_store: SecretStoreKind::default(),
         }
     }
 }

@@ -31,5 +31,6 @@ install_resume = "manual"
 # Share profiles with lootrs.
 # profiles_dir = "~/.config/lootrs/profiles"
 
-# Use the OS keyring for the session key; turn off on headless machines.
-# keyring = true
+# Where the session's tokens are kept: keyring (the OS keyring) | memory
+# (the running daemon only, for machines without a keyring).
+# secret_store = "keyring"

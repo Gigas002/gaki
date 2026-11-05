@@ -1,24 +1,9 @@
-use crate::core::models::{OwnedGame, SessionState};
+use crate::core::models::OwnedGame;
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
-
-/// Write `session.json`, the one JSON file left: the credential store
-/// replaces it in 5.9.
-async fn write_json_pretty<T: Serialize>(path: &Path, value: &T) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)
-            .await
-            .with_context(|| format!("failed creating {}", parent.display()))?;
-    }
-    let body = serde_json::to_string_pretty(value)?;
-    fs::write(path, body)
-        .await
-        .with_context(|| format!("failed writing {}", path.display()))?;
-    Ok(())
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ProxyConfig {
@@ -70,12 +55,6 @@ pub struct LauncherConfig {
     /// Opt-in gate for experimental features: the browser/OpenID identity
     /// check (`login --openid`) and web-token auth (`login --web-token`).
     pub experimental: bool,
-    /// Keep `session.json` encrypted with the OS-keyring key. Enabled
-    /// automatically by the first successful login.
-    pub encrypt_session: bool,
-    /// Whether the OS keyring may be used for the session key. Off for
-    /// headless machines and CI, where no keyring service runs.
-    pub use_keyring: bool,
     /// Lifetime of a cached `info` record in seconds; `None` is the default
     /// (6h) and `0` disables the cache.
     pub info_cache_ttl: Option<u64>,
@@ -117,8 +96,6 @@ impl LauncherConfig {
             },
             install_resume: config.install_resume,
             experimental: config.experimental,
-            encrypt_session: config.encrypt_session,
-            use_keyring: config.keyring,
             info_cache_ttl: config.info_cache_ttl,
         }
     }
@@ -235,114 +212,6 @@ fn xdg_dir(
     Ok(base.join("gaki"))
 }
 
-/// Stored session (`session.json`) path.
-pub fn session_path() -> Result<PathBuf> {
-    Ok(config_dir()?.join("session.json"))
-}
-
-pub async fn load_session() -> Result<SessionState> {
-    let session_path = session_path()?;
-    if !session_path.exists() {
-        return Ok(SessionState::default());
-    }
-    let raw = fs::read_to_string(&session_path)
-        .await
-        .with_context(|| format!("failed reading {}", session_path.display()))?;
-    // Encrypted sessions decrypt on the fly.
-    if let Some(envelope) = crate::core::session_crypto::EncryptedSession::from_json(&raw) {
-        if !envelope.keyring {
-            // Passwords are gone; a login re-keys it.
-            anyhow::bail!(
-                "session.json was encrypted with a legacy session password — \
-                 run `gaki-cli login` again to re-key it to the OS keyring"
-            );
-        }
-        // Keyring-keyed: automatic, never prompts.
-        let key = tokio::task::spawn_blocking(crate::core::session_crypto::keyring_secret)
-            .await
-            .ok()
-            .flatten()
-            .context(
-                "session.json is keyed to the OS keyring, which is unavailable — \
-                 run `gaki-cli login` again",
-            )?;
-        let plain = crate::core::session_crypto::decrypt(&envelope, &key)?;
-        return serde_json::from_slice(&plain)
-            .with_context(|| format!("failed parsing decrypted {}", session_path.display()));
-    }
-    serde_json::from_str(&raw).with_context(|| format!("failed parsing {}", session_path.display()))
-}
-
-/// Whether saves must encrypt the session.
-///
-/// True once a login enabled encryption, or when the file on disk is
-/// already an encrypted envelope — an existing encrypted session is never
-/// silently rewritten as plaintext.
-async fn session_encryption_active(session_path: &Path) -> bool {
-    if let Ok(config) = load_launcher_config().await
-        && config.encrypt_session
-    {
-        return true;
-    }
-    match fs::read_to_string(session_path).await {
-        Ok(raw) => crate::core::session_crypto::EncryptedSession::from_json(&raw).is_some(),
-        Err(_) => false,
-    }
-}
-
-pub async fn save_session(session: &SessionState) -> Result<()> {
-    let session_path = session_path()?;
-    if session_encryption_active(&session_path).await {
-        // Automatic OS-keyring key; created on demand, never prompts.
-        let key =
-            tokio::task::spawn_blocking(crate::core::session_crypto::keyring_secret_or_create)
-                .await
-                .ok()
-                .flatten();
-        match key {
-            Some(key) => {
-                let plain = serde_json::to_vec(session)?;
-                let mut envelope = crate::core::session_crypto::encrypt(&plain, &key)?;
-                envelope.keyring = true;
-                // Display hint, readable without the key.
-                envelope.display_name = session
-                    .persona_name
-                    .clone()
-                    .or_else(|| session.account_name.clone());
-                write_json_pretty(&session_path, &envelope).await?;
-            }
-            None => {
-                tracing::warn!(
-                    "no OS keyring available; session.json stays plaintext \
-                     (owner-only permissions)"
-                );
-                write_json_pretty(&session_path, session).await?;
-            }
-        }
-    } else {
-        write_json_pretty(&session_path, session).await?;
-    }
-
-    // The session holds a long-lived Steam refresh token; keep it owner-only so it
-    // is not world-readable on shared Unix hosts.
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(&session_path, std::fs::Permissions::from_mode(0o600))
-            .await
-            .with_context(|| format!("failed securing {}", session_path.display()))?;
-    }
-
-    Ok(())
-}
-
-pub async fn delete_session() -> Result<()> {
-    let session_path = session_path()?;
-    if session_path.exists() {
-        fs::remove_file(session_path).await?;
-    }
-    Ok(())
-}
-
 /// Load the settings from `config.toml`.
 ///
 /// A *missing* config is not an error: it yields defaults with the Steam library
@@ -371,7 +240,7 @@ fn read_config_toml() -> Result<crate::config::Config> {
 
 /// [`read_config_toml`] for the synchronous readers: a broken file is logged
 /// and treated as all defaults.
-fn read_config_toml_lenient() -> crate::config::Config {
+pub(crate) fn read_config_toml_lenient() -> crate::config::Config {
     read_config_toml()
         .inspect_err(|e| tracing::warn!("ignoring config.toml: {e:#}"))
         .unwrap_or_default()
@@ -389,11 +258,10 @@ pub fn load_proxy_config_blocking() -> ProxyConfig {
     }
 }
 
-/// The settings read from synchronous code paths (the keyring gate, the info
-/// cache TTL). A missing or unreadable `config.toml` yields the defaults.
+/// The settings read from synchronous code paths (the info cache TTL). A
+/// missing or unreadable `config.toml` yields the defaults.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeSettings {
-    pub use_keyring: bool,
     pub info_cache_ttl: Option<u64>,
 }
 
@@ -406,7 +274,6 @@ impl Default for RuntimeSettings {
 impl From<&crate::config::Config> for RuntimeSettings {
     fn from(config: &crate::config::Config) -> Self {
         Self {
-            use_keyring: config.keyring,
             info_cache_ttl: config.info_cache_ttl,
         }
     }

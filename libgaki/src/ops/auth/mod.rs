@@ -1,6 +1,6 @@
 //! Logging in and out, and inspecting the stored session.
 
-use crate::core::config::{load_session, save_session};
+use crate::auth::{load_session, save_session};
 use crate::core::error::{ErrorKind, TypedError};
 use crate::core::models::{QrEvent, SessionState, SteamGuardReq};
 use crate::steam_client::SteamClient;
@@ -127,15 +127,11 @@ pub async fn login_qr(
     Ok(session)
 }
 
-/// After a successful login: turn on session encryption (the key lives in the
-/// OS keyring) and store the persona name. Best-effort, since the login itself
-/// already succeeded.
+/// After a successful login: store the persona name. Best-effort, since the
+/// login itself already succeeded.
 pub async fn secure_session(client: &SteamClient) {
     let persona = client.own_persona_name().await;
     let result = async {
-        if !crate::ops::config::load().await?.encrypt_session {
-            crate::ops::config::set_global("encrypt_session", Some("true"))?;
-        }
         let mut session = load_session().await?;
         if persona.is_some() {
             session.persona_name = persona;
@@ -144,7 +140,7 @@ pub async fn secure_session(client: &SteamClient) {
     }
     .await;
     if let Err(e) = result {
-        tracing::warn!("could not encrypt session.json: {e:#}");
+        tracing::warn!("could not store the persona name: {e:#}");
     }
 }
 
@@ -153,51 +149,11 @@ pub async fn logout(client: &mut SteamClient) -> Result<()> {
     client.logout().await
 }
 
-/// The stored session, as seen without decrypting it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum StoredSession {
-    /// No usable session on disk.
-    None,
-    /// A session exists; its account is unknown.
-    Unknown,
-    /// A session exists for this account (persona or account name).
-    Account(String),
-}
+pub use crate::auth::StoredAccount as StoredSession;
 
-/// Peek at the stored session without decrypting it. Encrypted sessions are
-/// identified by their plaintext display-name hint, so this needs no keyring.
+/// Who the stored session is for, read without the keyring.
 pub async fn stored_session() -> StoredSession {
-    let Ok(path) = crate::core::config::session_path() else {
-        return StoredSession::None;
-    };
-    let Ok(raw) = tokio::fs::read_to_string(&path).await else {
-        return StoredSession::None;
-    };
-    classify_stored_session(&raw)
-}
-
-/// [`stored_session`] over the file's contents.
-fn classify_stored_session(raw: &str) -> StoredSession {
-    use crate::core::session_crypto::EncryptedSession;
-    if let Some(envelope) = EncryptedSession::from_json(raw) {
-        return match envelope.display_name.filter(|n| !n.trim().is_empty()) {
-            Some(name) => StoredSession::Account(name),
-            None => StoredSession::Unknown,
-        };
-    }
-    let Ok(session) = serde_json::from_str::<SessionState>(raw) else {
-        return StoredSession::None;
-    };
-    let has_token = session.refresh_token.is_some() || session.web_token.is_some();
-    let name = session
-        .persona_name
-        .filter(|n| !n.trim().is_empty())
-        .or_else(|| session.account_name.filter(|n| !n.trim().is_empty()));
-    match name {
-        Some(name) => StoredSession::Account(name),
-        None if has_token => StoredSession::Unknown,
-        None => StoredSession::None,
-    }
+    crate::auth::stored_account()
 }
 
 /// Who is signed in, and how.

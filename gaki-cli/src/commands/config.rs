@@ -228,32 +228,6 @@ pub(crate) async fn cmd_config_install_resume(
     Ok(())
 }
 
-/// `config keyring [true|false]`.
-pub(crate) async fn cmd_config_keyring(enabled: Option<bool>, json: bool) -> Result<()> {
-    // Until the credential store replaces it (5.9).
-    let changed = match enabled {
-        Some(value) => libgaki::ops::config::set_global("keyring", Some(&value.to_string()))?.1,
-        None => false,
-    };
-    let config = libgaki::ops::config::load().await?;
-    if json {
-        print_json(&serde_json::json!({ "use_keyring": config.use_keyring }));
-        return Ok(());
-    }
-    cli_println!(
-        "OS keyring: {}",
-        if config.use_keyring {
-            "used for the session key"
-        } else {
-            "not used"
-        }
-    );
-    if changed {
-        cli_println!("Saved.");
-    }
-    Ok(())
-}
-
 /// `config info-cache-ttl [SECONDS|--clear]`.
 pub(crate) async fn cmd_config_info_cache_ttl(change: Change<u64>, json: bool) -> Result<()> {
     let (config, changed) = set_optional("info_cache_ttl", change.map(|s| s.to_string()))?;

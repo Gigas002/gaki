@@ -66,7 +66,7 @@ fn main() {
 /// the real terminal: it reads the username and **masks the password**. Forwarding it
 /// would run `rpassword` inside the daemon — a process with no access to the user's tty
 /// — so the password could not be hidden and would be echoed in clear text. The daemon
-/// reloads the shared session from `session.json` (by mtime) on the next forwarded
+/// reloads the shared session when `account.toml` changes on the next forwarded
 /// command, so logging in locally still updates it. `login --health`/`--reconnect`
 /// (daemon-oriented) and `login --json` (non-tty, GUI-driven NDJSON) are not interactive
 /// and keep forwarding.
@@ -478,7 +478,6 @@ async fn run(cli: Cli) -> Result<()> {
             ConfigCommand::Presence { mode } => cmd_config_presence(mode, json).await,
             ConfigCommand::Experimental { enabled } => cmd_config_experimental(enabled, json).await,
             ConfigCommand::InstallResume { mode } => cmd_config_install_resume(mode, json).await,
-            ConfigCommand::Keyring { enabled } => cmd_config_keyring(enabled, json).await,
             ConfigCommand::InfoCacheTtl { seconds, clear } => {
                 cmd_config_info_cache_ttl(change(clear, seconds), json).await
             }

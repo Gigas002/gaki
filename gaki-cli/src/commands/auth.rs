@@ -492,7 +492,9 @@ pub(crate) fn report_login_success(account: &str, json: bool) {
 }
 
 pub(crate) async fn cmd_logout(json: bool) -> Result<()> {
-    let mut client = restored_client().await?;
+    // No restore: a session that can't be restored must still be removable.
+    // In the daemon, the shared session is dropped after this command.
+    let mut client = libgaki::steam_client::SteamClient::new()?;
     libgaki::ops::auth::logout(&mut client).await?;
     if json {
         print_json(&serde_json::json!({ "logged_out": true }));

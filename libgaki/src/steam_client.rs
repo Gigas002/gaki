@@ -1,6 +1,6 @@
+use crate::auth::{delete_session, load_session, save_session};
 use crate::core::config::{
-    delete_session, library_cache_path, load_launcher_config, load_library_cache, load_session,
-    save_library_cache, save_session,
+    library_cache_path, load_launcher_config, load_library_cache, save_library_cache,
 };
 use crate::core::models::{
     DepotPlatform, DlcState, DownloadProgress, DownloadProgressState, LibraryGame,

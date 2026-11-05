@@ -27,7 +27,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 pub use game::{Game, GamesFile};
-pub use global::Config;
+pub use global::{Config, SecretStoreKind};
 pub use issue::{Issue, Severity, Subject, ValidationContext, expand_tilde, validate_name};
 pub use profile::{Anticheat, Profile, ProtonSection, Runner, validate_dll_override};
 

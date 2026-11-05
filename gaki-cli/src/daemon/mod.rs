@@ -149,7 +149,7 @@ struct DaemonState {
 struct Slot {
     /// The canonical authenticated client holding the live shared connection.
     client: Option<SteamClient>,
-    /// `session.json` mtime the current `client`/failure reflects — so we re-attempt
+    /// `account.toml` mtime the current `client`/failure reflects — so we re-attempt
     /// a restore exactly when the token file changes (e.g. after `login`), rather
     /// than re-logging-on per request (which would re-create the storm).
     session_mtime: Option<SystemTime>,
@@ -218,13 +218,26 @@ fn init_state() -> &'static DaemonState {
     })
 }
 
+/// When `account.toml` (rewritten by every login and restore) last changed.
+/// Without one, an old `session.json` counts, so restoring it reports that a
+/// login is needed instead of a plain "not logged in".
 async fn session_mtime() -> Option<SystemTime> {
-    let path = libgaki::core::config::session_path().ok()?;
-    tokio::fs::metadata(&path).await.ok()?.modified().ok()
+    let mtime = |path: std::path::PathBuf| async move {
+        tokio::fs::metadata(&path).await.ok()?.modified().ok()
+    };
+    if let Some(at) = mtime(libgaki::auth::account_path().ok()?).await {
+        return Some(at);
+    }
+    mtime(
+        libgaki::core::config::config_dir()
+            .ok()?
+            .join("session.json"),
+    )
+    .await
 }
 
 impl DaemonState {
-    /// Ensure the shared session reflects the current `session.json`. Restores when
+    /// Ensure the shared session reflects the current `account.toml`. Restores when
     /// the token file appears or changes; otherwise a no-op (no per-request logon)
     /// while a live session exists. A failed restore is retried on a later request
     /// once [`RESTORE_RETRY_BACKOFF`] has elapsed, so a transient drop self-heals
@@ -289,7 +302,7 @@ impl DaemonState {
                 );
             }
         }
-        // Restore rewrites session.json; stamp afterwards.
+        // Restore rewrites account.toml; stamp afterwards.
         s.session_mtime = session_mtime().await.or(mtime);
     }
 

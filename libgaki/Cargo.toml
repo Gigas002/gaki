@@ -8,9 +8,7 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-argon2.workspace = true
 async-trait.workspace = true
-chacha20poly1305.workspace = true
 filetime.workspace = true
 hex.workspace = true
 keyring.workspace = true

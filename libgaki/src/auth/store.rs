@@ -1,0 +1,157 @@
+//! Secret storage: the OS keyring, or memory.
+
+use anyhow::{Context, Result};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+
+/// The Secret Service "service" every gaki item is stored under.
+pub const SERVICE: &str = "gaki";
+
+/// Holds secrets by key. Calls may block (D-Bus), so async callers use
+/// `spawn_blocking`.
+pub trait SecretStore: Send + Sync {
+    /// The secret for `key`; `None` when there is none.
+    fn get(&self, key: &str) -> Result<Option<String>>;
+    fn set(&self, key: &str, secret: &str) -> Result<()>;
+    /// Remove `key`; no error when it was not there.
+    fn delete(&self, key: &str) -> Result<()>;
+    /// For messages: where the secrets are.
+    fn describe(&self) -> &'static str;
+}
+
+/// The OS keyring (Secret Service): one item per secret, service `gaki`,
+/// user `<key>`.
+pub struct Keyring;
+
+impl Keyring {
+    fn entry(key: &str) -> Result<keyring::Entry> {
+        keyring::Entry::new(SERVICE, key).map_err(|e| unavailable(&e))
+    }
+}
+
+fn unavailable(e: &keyring::Error) -> anyhow::Error {
+    anyhow::anyhow!(
+        "the OS keyring is unavailable ({e}); gaki keeps tokens only there, never in a \
+         file. Start a Secret Service keyring (e.g. gnome-keyring or KeePassXC), or run \
+         `gaki-cli config set secret_store memory` to keep them in the running daemon only"
+    )
+}
+
+impl SecretStore for Keyring {
+    fn get(&self, key: &str) -> Result<Option<String>> {
+        match Self::entry(key)?.get_password() {
+            Ok(secret) => Ok(Some(secret)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(unavailable(&e)),
+        }
+    }
+
+    fn set(&self, key: &str, secret: &str) -> Result<()> {
+        Self::entry(key)?
+            .set_password(secret)
+            .map_err(|e| unavailable(&e))
+            .with_context(|| format!("could not store {key}"))
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        match Self::entry(key)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(unavailable(&e)),
+        }
+    }
+
+    fn describe(&self) -> &'static str {
+        "the OS keyring"
+    }
+}
+
+/// Secrets kept in this process only: gone when it exits.
+#[derive(Default)]
+pub struct Memory(Mutex<HashMap<String, String>>);
+
+impl SecretStore for Memory {
+    fn get(&self, key: &str) -> Result<Option<String>> {
+        Ok(self.lock().get(key).cloned())
+    }
+
+    fn set(&self, key: &str, secret: &str) -> Result<()> {
+        self.lock().insert(key.to_owned(), secret.to_owned());
+        Ok(())
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        self.lock().remove(key);
+        Ok(())
+    }
+
+    fn describe(&self) -> &'static str {
+        "memory (`secret_store = \"memory\"`)"
+    }
+}
+
+impl Memory {
+    fn lock(&self) -> std::sync::MutexGuard<'_, HashMap<String, String>> {
+        self.0.lock().unwrap_or_else(|p| p.into_inner())
+    }
+}
+
+static STORE: OnceLock<Box<dyn SecretStore>> = OnceLock::new();
+
+/// Use `store` for the rest of the process. Call before anything reads a
+/// secret; a later call is ignored and returns `false`.
+pub fn set_session_store(store: Box<dyn SecretStore>) -> bool {
+    STORE.set(store).is_ok()
+}
+
+/// The process's secret store: the one set with [`set_session_store`], else
+/// [`Memory`] when `GAKI_SECRET_STORE=memory` (and in unit tests), else the
+/// [`Keyring`].
+pub fn session_store() -> &'static dyn SecretStore {
+    STORE
+        .get_or_init(|| {
+            let memory = cfg!(test)
+                || std::env::var("GAKI_SECRET_STORE")
+                    .is_ok_and(|v| v.eq_ignore_ascii_case("memory"));
+            if memory {
+                Box::new(Memory::default())
+            } else {
+                Box::new(Keyring)
+            }
+        })
+        .as_ref()
+}
+
+/// The key of the Steam refresh token for `steam_id`.
+pub fn refresh_token_key(steam_id: u64) -> String {
+    format!("refresh-token:{steam_id}")
+}
+
+/// The key of the browser web token for `steam_id`.
+pub fn web_token_key(steam_id: u64) -> String {
+    format!("web-token:{steam_id}")
+}
+
+/// The keyring item older gaki versions kept the `session.json` key in.
+pub const LEGACY_SESSION_KEY: &str = "session-key";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn memory_store_sets_gets_and_deletes() {
+        let store = Memory::default();
+        assert_eq!(store.get("a").unwrap(), None);
+        store.set("a", "1").unwrap();
+        assert_eq!(store.get("a").unwrap().as_deref(), Some("1"));
+        store.delete("a").unwrap();
+        store.delete("a").unwrap();
+        assert_eq!(store.get("a").unwrap(), None);
+    }
+
+    #[test]
+    fn keys_are_per_account() {
+        assert_eq!(refresh_token_key(7), "refresh-token:7");
+        assert_eq!(web_token_key(7), "web-token:7");
+    }
+}

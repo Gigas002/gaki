@@ -1,7 +1,7 @@
 //! Steam session acquisition: restoring a stored login, requiring an
 //! authenticated client, and the web-session fallback.
 
-use crate::core::config::load_session;
+use crate::auth::load_session;
 use crate::core::error::{ErrorKind, TypedError, classify};
 use crate::steam_client::{Friend, SteamClient};
 use crate::web::web_session::WebSession;

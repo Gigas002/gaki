@@ -464,13 +464,18 @@ a standalone install. A session daemon serves one config directory, so pair it w
 but never starts one.
 
 Settings are changed with `config` commands, never environment variables: for example
-`config keyring false` on a machine without a keyring service, or
+`config set secret_store memory` on a machine without a keyring service, or
 `config info-cache-ttl <SECONDS>`.
 
 - **Library path.** gaki auto-detects your existing Steam installation. Inspect the
   resolved configuration with `gaki-cli config show`.
-- **Session.** Refresh tokens are persisted in `session.json` so subsequent invocations
-  log in automatically.
+- **Session.** The Steam refresh token (and a browser web token, if you added one) is kept
+  in the OS keyring (Secret Service), one item per token, so later invocations log in
+  automatically; gaki never writes a token to a file. The rest of the session (account
+  and persona name, SteamID) is in `~/.local/state/gaki/account.toml`. Without a keyring,
+  `config set secret_store memory` keeps the tokens in the running daemon only, so a
+  daemon restart needs a new login. A `session.json` from an older gaki is no longer
+  read; log in once and it is deleted.
 - **Download engine.** Installs, updates, verifications and Workshop downloads share one
   engine. It picks the least-loaded content servers, spreads chunk requests over a pool of
   them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per

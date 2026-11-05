@@ -574,12 +574,6 @@ pub(crate) enum ConfigCommand {
         /// `manual` or `auto`. Omit to print the current setting.
         mode: Option<InstallResumeArg>,
     },
-    /// View or set whether the OS keyring may hold the session key. Turn it off
-    /// on headless machines and CI, where no keyring service runs.
-    Keyring {
-        /// `true` or `false`. Omit to print the current setting.
-        enabled: Option<bool>,
-    },
     /// View or set how long `info` results are cached, in seconds (`0` disables
     /// the cache).
     InfoCacheTtl {
