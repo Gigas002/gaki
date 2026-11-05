@@ -8,7 +8,10 @@ use std::{collections::BTreeMap, fmt, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use super::issue::{Issue, Issues, Subject, ValidationContext};
+use super::{
+    SteamIntegration,
+    issue::{Issue, Issues, Subject, ValidationContext},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Profile {
@@ -36,6 +39,9 @@ pub struct Profile {
     pub dll_overrides: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub proton: Option<ProtonSection>,
+    /// Steam integration for games using this profile (gaki only).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steam: Option<SteamIntegration>,
     #[serde(default, skip_serializing_if = "Anticheat::is_off")]
     pub anticheat: Anticheat,
 }
@@ -121,6 +127,7 @@ impl Profile {
             env: BTreeMap::new(),
             dll_overrides: BTreeMap::new(),
             proton: None,
+            steam: None,
             anticheat: Anticheat::default(),
         }
     }

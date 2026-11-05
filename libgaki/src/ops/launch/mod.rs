@@ -2,7 +2,7 @@
 //! Proton selection, and stopping running games.
 
 use crate::compat::running::RunningGame;
-use crate::config::Platform;
+use crate::config::{Platform, SteamIntegration};
 use crate::core::config::GameConfig;
 use crate::core::config::{load_launcher_config, load_user_configs};
 use crate::core::error::{ErrorKind, TypedError};
@@ -49,6 +49,7 @@ pub async fn targets(client: &mut SteamClient, app_id: u32, steam: bool) -> Resu
 
     let launcher_config = load_launcher_config().await?;
     let settings = crate::settings::resolve_user(app_id, &Overrides::default())?;
+    let steam = steam || settings.steam == SteamIntegration::Host;
     let preference =
         BuildPreference::new(false, &settings, launcher_config.game_configs.get(&app_id));
     let default_entry = crate::steam_client::select_launch_entry(
@@ -110,7 +111,8 @@ pub struct PlayRequest {
     pub script: Option<PathBuf>,
     /// Run without the game's launch script.
     pub no_script: bool,
-    /// Run with Steam integration (the host Steam client).
+    /// Run with Steam integration (the host Steam client), overriding the
+    /// game's and profile's `steam` setting.
     pub steam: bool,
     /// Build to run; `None` uses the game's preference. Linux runs the native
     /// build and can't be combined with `proton`.
@@ -158,13 +160,29 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
     }
     require_installed(&game)?;
 
+    let launcher_config = load_launcher_config().await?;
+    let overrides = Overrides {
+        proton: request.proton.clone(),
+        script: request.script.clone(),
+        no_script: request.no_script,
+        platform: request.platform.map(Platform::from),
+        steam: request.steam.then_some(SteamIntegration::Host),
+        ..Default::default()
+    };
+    // Before the update, so a config mistake fails fast.
+    let settings = crate::settings::resolve_user(app_id, &overrides)?;
+
     let update_required = game.is_family_shared;
     if !request.no_update || update_required {
         pre_launch_update(client, &mut game, update_required, on_event, drive).await?;
     }
 
     // Warn-only: a DRM-free game runs fine without a ticket.
-    if !request.steam && game.is_owned && !game.is_family_shared && !client.is_offline() {
+    if settings.steam != SteamIntegration::Host
+        && game.is_owned
+        && !game.is_family_shared
+        && !client.is_offline()
+    {
         match tokio::time::timeout(DRM_PREFLIGHT_TIMEOUT, client.get_app_ticket(app_id)).await {
             Ok(Ok(_)) => tracing::info!(appid = app_id, "DRM preflight: ownership ticket issued"),
             Ok(Err(error)) => on_event(LaunchEvent::DrmUnverified { error: &error }),
@@ -172,15 +190,6 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
         }
     }
 
-    let launcher_config = load_launcher_config().await?;
-    let overrides = Overrides {
-        proton: request.proton.clone(),
-        script: request.script.clone(),
-        no_script: request.no_script,
-        platform: request.platform.map(Platform::from),
-        ..Default::default()
-    };
-    let settings = crate::settings::resolve_user(app_id, &overrides)?;
     let from_cli = request.platform.is_some() || request.proton.is_some();
     let preference = BuildPreference::new(
         from_cli,
@@ -213,7 +222,7 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
             user_configs.get(&app_id),
             &settings,
             request.no_script,
-            request.steam,
+            settings.steam == SteamIntegration::Host,
             preference.platform == Some(Platform::Linux),
             Some(&on_target),
         )

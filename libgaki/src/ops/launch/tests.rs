@@ -47,6 +47,7 @@ mod build_preference {
             args: Vec::new(),
             script: None,
             cloud_sync: true,
+            steam: Default::default(),
         }
     }
 

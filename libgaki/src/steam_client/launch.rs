@@ -243,6 +243,12 @@ impl SteamClient {
         // A Family-Shared game (licensed to another account) can only be authorised
         // by a running Steam client, so it always needs Steam integration regardless
         // of the user's preference.
+        if !app.is_owned && settings.steam == crate::config::SteamIntegration::None {
+            tracing::warn!(
+                appid = app.app_id,
+                "`steam = \"none\"` is ignored: a Family-Shared game needs the host Steam client"
+            );
+        }
         let steam_enabled = steam_enabled || !app.is_owned;
 
         // With Steam integration the game talks to the host Steam client; make sure

@@ -23,7 +23,10 @@ impl SteamLayout {
         // A profile's shared prefix, or the game's own compatdata.
         let compat_data_path = ctx.compat_data();
         Self {
-            steam_mode: resolve_steam_mode(ctx.steam_enabled),
+            steam_mode: resolve_steam_mode(
+                ctx.steam_enabled,
+                ctx.settings.as_ref().map(|s| s.steam).unwrap_or_default(),
+            ),
             game_prefix: compat_data_path.join("pfx"),
             compat_data_path,
             library_root,
@@ -762,12 +765,19 @@ pub enum SteamMode {
     Standalone,
 }
 
-/// Resolve the Steam-integration mode. `--steam` (or a Family-Shared game) always
-/// bridges to the host client; otherwise a host Steam that is already running is
-/// bridged opportunistically, and the launch is standalone when none is.
-fn resolve_steam_mode(steam_enabled: bool) -> SteamMode {
+/// Resolve the Steam-integration mode. `steam_enabled` (`--steam`, `steam =
+/// "host"`, or a Family-Shared game) always bridges to the host client;
+/// `steam = "none"` never does; `auto` bridges to a host Steam that is already
+/// running, and the launch is standalone when none is.
+pub(super) fn resolve_steam_mode(
+    steam_enabled: bool,
+    integration: crate::config::SteamIntegration,
+) -> SteamMode {
     if steam_enabled {
         return SteamMode::HostBridge;
+    }
+    if integration == crate::config::SteamIntegration::None {
+        return SteamMode::Standalone;
     }
     if crate::core::utils::host_steam_client_path().is_some()
         && crate::core::utils::is_steam_running()

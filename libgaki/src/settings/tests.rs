@@ -262,3 +262,37 @@ fn other_games_are_unaffected() {
     assert!(settings.args.is_empty());
     assert_eq!(settings.app_id, 20);
 }
+
+#[test]
+fn steam_integration_layers() {
+    let mut catalog = catalog(Some("proton"), vec![]);
+    assert_eq!(
+        run(&catalog, 10, &Overrides::default()).unwrap().steam,
+        SteamIntegration::Auto
+    );
+
+    catalog.profiles[1].steam = Some(SteamIntegration::None);
+    assert_eq!(
+        run(&catalog, 10, &Overrides::default()).unwrap().steam,
+        SteamIntegration::None,
+        "the profile's setting"
+    );
+
+    let mut game = Game::new(10);
+    game.steam = Some(SteamIntegration::Host);
+    catalog.games.push(game);
+    assert_eq!(
+        run(&catalog, 10, &Overrides::default()).unwrap().steam,
+        SteamIntegration::Host,
+        "the game beats the profile"
+    );
+
+    let overrides = Overrides {
+        steam: Some(SteamIntegration::None),
+        ..Overrides::default()
+    };
+    assert_eq!(
+        run(&catalog, 10, &overrides).unwrap().steam,
+        SteamIntegration::None
+    );
+}

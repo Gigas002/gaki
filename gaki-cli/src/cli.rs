@@ -252,9 +252,10 @@ pub(crate) enum Command {
         /// any auto-detected script).
         #[arg(short = 'X', long, conflicts_with = "script")]
         no_script: bool,
-        /// Run with real Steam integration instead of standalone mode: bridge to the
-        /// host Steam client (started silently if not running) so Steamworks online
-        /// features work. Implied for Family-Shared games, which require it.
+        /// Run with real Steam integration: bridge to the host Steam client
+        /// (started silently if not running) so Steamworks online features work.
+        /// Same as `steam = "host"` in `games.toml` or the profile, which it
+        /// overrides. Implied for Family-Shared games, which require it.
         #[arg(short = 's', long)]
         steam: bool,
         /// Run this installed build (`linux` native or `windows` via Proton),

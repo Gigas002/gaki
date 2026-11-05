@@ -75,6 +75,36 @@ impl fmt::Display for Platform {
     }
 }
 
+/// Whether a Proton launch talks to the host Steam client.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SteamIntegration {
+    /// Bridge to the host Steam client when it is running.
+    #[default]
+    Auto,
+    /// Always bridge; start the host Steam client when needed. Needed for
+    /// Steamworks DRM and Family-Shared games.
+    Host,
+    /// Never bridge: the game sees no Steam client.
+    None,
+}
+
+impl SteamIntegration {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Host => "host",
+            Self::None => "none",
+        }
+    }
+}
+
+impl fmt::Display for SteamIntegration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// Why a file could not be loaded.
 #[derive(Debug, thiserror::Error)]
 pub enum LoadError {

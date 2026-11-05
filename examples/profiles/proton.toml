@@ -5,6 +5,8 @@ runner = "proton"
 # own Steam compatdata prefix.
 prefix = "~/prefixes/proton"
 wrappers = ["gamemoderun"]
+# Steam integration: auto (bridge when Steam is running) | host | none.
+steam = "auto"
 
 [proton]
 build = "experimental"            # a Steam build name, or a path

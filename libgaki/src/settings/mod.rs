@@ -21,7 +21,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use crate::config::{Anticheat, Catalog, Platform, Profile, ProtonSection, Runner, expand_tilde};
+use crate::config::{
+    Anticheat, Catalog, Platform, Profile, ProtonSection, Runner, SteamIntegration, expand_tilde,
+};
 
 /// The command-line layer.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -36,6 +38,8 @@ pub struct Overrides {
     pub script: Option<PathBuf>,
     /// Run without any launch script.
     pub no_script: bool,
+    /// Steam integration (`--steam` is `Host`).
+    pub steam: Option<SteamIntegration>,
 }
 
 /// Which Proton to run.
@@ -93,6 +97,7 @@ pub struct LaunchSettings {
     /// The launch script, `~` expanded.
     pub script: Option<PathBuf>,
     pub cloud_sync: bool,
+    pub steam: SteamIntegration,
 }
 
 /// Why a game's settings can't be resolved.
@@ -252,6 +257,11 @@ pub fn resolve(
         args,
         script: script.map(|script| expand_tilde(&script, home)),
         cloud_sync: config.cloud_sync,
+        steam: overrides
+            .steam
+            .or_else(|| game.and_then(|game| game.steam))
+            .or_else(|| profile.and_then(|p| p.steam))
+            .unwrap_or_default(),
     })
 }
 

@@ -249,6 +249,7 @@ async fn profile_prefix_and_overrides_reach_the_proton_env() {
         args: Vec::new(),
         script: None,
         cloud_sync: true,
+        steam: Default::default(),
     });
 
     let env = WineTkgRunner.build_env(&ctx).await.unwrap();
@@ -265,5 +266,19 @@ async fn profile_prefix_and_overrides_reach_the_proton_env() {
     assert!(
         !lib.join("steamapps/compatdata/123").exists(),
         "no per-game compatdata with a shared prefix"
+    );
+}
+
+#[test]
+fn steam_integration_picks_the_bridge_mode() {
+    use crate::config::SteamIntegration;
+    assert_eq!(
+        super::wine_tkg::resolve_steam_mode(true, SteamIntegration::None),
+        super::SteamMode::HostBridge,
+        "Family-Shared and --steam always bridge"
+    );
+    assert_eq!(
+        super::wine_tkg::resolve_steam_mode(false, SteamIntegration::None),
+        super::SteamMode::Standalone
     );
 }

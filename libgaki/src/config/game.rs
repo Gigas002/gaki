@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Platform,
+    Platform, SteamIntegration,
     issue::{Issue, Issues, Subject, ValidationContext},
 };
 
@@ -39,6 +39,9 @@ pub struct Game {
     pub script: Option<PathBuf>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
+    /// Steam integration, instead of the profile's.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steam: Option<SteamIntegration>,
 }
 
 impl Game {
@@ -51,6 +54,7 @@ impl Game {
             args: Vec::new(),
             script: None,
             env: BTreeMap::new(),
+            steam: None,
         }
     }
 

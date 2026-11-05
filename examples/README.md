@@ -13,6 +13,10 @@ Every file is optional. Settings apply in this order, later ones winning:
 built-in defaults, `config.toml`, the game's profile, its `games.toml` entry,
 command-line flags.
 
+`steam` (in a profile or a game entry) picks the Steam integration: `auto`
+bridges to the host Steam client when it is running, `host` always does
+(starting it when needed), and `none` never does. `--steam` means `host`.
+
 Profiles use the same format as lootrs, so `profiles_dir` in `config.toml` can
 point both tools at one directory.
 

@@ -1036,9 +1036,17 @@ I make the changes, and you review, commit, and push.
   `--config-dir` before clap runs so aliases resolve against the right
   directory. The `scripts` and `config script-dir` commands still write
   `config.json` until 5.7.
-- [ ] **5.6** Add a per-profile/per-game Steam integration mode (`host`,
+- [x] **5.6** Add a per-profile/per-game Steam integration mode (`host`,
   `none`, `auto`), replacing the dropped `--steam-mode`. `auto` keeps today's
   behaviour: bridge to host Steam when it is running or `--steam` is given.
+  *Done.* `steam = "auto" | "host" | "none"` in a profile or a `games.toml`
+  entry, resolved `--steam` (host) > game > profile > `auto` into
+  `LaunchSettings::steam`. `host` does what `--steam` did (start Steam, wait
+  for logon, always bridge, skip the DRM preflight); `none` keeps the Proton
+  launch standalone even with Steam running; a Family-Shared game still
+  forces `host`, with a warning when `none` was asked for. `launch-targets`
+  marks its default the same way. Settings are now resolved before the
+  pre-launch update, so a config error fails before anything downloads.
 - [ ] **5.7** CLI: rewrite the `config` subcommand for the new model and add a
   `profiles list|show` command. TUI: wire `ui/game_config.rs` to profile
   selection and per-game overrides.

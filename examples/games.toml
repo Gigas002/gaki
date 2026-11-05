@@ -8,6 +8,7 @@ profile = "proton-cachyos"
 platform = "windows"
 args = ["-skipIntro"]
 script = "~/games/run_scripts/witcher3/script.sh"
+steam = "host"                    # auto | host | none; host = always bridge to Steam
 [game.env]
 DXVK_HUD = "fps"
 
