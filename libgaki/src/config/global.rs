@@ -24,8 +24,8 @@ pub struct Config {
     /// The profile used when a game names none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_profile: Option<String>,
-    /// The build to run when a game has both. `None` picks Windows for
-    /// Windows-only games and Linux otherwise.
+    /// The build to install and run when a game has both. `None` installs the
+    /// Windows build and runs whichever build is installed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_platform: Option<Platform>,
     #[serde(default = "default_true")]

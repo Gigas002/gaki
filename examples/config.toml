@@ -7,8 +7,9 @@ steam_library = "~/.local/share/Steam"
 # The profile a game uses when games.toml names none.
 default_profile = "proton"
 
-# Which build to run when a game ships both: windows | linux.
-# Unset: Windows for Windows-only games, Linux otherwise.
+# Which build to install and run when a game ships both: windows | linux.
+# `--platform` and a game's `platform` in games.toml override it.
+# Unset: install the Windows build, run whichever build is installed.
 default_platform = "linux"
 
 cloud_sync = true

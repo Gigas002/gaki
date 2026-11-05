@@ -226,7 +226,8 @@ pub(crate) enum Command {
         #[arg(short = 's', long)]
         steam: bool,
         /// Run this installed build (`linux` native or `windows` via Proton),
-        /// overriding auto-detection for this launch. See `gaki-cli launch-targets`.
+        /// overriding `games.toml` and `default_platform` for this launch. See
+        /// `gaki-cli launch-targets`.
         #[arg(short = 't', long)]
         platform: Option<PlatformArg>,
         /// Skip the automatic update check and install before launching.
@@ -802,9 +803,10 @@ pub(crate) enum WorkshopCommand {
 pub(crate) struct InstallArgs {
     #[command(subcommand)]
     pub(crate) action: Option<InstallAction>,
-    /// App id to install. Auto-detected platform unless --platform given.
+    /// App id to install.
     pub(crate) app_id: Option<u32>,
-    /// Depot platform to install. Auto-detected if omitted.
+    /// Depot platform to install. Defaults to the game's `platform` in
+    /// `games.toml`, then `default_platform`, then Windows.
     #[arg(short, long)]
     pub(crate) platform: Option<PlatformArg>,
     /// When installing a DLC, restart the Steam client afterward so the running

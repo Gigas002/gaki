@@ -51,6 +51,24 @@ impl Platform {
     }
 }
 
+impl From<crate::core::models::DepotPlatform> for Platform {
+    fn from(platform: crate::core::models::DepotPlatform) -> Self {
+        match platform {
+            crate::core::models::DepotPlatform::Linux => Self::Linux,
+            crate::core::models::DepotPlatform::Windows => Self::Windows,
+        }
+    }
+}
+
+impl From<Platform> for crate::core::models::DepotPlatform {
+    fn from(platform: Platform) -> Self {
+        match platform {
+            Platform::Linux => Self::Linux,
+            Platform::Windows => Self::Windows,
+        }
+    }
+}
+
 impl fmt::Display for Platform {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())

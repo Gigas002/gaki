@@ -114,6 +114,22 @@ async fn choose_platform(
         .get_available_platforms(app_id)
         .await
         .context("failed to detect available platforms")?;
+    // The configured platform (`games.toml`, the profile, `default_platform`)
+    // when the game ships it; a config problem only costs the preference.
+    let configured = match crate::settings::resolve_user(app_id, &Default::default()) {
+        Ok(settings) => settings.platform.map(DepotPlatform::from),
+        Err(e) => {
+            tracing::warn!(appid = app_id, "ignoring the configured platform: {e:#}");
+            None
+        }
+    };
+    if let Some(platform) = configured.filter(|p| platforms.contains(p)) {
+        return Ok(PlatformChoice {
+            platform,
+            auto_selected: false,
+            cached_vdf: Some(buffer),
+        });
+    }
     Ok(PlatformChoice {
         platform: auto_select_platform(&platforms),
         auto_selected: true,

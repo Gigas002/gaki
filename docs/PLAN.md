@@ -1011,8 +1011,18 @@ I make the changes, and you review, commit, and push.
   build is used when the launch runs the Windows build; choosing *which* build
   from `settings.platform` is 5.4. A game's `script` from `games.toml` now
   applies too; the alias and old-path fallback remain for 5.5.
-- [ ] **5.4** Add `default_platform` (R27/Q5). `--platform` overrides it, and
+- [x] **5.4** Add `default_platform` (R27/Q5). `--platform` overrides it, and
   `games.toml` can set it per game.
+  *Done.* `play`, `launch-targets` and `install` all take the build from the
+  resolved `settings.platform`: `--platform` (or `--proton`, which means
+  Windows), then the `games.toml` entry, then an explicitly chosen profile,
+  then `default_platform`. The game's old `config.json` platform and forced
+  Proton still sit between the command line and `games.toml` until 5.7 moves
+  the TUI's game settings over. `install` only uses the configured platform
+  when the game ships it, otherwise it auto-selects as before (Windows first);
+  with no platform anywhere, a launch still runs the installed build. With a
+  Windows preference the profile's Proton build is used ahead of the global
+  `proton_version`.
 - [ ] **5.5** Add a named `script` path per game, with a fallback to
   `scripts/<appid>.sh` (R30/Q8), and game `name` aliases accepted wherever the
   CLI takes an app id.
