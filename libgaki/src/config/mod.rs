@@ -158,6 +158,18 @@ impl Catalog {
             .find(|game| game.name.as_deref() == Some(alias))
     }
 
+    /// The app id `reference` names: an app id, or a game's `name` alias.
+    pub fn app_id(&self, reference: &str) -> Result<u32, String> {
+        if let Ok(app_id) = reference.parse() {
+            return Ok(app_id);
+        }
+        self.game_by_alias(reference)
+            .map(|game| game.app_id)
+            .ok_or_else(|| {
+                format!("`{reference}` is neither an app id nor a game `name` in {GAMES_FILE}")
+            })
+    }
+
     /// Every file's own issues, plus the ones across files: duplicate games,
     /// and references to profiles that don't exist.
     pub fn validate(&self, ctx: &ValidationContext) -> Vec<Issue> {
@@ -206,6 +218,17 @@ impl Catalog {
         }
         issues
     }
+}
+
+/// [`Catalog::app_id`] against the user's config. Plain app ids don't read
+/// any file.
+pub fn resolve_app_ref(reference: &str) -> Result<u32, String> {
+    if let Ok(app_id) = reference.parse() {
+        return Ok(app_id);
+    }
+    Catalog::load_user()
+        .map_err(|e| format!("{e:#}"))?
+        .app_id(reference)
 }
 
 /// Parse `path`, or `None` when it is missing or broken (recording why).

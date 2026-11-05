@@ -326,3 +326,17 @@ fn round_trip_keeps_values() {
     let text = toml::to_string(&config).unwrap();
     assert_eq!(toml::from_str::<Config>(&text).unwrap(), config);
 }
+
+#[test]
+fn app_references_are_ids_or_aliases() {
+    let mut game = Game::new(292030);
+    game.name = Some("witcher3".into());
+    let catalog = Catalog {
+        games: vec![game],
+        ..Catalog::default()
+    };
+    assert_eq!(catalog.app_id("570"), Ok(570));
+    assert_eq!(catalog.app_id("witcher3"), Ok(292030));
+    let err = catalog.app_id("witcher").unwrap_err();
+    assert!(err.contains("games.toml"), "{err}");
+}

@@ -20,6 +20,10 @@ fn print_long_help() {
 }
 
 fn main() {
+    // Before parsing: a game alias in the arguments is looked up in this dir.
+    if let Some(dir) = config_dir_arg(std::env::args().skip(1)) {
+        libgaki::core::config::set_config_dir(dir);
+    }
     let cli = parse_cli();
     // Global options that must hold before anything reads the config or the socket.
     if let Some(dir) = &cli.config_dir {

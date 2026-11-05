@@ -152,3 +152,21 @@ fn cli_has_no_conflicting_flags() {
     use clap::CommandFactory;
     crate::cli::Cli::command().debug_assert();
 }
+
+#[test]
+fn config_dir_is_found_before_parsing() {
+    let args = |list: &[&str]| list.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    assert_eq!(
+        config_dir_arg(args(&["play", "--config-dir", "/x", "witcher3"])),
+        Some("/x".into())
+    );
+    assert_eq!(
+        config_dir_arg(args(&["--config-dir=/y", "play", "1"])),
+        Some("/y".into())
+    );
+    assert_eq!(
+        config_dir_arg(args(&["play", "--", "--config-dir", "/z"])),
+        None
+    );
+    assert_eq!(config_dir_arg(args(&["play", "1"])), None);
+}

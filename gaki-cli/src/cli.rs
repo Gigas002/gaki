@@ -6,6 +6,30 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use libgaki::core::models::DepotPlatform;
 
+/// Parses a game reference: an app id, or a game's `name` alias from
+/// `games.toml`.
+pub(crate) fn app_ref(reference: &str) -> Result<u32, String> {
+    libgaki::config::resolve_app_ref(reference)
+}
+
+/// The `--config-dir` value in `args`, found before clap runs: resolving a
+/// game alias while parsing needs the config directory already set.
+pub(crate) fn config_dir_arg<I: IntoIterator<Item = String>>(args: I) -> Option<PathBuf> {
+    let mut args = args.into_iter();
+    while let Some(arg) = args.next() {
+        if arg == "--" {
+            break;
+        }
+        if arg == "--config-dir" {
+            return args.next().map(PathBuf::from);
+        }
+        if let Some(dir) = arg.strip_prefix("--config-dir=") {
+            return Some(PathBuf::from(dir));
+        }
+    }
+    None
+}
+
 /// gaki — a command-line Steam launcher (auth, library, install, launch).
 #[derive(Parser)]
 #[command(
@@ -89,7 +113,7 @@ pub(crate) enum Command {
         /// logon (one batched StoreBrowse call) — far cheaper than running `info`
         /// once per id. With `--json`, one id yields an object and several yield an
         /// array.
-        #[arg(required = true)]
+        #[arg(value_parser = app_ref, required = true)]
         app_ids: Vec<u32>,
         /// Also show storefront-only fields that have no CM-protocol source:
         /// system requirements, Metacritic, website and store genres/categories.
@@ -107,6 +131,7 @@ pub(crate) enum Command {
     },
     /// Show a game's price, optionally across regions.
     Price {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Country codes to compare, comma-separated.
         #[arg(short = 'r', long, value_delimiter = ',')]
@@ -144,7 +169,10 @@ pub(crate) enum Command {
         country: Option<String>,
     },
     /// Current player count for an app.
-    Players { app_id: u32 },
+    Players {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Store-wide sales and events currently running.
     Events {
         /// Country code the events apply to.
@@ -153,6 +181,7 @@ pub(crate) enum Command {
     },
     /// Recent news (storefront web; no CM equivalent).
     News {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Maximum items.
         #[arg(short = 'n', long, default_value_t = 10)]
@@ -184,6 +213,7 @@ pub(crate) enum Command {
     },
     /// Games similar to a given app.
     Similar {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Maximum results.
         #[arg(short = 'n', long, default_value_t = 10)]
@@ -200,6 +230,7 @@ pub(crate) enum Command {
     /// List installed games with an update available, or update one by app id.
     Update {
         /// Game to update. Omit to list every installed game that needs an update.
+        #[arg(value_parser = app_ref)]
         app_id: Option<u32>,
         /// Update even if the game is pinned (see `gaki-cli pin`), overriding the lock.
         #[arg(short = 'f', long)]
@@ -207,6 +238,7 @@ pub(crate) enum Command {
     },
     /// Launch a game and wait for it to exit.
     Play {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Force a specific Proton/Wine runner (implies Windows target).
         #[arg(short, long)]
@@ -238,6 +270,7 @@ pub(crate) enum Command {
     /// (native Linux / Windows) and, for Windows, each available Steam mode, with
     /// the `play` flags selecting it and which one plain `play` would pick.
     LaunchTargets {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Compute the default as for `play --steam`.
         #[arg(short = 's', long)]
@@ -246,6 +279,7 @@ pub(crate) enum Command {
     /// Stop a running game previously launched with `gaki-cli play`.
     Stop {
         /// App id to stop. Omit to list the games gaki is tracking as running.
+        #[arg(value_parser = app_ref)]
         app_id: Option<u32>,
         /// Force-kill the game immediately (SIGKILL) instead of asking it to exit
         /// gracefully first. Use when a game is hung and ignores a normal stop.
@@ -256,13 +290,17 @@ pub(crate) enum Command {
     Running,
     /// Uninstall a game.
     Uninstall {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Also delete the game's Wine prefix / compat data.
         #[arg(short = 'd', long)]
         delete_prefix: bool,
     },
     /// Verify the integrity of an installed game.
-    Verify { app_id: u32 },
+    Verify {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// List games installed in more than one Steam library.
     ///
     /// A duplicate leaves two appmanifests disagreeing about what is installed,
@@ -270,15 +308,25 @@ pub(crate) enum Command {
     /// redundant copies and the commands to remove them; deletes nothing itself.
     Duplicates,
     /// Report whether a game is installed and its files are present on disk.
-    Available { app_id: u32 },
+    Available {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Verify a game's DRM tickets headlessly.
-    Drm { app_id: u32 },
+    Drm {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Show account details for the logged-in user.
     Account,
     /// List a game's DLC.
-    Dlc { app_id: u32 },
+    Dlc {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Enable an installed DLC for its base game.
     Enable {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Stop Steam while applying the change, then restart it, so the running
         /// client picks it up. Steam reads DLC state only at startup.
@@ -287,15 +335,20 @@ pub(crate) enum Command {
     },
     /// Disable a DLC for its base game.
     Disable {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Stop Steam while applying the change, then restart it.
         #[arg(short = 'r', long)]
         restart_steam: bool,
     },
     /// Show the logged-in user's achievements for a game.
-    Achievements { app_id: u32 },
+    Achievements {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Download a game's cover/header artwork to the local image cache.
     Image {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Write the image to this path instead of the cache directory.
         #[arg(short, long)]
@@ -312,7 +365,10 @@ pub(crate) enum Command {
     },
     /// Dump raw PICS appinfo sections (maintainer tool).
     #[command(hide = true)]
-    Appinfo { app_id: u32 },
+    Appinfo {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Dump the store tag vocabulary (maintainer tool).
     #[command(hide = true)]
     Tags {
@@ -322,6 +378,7 @@ pub(crate) enum Command {
     },
     /// Move an installed game to a different Steam library folder
     Move {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Destination Steam library folder (its root, containing `steamapps/`),
         /// e.g. `D:\SteamLibrary`. Must already be a Steam library.
@@ -334,6 +391,7 @@ pub(crate) enum Command {
     },
     /// Relink an install to a different Steam library.
     Relink {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Destination Steam library root (containing `steamapps/`).
         library: PathBuf,
@@ -343,6 +401,7 @@ pub(crate) enum Command {
     },
     /// Register an existing on-disk install with Steam.
     Import {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Steam library root whose `steamapps/common/<installdir>` holds the files.
         library: PathBuf,
@@ -354,14 +413,25 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// List available beta branches for a game.
-    Branches { app_id: u32 },
+    Branches {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Switch a game to a different branch.
-    SetBranch { app_id: u32, branch: String },
+    SetBranch {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+        branch: String,
+    },
     /// List depots for a game.
-    Depots { app_id: u32 },
+    Depots {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// List each depot's current manifest id per branch (version discovery for
     /// `downgrade`). Steam only exposes current ids — older ones live on SteamDB.
     Manifests {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Only show this depot.
         #[arg(short = 'd', long)]
@@ -370,11 +440,20 @@ pub(crate) enum Command {
     /// Install a specific (usually older) depot manifest and pin it — a downgrade.
     Downgrade(DowngradeArgs),
     /// Pin a game to its currently-installed manifests, locking gaki's updates.
-    Pin { app_id: u32 },
+    Pin {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Remove a game's version pin (unlock gaki's updates).
-    Unpin { app_id: u32 },
+    Unpin {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// List a game's launch options.
-    LaunchOptions { app_id: u32 },
+    LaunchOptions {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Manage Steam Cloud saves for a game.
     Cloud {
         #[command(subcommand)]
@@ -412,6 +491,7 @@ pub(crate) enum Command {
     },
     /// View your Steam inventory for a game.
     Inventory {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Inventory context id (default 2; Steam community items use 6).
         #[arg(short = 'c', long, default_value_t = 2)]
@@ -565,15 +645,22 @@ pub(crate) enum ScriptsCommand {
     /// Scaffold a launch script for a game at `<script_dir>/<app_id>.sh`.
     /// Errors if one already exists unless `--force`.
     New {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Overwrite an existing script.
         #[arg(short = 'f', long)]
         force: bool,
     },
     /// Print the resolved launch-script path for a game and its contents.
-    Show { app_id: u32 },
+    Show {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Delete the dir-based launch script for a game.
-    Remove { app_id: u32 },
+    Remove {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
 }
 
 #[derive(Subcommand)]
@@ -591,13 +678,13 @@ pub(crate) enum CollectionsCommand {
     /// Add one or more app ids to a collection (offline).
     Add {
         name: String,
-        #[arg(required = true)]
+        #[arg(value_parser = app_ref, required = true)]
         app_ids: Vec<u32>,
     },
     /// Remove one or more app ids from a collection (offline).
     Remove {
         name: String,
-        #[arg(required = true)]
+        #[arg(value_parser = app_ref, required = true)]
         app_ids: Vec<u32>,
     },
     /// Download collections from your Steam account and merge them in (needs login).
@@ -634,6 +721,7 @@ pub(crate) enum FriendsCommand {
 pub(crate) enum MarketCommand {
     /// Item price (community web; no CM equivalent).
     Price {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Exact market hash name (case-sensitive), e.g. "Mann Co. Supply Crate Key".
         name: String,
@@ -646,7 +734,7 @@ pub(crate) enum MarketCommand {
         /// Free-text query (optional).
         query: Option<String>,
         /// Restrict to one game by app id.
-        #[arg(short = 'a', long)]
+        #[arg(value_parser = app_ref, short = 'a', long)]
         app_id: Option<u32>,
         /// Maximum results to return.
         #[arg(short = 'n', long, default_value_t = 20)]
@@ -683,6 +771,7 @@ pub(crate) enum CloudCommand {
     /// Sync a game's Steam Cloud saves with the local save directory. With
     /// neither flag it syncs down then up; `--down`/`--up` restrict the direction.
     Sync {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Only upload local saves to Steam.
         #[arg(short = 'u', long, conflicts_with = "down")]
@@ -699,13 +788,17 @@ pub(crate) enum CloudCommand {
         resolve: Option<CloudResolve>,
     },
     /// List a game's Steam Cloud files (name, size, modified time).
-    List { app_id: u32 },
+    List {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
 }
 
 #[derive(Subcommand)]
 pub(crate) enum WorkshopCommand {
     /// Browse/search a game's Workshop to discover items to subscribe to or install.
     Browse {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Filter by search text (free-text match on title/description).
         #[arg(short, long)]
@@ -730,7 +823,10 @@ pub(crate) enum WorkshopCommand {
         ids: Vec<u64>,
     },
     /// List the Workshop items you're subscribed to for a game.
-    List { app_id: u32 },
+    List {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Download one or more Workshop items (or collections) and register them.
     Install {
         #[arg(required = true)]
@@ -767,7 +863,10 @@ pub(crate) enum WorkshopCommand {
         no_recurse: bool,
     },
     /// Show installed vs subscribed Workshop items for a game.
-    Status { app_id: u32 },
+    Status {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Rate a Workshop item thumbs-up or thumbs-down.
     Rate {
         /// The Workshop published-file id.
@@ -804,6 +903,7 @@ pub(crate) struct InstallArgs {
     #[command(subcommand)]
     pub(crate) action: Option<InstallAction>,
     /// App id to install.
+    #[arg(value_parser = app_ref)]
     pub(crate) app_id: Option<u32>,
     /// Depot platform to install. Defaults to the game's `platform` in
     /// `games.toml`, then `default_platform`, then Windows.
@@ -829,15 +929,21 @@ pub(crate) enum InstallAction {
     /// List running installs and the backlog (paused, aborted, interrupted).
     List,
     /// Stop a running install by app id. It stays in the backlog as `aborted`.
-    Stop { app_id: u32 },
+    Stop {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Pause a running install, keeping what's on disk. Resume it with
     /// `install resume`; automatic resume never picks it up.
-    Pause { app_id: u32 },
+    Pause {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Resume a backlog install with the options it was started with, reusing
     /// the files already on disk.
     Resume {
         /// App id to resume.
-        #[arg(required_unless_present = "all", conflicts_with = "all")]
+        #[arg(value_parser = app_ref, required_unless_present = "all", conflicts_with = "all")]
         app_id: Option<u32>,
         /// Resume every backlog entry, one after another.
         #[arg(short, long)]
@@ -845,6 +951,7 @@ pub(crate) enum InstallAction {
     },
     /// Remove an install from the backlog.
     Forget {
+        #[arg(value_parser = app_ref)]
         app_id: u32,
         /// Also delete its partial files (never a DLC's or a finished game's folder).
         #[arg(short, long)]
@@ -858,6 +965,7 @@ pub(crate) enum InstallAction {
 #[derive(clap::Args)]
 pub(crate) struct DowngradeArgs {
     /// App id to downgrade.
+    #[arg(value_parser = app_ref)]
     pub(crate) app_id: u32,
     /// Target depot id (repeatable). Paired by position with a bare `--manifest`.
     #[arg(short = 'd', long = "depot", value_name = "DEPOT_ID")]
@@ -927,6 +1035,7 @@ pub(crate) struct LoginArgs {
 /// `gaki-cli reviews` flags.
 #[derive(clap::Args)]
 pub(crate) struct ReviewsArgs {
+    #[arg(value_parser = app_ref)]
     pub(crate) app_id: u32,
     /// `recent`, `updated` or `all` (score-weighted).
     #[arg(short = 'f', long, default_value = "recent")]
@@ -1053,9 +1162,15 @@ impl From<PlatformArg> for DepotPlatform {
 #[derive(Subcommand)]
 pub(crate) enum WishlistCommand {
     /// Add an app to your wishlist.
-    Add { app_id: u32 },
+    Add {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
     /// Remove an app from your wishlist.
-    Remove { app_id: u32 },
+    Remove {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+    },
 }
 
 /// `deals --scope` choices.
@@ -1072,6 +1187,7 @@ pub(crate) enum DealsScopeArg {
 /// Grouped `config game` flags.
 #[derive(clap::Args)]
 pub(crate) struct GameConfigArgs {
+    #[arg(value_parser = app_ref)]
     pub(crate) app_id: u32,
     /// Set the Proton/Wine version this game launches with. Use a name from
     /// `gaki-cli proton list` (installed). Overrides the global default.

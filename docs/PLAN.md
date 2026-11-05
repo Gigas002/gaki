@@ -1023,9 +1023,19 @@ I make the changes, and you review, commit, and push.
   with no platform anywhere, a launch still runs the installed build. With a
   Windows preference the profile's Proton build is used ahead of the global
   `proton_version`.
-- [ ] **5.5** Add a named `script` path per game, with a fallback to
+- [x] **5.5** Add a named `script` path per game, with a fallback to
   `scripts/<appid>.sh` (R30/Q8), and game `name` aliases accepted wherever the
   CLI takes an app id.
+  *Done.* `launch_script::resolve` order: `--no-script`, `--script`, the game's
+  `script` in `games.toml`, the old `config.json` `launch_script`, then
+  `<script_dir>/<app id>.sh` if it exists; `script_dir` comes from
+  `config.toml` before `config.json`. `scripts show` and the launch agree.
+  Every CLI app-id argument (52 of them) goes through one `app_ref` value
+  parser, which takes an app id or a `games.toml` `name`
+  (`libgaki::config::resolve_app_ref`); plain ids read no file. `main` finds
+  `--config-dir` before clap runs so aliases resolve against the right
+  directory. The `scripts` and `config script-dir` commands still write
+  `config.json` until 5.7.
 - [ ] **5.6** Add a per-profile/per-game Steam integration mode (`host`,
   `none`, `auto`), replacing the dropped `--steam-mode`. `auto` keeps today's
   behaviour: bridge to host Steam when it is running or `--steam` is given.

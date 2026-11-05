@@ -35,13 +35,20 @@ pub const ENV_STDERR_LOG: &str = "GAKI_STDERR_LOG";
 
 /// Directory that holds per-game launch scripts.
 ///
-/// The `script_dir` setting overrides it; otherwise it is `<config_dir>/scripts`. If
+/// `script_dir` in `config.toml` overrides it, then the old `config.json`
+/// setting; otherwise it is `<config_dir>/scripts`. If
 /// the config dir cannot be resolved we fall back to a relative `scripts` directory so
 /// callers stay infallible (this only happens when even `$HOME` is unset, in which
 /// case nothing else in gaki works either).
 pub fn script_dir() -> PathBuf {
     #[cfg(test)]
     if let Some(dir) = SCRIPT_DIR_TEST_OVERRIDE.lock().unwrap().clone() {
+        return dir;
+    }
+    if let Some(dir) = user_catalog().and_then(|(catalog, home)| {
+        let dir = catalog.config.script_dir?;
+        Some(crate::config::expand_tilde(&dir, &home))
+    }) {
         return dir;
     }
     if let Some(dir) = crate::core::config::load_runtime_settings_blocking()
@@ -54,6 +61,24 @@ pub fn script_dir() -> PathBuf {
         Ok(dir) => dir.join("scripts"),
         Err(_) => PathBuf::from("scripts"),
     }
+}
+
+/// The user's TOML config and home dir; `None` when either can't be found.
+fn user_catalog() -> Option<(crate::config::Catalog, PathBuf)> {
+    let catalog = crate::config::Catalog::load_user().ok()?;
+    let home = crate::core::config::home_dir().ok()?;
+    Some((catalog, home))
+}
+
+/// The game's `script` in `games.toml`, `~` expanded.
+fn games_toml_script(app_id: u32) -> Option<PathBuf> {
+    #[cfg(test)]
+    if SCRIPT_DIR_TEST_OVERRIDE.lock().unwrap().is_some() {
+        return None;
+    }
+    let (catalog, home) = user_catalog()?;
+    let script = catalog.game(app_id)?.script.as_ref()?;
+    Some(crate::config::expand_tilde(script, &home))
 }
 
 /// Script filename for an app id: `<app_id>.sh`.
@@ -70,8 +95,9 @@ pub fn dir_script_path(app_id: u32) -> PathBuf {
 ///
 /// * `disabled` (e.g. `play --no-script`) short-circuits to `None`.
 /// * Otherwise, precedence is: (1) one-off `override_path` (`play --script`),
-///   (2) the per-game `config.game_configs[app_id].launch_script`, (3) the
-///   auto-detected [`dir_script_path`] when it exists on disk.
+///   (2) the game's `script` in `games.toml`, (3) the old per-game
+///   `config.game_configs[app_id].launch_script`, (4) the auto-detected
+///   [`dir_script_path`] (`<script_dir>/<app_id>.sh`) when it exists on disk.
 ///
 /// The `override_path` and config paths are returned **unconditionally** (even when
 /// missing) so the apply stage can surface a clear `Validation` error for a bad
@@ -92,7 +118,12 @@ pub fn resolve(
         return Some(p.to_path_buf());
     }
 
-    // (2) Per-game config-pinned script.
+    // (2) The game's named script.
+    if let Some(script) = games_toml_script(app_id) {
+        return Some(script);
+    }
+
+    // (3) Per-game config-pinned script (config.json).
     if let Some(script) = config
         .and_then(|c| c.game_configs.get(&app_id))
         .and_then(|g| g.launch_script.as_ref())
@@ -101,7 +132,7 @@ pub fn resolve(
         return Some(PathBuf::from(script));
     }
 
-    // (3) Auto-detected `<dir>/<app_id>.sh|bat`, only when present on disk.
+    // (4) Auto-detected `<dir>/<app_id>.sh|bat`, only when present on disk.
     let dir_path = dir_script_path(app_id);
     if dir_path.exists() {
         return Some(dir_path);
