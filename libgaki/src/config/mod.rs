@@ -9,6 +9,7 @@
 //!
 //! Resolving these into the settings of one launch is the next layer up.
 
+pub mod edit;
 mod game;
 mod global;
 mod issue;

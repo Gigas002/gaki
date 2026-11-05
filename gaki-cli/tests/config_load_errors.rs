@@ -1,4 +1,5 @@
-//! A corrupt `config.json` must never be silently replaced by defaults.
+//! A corrupt `config.toml` or `config.json` must never be silently replaced by
+//! defaults.
 //!
 //! `load_launcher_config` already returns `Ok(defaults)` when the file is *missing*, so
 //! an `Err` only ever means "the file exists but could not be parsed". Callers used to
@@ -43,25 +44,39 @@ fn stderr(out: &Output) -> String {
     String::from_utf8_lossy(&out.stderr).to_string()
 }
 
-/// The headline regression: `config presence` mutates and saves. With a corrupt config
-/// it used to write defaults over the file, wiping every unrelated setting.
-#[test]
-fn corrupt_config_is_not_overwritten_by_a_saving_command() {
-    let tmp = with_corrupt_config();
-    let path = tmp.path().join("config.json");
+/// `config.toml` with a syntax error on line 3.
+const CORRUPT_TOML: &str = "# settings\ndefault_profile = \"proton\"\ncloud_sync = yes\n";
 
-    let out = gaki_cli(tmp.path(), &["config", "presence", "online"]);
-
-    assert!(!out.status.success(), "expected failure, got: {out:?}");
-    assert_eq!(
-        fs::read_to_string(&path).unwrap(),
-        CORRUPT,
-        "the user's config.json was modified"
-    );
+fn with_corrupt_toml() -> TempDir {
+    let tmp = tempdir().unwrap();
+    fs::write(tmp.path().join("config.toml"), CORRUPT_TOML).unwrap();
+    tmp
 }
 
-/// An unparseable config must surface as a parse error, not as some downstream
-/// symptom of the defaults it would otherwise have been replaced with.
+/// The headline regression: `config presence` mutates and saves. With a corrupt
+/// config it must fail and leave the file alone.
+#[test]
+fn corrupt_config_is_not_overwritten_by_a_saving_command() {
+    let tmp = with_corrupt_toml();
+    let path = tmp.path().join("config.toml");
+
+    for args in [
+        vec!["config", "presence", "online"],
+        vec!["config", "set", "experimental", "true"],
+    ] {
+        let out = gaki_cli(tmp.path(), &args);
+        assert!(!out.status.success(), "expected failure, got: {out:?}");
+        assert_eq!(
+            fs::read_to_string(&path).unwrap(),
+            CORRUPT_TOML,
+            "`{}` modified the user's config.toml",
+            args.join(" ")
+        );
+    }
+}
+
+/// An unparseable config.json must surface as a parse error, not as some
+/// downstream symptom of the defaults it would otherwise have been replaced with.
 #[test]
 fn corrupt_config_reports_a_parse_error() {
     let tmp = with_corrupt_config();
@@ -73,28 +88,44 @@ fn corrupt_config_reports_a_parse_error() {
 #[test]
 fn corrupt_config_error_names_the_file_and_location() {
     let tmp = with_corrupt_config();
-    let err = stderr(&gaki_cli(tmp.path(), &["config", "show"]));
-
+    let err = stderr(&gaki_cli(tmp.path(), &["proton", "list"]));
     assert!(err.contains("config.json"), "got: {err}");
     assert!(err.contains("line 4"), "expected a location: {err}");
     assert!(
         err.contains("delete it to regenerate defaults"),
         "expected a suggested fix: {err}"
     );
+
+    let tmp = with_corrupt_toml();
+    let err = stderr(&gaki_cli(tmp.path(), &["config", "show"]));
+    assert!(err.contains("config.toml"), "got: {err}");
+    assert!(err.contains("line 3"), "expected a location: {err}");
 }
 
 #[test]
 fn corrupt_config_fails_every_reading_command() {
     let tmp = with_corrupt_config();
     for args in [
-        vec!["config", "show"],
         vec!["proton", "default", "Proton 9.0"],
         vec!["proton", "list"],
     ] {
         let out = gaki_cli(tmp.path(), &args);
         assert!(
             !out.status.success(),
-            "`{}` silently accepted a corrupt config",
+            "`{}` silently accepted a corrupt config.json",
+            args.join(" ")
+        );
+    }
+    let tmp = with_corrupt_toml();
+    for args in [
+        vec!["config", "show"],
+        vec!["config", "get", "cloud_sync"],
+        vec!["proton", "list"],
+    ] {
+        let out = gaki_cli(tmp.path(), &args);
+        assert!(
+            !out.status.success(),
+            "`{}` silently accepted a corrupt config.toml",
             args.join(" ")
         );
     }
@@ -113,7 +144,7 @@ fn missing_config_still_yields_defaults() {
         stderr(&out)
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("steam_library_path"), "got: {stdout}");
+    assert!(stdout.contains("cloud_sync = true"), "got: {stdout}");
 }
 
 #[test]
@@ -122,9 +153,6 @@ fn missing_config_can_still_be_written() {
     let out = gaki_cli(tmp.path(), &["config", "presence", "online"]);
     assert!(out.status.success(), "failed: {}", stderr(&out));
 
-    let written = fs::read_to_string(tmp.path().join("config.json")).unwrap();
-    assert!(
-        written.contains("\"chat_presence\": \"online\""),
-        "got: {written}"
-    );
+    let written = fs::read_to_string(tmp.path().join("config.toml")).unwrap();
+    assert!(written.contains("presence = \"online\""), "got: {written}");
 }

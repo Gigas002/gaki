@@ -164,7 +164,7 @@ fn detail_lists_subcommands_with_about() {
         d["subcommands"]["game"]
             .as_str()
             .unwrap()
-            .contains("per-game")
+            .contains("games.toml")
     );
 }
 

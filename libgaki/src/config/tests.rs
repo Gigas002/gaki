@@ -340,3 +340,97 @@ fn app_references_are_ids_or_aliases() {
     let err = catalog.app_id("witcher").unwrap_err();
     assert!(err.contains("games.toml"), "{err}");
 }
+
+mod editing {
+    use super::super::edit::{self, TomlFile};
+    use super::*;
+
+    const CONFIG: &str = "# my settings\ndefault_profile = \"proton\" # the usual\n\n# proxy for work\n# proxy = \"socks5://x\"\n";
+
+    #[test]
+    fn set_keeps_comments_and_unrelated_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CONFIG_FILE);
+        fs::write(&path, CONFIG).unwrap();
+
+        let mut file = TomlFile::open(&path).unwrap();
+        assert!(file.set("default_profile", Some("native".into())));
+        assert!(file.set("cloud_sync", Some(false.into())));
+        assert!(
+            !file.set("cloud_sync", Some(false.into())),
+            "same value: no change"
+        );
+        file.parse::<Config>().unwrap();
+        file.save().unwrap();
+
+        let text = fs::read_to_string(&path).unwrap();
+        assert!(
+            text.starts_with("# my settings\ndefault_profile = \"native\" # the usual\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("# proxy for work\n# proxy = \"socks5://x\""),
+            "{text}"
+        );
+        assert!(text.contains("cloud_sync = false"), "{text}");
+
+        let mut file = TomlFile::open(&path).unwrap();
+        assert!(file.set("cloud_sync", None));
+        assert!(!file.set("cloud_sync", None));
+    }
+
+    #[test]
+    fn a_bad_value_fails_to_parse_before_saving() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(CONFIG_FILE);
+        let mut file = TomlFile::open(&path).unwrap();
+        file.set("default_platform", Some("macos".into()));
+        assert!(file.parse::<Config>().is_err());
+        assert!(!path.exists(), "nothing written");
+    }
+
+    #[test]
+    fn game_tables_are_added_pruned_and_removed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(GAMES_FILE);
+        fs::write(
+            &path,
+            "# my games\n[[game]]\napp_id = 570 # dota\nname = \"dota2\"\n",
+        )
+        .unwrap();
+
+        let mut file = TomlFile::open(&path).unwrap();
+        edit::set_in(
+            edit::game_mut(&mut file.doc, 570),
+            "platform",
+            Some("linux".into()),
+        );
+        edit::set_in(
+            edit::game_mut(&mut file.doc, 10),
+            "profile",
+            Some("native".into()),
+        );
+        let games: GamesFile = file.parse().unwrap();
+        assert_eq!(games.games.len(), 2);
+        assert_eq!(games.games[0].platform, Some(Platform::Linux));
+        assert_eq!(games.games[1].profile.as_deref(), Some("native"));
+        let text = file.doc.to_string();
+        assert!(
+            text.starts_with("# my games\n[[game]]\napp_id = 570 # dota\n"),
+            "{text}"
+        );
+
+        edit::set_in(edit::game_mut(&mut file.doc, 10), "profile", None);
+        edit::prune_game(&mut file.doc, 10);
+        assert_eq!(
+            file.parse::<GamesFile>().unwrap().games.len(),
+            1,
+            "empty entry pruned"
+        );
+
+        assert!(edit::remove_game(&mut file.doc, 570));
+        assert!(!edit::remove_game(&mut file.doc, 570));
+        assert!(file.parse::<GamesFile>().unwrap().games.is_empty());
+        assert!(!file.doc.to_string().contains("[[game]]"));
+    }
+}

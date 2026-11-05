@@ -4,33 +4,93 @@ use crate::cli::*;
 use crate::commands::common::*;
 
 use anyhow::Result;
+use libgaki::config::Config;
 use libgaki::core::config::LauncherConfig;
-use libgaki::ops::config::{Change, GameSettingsChange, ProxyChange};
+use libgaki::ops::config::{Change, GameEntryChange, ProxyChange};
 
-pub(crate) async fn cmd_config_show(_json: bool) -> Result<()> {
-    // The launcher configuration is structured data; it always renders as JSON.
-    let config = libgaki::ops::config::load().await?;
-    print_json(&config);
+/// `config show`: the `config.toml` settings, defaults filled in.
+pub(crate) async fn cmd_config_show(json: bool) -> Result<()> {
+    let config = libgaki::ops::config::global()?;
+    if json {
+        print_json(&config);
+        return Ok(());
+    }
+    let path = libgaki::core::config::config_dir()?.join(libgaki::config::CONFIG_FILE);
+    cli_println!("# {}", path.display());
+    cli_print!("{}", config.to_toml());
     Ok(())
 }
 
-/// Read the config, or with a value, set it with `mutate` and save.
-/// Returns the config and whether it changed.
-async fn view_or_set<T>(
-    value: Option<T>,
-    mutate: impl FnOnce(&mut LauncherConfig, T),
-) -> Result<(LauncherConfig, bool)> {
-    match value {
-        Some(v) => {
-            let config = libgaki::ops::config::update(|c| {
-                mutate(c, v);
-                Ok(())
+/// `config check`: load and validate every config file.
+pub(crate) async fn cmd_config_check(json: bool) -> Result<()> {
+    let report = libgaki::ops::config::check()?;
+    if json {
+        let issues: Vec<_> = report
+            .issues
+            .iter()
+            .map(|issue| {
+                serde_json::json!({
+                    "severity": issue.severity.to_string(),
+                    "subject": issue.subject.to_string(),
+                    "message": issue.message,
+                })
             })
-            .await?;
-            Ok((config, true))
+            .collect();
+        print_json(&serde_json::json!({
+            "load_errors": report.load_errors,
+            "issues": issues,
+        }));
+    } else if report.load_errors.is_empty() && report.issues.is_empty() {
+        cli_println!("No problems found.");
+    } else {
+        for error in &report.load_errors {
+            cli_println!("error: {error}");
         }
-        None => Ok((libgaki::ops::config::load().await?, false)),
+        for issue in &report.issues {
+            cli_println!("{issue}");
+        }
     }
+    if report.has_errors() {
+        anyhow::bail!("the configuration has errors");
+    }
+    Ok(())
+}
+
+/// `config get KEY`.
+pub(crate) async fn cmd_config_get(key: &str, json: bool) -> Result<()> {
+    let value = libgaki::ops::config::get_global(key)?;
+    if json {
+        print_json(&serde_json::json!({ "key": key, "value": value }));
+    } else if let Some(value) = value {
+        cli_println!("{value}");
+    }
+    Ok(())
+}
+
+/// `config set KEY VALUE` / `config unset KEY`.
+pub(crate) async fn cmd_config_set(key: &str, value: Option<&str>, json: bool) -> Result<()> {
+    let (_, changed) = libgaki::ops::config::set_global(key, value)?;
+    let now = libgaki::ops::config::get_global(key)?;
+    if json {
+        print_json(&serde_json::json!({ "key": key, "value": now, "changed": changed }));
+        return Ok(());
+    }
+    match (&now, changed) {
+        (Some(value), true) => cli_println!("{key} = {value}"),
+        (None, true) => cli_println!("{key} unset."),
+        (_, false) => cli_println!("{key}: unchanged."),
+    }
+    if changed && daemon_reads(key) {
+        cli_println!(
+            "Restart the session daemon for this to apply there (`gaki-cli daemon stop`)."
+        );
+    }
+    Ok(())
+}
+
+/// Keys the session daemon reads once, at start.
+fn daemon_reads(key: &str) -> bool {
+    matches!(key, "presence" | "proxy" | "no_proxy" | "install_resume")
 }
 
 /// `config presence [online|offline]`: view or set the presence the daemon
@@ -38,8 +98,12 @@ async fn view_or_set<T>(
 /// offline to friends but still sync your friends list and receive chat.
 pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>, json: bool) -> Result<()> {
     use libgaki::core::config::ChatPresence;
-    let (config, changed) = view_or_set(mode, |c, m| c.chat_presence = m.into()).await?;
-    let current = match config.chat_presence {
+    let changed = mode.is_some();
+    let config = match mode {
+        Some(mode) => libgaki::ops::config::set_presence(mode.into())?,
+        None => libgaki::ops::config::global()?,
+    };
+    let current = match config.presence {
         ChatPresence::Online => "online",
         ChatPresence::Offline => "offline",
     };
@@ -54,6 +118,23 @@ pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>, json: boo
         }
     }
     Ok(())
+}
+
+/// Read `config.toml`, or with a value, set `key` to it first.
+fn view_or_set(key: &str, value: Option<String>) -> Result<(Config, bool)> {
+    match value {
+        Some(value) => libgaki::ops::config::set_global(key, Some(&value)),
+        None => Ok((libgaki::ops::config::global()?, false)),
+    }
+}
+
+/// Apply a [`Change`] to an optional `config.toml` key.
+fn set_optional(key: &str, change: Change<String>) -> Result<(Config, bool)> {
+    match change {
+        Change::Keep => Ok((libgaki::ops::config::global()?, false)),
+        Change::Clear => libgaki::ops::config::set_global(key, None),
+        Change::Set(value) => libgaki::ops::config::set_global(key, Some(&value)),
+    }
 }
 
 /// `config experimental [true|false]`: view or set the experimental-features gate
@@ -126,7 +207,11 @@ pub(crate) async fn cmd_config_install_resume(
     json: bool,
 ) -> Result<()> {
     use libgaki::library::backlog::InstallResume;
-    let (config, changed) = view_or_set(mode, |c, m| c.install_resume = m.into()).await?;
+    let value = mode.map(|m| match InstallResume::from(m) {
+        InstallResume::Manual => "manual".to_owned(),
+        InstallResume::Auto => "auto".to_owned(),
+    });
+    let (config, changed) = view_or_set("install_resume", value)?;
     if json {
         print_json(&serde_json::json!({ "install_resume": config.install_resume }));
         return Ok(());
@@ -146,7 +231,18 @@ pub(crate) async fn cmd_config_install_resume(
 
 /// `config keyring [true|false]`.
 pub(crate) async fn cmd_config_keyring(enabled: Option<bool>, json: bool) -> Result<()> {
-    let (config, changed) = view_or_set(enabled, |c, v| c.use_keyring = v).await?;
+    // Still in config.json until the credential store replaces it (5.9).
+    let changed = enabled.is_some();
+    let config = match enabled {
+        Some(value) => {
+            libgaki::ops::config::update(|c: &mut LauncherConfig| {
+                c.use_keyring = value;
+                Ok(())
+            })
+            .await?
+        }
+        None => libgaki::ops::config::load().await?,
+    };
     if json {
         print_json(&serde_json::json!({ "use_keyring": config.use_keyring }));
         return Ok(());
@@ -166,12 +262,8 @@ pub(crate) async fn cmd_config_keyring(enabled: Option<bool>, json: bool) -> Res
 }
 
 /// `config script-dir [PATH|--clear]`.
-pub(crate) async fn cmd_config_script_dir(
-    change: libgaki::ops::config::Change<String>,
-    json: bool,
-) -> Result<()> {
-    let changed = !matches!(change, libgaki::ops::config::Change::Keep);
-    let config = set_optional(change, |c| &mut c.script_dir).await?;
+pub(crate) async fn cmd_config_script_dir(change: Change<String>, json: bool) -> Result<()> {
+    let (config, changed) = set_optional("script_dir", change)?;
     let effective = libgaki::launch::launch_script::script_dir();
     if json {
         print_json(&serde_json::json!({
@@ -181,7 +273,7 @@ pub(crate) async fn cmd_config_script_dir(
         return Ok(());
     }
     match &config.script_dir {
-        Some(dir) => cli_println!("Script dir: {dir}"),
+        Some(dir) => cli_println!("Script dir: {}", dir.display()),
         None => cli_println!("Script dir: {} (default)", effective.display()),
     }
     if changed {
@@ -191,12 +283,8 @@ pub(crate) async fn cmd_config_script_dir(
 }
 
 /// `config info-cache-ttl [SECONDS|--clear]`.
-pub(crate) async fn cmd_config_info_cache_ttl(
-    change: libgaki::ops::config::Change<u64>,
-    json: bool,
-) -> Result<()> {
-    let changed = !matches!(change, libgaki::ops::config::Change::Keep);
-    let config = set_optional(change, |c| &mut c.info_cache_ttl).await?;
+pub(crate) async fn cmd_config_info_cache_ttl(change: Change<u64>, json: bool) -> Result<()> {
+    let (config, changed) = set_optional("info_cache_ttl", change.map(|s| s.to_string()))?;
     let effective = config
         .info_cache_ttl
         .unwrap_or(libgaki::core::config::INFO_CACHE_DEFAULT_TTL_SECS);
@@ -221,32 +309,6 @@ pub(crate) async fn cmd_config_info_cache_ttl(
         cli_println!("Saved.");
     }
     Ok(())
-}
-
-/// Apply a [`Change`] to an optional setting,
-/// returning the config.
-async fn set_optional<T>(
-    change: libgaki::ops::config::Change<T>,
-    field: impl FnOnce(&mut LauncherConfig) -> &mut Option<T>,
-) -> Result<LauncherConfig> {
-    use libgaki::ops::config::Change;
-    match change {
-        Change::Keep => libgaki::ops::config::load().await,
-        Change::Clear => {
-            libgaki::ops::config::update(|c| {
-                *field(c) = None;
-                Ok(())
-            })
-            .await
-        }
-        Change::Set(v) => {
-            libgaki::ops::config::update(|c| {
-                *field(c) = Some(v);
-                Ok(())
-            })
-            .await
-        }
-    }
 }
 
 /// `config protons`: list the Proton/Wine runtimes actually installed on disk.
@@ -325,70 +387,99 @@ pub(crate) async fn cmd_config_clear_games(yes: bool, json: bool) -> Result<()> 
     Ok(())
 }
 
-/// `config game`: view or set a game's per-game launch settings.
+/// `config game`: view or set a game's `games.toml` entry.
 pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<()> {
     let GameConfigArgs {
         app_id,
-        proton,
-        clear_proton,
+        profile,
+        no_profile,
         platform,
         no_platform,
+        script,
+        no_script,
+        steam,
+        no_steam,
+        name,
+        no_name,
         clear,
-        launch_script,
-        no_launch_script,
     } = args;
 
-    let change = GameSettingsChange {
+    let change = GameEntryChange {
         reset: clear,
-        proton: change(clear_proton, proton),
-        platform: change(no_platform, platform.map(Into::into)),
-        launch_script: change(no_launch_script, launch_script),
+        name: change(no_name, name),
+        profile: change(no_profile, profile),
+        platform: change(
+            no_platform,
+            platform.map(|p| {
+                libgaki::config::Platform::from(libgaki::core::models::DepotPlatform::from(p))
+            }),
+        ),
+        script: change(no_script, script),
+        steam: change(no_steam, steam.map(Into::into)),
     };
-    let (entry, _changed) = libgaki::ops::config::update_game(app_id, change).await?;
-    let platforms = entry.installed_platforms;
-    let platform_resolved = match platforms {
-        Some((true, true)) => "linux + windows installed",
-        Some((true, false)) => "linux",
-        Some((false, true)) => "windows",
-        Some((false, false)) => "no recognizable payload",
-        None => "unknown until installed",
-    };
-    let runner_label = match (platforms, entry.platform_preference.as_deref()) {
-        (Some((true, true)), Some("linux")) => "Native, by linux preference",
-        (Some((true, true)), Some("windows")) => "Proton via Wine-TKG, by windows preference",
-        (Some((true, true)), _) => "Native or Proton, no platform preference",
-        (Some((true, false)), _) => "Native",
-        (Some((false, true)), _) => "Proton via Wine-TKG",
-        _ => "resolved at launch",
-    };
+    let (game, changed) = libgaki::ops::config::update_game_entry(app_id, change).await?;
     if json {
-        print_json(&entry);
-    } else {
-        cli_println!("App {app_id}:");
-        let proton_default = format!("(global default: {})", entry.default_proton_version);
-        cli_println!(
-            "  Proton       : {}",
+        print_json(&game);
+        return Ok(());
+    }
+    let entry = game.entry.as_ref();
+    let set_or = |value: Option<String>, fallback: String| match value {
+        Some(value) => value,
+        None => format!("({fallback})"),
+    };
+    let installed = match game.installed_platforms {
+        Some((true, true)) => "linux + windows installed",
+        Some((true, false)) => "linux installed",
+        Some((false, true)) => "windows installed",
+        Some((false, false)) => "no recognizable payload",
+        None => "not installed",
+    };
+    cli_println!("App {app_id}:");
+    cli_println!(
+        "  Name     : {}",
+        set_or(entry.and_then(|e| e.name.clone()), "no alias".into())
+    );
+    cli_println!(
+        "  Profile  : {}",
+        set_or(
+            entry.and_then(|e| e.profile.clone()),
+            match &game.profile {
+                Some(p) => format!("default: {p}"),
+                None => "none".into(),
+            }
+        )
+    );
+    cli_println!(
+        "  Platform : {}",
+        set_or(
+            entry.and_then(|e| e.platform).map(|p| p.to_string()),
+            match game.platform {
+                Some(p) => format!("resolved: {p}"),
+                None => format!("auto: {installed}"),
+            }
+        )
+    );
+    cli_println!(
+        "  Steam    : {}",
+        set_or(
+            entry.and_then(|e| e.steam).map(|s| s.to_string()),
+            format!("resolved: {}", game.steam)
+        )
+    );
+    cli_println!(
+        "  Script   : {}",
+        set_or(
             entry
-                .forced_proton_version
-                .as_deref()
-                .unwrap_or(&proton_default)
-        );
-        let platform_auto = format!("(auto: {platform_resolved})");
-        cli_println!(
-            "  Platform     : {}",
-            entry
-                .platform_preference
-                .as_deref()
-                .unwrap_or(&platform_auto)
-        );
-        cli_println!("  Runner       : {runner_label}");
-        cli_println!(
-            "  Script       : {}",
-            entry
-                .launch_script
-                .as_deref()
-                .unwrap_or("(auto-detected / none)")
-        );
+                .and_then(|e| e.script.as_ref())
+                .map(|p| p.display().to_string()),
+            match &game.script {
+                Some(p) => format!("fallback: {}", p.display()),
+                None => "none".into(),
+            }
+        )
+    );
+    if changed {
+        cli_println!("Saved.");
     }
     Ok(())
 }

@@ -395,19 +395,108 @@ pub async fn delete_session() -> Result<()> {
 /// over the file it failed to read.
 pub async fn load_launcher_config() -> Result<LauncherConfig> {
     let path = config_dir()?.join("config.json");
-    if !path.exists() {
+    let mut config = if path.exists() {
+        read_json(&path).await.with_context(|| {
+            format!(
+                "invalid launcher config — fix the JSON in {}, or delete it to regenerate defaults",
+                path.display()
+            )
+        })?
+    } else {
         let mut config = LauncherConfig::default();
         if let Some(detected) = detect_steam_path() {
             config.steam_library_path = detected.to_string_lossy().to_string();
         }
-        return Ok(config);
+        config
+    };
+    if let Some(toml) = TomlOverlay::load()? {
+        toml.apply(&mut config);
     }
-    read_json(&path).await.with_context(|| {
-        format!(
-            "invalid launcher config — fix the JSON in {}, or delete it to regenerate defaults",
-            path.display()
-        )
-    })
+    Ok(config)
+}
+
+/// The keys set in `config.toml`, laid over the `config.json` values they
+/// replace, so every reader of [`LauncherConfig`] sees the TOML settings.
+/// Only keys present in the file apply. Goes away with `config.json` (5.8).
+struct TomlOverlay {
+    keys: toml::Table,
+    config: crate::config::Config,
+    home: Option<PathBuf>,
+}
+
+impl TomlOverlay {
+    /// `None` when there is no `config.toml`.
+    fn load() -> Result<Option<Self>> {
+        let path = config_dir()?.join(crate::config::CONFIG_FILE);
+        let text = match std::fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(e) => return Err(e).with_context(|| format!("could not read {}", path.display())),
+        };
+        let parse = || -> Result<Self> {
+            Ok(Self {
+                keys: toml::from_str(&text)?,
+                config: toml::from_str(&text)?,
+                home: home_dir().ok(),
+            })
+        };
+        parse()
+            .with_context(|| format!("invalid {}", path.display()))
+            .map(Some)
+    }
+
+    fn has(&self, key: &str) -> bool {
+        self.keys.contains_key(key)
+    }
+
+    fn path_string(&self, path: &Path) -> String {
+        match &self.home {
+            Some(home) => crate::config::expand_tilde(path, home),
+            None => path.to_path_buf(),
+        }
+        .to_string_lossy()
+        .into_owned()
+    }
+
+    fn apply(&self, config: &mut LauncherConfig) {
+        let toml = &self.config;
+        if let Some(library) = &toml.steam_library {
+            config.steam_library_path = self.path_string(library);
+        }
+        if self.has("presence") {
+            config.chat_presence = toml.presence;
+        }
+        if self.has("cloud_sync") {
+            config.enable_cloud_sync = toml.cloud_sync;
+        }
+        if self.has("proxy") {
+            config.proxy.url.clone_from(&toml.proxy);
+        }
+        if self.has("no_proxy") {
+            config.proxy.no_proxy.clone_from(&toml.no_proxy);
+        }
+        if self.has("install_resume") {
+            config.install_resume = toml.install_resume;
+        }
+        if self.has("experimental") {
+            config.experimental = toml.experimental;
+        }
+        if let Some(dir) = &toml.script_dir {
+            config.script_dir = Some(self.path_string(dir));
+        }
+        if toml.info_cache_ttl.is_some() {
+            config.info_cache_ttl = toml.info_cache_ttl;
+        }
+    }
+
+    /// Like [`Self::load`], for the synchronous readers: a broken file is
+    /// logged and ignored.
+    fn load_lenient() -> Option<Self> {
+        Self::load()
+            .inspect_err(|e| tracing::warn!("ignoring config.toml: {e:#}"))
+            .ok()
+            .flatten()
+    }
 }
 
 pub async fn save_launcher_config(config: &LauncherConfig) -> Result<()> {
@@ -427,9 +516,18 @@ pub fn load_proxy_config_blocking() -> ProxyConfig {
     let Ok(raw) = std::fs::read_to_string(&path) else {
         return ProxyConfig::default();
     };
-    serde_json::from_str::<LauncherConfig>(&raw)
+    let mut proxy = serde_json::from_str::<LauncherConfig>(&raw)
         .map(|config| config.proxy)
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if let Some(toml) = TomlOverlay::load_lenient() {
+        if toml.has("proxy") {
+            proxy.url.clone_from(&toml.config.proxy);
+        }
+        if toml.has("no_proxy") {
+            proxy.no_proxy.clone_from(&toml.config.no_proxy);
+        }
+    }
+    proxy
 }
 
 /// The settings read from synchronous code paths (the keyring gate, the script
@@ -455,11 +553,20 @@ impl Default for RuntimeSettings {
 
 /// Synchronously read the [`RuntimeSettings`] from `config.json`.
 pub fn load_runtime_settings_blocking() -> RuntimeSettings {
-    config_dir()
+    let mut settings: RuntimeSettings = config_dir()
         .ok()
         .and_then(|dir| std::fs::read_to_string(dir.join("config.json")).ok())
         .map(|raw| parse_runtime_settings(&raw))
-        .unwrap_or_default()
+        .unwrap_or_default();
+    if let Some(toml) = TomlOverlay::load_lenient() {
+        if let Some(dir) = &toml.config.script_dir {
+            settings.script_dir = Some(toml.path_string(dir));
+        }
+        if toml.config.info_cache_ttl.is_some() {
+            settings.info_cache_ttl = toml.config.info_cache_ttl;
+        }
+    }
+    settings
 }
 
 fn parse_runtime_settings(raw: &str) -> RuntimeSettings {

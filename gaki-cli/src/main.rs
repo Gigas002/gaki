@@ -476,6 +476,10 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Appinfo { app_id } => cmd_appinfo(app_id).await,
         Command::Config { command } => match command {
             ConfigCommand::Show => cmd_config_show(json).await,
+            ConfigCommand::Check => cmd_config_check(json).await,
+            ConfigCommand::Get { key } => cmd_config_get(&key, json).await,
+            ConfigCommand::Set { key, value } => cmd_config_set(&key, Some(&value), json).await,
+            ConfigCommand::Unset { key } => cmd_config_set(&key, None, json).await,
             ConfigCommand::Protons => cmd_config_protons(json).await,
             ConfigCommand::Presence { mode } => cmd_config_presence(mode, json).await,
             ConfigCommand::Experimental { enabled } => cmd_config_experimental(enabled, json).await,

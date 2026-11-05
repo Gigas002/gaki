@@ -79,6 +79,11 @@ impl Default for Config {
 }
 
 impl Config {
+    /// This config as `config.toml` text.
+    pub fn to_toml(&self) -> String {
+        toml::to_string(self).expect("Config always serializes")
+    }
+
     /// Checks this file on its own; references to profiles are checked by
     /// [`super::Catalog::validate`].
     pub fn validate(&self, ctx: &ValidationContext) -> Vec<Issue> {

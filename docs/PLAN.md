@@ -1049,7 +1049,27 @@ I make the changes, and you review, commit, and push.
   pre-launch update, so a config error fails before anything downloads.
 - [ ] **5.7** CLI: rewrite the `config` subcommand for the new model and add a
   `profiles list|show` command. TUI: wire `ui/game_config.rs` to profile
-  selection and per-game overrides.
+  selection and per-game overrides. Split into:
+  - [x] **5.7a** TOML writes and the `config` command. *Done.*
+    `libgaki::config::edit` edits `config.toml`/`games.toml` in place with
+    `toml_edit`, keeping comments; every save is parsed and validated against
+    the whole config dir first (an unknown `default_profile` or game
+    `profile` is refused) and written atomically. Until 5.8, the
+    `config.toml` keys present in the file are laid over the `config.json`
+    values they replace in `load_launcher_config` and the blocking readers, so
+    every reader sees them. `gaki-cli config`: `show` prints `config.toml`
+    with defaults, new `check`, `get`, `set`, `unset` cover every key, and
+    `presence`, `experimental`, `install-resume`, `proxy`, `script-dir`,
+    `info-cache-ttl` now write `config.toml` (the TUI's presence and proxy
+    too). `config game` edits the `games.toml` entry (`--profile`,
+    `--platform`, `--script`, `--steam`, `--name`, `--clear`) and drops that
+    game's old `config.json` launch settings, which would otherwise still
+    win; its `--proton` is gone (a per-game Proton is a profile). `keyring`
+    stays in `config.json` until 5.9. Known wrinkle until 5.8: a JSON save
+    (pins, keyring) writes the overlaid TOML values into `config.json` too.
+  - [ ] **5.7b** `gaki-cli profiles list|show`.
+  - [ ] **5.7c** TUI: `game_config` on `games.toml` with profile selection;
+    drop the JSON `update_game`.
 - [ ] **5.8** Remove the JSON config code paths. Caches can stay JSON, because
   ARCHITECTURE requires TOML only for user configuration files. Confirm that
   this split is fine.

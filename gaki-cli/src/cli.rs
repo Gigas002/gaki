@@ -534,8 +534,29 @@ pub(crate) enum DaemonCommand {
 
 #[derive(Subcommand)]
 pub(crate) enum ConfigCommand {
-    /// Print the current launcher configuration as JSON.
+    /// Print the settings from `config.toml`, with defaults for unset keys.
     Show,
+    /// Check every config file (`config.toml`, `games.toml`, profiles) and
+    /// list what's wrong. Fails when there are errors.
+    Check,
+    /// Print one `config.toml` key as written in the file (nothing when unset).
+    Get {
+        /// A key such as `default_profile` or `steam_library`.
+        key: String,
+    },
+    /// Set a `config.toml` key, keeping the file's comments. The value is
+    /// checked before anything is written.
+    Set {
+        /// A key such as `default_profile` or `steam_library`.
+        key: String,
+        /// The value: text, a path, `true`/`false`, or a number.
+        value: String,
+    },
+    /// Remove a `config.toml` key, so it takes its default.
+    Unset {
+        /// A key such as `default_profile` or `steam_library`.
+        key: String,
+    },
     /// List detected Proton/Wine runtimes.
     Protons,
     /// View or set the Steam presence the daemon announces for friends/chat.
@@ -603,12 +624,13 @@ pub(crate) enum ConfigCommand {
         #[arg(short = 'c', long, conflicts_with_all = ["url", "no_proxy"])]
         clear: bool,
     },
-    /// View or set per-game launch settings (Proton version, platform).
+    /// View or set a game's `games.toml` entry (profile, platform, script,
+    /// Steam integration, alias).
     Game {
         #[command(flatten)]
         args: GameConfigArgs,
     },
-    /// Reset the per-game settings of ALL games to defaults (both stores).
+    /// Remove every `games.toml` entry and the old per-game settings.
     ClearGames {
         /// Skip the confirmation prompt.
         #[arg(short = 'y', long)]
@@ -1190,28 +1212,56 @@ pub(crate) enum DealsScopeArg {
 pub(crate) struct GameConfigArgs {
     #[arg(value_parser = app_ref)]
     pub(crate) app_id: u32,
-    /// Set the Proton/Wine version this game launches with. Use a name from
-    /// `gaki-cli proton list` (installed). Overrides the global default.
+    /// Run the game with this profile (`gaki-cli profiles list`).
     #[arg(short = 'p', long)]
-    pub(crate) proton: Option<String>,
-    /// Clear the per-game Proton version (fall back to the global default).
-    #[arg(short = 'P', long, conflicts_with = "proton")]
-    pub(crate) clear_proton: bool,
-    /// Force the game's platform target (`windows` runs through Proton on Linux).
+    pub(crate) profile: Option<String>,
+    /// Remove the game's profile (it uses `default_profile`).
+    #[arg(short = 'P', long, conflicts_with = "profile")]
+    pub(crate) no_profile: bool,
+    /// Run this build (`windows` runs through Proton on Linux).
     #[arg(short = 't', long)]
     pub(crate) platform: Option<PlatformArg>,
-    /// Clear the platform preference (back to auto-detection).
+    /// Remove the game's platform (back to the profile or `default_platform`).
     #[arg(short = 'T', long, conflicts_with = "platform")]
     pub(crate) no_platform: bool,
-    /// Reset ALL of this game's per-game settings to defaults (both stores).
-    #[arg(long, conflicts_with_all = ["proton", "clear_proton", "platform", "no_platform",
-        "launch_script", "no_launch_script"])]
-    pub(crate) clear: bool,
-    /// Set a per-game launch script that wraps the resolved launch command. See
-    /// `gaki-cli scripts`. Overrides the auto-detected `<script_dir>/<app_id>.sh`.
+    /// Wrap the launch in this script. See `gaki-cli scripts`.
     #[arg(short = 's', long, value_name = "PATH")]
-    pub(crate) launch_script: Option<PathBuf>,
-    /// Clear the per-game launch script (falls back to the auto-detected script).
-    #[arg(short = 'S', long, conflicts_with = "launch_script")]
-    pub(crate) no_launch_script: bool,
+    pub(crate) script: Option<PathBuf>,
+    /// Remove the game's script (falls back to `<script_dir>/<app_id>.sh`).
+    #[arg(short = 'S', long, conflicts_with = "script")]
+    pub(crate) no_script: bool,
+    /// Steam integration: `auto`, `host` or `none`.
+    #[arg(long, value_name = "MODE")]
+    pub(crate) steam: Option<SteamArg>,
+    /// Remove the game's Steam integration setting (the profile's applies).
+    #[arg(long, conflicts_with = "steam")]
+    pub(crate) no_steam: bool,
+    /// An alias for the game, usable wherever an app id is.
+    #[arg(short = 'n', long, value_name = "ALIAS")]
+    pub(crate) name: Option<String>,
+    /// Remove the game's alias.
+    #[arg(short = 'N', long, conflicts_with = "name")]
+    pub(crate) no_name: bool,
+    /// Remove the game's entry and its old per-game settings.
+    #[arg(long, conflicts_with_all = ["profile", "no_profile", "platform", "no_platform",
+        "script", "no_script", "steam", "no_steam", "name", "no_name"])]
+    pub(crate) clear: bool,
+}
+
+/// `--steam` modes for `config game`.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(crate) enum SteamArg {
+    Auto,
+    Host,
+    None,
+}
+
+impl From<SteamArg> for libgaki::config::SteamIntegration {
+    fn from(arg: SteamArg) -> Self {
+        match arg {
+            SteamArg::Auto => Self::Auto,
+            SteamArg::Host => Self::Host,
+            SteamArg::None => Self::None,
+        }
+    }
 }

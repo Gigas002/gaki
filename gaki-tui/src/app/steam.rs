@@ -723,15 +723,11 @@ pub fn config_show() -> Result<LauncherSettings, TuiError> {
 pub fn set_presence(online: bool) -> Result<(), TuiError> {
     use libgaki::core::config::ChatPresence;
     in_process(async {
-        libgaki::ops::config::update(|c| {
-            c.chat_presence = if online {
-                ChatPresence::Online
-            } else {
-                ChatPresence::Offline
-            };
-            Ok(())
-        })
-        .await?;
+        libgaki::ops::config::set_presence(if online {
+            ChatPresence::Online
+        } else {
+            ChatPresence::Offline
+        })?;
         // Best-effort: the saved setting applies on the next connect anyway.
         if let Some(client) = worker::global().session().client().await
             && client.is_authenticated()
