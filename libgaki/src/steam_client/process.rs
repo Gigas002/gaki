@@ -186,7 +186,7 @@ impl SteamClient {
         proton_path: Option<&str>,
         launcher_config: &crate::core::config::LauncherConfig,
         user_config: Option<&crate::core::models::UserAppConfig>,
-        launch_script_override: Option<PathBuf>,
+        settings: &crate::settings::LaunchSettings,
         disable_launch_script: bool,
         steam_enabled: bool,
     ) -> Result<std::process::Child> {
@@ -199,7 +199,8 @@ impl SteamClient {
         ctx.launcher_config = Some(launcher_config.clone());
         ctx.user_config = user_config.cloned();
         ctx.proton_path = proton_path.map(|s| s.to_string());
-        ctx.launch_script_override = launch_script_override;
+        ctx.launch_script_override = settings.script.clone();
+        ctx.settings = Some(settings.clone());
         ctx.disable_launch_script = disable_launch_script;
         ctx.steam_enabled = steam_enabled;
 

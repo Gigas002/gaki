@@ -25,9 +25,7 @@ impl PipelineStage for PreparePrefixStage {
         runner.prepare_prefix(&runner_ctx).await?;
 
         // Post-runner prefix preparation: handle symlinks
-        let app_id = runner_ctx.app.app_id;
-        let prefix_path =
-            crate::core::utils::proton_compat_prefix(&runner_ctx.launcher_config, app_id);
+        let prefix_path = runner_ctx.compat_data().join("pfx");
 
         if !use_symlinks {
             // Cleanup if it was previously enabled

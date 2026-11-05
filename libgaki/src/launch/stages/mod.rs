@@ -1,6 +1,6 @@
 pub mod apply_launch_script;
+pub mod apply_settings;
 pub mod build_command;
-pub mod build_environment;
 pub mod finalize;
 pub mod preflight;
 pub mod prepare_prefix;

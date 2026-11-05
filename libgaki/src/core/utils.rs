@@ -1303,13 +1303,27 @@ pub fn cleanup_dll_symlinks(prefix: &Path) -> Result<()> {
 }
 
 /// The game's wine prefix — the one Proton itself uses: `$STEAM_COMPAT_DATA_PATH/pfx`,
-/// where `STEAM_COMPAT_DATA_PATH` is `<library>/steamapps/compatdata/<appid>`. Saves
-/// of Windows games live here, so Steam Cloud sync resolves `%Win*%` roots against it.
+/// where `STEAM_COMPAT_DATA_PATH` is the game's profile's shared prefix, or
+/// `<library>/steamapps/compatdata/<appid>` without one. Saves of Windows games
+/// live here, so Steam Cloud sync resolves `%Win*%` roots against it.
+///
+/// Uses the game's configured settings; a launch with command-line overrides
+/// uses [`crate::settings::LaunchSettings::wine_prefix`] instead.
 pub fn proton_compat_prefix(
     config: &crate::core::config::LauncherConfig,
     app_id: u32,
 ) -> std::path::PathBuf {
-    compat_data_dir(std::path::Path::new(&config.steam_library_path), app_id).join("pfx")
+    let library_root = std::path::Path::new(&config.steam_library_path);
+    match crate::settings::resolve_user(app_id, &crate::settings::Overrides::default()) {
+        Ok(settings) => settings.wine_prefix(library_root),
+        Err(e) => {
+            tracing::warn!(
+                appid = app_id,
+                "could not resolve the game's settings: {e:#}"
+            );
+            compat_data_dir(library_root, app_id).join("pfx")
+        }
+    }
 }
 
 /// `steamapps/compatdata/<appid>` under a library root.

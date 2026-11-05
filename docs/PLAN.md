@@ -990,11 +990,27 @@ I make the changes, and you review, commit, and push.
   overrides, anti-cheat) sit in `LaunchSettings::proton`. Env merges profile
   then game. The `scripts/<app id>.sh` fallback is left to 5.5, and the
   launch path doesn't call the resolver yet (5.3).
-- [ ] **5.3** Rework the launch pipeline (`launch/stages/resolve_profile.rs`,
+- [x] **5.3** Rework the launch pipeline (`launch/stages/resolve_profile.rs`,
   `prepare_prefix.rs`, and `build_environment.rs`) to use the resolved profile:
   the shared prefix becomes `STEAM_COMPAT_DATA_PATH`, and the pipeline adds
   wrappers, env, and DLL overrides. Steam-style per-game `compatdata/<appid>`
   is no longer created.
+  *Done.* `ops::launch::play` resolves `LaunchSettings` once (the CLI's
+  `--proton`/`--script`/`--no-script`/`--platform` as `Overrides`) and passes
+  them down; `ResolveProfileStage` resolves them for callers that didn't. A
+  profile's `prefix` becomes `STEAM_COMPAT_DATA_PATH` (`WINEPREFIX` is its
+  `pfx`) for the launch, the running-game record, cloud sync, and DLL
+  detection; `compatdata/<appid>` is only used, and created, for a game whose
+  profile has no prefix (5.1). The Proton runner merges the profile's
+  `dll_overrides` over the computed ones, puts `runner_args` before the game,
+  and sets `PROTON_LOG` for `debug` and `PROTON_EAC_RUNTIME` /
+  `PROTON_BATTLEYE_RUNTIME` for `[anticheat]` when those runtimes are
+  installed. The empty `BuildEnvironmentStage` is gone; a new
+  `ApplySettingsStage` (after preflight, before the launch script) adds env,
+  the game's `args`, and the wrappers for both runners. The profile's Proton
+  build is used when the launch runs the Windows build; choosing *which* build
+  from `settings.platform` is 5.4. A game's `script` from `games.toml` now
+  applies too; the alias and old-path fallback remain for 5.5.
 - [ ] **5.4** Add `default_platform` (R27/Q5). `--platform` overrides it, and
   `games.toml` can set it per game.
 - [ ] **5.5** Add a named `script` path per game, with a fallback to

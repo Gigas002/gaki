@@ -79,6 +79,9 @@ pub struct PipelineContext {
     pub launcher_config: Option<LauncherConfig>,
     pub user_config: Option<UserAppConfig>,
     pub proton_path: Option<String>,
+    /// The resolved configuration (profile, game entry, overrides). Filled in by
+    /// `ResolveProfileStage` when the caller didn't.
+    pub settings: Option<crate::settings::LaunchSettings>,
     /// One-off launch-script override (e.g. `gaki-cli play --script <PATH>`) that
     /// takes precedence over the per-game config and the auto-detected dir script.
     pub launch_script_override: Option<std::path::PathBuf>,
@@ -177,6 +180,7 @@ impl PipelineContext {
                 .clone(),
             user_config: self.user_config.clone(),
             proton_path: self.proton_path.clone(),
+            settings: self.settings.clone(),
             steam_enabled: self.steam_enabled,
             target_architecture: self.target_architecture,
             dll_resolutions: self.dll_resolutions.clone(),
@@ -193,6 +197,7 @@ impl PipelineContext {
             launcher_config: None,
             user_config: None,
             proton_path: None,
+            settings: None,
             launch_script_override: None,
             disable_launch_script: false,
             steam_enabled: false,
@@ -613,12 +618,12 @@ impl LaunchPipeline {
             crate::launch::stages::prepare_prefix::PreparePrefixStage,
         ));
         pipeline.add_stage(Box::new(
-            crate::launch::stages::build_environment::BuildEnvironmentStage,
-        ));
-        pipeline.add_stage(Box::new(
             crate::launch::stages::build_command::BuildCommandStage,
         ));
         pipeline.add_stage(Box::new(crate::launch::stages::preflight::PreflightStage));
+        pipeline.add_stage(Box::new(
+            crate::launch::stages::apply_settings::ApplySettingsStage,
+        ));
         pipeline.add_stage(Box::new(
             crate::launch::stages::apply_launch_script::ApplyLaunchScriptStage,
         ));
@@ -644,7 +649,7 @@ impl LaunchPipeline {
         // Initialize environment propagation tracking
         ctx.graphics_stack.env_propagation = HashMap::new();
 
-        // After ResolveDllProvidersStage and BuildEnvironmentStage, we can populate effective state
+        // After ResolveDllProvidersStage, we can populate effective state
         // but for now we'll do it right before validators if possible or within validators.
         // Actually, let's run validators twice: early and late.
         // Or just let stages populate the context.

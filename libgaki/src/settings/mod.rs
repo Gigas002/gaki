@@ -49,6 +49,17 @@ pub enum ProtonBuild {
     Path(PathBuf),
 }
 
+impl ProtonBuild {
+    /// The name or path to look the build up by; `None` for the default.
+    pub fn as_runner(&self) -> Option<String> {
+        match self {
+            Self::Default => None,
+            Self::Steam(name) => Some(name.clone()),
+            Self::Path(path) => Some(path.to_string_lossy().into_owned()),
+        }
+    }
+}
+
 /// The Proton half of a launch: present only when the profile runs Proton.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProtonSettings {
@@ -108,6 +119,39 @@ pub enum SettingsError {
 enum Origin {
     Explicit,
     Default,
+}
+
+impl LaunchSettings {
+    /// `STEAM_COMPAT_DATA_PATH`: the profile's shared prefix, or the game's own
+    /// `<library>/steamapps/compatdata/<app id>`.
+    pub fn compat_data(&self, library_root: &Path) -> PathBuf {
+        self.proton
+            .as_ref()
+            .and_then(|proton| proton.prefix.clone())
+            .unwrap_or_else(|| crate::core::utils::compat_data_dir(library_root, self.app_id))
+    }
+
+    /// The Wine prefix Proton keeps inside [`Self::compat_data`].
+    pub fn wine_prefix(&self, library_root: &Path) -> PathBuf {
+        self.compat_data(library_root).join("pfx")
+    }
+}
+
+/// Resolve `app_id`'s settings from the user's config directory. Files that
+/// fail to load are logged and skipped, like a missing file.
+pub fn resolve_user(app_id: u32, overrides: &Overrides) -> anyhow::Result<LaunchSettings> {
+    let catalog = Catalog::load_user()?;
+    for error in &catalog.load_errors {
+        tracing::warn!("{error}");
+    }
+    let home = crate::core::config::home_dir()?;
+    resolve(&catalog, app_id, overrides, &home).map_err(|e| {
+        crate::core::error::TypedError::new(
+            crate::core::error::ErrorKind::InvalidInput,
+            e.to_string(),
+        )
+        .into()
+    })
 }
 
 /// Resolve `app_id`'s settings. `home` expands `~` in paths.

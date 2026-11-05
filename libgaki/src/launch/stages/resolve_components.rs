@@ -259,6 +259,7 @@ mod tests {
             launcher_config: crate::core::config::LauncherConfig::default(),
             user_config: Some(user_config),
             proton_path: None,
+            settings: None,
             steam_enabled: false,
             target_architecture: Default::default(),
             dll_resolutions: Vec::new(),

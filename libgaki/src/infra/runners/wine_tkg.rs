@@ -20,7 +20,8 @@ impl SteamLayout {
     /// Derive the layout from `ctx`.
     fn derive(ctx: &LaunchContext) -> Self {
         let library_root = PathBuf::from(&ctx.launcher_config.steam_library_path);
-        let compat_data_path = crate::core::utils::compat_data_dir(&library_root, ctx.app.app_id);
+        // A profile's shared prefix, or the game's own compatdata.
+        let compat_data_path = ctx.compat_data();
         Self {
             steam_mode: resolve_steam_mode(ctx.steam_enabled),
             game_prefix: compat_data_path.join("pfx"),
@@ -233,6 +234,14 @@ impl Runner for WineTkgRunner {
                 }
                 dll_overrides.push_str(&format!("{}={}", dll, mode));
             }
+        }
+
+        // The profile's overrides are explicit configuration: they replace
+        // whatever the policy, providers or fixups chose for the same DLL.
+        if let Some(proton) = ctx.settings.as_ref().and_then(|s| s.proton.as_ref())
+            && !proton.dll_overrides.is_empty()
+        {
+            dll_overrides = merge_dll_overrides(&dll_overrides, &proton.dll_overrides);
         }
 
         tracing::info!("Final WINEDLLOVERRIDES: {}", dll_overrides);
@@ -516,6 +525,15 @@ impl Runner for WineTkgRunner {
             "err+all,warn+module,warn+loaddll".to_string(),
         );
 
+        if let Some(settings) = &ctx.settings {
+            if settings.debug {
+                env.insert("PROTON_LOG".to_string(), "1".to_string());
+            }
+            if let Some(proton) = &settings.proton {
+                anticheat_env(&mut env, proton.anticheat, library_root);
+            }
+        }
+
         let log_dir = crate::core::config::config_dir()
             .unwrap_or_else(|_| PathBuf::from("/tmp"))
             .join("logs");
@@ -585,6 +603,10 @@ impl Runner for WineTkgRunner {
         let (_install_dir, executable, game_working_dir) = ctx.game_paths()?;
 
         spec.cwd = Some(game_working_dir);
+        // The profile's `runner_args` go to the runner, ahead of the game.
+        if let Some(settings) = &ctx.settings {
+            spec.args.extend(settings.runner_args.iter().cloned());
+        }
         spec.args.push(executable.to_string_lossy().to_string());
 
         // Split args from launch_info
@@ -652,6 +674,72 @@ impl Runner for WineTkgRunner {
                 LaunchError::new(LaunchErrorKind::Process, "failed to spawn runner process")
                     .with_source(anyhow!(e))
             })
+    }
+}
+
+/// `existing` (a `WINEDLLOVERRIDES` value, `a,b=n;c=b`) with every DLL in
+/// `overrides` set to its mode there instead.
+pub fn merge_dll_overrides(
+    existing: &str,
+    overrides: &std::collections::BTreeMap<String, String>,
+) -> String {
+    let normalize = |name: &str| name.trim().trim_end_matches(".dll").to_lowercase();
+    let replaced: std::collections::HashSet<String> =
+        overrides.keys().map(|name| normalize(name)).collect();
+    let mut entries: Vec<String> = Vec::new();
+    for entry in existing.split(';').filter(|e| !e.trim().is_empty()) {
+        let (names, mode) = entry.split_once('=').unwrap_or((entry, ""));
+        let kept: Vec<&str> = names
+            .split(',')
+            .filter(|name| !replaced.contains(&normalize(name)))
+            .collect();
+        if !kept.is_empty() {
+            entries.push(format!("{}={mode}", kept.join(",")));
+        }
+    }
+    entries.extend(
+        overrides
+            .iter()
+            .map(|(name, mode)| format!("{name}={mode}")),
+    );
+    entries.join(";")
+}
+
+/// The Steam runtimes Proton loads for EAC and BattlEye games.
+const EAC_RUNTIME: (&str, &str, u32) = (
+    "PROTON_EAC_RUNTIME",
+    "Proton EasyAntiCheat Runtime",
+    1826330,
+);
+const BATTLEYE_RUNTIME: (&str, &str, u32) = (
+    "PROTON_BATTLEYE_RUNTIME",
+    "Proton BattlEye Runtime",
+    1161040,
+);
+
+/// Point Proton at the anti-cheat runtimes the profile asks for, when they're
+/// installed in the library.
+fn anticheat_env(
+    env: &mut HashMap<String, String>,
+    anticheat: crate::config::Anticheat,
+    library_root: &Path,
+) {
+    for (wanted, (var, dir, app_id)) in [
+        (anticheat.eac, EAC_RUNTIME),
+        (anticheat.battleye, BATTLEYE_RUNTIME),
+    ] {
+        if !wanted {
+            continue;
+        }
+        let path = library_root.join("steamapps").join("common").join(dir);
+        if path.is_dir() {
+            env.insert(var.to_string(), path.to_string_lossy().into_owned());
+        } else {
+            tracing::warn!(
+                "the profile enables {dir}, but it isn't installed; install app {app_id} \
+                 (`gaki-cli install {app_id}`)"
+            );
+        }
     }
 }
 

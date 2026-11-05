@@ -34,6 +34,7 @@ fn mock_context() -> LaunchContext {
         launcher_config: LauncherConfig::default(),
         user_config: None,
         proton_path: Some("/tmp/proton".to_string()),
+        settings: None,
         steam_enabled: false,
         target_architecture: crate::core::models::ExecutableArchitecture::X86_64,
         dll_resolutions: Vec::new(),
@@ -118,6 +119,7 @@ async fn test_wine_tkg_runner_graphics_policy_autodetect() {
         launcher_config: config,
         user_config: Some(user_config.clone()),
         proton_path: Some(runner_path.to_string_lossy().to_string()),
+        settings: None,
         steam_enabled: false,
         target_architecture: crate::core::models::ExecutableArchitecture::X86_64,
         dll_resolutions: Vec::new(),
@@ -193,4 +195,75 @@ async fn test_wine_tkg_runner_stubs() {
     // build_env should succeed without real filesystem
     let env = runner.build_env(&ctx).await.unwrap();
     assert_eq!(env.get("SteamAppId").unwrap(), "123");
+}
+
+#[test]
+fn profile_dll_overrides_replace_existing_entries() {
+    let overrides = std::collections::BTreeMap::from([
+        ("d3d11".to_string(), "b".to_string()),
+        ("winhttp".to_string(), "n,b".to_string()),
+    ]);
+    assert_eq!(
+        super::merge_dll_overrides("d3d11,dxgi=n;steamclient=n", &overrides),
+        "dxgi=n;steamclient=n;d3d11=b;winhttp=n,b"
+    );
+    assert_eq!(
+        super::merge_dll_overrides("D3D11.dll=n", &overrides),
+        "d3d11=b;winhttp=n,b"
+    );
+    assert_eq!(
+        super::merge_dll_overrides("", &overrides),
+        "d3d11=b;winhttp=n,b"
+    );
+}
+
+#[tokio::test]
+async fn profile_prefix_and_overrides_reach_the_proton_env() {
+    use crate::settings::{LaunchSettings, ProtonBuild, ProtonSettings};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let lib = tmp.path().join("library");
+    let eac = lib.join("steamapps/common/Proton EasyAntiCheat Runtime");
+    std::fs::create_dir_all(&eac).unwrap();
+    let shared = tmp.path().join("prefixes/shared");
+
+    let mut ctx = mock_context();
+    ctx.launcher_config.steam_library_path = lib.to_string_lossy().into_owned();
+    ctx.settings = Some(LaunchSettings {
+        app_id: 123,
+        profile: Some("proton".into()),
+        platform: None,
+        proton: Some(ProtonSettings {
+            build: ProtonBuild::Default,
+            prefix: Some(shared.clone()),
+            dll_overrides: [("winhttp".to_string(), "n,b".to_string())].into(),
+            anticheat: crate::config::Anticheat {
+                eac: true,
+                battleye: false,
+            },
+        }),
+        runner_args: Vec::new(),
+        wrappers: Vec::new(),
+        debug: true,
+        env: Default::default(),
+        args: Vec::new(),
+        script: None,
+        cloud_sync: true,
+    });
+
+    let env = WineTkgRunner.build_env(&ctx).await.unwrap();
+    assert_eq!(env["STEAM_COMPAT_DATA_PATH"], shared.to_string_lossy());
+    assert_eq!(env["WINEPREFIX"], shared.join("pfx").to_string_lossy());
+    assert!(
+        env["WINEDLLOVERRIDES"].ends_with("winhttp=n,b"),
+        "{}",
+        env["WINEDLLOVERRIDES"]
+    );
+    assert_eq!(env["PROTON_EAC_RUNTIME"], eac.to_string_lossy());
+    assert!(!env.contains_key("PROTON_BATTLEYE_RUNTIME"));
+    assert_eq!(env["PROTON_LOG"], "1");
+    assert!(
+        !lib.join("steamapps/compatdata/123").exists(),
+        "no per-game compatdata with a shared prefix"
+    );
 }

@@ -11,6 +11,8 @@ pub struct LaunchContext {
     pub launcher_config: LauncherConfig,
     pub user_config: Option<UserAppConfig>,
     pub proton_path: Option<String>,
+    /// The resolved configuration; `None` only in tests that build a context by hand.
+    pub settings: Option<crate::settings::LaunchSettings>,
     /// Run with real Steam integration
     pub steam_enabled: bool,
     pub target_architecture: crate::core::models::ExecutableArchitecture,
@@ -25,6 +27,15 @@ unsafe impl Send for LaunchContext {}
 unsafe impl Sync for LaunchContext {}
 
 impl LaunchContext {
+    /// `STEAM_COMPAT_DATA_PATH` for this launch.
+    pub fn compat_data(&self) -> PathBuf {
+        let library_root = std::path::Path::new(&self.launcher_config.steam_library_path);
+        match &self.settings {
+            Some(settings) => settings.compat_data(library_root),
+            None => crate::core::utils::compat_data_dir(library_root, self.app.app_id),
+        }
+    }
+
     /// Run `f` on the verification record.
     pub fn with_verification(
         &self,

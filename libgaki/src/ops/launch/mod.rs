@@ -151,6 +151,18 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
         (preference == Some("windows")).then(|| launcher_config.proton_version.clone())
     });
 
+    let overrides = crate::settings::Overrides {
+        proton: request.proton.clone(),
+        script: request.script.clone(),
+        no_script: request.no_script,
+        platform: request.platform.map(|platform| match platform {
+            DepotPlatform::Linux => crate::config::Platform::Linux,
+            DepotPlatform::Windows => crate::config::Platform::Windows,
+        }),
+        ..Default::default()
+    };
+    let settings = crate::settings::resolve_user(app_id, &overrides)?;
+
     let user_configs = load_user_configs().await?;
     on_event(LaunchEvent::Launching);
     let on_target = |proton: Option<&str>| on_event(LaunchEvent::Target { proton });
@@ -159,7 +171,7 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
             &game,
             proton_path.as_deref(),
             user_configs.get(&app_id),
-            request.script.clone(),
+            &settings,
             request.no_script,
             request.steam,
             preference == Some("linux"),

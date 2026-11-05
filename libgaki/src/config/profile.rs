@@ -157,6 +157,9 @@ impl Profile {
             Some(_) => issues.warn(ignored("[proton]")),
             None => {}
         }
+        if runner == Runner::Native && !self.runner_args.is_empty() {
+            issues.warn(ignored("runner_args"));
+        }
         if !proton {
             if !self.dll_overrides.is_empty() {
                 issues.warn(ignored("dll_overrides"));

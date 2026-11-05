@@ -66,10 +66,12 @@ impl PipelineStage for ResolveDllProvidersStage {
         let resolved_runner = crate::core::utils::resolve_runner(proton_path, &library_root);
 
         // Resolve WINEPREFIX for component detection
-        let wineprefix = if let (Some(config), Some(app)) = (&ctx.launcher_config, &ctx.app) {
-            Some(crate::core::utils::proton_compat_prefix(config, app.app_id))
-        } else {
-            None
+        let wineprefix = match (&ctx.settings, &ctx.launcher_config, &ctx.app) {
+            (Some(settings), _, _) => Some(settings.wine_prefix(&library_root)),
+            (None, Some(config), Some(app)) => {
+                Some(crate::core::utils::proton_compat_prefix(config, app.app_id))
+            }
+            _ => None,
         };
 
         let components =

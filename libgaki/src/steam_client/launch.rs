@@ -234,7 +234,7 @@ impl SteamClient {
         app: &LibraryGame,
         proton_path: Option<&str>,
         user_config: Option<&crate::core::models::UserAppConfig>,
-        launch_script_override: Option<PathBuf>,
+        settings: &crate::settings::LaunchSettings,
         disable_launch_script: bool,
         steam_enabled: bool,
         prefer_native_target: bool,
@@ -274,6 +274,12 @@ impl SteamClient {
         .ok_or_else(|| anyhow!("no launch options"))?;
 
         let launcher_config = load_launcher_config().await?;
+        let library_root = PathBuf::from(&launcher_config.steam_library_path);
+        // An explicit Proton, then the profile's build, then the global default.
+        let windows_proton = proton_path
+            .map(str::to_owned)
+            .or_else(|| settings.proton.as_ref().and_then(|p| p.build.as_runner()))
+            .unwrap_or_else(|| launcher_config.proton_version.clone());
 
         match launch_info.target {
             LaunchTarget::NativeLinux => {
@@ -285,7 +291,7 @@ impl SteamClient {
             LaunchTarget::WindowsProton => {
                 tracing::info!(
                     app_id = app.app_id,
-                    proton = proton_path.unwrap_or(&launcher_config.proton_version),
+                    proton = windows_proton.as_str(),
                     "resolved launch platform: Windows via Proton"
                 );
             }
@@ -294,21 +300,19 @@ impl SteamClient {
         // None = native Linux; Some = the Proton runner.
         if let Some(cb) = on_target_resolved {
             cb(match launch_info.target {
-                LaunchTarget::WindowsProton => {
-                    Some(proton_path.unwrap_or(&launcher_config.proton_version))
-                }
+                LaunchTarget::WindowsProton => Some(windows_proton.as_str()),
                 LaunchTarget::NativeLinux => None,
             });
         }
 
         let chosen_proton_path = match launch_info.target {
             LaunchTarget::NativeLinux => None,
-            LaunchTarget::WindowsProton => {
-                proton_path.or(Some(launcher_config.proton_version.as_str()))
-            }
+            LaunchTarget::WindowsProton => Some(windows_proton.as_str()),
         };
+        let wine_prefix = settings.wine_prefix(&library_root);
 
-        let cloud_enabled = launcher_config.enable_cloud_sync && !self.is_offline();
+        let cloud_enabled =
+            settings.cloud_sync && launcher_config.enable_cloud_sync && !self.is_offline();
         let mut cloud_client = None;
         let mut cloud_resolver = None;
         let mut cloud_specs: Vec<crate::library::cloud_sync::UfsSaveSpec> = Vec::new();
@@ -320,10 +324,7 @@ impl SteamClient {
             // every Auto-Cloud save of a Windows game would be silently skipped.
             let resolver =
                 CloudPathResolver::new(remote_root, app.install_path.as_ref().map(PathBuf::from))
-                    .with_wine_prefix(Some(crate::core::utils::proton_compat_prefix(
-                        &launcher_config,
-                        app.app_id,
-                    )));
+                    .with_wine_prefix(Some(wine_prefix.clone()));
             tracing::info!(appid = app.app_id, "Syncing Cloud...");
             // Conflict-safe: a divergent save is left untouched (never clobbered),
             // so the user can resolve it via `cloud sync` / the Heroic chooser. The
@@ -387,7 +388,7 @@ impl SteamClient {
                 chosen_proton_path,
                 &launcher_config,
                 user_config,
-                launch_script_override,
+                settings,
                 disable_launch_script,
                 steam_enabled,
             )
@@ -395,10 +396,7 @@ impl SteamClient {
 
         // Record the launch so a separate `gaki-cli stop <app_id>` invocation can
         // find and terminate the process while we block on `wait()` below.
-        let wineprefix = Some(crate::core::utils::proton_compat_prefix(
-            &launcher_config,
-            app.app_id,
-        ));
+        let wineprefix = Some(wine_prefix);
         let record = crate::compat::running::RunningGame::new(
             app.app_id,
             app.name.clone(),
