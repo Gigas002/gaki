@@ -7,8 +7,8 @@
 use gaki_tui::app::browser::{Action, Browser};
 use gaki_tui::app::game::Game;
 use gaki_tui::app::steam::{
-    AvailableJson, CollectionJson, ConfigJson, DepotManifestInfo, GameConfigJson, LaunchTargetJson,
-    LibraryGameJson, ProxyJson,
+    Collection, DepotManifestInfo, GameSettings, LaunchTarget, LauncherSettings, LibraryGame,
+    PinState, ProxySettings,
 };
 use gaki_tui::ui;
 use ratatui::Terminal;
@@ -27,7 +27,7 @@ fn isolate_config() {
 }
 
 fn game(id: u32, name: &str, installed: bool) -> Game {
-    Game::from_library(LibraryGameJson {
+    Game::from_library(LibraryGame {
         app_id: id,
         name: name.to_string(),
         is_installed: installed,
@@ -173,7 +173,7 @@ fn versions_overlay_renders_pin_and_manifest() {
     }];
     let mut pinned = BTreeMap::new();
     pinned.insert("731".to_string(), 12345u64);
-    browser.versions_available = Some(AvailableJson {
+    browser.versions_available = Some(PinState {
         app_id: 730,
         available: true,
         install_path: Some("C:/games/cs".to_string()),
@@ -193,7 +193,7 @@ fn game_settings_overlay_renders_rows() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
     browser.show_game_config = true;
-    browser.game_config = Some(GameConfigJson {
+    browser.game_config = Some(GameSettings {
         app_id: 1,
         forced_proton_version: Some("GE-Proton9".to_string()),
         platform_preference: Some("windows".to_string()),
@@ -218,7 +218,7 @@ fn game_settings_overlay_renders_rows() {
 
 #[test]
 fn launch_targets_parse_and_map_to_play_opts() {
-    let target = LaunchTargetJson {
+    let target = LaunchTarget {
         id: "windows-host".into(),
         platform: "windows".into(),
         steam_mode: Some("host".into()),
@@ -234,7 +234,7 @@ fn launch_targets_parse_and_map_to_play_opts() {
     assert_eq!(opts.steam_mode.as_deref(), Some("host"));
     assert!(!opts.steam);
 
-    let native = LaunchTargetJson {
+    let native = LaunchTarget {
         platform: "linux".into(),
         flags: ["--platform", "linux", "--steam"]
             .map(String::from)
@@ -250,14 +250,14 @@ fn launch_targets_overlay_renders_targets() {
     let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
     browser.show_launch_targets = true;
     browser.launch_targets = vec![
-        LaunchTargetJson {
+        LaunchTarget {
             id: "linux".to_string(),
             platform: "linux".to_string(),
             available: true,
             default: true,
             ..Default::default()
         },
-        LaunchTargetJson {
+        LaunchTarget {
             id: "windows-runtime".to_string(),
             platform: "windows".to_string(),
             steam_mode: Some("runtime".to_string()),
@@ -291,7 +291,7 @@ fn collections_overlay_renders_list() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
     browser.show_collections = true;
-    browser.collections = vec![CollectionJson {
+    browser.collections = vec![Collection {
         id: "uc-1".to_string(),
         name: "Favourites".to_string(),
         kind: "static".to_string(),
@@ -315,8 +315,8 @@ fn settings_overlay_renders_proxy() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
     browser.show_config = true;
-    browser.config_info = Some(ConfigJson::default());
-    browser.config_proxy = Some(ProxyJson {
+    browser.config_info = Some(LauncherSettings::default());
+    browser.config_proxy = Some(ProxySettings {
         url: Some("http://host:8080".to_string()),
         no_proxy: Some("localhost".to_string()),
     });

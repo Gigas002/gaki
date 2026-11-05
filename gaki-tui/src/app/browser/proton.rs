@@ -2,12 +2,12 @@
 
 use super::Browser;
 use crate::app::steam;
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 
 impl Browser {
     /// Fetch the Proton/Wine runtimes and open the overlay (blocking); the
     /// selection resets to the first row.
-    pub fn open_proton(&mut self) -> Result<(), STError> {
+    pub fn open_proton(&mut self) -> Result<(), TuiError> {
         self.protons = steam::proton_list()?;
         self.proton_index = 0;
         self.show_proton = true;
@@ -57,7 +57,7 @@ impl Browser {
 
     /// Uninstall the highlighted official runtime and refresh the list. A
     /// no-op unless the highlighted runtime is uninstallable.
-    pub fn do_proton_uninstall(&mut self) -> Result<(), STError> {
+    pub fn do_proton_uninstall(&mut self) -> Result<(), TuiError> {
         let name = match self.selected_proton() {
             Some(p) if p.uninstallable() => p.name.clone(),
             _ => return Ok(()),
@@ -68,7 +68,7 @@ impl Browser {
     }
 
     /// The highlighted Proton runtime, if any.
-    pub fn selected_proton(&self) -> Option<&steam::ProtonJson> {
+    pub fn selected_proton(&self) -> Option<&steam::ProtonRuntime> {
         self.protons.get(self.proton_index)
     }
 

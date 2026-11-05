@@ -7,9 +7,9 @@
 //! hold up the others.
 //!
 //! The session is shared: requests run against cheap clones of one
-//! [`SteamClient`], the way the CLI daemon serves commands over one connection.
+//! [`SteamClient`], the way the `gaki-cli` daemon serves commands over one connection.
 //!
-//! The synchronous `interface` functions (and `util::http`) run their calls
+//! The synchronous [`crate::app::steam`] functions (and `utils::http`) run their calls
 //! on this runtime through [`Worker::block_on`]. They are called from the UI
 //! thread or from the views' own background threads, never from inside the
 //! runtime.
@@ -74,7 +74,7 @@ impl Worker {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             // Steam connect/auth futures nest deeply; debug builds need the room
-            // (the CLI does the same).
+            // (`gaki-cli` does the same).
             .thread_stack_size(16 * 1024 * 1024)
             .thread_name("gaki-worker")
             .build()
@@ -135,7 +135,7 @@ impl Drop for Worker {
     }
 }
 
-/// The process-wide worker, started on first use. The interface layer and
+/// The process-wide worker, started on first use. [`crate::app::steam`] and
 /// the views share it, and with it one Steam session.
 pub fn global() -> &'static Worker {
     static WORKER: OnceLock<Worker> = OnceLock::new();

@@ -9,12 +9,12 @@ use std::sync::{Arc, Mutex};
 
 use crate::app::game::status::GameStatus;
 use crate::app::worker;
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 use libgaki::ops::config::{Change, GameSettingsChange};
 
 /// Session health.
 #[derive(Debug, Clone)]
-pub struct HealthJson {
+pub struct SessionHealth {
     pub logged_in: bool,
     pub account: Option<String>,
     pub steam_id: Option<u64>,
@@ -23,10 +23,10 @@ pub struct HealthJson {
 
 /// The logged-in Steam account.
 #[derive(Debug, Clone)]
-pub struct AccountJson {
+pub struct Account {
     pub steam_id: u64,
     pub account_name: String,
-    /// Steam persona / display name (e.g. "Drackrath"); `None` when it can't
+    /// Steam persona / display name (e.g. "Gabe"); `None` when it can't
     /// be resolved.
     pub persona_name: Option<String>,
     pub country: String,
@@ -36,7 +36,7 @@ pub struct AccountJson {
     pub vac_bans: u32,
 }
 
-impl AccountJson {
+impl Account {
     /// User-facing player name: the Steam persona / display name, falling back
     /// to the account (login) name when no persona is known.
     pub fn display_name(&self) -> String {
@@ -50,7 +50,7 @@ impl AccountJson {
 /// The launcher configuration: the human-relevant top-level scalars of
 /// `LauncherConfig`. Empty settings are `None`.
 #[derive(Debug, Clone, Default)]
-pub struct ConfigJson {
+pub struct LauncherSettings {
     /// The Steam library path games install into.
     pub steam_library_path: Option<String>,
     /// The default Proton/Wine runtime.
@@ -61,7 +61,7 @@ pub struct ConfigJson {
     pub enable_cloud_sync: bool,
 }
 
-impl ConfigJson {
+impl LauncherSettings {
     /// Whether the configured presence is online. Defaults to `false`
     /// (offline) when the field is missing or unrecognised.
     pub fn is_online(&self) -> bool {
@@ -71,7 +71,7 @@ impl ConfigJson {
 
 /// The Steam Wallet balance.
 #[derive(Debug, Clone, Default)]
-pub struct WalletJson {
+pub struct Wallet {
     /// Balance in the currency's minor units (cents).
     pub balance_cents: i64,
     /// Steam currency id.
@@ -84,7 +84,7 @@ pub struct WalletJson {
 
 /// A library entry's artwork URLs.
 #[derive(Debug, Clone, Default)]
-pub struct AssetsJson {
+pub struct ArtworkUrls {
     pub header: Option<String>,
     pub capsule: Option<String>,
     pub hero: Option<String>,
@@ -93,7 +93,7 @@ pub struct AssetsJson {
 
 /// One library entry: a `LibraryGame` plus its artwork and store URLs.
 #[derive(Debug, Clone)]
-pub struct LibraryGameJson {
+pub struct LibraryGame {
     pub app_id: u32,
     pub name: String,
     pub is_installed: bool,
@@ -103,13 +103,13 @@ pub struct LibraryGameJson {
     pub is_family_shared: bool,
     pub platform: Option<String>,
     pub active_branch: Option<String>,
-    pub assets: Option<AssetsJson>,
+    pub assets: Option<ArtworkUrls>,
     pub store_url: Option<String>,
 }
 
 /// One Steam Cloud file of a game.
 #[derive(Debug, Clone, Default)]
-pub struct CloudFileJson {
+pub struct CloudFile {
     pub filename: String,
     pub size: u64,
     pub timestamp: i64,
@@ -117,7 +117,7 @@ pub struct CloudFileJson {
 
 /// Store metadata; only the fields the TUI shows.
 #[derive(Debug, Clone, Default)]
-pub struct InfoJson {
+pub struct StoreInfo {
     pub app_id: u32,
     pub name: String,
     pub app_type: String,
@@ -129,7 +129,7 @@ pub struct InfoJson {
 
 /// One achievement, with the user's unlock state and its global rarity.
 #[derive(Debug, Clone, Default)]
-pub struct AchievementJson {
+pub struct Achievement {
     pub name: String,
     pub description: String,
     /// Whether the logged-in user has unlocked this achievement.
@@ -142,9 +142,8 @@ pub struct AchievementJson {
 
 /// One friend on the roster, with status and current game.
 #[derive(Debug, Clone, Default)]
-pub struct FriendJson {
-    /// SteamID64 of the friend. The CLI emits it as a number, but accept a
-    /// string form too for robustness.
+pub struct Friend {
+    /// SteamID64 of the friend.
     pub steam_id: u64,
     /// Display (persona) name, if known.
     pub persona_name: Option<String>,
@@ -157,7 +156,7 @@ pub struct FriendJson {
     pub game_name: Option<String>,
 }
 
-impl FriendJson {
+impl Friend {
     /// Display name, falling back to the SteamID when no persona is known.
     pub fn display_name(&self) -> String {
         self.persona_name
@@ -183,8 +182,8 @@ impl FriendJson {
 
 /// The account a friend search resolved to.
 #[derive(Debug, Clone, Default)]
-pub struct FriendSearchJson {
-    /// Resolved SteamID64. The CLI emits it as a number; accept a string too.
+pub struct FriendLookup {
+    /// Resolved SteamID64.
     pub steam_id: u64,
     /// Display (persona) name, if known.
     pub persona_name: Option<String>,
@@ -192,7 +191,7 @@ pub struct FriendSearchJson {
     pub profile_url: Option<String>,
 }
 
-impl FriendSearchJson {
+impl FriendLookup {
     /// Display name, falling back to the SteamID when no persona is known.
     pub fn display_name(&self) -> String {
         self.persona_name
@@ -204,13 +203,12 @@ impl FriendSearchJson {
 
 /// One chat message with a friend.
 #[derive(Debug, Clone, Default)]
-pub struct ChatMessageJson {
-    /// SteamID64 of the sender. The CLI emits it as a number, but accept a
-    /// string form too for robustness.
+pub struct ChatMessage {
+    /// SteamID64 of the sender.
     pub sender: u64,
     /// Whether the logged-in user sent this message.
     pub from_self: bool,
-    /// Message body (the CLI key is `message`; `text` is accepted as a fallback).
+    /// Message body.
     pub message: String,
     /// Unix timestamp (seconds) the message was sent.
     pub timestamp: i64,
@@ -218,7 +216,7 @@ pub struct ChatMessageJson {
 
 /// One inventory item stack.
 #[derive(Debug, Clone, Default)]
-pub struct InventoryItemJson {
+pub struct InventoryItem {
     pub name: String,
     pub market_hash_name: String,
     /// Item type/category text (e.g. "Trading Card").
@@ -229,7 +227,7 @@ pub struct InventoryItemJson {
     pub marketable: bool,
 }
 
-impl InventoryItemJson {
+impl InventoryItem {
     /// Best display name: the visible `name`, falling back to the market name.
     pub fn display_name(&self) -> String {
         if !self.name.is_empty() {
@@ -245,22 +243,22 @@ impl InventoryItemJson {
 /// One Workshop item, from the user's subscriptions or a browse page; the
 /// listing shows the title and size.
 #[derive(Debug, Clone, Default)]
-pub struct WorkshopItemJson {
+pub struct WorkshopItem {
     /// The published-file id.
     pub id: Option<u64>,
-    /// The item title (the CLI key is `title`; `name` is accepted as a fallback).
+    /// The item title.
     pub title: String,
-    /// Whether the item's content is installed on disk. Absent in the current CLI
-    /// output (all listed items are subscribed); defaults to `false`.
+    /// Whether the item's content is installed on disk. Nothing reports this
+    /// yet, so it is always `false`.
     pub installed: bool,
-    /// Whether the user is subscribed to the item. The CLI lists only subscribed
-    /// items, so this defaults to `true` when absent.
+    /// Whether the user is subscribed to the item: `true` for the subscribed
+    /// list, `false` for browse results until a subscribe succeeds.
     pub subscribed: bool,
-    /// On-disk size in bytes (the CLI key is `file_size`; `size` is accepted too).
+    /// On-disk size in bytes.
     pub file_size: u64,
 }
 
-impl WorkshopItemJson {
+impl WorkshopItem {
     /// Display title, falling back to the published-file id when the title is
     /// missing/empty.
     pub fn display_title(&self) -> String {
@@ -277,17 +275,16 @@ impl WorkshopItemJson {
 /// One comment on a Workshop item: its author (a SteamID), the text and a
 /// Unix timestamp.
 #[derive(Debug, Clone, Default)]
-pub struct WorkshopCommentJson {
-    /// The commenter's display name (the CLI key is `author`; `name`/`persona`
-    /// are accepted as fallbacks).
+pub struct WorkshopComment {
+    /// The commenter's display name.
     pub author: String,
-    /// The comment body (the CLI key is `message`; `text`/`body` accepted too).
+    /// The comment body.
     pub message: String,
     /// Unix timestamp (seconds) the comment was posted.
     pub timestamp: i64,
 }
 
-impl WorkshopCommentJson {
+impl WorkshopComment {
     /// Display author, falling back to a placeholder when none is present.
     pub fn display_author(&self) -> String {
         if self.author.is_empty() {
@@ -301,17 +298,17 @@ impl WorkshopCommentJson {
 /// One DLC of a base game. The status fields are `None` when the best-effort
 /// state lookup found nothing.
 #[derive(Debug, Clone)]
-pub struct DlcJson {
+pub struct Dlc {
     pub app_id: u32,
     pub name: Option<String>,
-    // The CLI emits these as `bool` or `null` (a best-effort `DlcState` lookup),
-    // so deserialize as `Option<bool>` and expose a defaulted view via helpers.
+    // `None` when the best-effort `DlcState` lookup found nothing; helpers
+    // expose a defaulted view.
     pub owned: Option<bool>,
     pub installed: Option<bool>,
     pub disabled: Option<bool>,
 }
 
-impl DlcJson {
+impl Dlc {
     /// Display name, falling back to the app id when the store name is missing.
     pub fn display_name(&self) -> String {
         self.name
@@ -336,18 +333,18 @@ impl DlcJson {
 /// One beta branch of a game. Steam reports branches by name only
 /// (password-gated ones are filtered out server-side).
 #[derive(Debug, Clone, Default)]
-pub struct BranchJson {
+pub struct Branch {
     pub name: String,
     pub description: String,
     /// Whether this is the branch the install is currently tracking. The current
-    /// CLI doesn't report it, so it stays `false`; [`crate::app::browser::Browser::open_branches`]
+    /// branch list doesn't say, so it starts `false`; [`crate::app::browser::Browser::open_branches`]
     /// marks the active branch by name when one is known.
     pub active: bool,
 }
 
 /// One depot of a game.
 #[derive(Debug, Clone, Default)]
-pub struct DepotJson {
+pub struct Depot {
     pub id: u64,
     pub name: String,
     pub size: u64,
@@ -359,7 +356,7 @@ pub struct DepotJson {
 /// One launch option of a game: one of the ways Steam can start it (e.g. a
 /// normal launch vs. a level editor).
 #[derive(Debug, Clone, Default)]
-pub struct LaunchOptionJson {
+pub struct LaunchOption {
     /// The launch option's id (a string in the app's manifest).
     pub id: String,
     /// Human-readable label for this launch option.
@@ -378,7 +375,7 @@ pub struct LaunchOptionJson {
     pub launch_type: String,
 }
 
-impl LaunchOptionJson {
+impl LaunchOption {
     /// Display label, falling back to the executable then the id when the
     /// store-provided description is missing.
     pub fn display_name(&self) -> String {
@@ -413,7 +410,7 @@ impl LaunchOptionJson {
 /// `kind`. `price` is in the currency's
 /// minor units (cents); `quantity` is only meaningful for buy orders.
 #[derive(Debug, Clone, Default)]
-pub struct MarketListingJson {
+pub struct MarketListing {
     /// The item's market hash name.
     pub name: String,
     /// Price in the currency's minor units (cents).
@@ -424,7 +421,7 @@ pub struct MarketListingJson {
     pub kind: String,
 }
 
-impl MarketListingJson {
+impl MarketListing {
     /// The price formatted from minor units to a major-unit decimal (e.g. 199 -> "1.99").
     pub fn price_text(&self) -> String {
         format!("{}.{:02}", self.price / 100, self.price % 100)
@@ -433,7 +430,7 @@ impl MarketListingJson {
 
 /// One Community Market search result. The search needs no login.
 #[derive(Debug, Clone, Default)]
-pub struct MarketSearchResultJson {
+pub struct MarketSearchResult {
     /// The app the item belongs to (used for the follow-up price lookup).
     pub app_id: u32,
     /// The app's name (e.g. "Team Fortress 2").
@@ -446,11 +443,11 @@ pub struct MarketSearchResultJson {
     pub sell_listings: u64,
     /// The lowest sell price in the currency's minor units (cents).
     pub sell_price: u64,
-    /// The lowest sell price pre-formatted by the CLI (e.g. "$2.34").
+    /// The lowest sell price, pre-formatted by Steam (e.g. "$2.34").
     pub sell_price_text: String,
 }
 
-impl MarketSearchResultJson {
+impl MarketSearchResult {
     /// Best display name: the visible `name`, falling back to the market hash
     /// name, then a placeholder.
     pub fn display_name(&self) -> String {
@@ -463,7 +460,7 @@ impl MarketSearchResultJson {
         }
     }
 
-    /// The price text, preferring the CLI's pre-formatted string and falling
+    /// The price text, preferring Steam's pre-formatted string and falling
     /// back to a major-unit decimal of `sell_price` (cents). Empty when neither
     /// is known.
     pub fn price_text(&self) -> String {
@@ -480,18 +477,18 @@ impl MarketSearchResultJson {
 /// A Community Market price lookup. It needs no login; an empty result is
 /// rendered as "no data".
 #[derive(Debug, Clone, Default)]
-pub struct MarketPriceJson {
-    /// The market hash name the price is for (echoed back by the CLI).
+pub struct MarketPrice {
+    /// The market hash name the price is for.
     pub market_hash_name: String,
     /// Lowest current sell price (pre-formatted, e.g. "$2.34").
     pub lowest_price: Option<String>,
     /// Median recent sale price (pre-formatted).
     pub median_price: Option<String>,
-    /// 24-hour sales volume (the CLI emits a formatted string, e.g. "69,730").
+    /// 24-hour sales volume, as Steam formats it (e.g. "69,730").
     pub volume: Option<String>,
 }
 
-impl MarketPriceJson {
+impl MarketPrice {
     /// A one-line summary of the known price fields, suitable for a status line.
     /// Returns `None` when the payload carried no usable data.
     pub fn summary(&self) -> Option<String> {
@@ -525,7 +522,7 @@ pub fn market_search_async(
         in_process(libgaki::ops::market::search(Some(&query), None, 20)).map(|(_, results)| {
             results
                 .into_iter()
-                .map(|r| MarketSearchResultJson {
+                .map(|r| MarketSearchResult {
                     app_id: r.app_id,
                     app_name: r.app_name,
                     market_hash_name: r.market_hash_name,
@@ -550,13 +547,12 @@ pub fn market_search_async(
 /// Look up an item's Community Market price in USD (no login needed) and
 /// publish the outcome into `cell`. Intended to run on a dedicated thread.
 pub fn market_price_async(app_id: u32, name: String, cell: Arc<Mutex<MarketPriceState>>) {
-    let result =
-        in_process(libgaki::ops::market::price(app_id, &name, 1)).map(|p| MarketPriceJson {
-            market_hash_name: p.market_hash_name,
-            lowest_price: p.lowest_price,
-            median_price: p.median_price,
-            volume: p.volume,
-        });
+    let result = in_process(libgaki::ops::market::price(app_id, &name, 1)).map(|p| MarketPrice {
+        market_hash_name: p.market_hash_name,
+        lowest_price: p.lowest_price,
+        median_price: p.median_price,
+        volume: p.volume,
+    });
     if let Ok(mut slot) = cell.lock() {
         *slot = match result {
             Ok(price) => MarketPriceState::Ready(price),
@@ -575,7 +571,7 @@ pub enum MarketSearchState {
     /// A search is running; the worker thread has not published a result.
     Loading,
     /// The search completed with these results (possibly empty).
-    Ready(Vec<MarketSearchResultJson>),
+    Ready(Vec<MarketSearchResult>),
     /// The search failed; the `String` is the error message.
     Failed(String),
 }
@@ -590,7 +586,7 @@ pub enum MarketPriceState {
     /// A lookup is running; the worker thread has not published a result.
     Loading,
     /// The lookup completed with this price.
-    Ready(MarketPriceJson),
+    Ready(MarketPrice),
     /// The lookup failed; the `String` is the error message.
     Failed(String),
 }
@@ -598,7 +594,7 @@ pub enum MarketPriceState {
 /// One Proton/Wine runtime: an official build Steam can install, or a runtime
 /// found on disk (custom builds such as GE come from the package manager).
 #[derive(Debug, Clone, Default)]
-pub struct ProtonJson {
+pub struct ProtonRuntime {
     /// The runtime name, used to select it (e.g. `Proton 9.0`, `GE-Proton10-34`).
     pub name: String,
     /// Whether this is an official build, installed and removed through Steam.
@@ -609,7 +605,7 @@ pub struct ProtonJson {
     pub is_default: bool,
 }
 
-impl ProtonJson {
+impl ProtonRuntime {
     /// Whether this runtime can be uninstalled here: only an installed official
     /// build. Custom builds belong to the package manager.
     pub fn uninstallable(&self) -> bool {
@@ -619,7 +615,7 @@ impl ProtonJson {
 
 /// One game gaki launched that is still running.
 #[derive(Debug, Clone, Default)]
-pub struct RunningJson {
+pub struct RunningGame {
     pub app_id: u32,
     pub name: String,
     pub pid: u32,
@@ -666,18 +662,18 @@ fn eta_suffix(eta_seconds: Option<u64>) -> String {
 /// calls it replaces.
 fn in_process<T>(
     future: impl std::future::Future<Output = anyhow::Result<T>>,
-) -> Result<T, STError> {
+) -> Result<T, TuiError> {
     worker::global()
         .block_on(future)
-        .map_err(|e| STError::Problem(format!("{e:#}")))
+        .map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
 /// Report whether a Steam session is currently authenticated.
-pub fn health() -> Result<HealthJson, STError> {
+pub fn health() -> Result<SessionHealth, TuiError> {
     in_process(async {
         let client = worker::global().session().ensure().await?;
         let status = libgaki::ops::auth::session_status(Some(&client)).await;
-        Ok(HealthJson {
+        Ok(SessionHealth {
             logged_in: status.authenticated,
             account: status.account,
             steam_id: status.steam_id,
@@ -687,11 +683,11 @@ pub fn health() -> Result<HealthJson, STError> {
 }
 
 /// Fetch the logged-in Steam account.
-pub fn account() -> Result<AccountJson, STError> {
+pub fn account() -> Result<Account, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let data = libgaki::ops::library::account(&client).await;
-        Ok(AccountJson {
+        Ok(Account {
             steam_id: data.steam_id,
             account_name: data.account_name,
             persona_name: data.persona_name.filter(|n| !n.is_empty()),
@@ -705,11 +701,11 @@ pub fn account() -> Result<AccountJson, STError> {
 }
 
 /// Fetch the launcher configuration.
-pub fn config_show() -> Result<ConfigJson, STError> {
+pub fn config_show() -> Result<LauncherSettings, TuiError> {
     use libgaki::core::config::ChatPresence;
     let config = in_process(libgaki::ops::config::load())?;
     let text = |s: String| Some(s).filter(|s| !s.is_empty());
-    Ok(ConfigJson {
+    Ok(LauncherSettings {
         steam_library_path: text(config.steam_library_path),
         proton_version: text(config.proton_version),
         chat_presence: Some(
@@ -724,7 +720,7 @@ pub fn config_show() -> Result<ConfigJson, STError> {
 }
 
 /// Set the friends/chat presence, and announce it right away when logged in.
-pub fn set_presence(online: bool) -> Result<(), STError> {
+pub fn set_presence(online: bool) -> Result<(), TuiError> {
     use libgaki::core::config::ChatPresence;
     in_process(async {
         libgaki::ops::config::update(|c| {
@@ -749,7 +745,7 @@ pub fn set_presence(online: bool) -> Result<(), STError> {
 /// The network proxy used for all HTTP(S) communication (Steam web endpoints,
 /// depot downloads, Proton lookups). The Steam CM connection is not proxied.
 #[derive(Debug, Clone, Default)]
-pub struct ProxyJson {
+pub struct ProxySettings {
     /// The proxy URL (e.g. `http://host:8080`, `socks5://host:1080`), or `None`
     /// for a direct connection.
     pub url: Option<String>,
@@ -758,22 +754,22 @@ pub struct ProxyJson {
 }
 
 /// Apply a proxy change and return the resulting setting.
-fn update_proxy(change: libgaki::ops::config::ProxyChange) -> Result<ProxyJson, STError> {
+fn update_proxy(change: libgaki::ops::config::ProxyChange) -> Result<ProxySettings, TuiError> {
     let proxy = in_process(libgaki::ops::config::update_proxy(change))?;
-    Ok(ProxyJson {
+    Ok(ProxySettings {
         url: proxy.url,
         no_proxy: proxy.no_proxy,
     })
 }
 
 /// Show the configured HTTP(S) proxy without changing it.
-pub fn config_proxy_show() -> Result<ProxyJson, STError> {
+pub fn config_proxy_show() -> Result<ProxySettings, TuiError> {
     update_proxy(Default::default())
 }
 
 /// Set the proxy URL (validated); an empty string reverts to a direct
 /// connection.
-pub fn config_proxy_set(url: &str) -> Result<(), STError> {
+pub fn config_proxy_set(url: &str) -> Result<(), TuiError> {
     update_proxy(libgaki::ops::config::ProxyChange {
         url: Some(url.to_string()),
         ..Default::default()
@@ -782,7 +778,7 @@ pub fn config_proxy_set(url: &str) -> Result<(), STError> {
 }
 
 /// Set the proxy bypass list (`NO_PROXY`).
-pub fn config_proxy_set_no_proxy(list: &str) -> Result<(), STError> {
+pub fn config_proxy_set_no_proxy(list: &str) -> Result<(), TuiError> {
     update_proxy(libgaki::ops::config::ProxyChange {
         no_proxy: Some(list.to_string()),
         ..Default::default()
@@ -791,7 +787,7 @@ pub fn config_proxy_set_no_proxy(list: &str) -> Result<(), STError> {
 }
 
 /// Clear the configured proxy, reverting to a direct connection.
-pub fn config_proxy_clear() -> Result<(), STError> {
+pub fn config_proxy_clear() -> Result<(), TuiError> {
     update_proxy(libgaki::ops::config::ProxyChange {
         clear: true,
         ..Default::default()
@@ -800,7 +796,7 @@ pub fn config_proxy_clear() -> Result<(), STError> {
 }
 
 /// Log out of the current Steam session and delete the stored one.
-pub fn logout() -> Result<(), STError> {
+pub fn logout() -> Result<(), TuiError> {
     in_process(async {
         let session = worker::global().session();
         let mut client = session.ensure().await?;
@@ -811,11 +807,11 @@ pub fn logout() -> Result<(), STError> {
 }
 
 /// The Steam Wallet balance.
-pub fn wallet() -> Result<WalletJson, STError> {
+pub fn wallet() -> Result<Wallet, TuiError> {
     in_process(async {
         let web = web_session().await?;
         let w = libgaki::ops::market::wallet(&web).await?;
-        Ok(WalletJson {
+        Ok(Wallet {
             balance_cents: w.balance_cents,
             currency: w.currency,
             country: w.country,
@@ -833,7 +829,7 @@ async fn web_session() -> anyhow::Result<libgaki::web::web_session::WebSession> 
 }
 
 /// Fetch the full library.
-pub fn fetch_library() -> Result<Vec<LibraryGameJson>, STError> {
+pub fn fetch_library() -> Result<Vec<LibraryGame>, TuiError> {
     use libgaki::core::steam_urls;
     in_process(async {
         let mut client = worker::global().session().ensure().await?;
@@ -842,8 +838,8 @@ pub fn fetch_library() -> Result<Vec<LibraryGameJson>, STError> {
         Ok(listing
             .games
             .into_iter()
-            .map(|g| LibraryGameJson {
-                assets: Some(AssetsJson {
+            .map(|g| LibraryGame {
+                assets: Some(ArtworkUrls {
                     header: Some(steam_urls::header_url(g.app_id)),
                     capsule: Some(steam_urls::capsule_url(g.app_id)),
                     hero: Some(steam_urls::hero_url(g.app_id)),
@@ -867,20 +863,20 @@ pub fn fetch_library() -> Result<Vec<LibraryGameJson>, STError> {
 /// One Steam library folder (a root containing `steamapps`), with the free
 /// space on its drive.
 #[derive(Debug, Clone)]
-pub struct LibraryJson {
+pub struct LibraryFolder {
     pub path: String,
-    /// Free bytes on the drive, if the CLI could determine it.
+    /// Free bytes on the drive, if they could be determined.
     pub free_bytes: Option<u64>,
 }
 
 /// List the Steam library folders games can be installed into, one per
 /// drive/location, with each drive's free space.
-pub fn libraries() -> Result<Vec<LibraryJson>, STError> {
+pub fn libraries() -> Result<Vec<LibraryFolder>, TuiError> {
     in_process(async {
         Ok(libgaki::ops::library::folders()
             .await
             .into_iter()
-            .map(|f| LibraryJson {
+            .map(|f| LibraryFolder {
                 path: f.path.to_string_lossy().into_owned(),
                 free_bytes: f.free_bytes,
             })
@@ -890,7 +886,7 @@ pub fn libraries() -> Result<Vec<LibraryJson>, STError> {
 
 /// Estimate the on-disk install size of a game, in bytes. Returns 0 if the
 /// estimate is unavailable.
-pub fn install_estimate(id: i32) -> Result<u64, STError> {
+pub fn install_estimate(id: i32) -> Result<u64, TuiError> {
     in_process(async {
         let mut client = worker::global().session().authed().await?;
         let estimate = libgaki::ops::install::estimate(&mut client, id as u32, None).await?;
@@ -899,7 +895,7 @@ pub fn install_estimate(id: i32) -> Result<u64, STError> {
 }
 
 /// Fetch store metadata for a single app.
-pub fn fetch_info(id: i32) -> Result<InfoJson, STError> {
+pub fn fetch_info(id: i32) -> Result<StoreInfo, TuiError> {
     use libgaki::ops::info::{InfoRequest, app_info};
     in_process(async {
         let request = InfoRequest {
@@ -914,7 +910,7 @@ pub fn fetch_info(id: i32) -> Result<InfoJson, STError> {
             .pop()
             .ok_or_else(|| anyhow::anyhow!("no store data for app {id}"))?
             .details;
-        Ok(InfoJson {
+        Ok(StoreInfo {
             app_id: details.app_id,
             name: details.name,
             app_type: details.app_type,
@@ -927,13 +923,13 @@ pub fn fetch_info(id: i32) -> Result<InfoJson, STError> {
 }
 
 /// List a game's Steam Cloud files, sorted by name.
-pub fn cloud_list(app_id: i32) -> Result<Vec<CloudFileJson>, STError> {
+pub fn cloud_list(app_id: i32) -> Result<Vec<CloudFile>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         Ok(libgaki::ops::cloud::files(&client, app_id as u32)
             .await?
             .into_iter()
-            .map(|f| CloudFileJson {
+            .map(|f| CloudFile {
                 filename: f.filename,
                 size: f.size,
                 timestamp: f.timestamp as i64,
@@ -957,7 +953,7 @@ pub enum CloudDirection {
 /// blocking call that can be slow. Diverged saves are left alone (both copies
 /// kept); they, and files that failed or had no local path, come back as an
 /// error saying so, rather than as a plain success.
-pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), STError> {
+pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), TuiError> {
     use libgaki::library::cloud_sync::{ConflictPolicy, SyncDirection};
     let request = libgaki::ops::cloud::SyncRequest {
         app_id: app_id as u32,
@@ -974,7 +970,7 @@ pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), STError>
         libgaki::ops::cloud::sync(&client, &request).await
     })?;
     match sync_problem(app_id, &report.outcome) {
-        Some(problem) => Err(STError::Problem(problem)),
+        Some(problem) => Err(TuiError::Problem(problem)),
         None => Ok(()),
     }
 }
@@ -1011,13 +1007,13 @@ fn sync_problem(
 }
 
 /// A game's achievements with the user's unlock state and global rarity.
-pub fn achievements(app_id: i32) -> Result<Vec<AchievementJson>, STError> {
+pub fn achievements(app_id: i32) -> Result<Vec<Achievement>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let list = libgaki::ops::info::achievements(&client, app_id as u32).await?;
         Ok(list
             .into_iter()
-            .map(|a| AchievementJson {
+            .map(|a| Achievement {
                 name: a.name,
                 description: a.description,
                 unlocked: a.unlocked,
@@ -1030,14 +1026,14 @@ pub fn achievements(app_id: i32) -> Result<Vec<AchievementJson>, STError> {
 
 /// The logged-in user's friends, with status and current game. The roster
 /// fills in over a few seconds after connecting, so this may be partial.
-pub fn friends() -> Result<Vec<FriendJson>, STError> {
+pub fn friends() -> Result<Vec<Friend>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let friends =
             libgaki::ops::social::friends(&client, libgaki::ops::social::FRIENDS_WAIT).await?;
         Ok(friends
             .into_iter()
-            .map(|f| FriendJson {
+            .map(|f| Friend {
                 steam_id: f.steam_id,
                 persona_name: f.persona_name,
                 persona_state: f.persona_state,
@@ -1050,12 +1046,12 @@ pub fn friends() -> Result<Vec<FriendJson>, STError> {
 
 /// Look up a Steam user by SteamID, profile URL, vanity name or friend name.
 /// Read-only.
-pub fn friends_search(query: &str) -> Result<FriendSearchJson, STError> {
+pub fn friends_search(query: &str) -> Result<FriendLookup, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let steam_id = libgaki::ops::session::resolve_user_ident(&client, query, None).await?;
         let profile = libgaki::ops::social::profile(&client, steam_id).await?;
-        Ok(FriendSearchJson {
+        Ok(FriendLookup {
             steam_id: profile.steam_id,
             persona_name: profile.persona_name,
             profile_url: Some(profile.profile_url).filter(|u| !u.is_empty()),
@@ -1064,7 +1060,7 @@ pub fn friends_search(query: &str) -> Result<FriendSearchJson, STError> {
 }
 
 /// Send a friend request to the user `query` resolves to.
-pub fn friends_add(query: &str) -> Result<(), STError> {
+pub fn friends_add(query: &str) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let steam_id = libgaki::ops::session::resolve_user_ident(&client, query, None).await?;
@@ -1074,7 +1070,7 @@ pub fn friends_add(query: &str) -> Result<(), STError> {
 }
 
 /// Remove a friend or cancel a pending request.
-pub fn friends_remove(steamid: u64) -> Result<(), STError> {
+pub fn friends_remove(steamid: u64) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::social::remove_friend(&client, steamid).await
@@ -1082,13 +1078,13 @@ pub fn friends_remove(steamid: u64) -> Result<(), STError> {
 }
 
 /// The most recent `count` messages with a friend, oldest first.
-pub fn chat_history(steamid: u64, count: u32) -> Result<Vec<ChatMessageJson>, STError> {
+pub fn chat_history(steamid: u64, count: u32) -> Result<Vec<ChatMessage>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let messages = libgaki::ops::social::history(&client, steamid, count).await?;
         Ok(messages
             .into_iter()
-            .map(|m| ChatMessageJson {
+            .map(|m| ChatMessage {
                 sender: m.sender,
                 from_self: m.from_self,
                 message: m.message,
@@ -1099,7 +1095,7 @@ pub fn chat_history(steamid: u64, count: u32) -> Result<Vec<ChatMessageJson>, ST
 }
 
 /// Send a direct message to a friend.
-pub fn chat_send(steamid: u64, message: &str) -> Result<(), STError> {
+pub fn chat_send(steamid: u64, message: &str) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::social::send_message(&client, steamid, message.to_string()).await
@@ -1108,13 +1104,13 @@ pub fn chat_send(steamid: u64, message: &str) -> Result<(), STError> {
 }
 
 /// The account's inventory for a game (context 2, the game-items context).
-pub fn inventory(app_id: i32) -> Result<Vec<InventoryItemJson>, STError> {
+pub fn inventory(app_id: i32) -> Result<Vec<InventoryItem>, TuiError> {
     in_process(async {
         let web = web_session().await?;
         let items = libgaki::ops::market::inventory(&web, app_id as u32, 2).await?;
         Ok(items
             .into_iter()
-            .map(|i| InventoryItemJson {
+            .map(|i| InventoryItem {
                 name: i.name,
                 market_hash_name: i.market_hash_name,
                 item_type: i.item_type,
@@ -1127,13 +1123,13 @@ pub fn inventory(app_id: i32) -> Result<Vec<InventoryItemJson>, STError> {
 }
 
 /// A base game's DLC with ownership and install state.
-pub fn dlc(app_id: i32) -> Result<Vec<DlcJson>, STError> {
+pub fn dlc(app_id: i32) -> Result<Vec<Dlc>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let list = libgaki::ops::info::dlc_list(&client, app_id as u32).await?;
         Ok(list
             .into_iter()
-            .map(|d| DlcJson {
+            .map(|d| Dlc {
                 app_id: d.app_id,
                 name: d.name,
                 owned: d.state.as_ref().map(|s| s.owned),
@@ -1145,13 +1141,13 @@ pub fn dlc(app_id: i32) -> Result<Vec<DlcJson>, STError> {
 }
 
 /// A game's depots.
-pub fn depots(app_id: i32) -> Result<Vec<DepotJson>, STError> {
+pub fn depots(app_id: i32) -> Result<Vec<Depot>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let list = libgaki::ops::info::depots(&client, app_id as u32).await?;
         Ok(list
             .into_iter()
-            .map(|d| DepotJson {
+            .map(|d| Depot {
                 id: d.id,
                 name: d.name,
                 size: d.size,
@@ -1164,13 +1160,13 @@ pub fn depots(app_id: i32) -> Result<Vec<DepotJson>, STError> {
 }
 
 /// A game's launch options, as listed in its app info.
-pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOptionJson>, STError> {
+pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOption>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let list = libgaki::ops::info::launch_options(&client, app_id as u32).await?;
         Ok(list
             .into_iter()
-            .map(|o| LaunchOptionJson {
+            .map(|o| LaunchOption {
                 id: o.id,
                 description: o.description,
                 executable: o.executable,
@@ -1185,7 +1181,7 @@ pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOptionJson>, STError> {
 }
 
 /// The Workshop items the user is subscribed to for a game.
-pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItemJson>, STError> {
+pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItem>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let items = libgaki::ops::workshop::subscribed(&client, app_id as u32).await?;
@@ -1194,8 +1190,8 @@ pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItemJson>, STError> {
 }
 
 /// A Workshop item as the overlay shows it.
-fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> WorkshopItemJson {
-    WorkshopItemJson {
+fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> WorkshopItem {
+    WorkshopItem {
         id: Some(item.id),
         title: item.title,
         installed: false,
@@ -1206,7 +1202,7 @@ fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> 
 
 /// Browse a game's Workshop, optionally filtered by `search`. Rows start as
 /// not subscribed; the overlay flips the flag on a successful subscribe.
-pub fn workshop_browse(app_id: i32, search: &str) -> Result<Vec<WorkshopItemJson>, STError> {
+pub fn workshop_browse(app_id: i32, search: &str) -> Result<Vec<WorkshopItem>, TuiError> {
     let search = Some(search.trim().to_string()).filter(|s| !s.is_empty());
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1228,7 +1224,7 @@ pub fn workshop_browse(app_id: i32, search: &str) -> Result<Vec<WorkshopItemJson
 }
 
 /// Subscribe to a Workshop item (a collection subscribes to its items too).
-pub fn workshop_subscribe(item_id: u64) -> Result<(), STError> {
+pub fn workshop_subscribe(item_id: u64) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         for item in libgaki::ops::workshop::resolve(&client, vec![item_id], true).await? {
@@ -1239,7 +1235,7 @@ pub fn workshop_subscribe(item_id: u64) -> Result<(), STError> {
 }
 
 /// Unsubscribe from a Workshop item (a collection unsubscribes its items too).
-pub fn workshop_unsubscribe(item_id: u64) -> Result<(), STError> {
+pub fn workshop_unsubscribe(item_id: u64) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         for item in libgaki::ops::workshop::resolve(&client, vec![item_id], true).await? {
@@ -1250,7 +1246,7 @@ pub fn workshop_unsubscribe(item_id: u64) -> Result<(), STError> {
 }
 
 /// Vote a Workshop item up or down.
-pub fn workshop_rate(item_id: u64, up: bool) -> Result<(), STError> {
+pub fn workshop_rate(item_id: u64, up: bool) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::workshop::rate(&client, item_id, up).await
@@ -1258,14 +1254,14 @@ pub fn workshop_rate(item_id: u64, up: bool) -> Result<(), STError> {
 }
 
 /// The first `count` comments on a Workshop item. Authors are SteamIDs.
-pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopCommentJson>, STError> {
+pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopComment>, TuiError> {
     let count = i32::try_from(count).unwrap_or(i32::MAX);
     in_process(async {
         let client = worker::global().session().authed().await?;
         let comments = libgaki::ops::workshop::comments(&client, item_id, 0, count).await?;
         Ok(comments
             .into_iter()
-            .map(|c| WorkshopCommentJson {
+            .map(|c| WorkshopComment {
                 author: c.author.to_string(),
                 message: c.text,
                 timestamp: c.timestamp,
@@ -1275,14 +1271,14 @@ pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopComment
 }
 
 /// The account's active market listings and open buy orders, as one list.
-pub fn market_listings() -> Result<Vec<MarketListingJson>, STError> {
+pub fn market_listings() -> Result<Vec<MarketListing>, TuiError> {
     let state = in_process(async {
         let web = web_session().await?;
         libgaki::ops::market::listings(&web).await
     })?;
     let mut rows = Vec::with_capacity(state.listings.len() + state.buy_orders.len());
     for l in state.listings {
-        rows.push(MarketListingJson {
+        rows.push(MarketListing {
             name: l.market_hash_name,
             price: l.price,
             quantity: 1,
@@ -1290,7 +1286,7 @@ pub fn market_listings() -> Result<Vec<MarketListingJson>, STError> {
         });
     }
     for b in state.buy_orders {
-        rows.push(MarketListingJson {
+        rows.push(MarketListing {
             name: b.market_hash_name,
             price: b.price,
             quantity: b.quantity,
@@ -1302,7 +1298,7 @@ pub fn market_listings() -> Result<Vec<MarketListingJson>, STError> {
 
 /// Enable or disable a single DLC. Steam reads DLC state only at startup, so
 /// a running Steam picks the change up on its next start.
-pub fn set_dlc(app_id: i32, enable: bool) -> Result<(), STError> {
+pub fn set_dlc(app_id: i32, enable: bool) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().ensure().await?;
         libgaki::ops::info::set_dlc(&client, app_id as u32, enable).await
@@ -1311,13 +1307,13 @@ pub fn set_dlc(app_id: i32, enable: bool) -> Result<(), STError> {
 }
 
 /// A game's beta branches, by name.
-pub fn branches(app_id: i32) -> Result<Vec<BranchJson>, STError> {
+pub fn branches(app_id: i32) -> Result<Vec<Branch>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let names = libgaki::ops::info::branches(&client, app_id as u32).await?;
         Ok(names
             .into_iter()
-            .map(|name| BranchJson {
+            .map(|name| Branch {
                 name,
                 ..Default::default()
             })
@@ -1327,7 +1323,7 @@ pub fn branches(app_id: i32) -> Result<Vec<BranchJson>, STError> {
 
 /// Switch a game to a beta branch. The switch is staged: an [`update`] is
 /// needed afterwards for it to take effect.
-pub fn set_branch(app_id: i32, branch: &str) -> Result<(), STError> {
+pub fn set_branch(app_id: i32, branch: &str) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::info::set_branch(&client, app_id as u32, branch).await
@@ -1336,13 +1332,13 @@ pub fn set_branch(app_id: i32, branch: &str) -> Result<(), STError> {
 
 /// List the Proton/Wine runtimes: every official build, marked installed and
 /// default as they are, then any other runtime found on disk.
-pub fn proton_list() -> Result<Vec<ProtonJson>, STError> {
+pub fn proton_list() -> Result<Vec<ProtonRuntime>, TuiError> {
     let listing = in_process(libgaki::ops::proton::listing())?;
     let is_default = |name: &str| name.eq_ignore_ascii_case(&listing.default);
-    let mut protons: Vec<ProtonJson> = listing
+    let mut protons: Vec<ProtonRuntime> = listing
         .available
         .iter()
-        .map(|p| ProtonJson {
+        .map(|p| ProtonRuntime {
             name: p.name.clone(),
             official: true,
             installed: listing.is_installed(&p.name),
@@ -1355,7 +1351,7 @@ pub fn proton_list() -> Result<Vec<ProtonJson>, STError> {
             .iter()
             .any(|p| p.name.eq_ignore_ascii_case(&inst.name))
         {
-            protons.push(ProtonJson {
+            protons.push(ProtonRuntime {
                 name: inst.name.clone(),
                 official: false,
                 installed: true,
@@ -1367,7 +1363,7 @@ pub fn proton_list() -> Result<Vec<ProtonJson>, STError> {
 }
 
 /// Make `version` the global default Proton/Wine runtime.
-pub fn proton_default(version: &str) -> Result<(), STError> {
+pub fn proton_default(version: &str) -> Result<(), TuiError> {
     in_process(libgaki::ops::proton::set_default(version)).map(drop)
 }
 
@@ -1390,7 +1386,7 @@ pub fn proton_install(name: String, status: Arc<Mutex<Option<GameStatus>>>) {
 }
 
 /// Uninstall an official Proton build through Steam.
-pub fn proton_uninstall(name: &str) -> Result<(), STError> {
+pub fn proton_uninstall(name: &str) -> Result<(), TuiError> {
     in_process(async {
         let package = libgaki::ops::proton::find(name)?;
         let client = worker::global().session().authed().await?;
@@ -1400,10 +1396,10 @@ pub fn proton_uninstall(name: &str) -> Result<(), STError> {
 }
 
 /// The games gaki launched that are still running (stale records are dropped).
-pub fn running() -> Result<Vec<RunningJson>, STError> {
+pub fn running() -> Result<Vec<RunningGame>, TuiError> {
     Ok(libgaki::ops::launch::running()
         .into_iter()
-        .map(|g| RunningJson {
+        .map(|g| RunningGame {
             app_id: g.app_id,
             name: g.name,
             pid: g.pid,
@@ -1412,10 +1408,10 @@ pub fn running() -> Result<Vec<RunningJson>, STError> {
 }
 
 /// Stop a running game launched by gaki.
-pub fn stop(app_id: i32) -> Result<(), STError> {
+pub fn stop(app_id: i32) -> Result<(), TuiError> {
     libgaki::ops::launch::stop(app_id as u32, false)
         .map(|_| ())
-        .map_err(|e| STError::Problem(format!("{e:#}")))
+        .map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
 /// Log in by QR code, publishing each challenge URL into `qr_cell` so the UI
@@ -1430,7 +1426,7 @@ pub fn stop(app_id: i32) -> Result<(), STError> {
 pub fn login_qr(
     qr_cell: &Arc<Mutex<Option<String>>>,
     cancelled: impl Fn() -> bool,
-) -> Result<(), STError> {
+) -> Result<(), TuiError> {
     use libgaki::core::models::QrEvent;
     in_process(async {
         let mut client = libgaki::steam_client::SteamClient::new()?;
@@ -1478,7 +1474,7 @@ pub fn login_classic(
     password: &str,
     phase: &Arc<Mutex<LoginPhase>>,
     guard_rx: Receiver<String>,
-) -> Result<(), STError> {
+) -> Result<(), TuiError> {
     use libgaki::ops::auth::{LoginStep, PasswordLogin};
     set_phase(phase, LoginPhase::Connecting);
     let result = in_process(async {
@@ -1585,20 +1581,20 @@ impl Default for InstallControl {
 /// Stop a running install. The download loop aborts and the partial download
 /// stays on disk, so a later `install` resumes it. A no-op (Ok) if no such
 /// install is in flight.
-pub fn install_stop(app_id: i32) -> Result<(), STError> {
+pub fn install_stop(app_id: i32) -> Result<(), TuiError> {
     signal_install(app_id, false)
 }
 
 /// Pause a running install: it stops, and its backlog entry stays `paused`
 /// so it can be resumed. A no-op (Ok) if no such install is in flight.
-pub fn install_pause(app_id: i32) -> Result<(), STError> {
+pub fn install_pause(app_id: i32) -> Result<(), TuiError> {
     signal_install(app_id, true)
 }
 
-fn signal_install(app_id: i32, pause: bool) -> Result<(), STError> {
+fn signal_install(app_id: i32, pause: bool) -> Result<(), TuiError> {
     libgaki::ops::install::signal(app_id as u32, pause)
         .map(|_| ())
-        .map_err(|e| STError::Problem(format!("{e:#}")))
+        .map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
 /// Freeze the status cell at "paused" (carrying the last-seen percent, if any),
@@ -1743,7 +1739,7 @@ fn finish(status: &Arc<Mutex<Option<GameStatus>>>, outcome: anyhow::Result<()>, 
 }
 
 /// Uninstall a game. Its Wine prefix / compat data is left in place.
-pub fn uninstall(app_id: i32) -> Result<(), STError> {
+pub fn uninstall(app_id: i32) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::install::uninstall(&client, app_id as u32, false).await
@@ -1769,7 +1765,7 @@ fn require_steam_stopped() -> anyhow::Result<()> {
 /// Relocate an installed game to another Steam library folder. Blocks until
 /// the files are moved (which can take a while). Steam must not be running.
 /// (`move` is a Rust keyword, hence `move_game`.)
-pub fn move_game(app_id: i32, library: &str) -> Result<(), STError> {
+pub fn move_game(app_id: i32, library: &str) -> Result<(), TuiError> {
     let library = std::path::PathBuf::from(library);
     in_process(async move {
         require_steam_stopped()?;
@@ -1791,7 +1787,7 @@ pub fn move_game(app_id: i32, library: &str) -> Result<(), STError> {
 
 /// Point Steam at an install that was moved to another library folder by
 /// hand. Steam must not be running.
-pub fn relink(app_id: i32, library: &str) -> Result<(), STError> {
+pub fn relink(app_id: i32, library: &str) -> Result<(), TuiError> {
     let library = std::path::PathBuf::from(library);
     in_process(async move {
         require_steam_stopped()?;
@@ -1803,7 +1799,7 @@ pub fn relink(app_id: i32, library: &str) -> Result<(), STError> {
 
 /// Register an existing on-disk install of a game into a Steam library
 /// folder. Steam must not be running. (Named `import_game` for clarity.)
-pub fn import_game(app_id: i32, library: &str) -> Result<(), STError> {
+pub fn import_game(app_id: i32, library: &str) -> Result<(), TuiError> {
     let library = std::path::PathBuf::from(library);
     in_process(async move {
         require_steam_stopped()?;
@@ -1868,7 +1864,7 @@ pub struct DepotManifestInfo {
 /// A game's install and version-pin state. `pinned_manifests` maps each depot
 /// id (as text) to its pinned manifest.
 #[derive(Debug, Clone, Default)]
-pub struct AvailableJson {
+pub struct PinState {
     pub app_id: u32,
     pub available: bool,
     pub install_path: Option<String>,
@@ -1879,7 +1875,7 @@ pub struct AvailableJson {
 /// The result of pinning a game. `manifests` maps each depot id (as text) to
 /// the manifest it was pinned to.
 #[derive(Debug, Clone, Default)]
-pub struct PinJson {
+pub struct PinResult {
     pub app_id: u32,
     pub pinned: bool,
     pub manifests: std::collections::BTreeMap<String, u64>,
@@ -1888,7 +1884,7 @@ pub struct PinJson {
 /// A game's resolved launch script. With no script, `exists` is false and
 /// `path` is `None`.
 #[derive(Debug, Clone, Default)]
-pub struct ScriptShowJson {
+pub struct LaunchScript {
     pub app_id: u32,
     pub path: Option<String>,
     pub exists: bool,
@@ -1898,7 +1894,7 @@ pub struct ScriptShowJson {
 /// One library collection. `kind` is `"built-in"`, `"static"`, or
 /// `"dynamic"`; a dynamic one has no `app_ids` (Steam computes its members).
 #[derive(Debug, Clone, Default)]
-pub struct CollectionJson {
+pub struct Collection {
     pub id: String,
     pub name: String,
     pub kind: String,
@@ -1911,7 +1907,7 @@ pub struct CollectionJson {
 
 /// A game's per-game launch settings.
 #[derive(Debug, Clone, Default)]
-pub struct GameConfigJson {
+pub struct GameSettings {
     pub app_id: u32,
     pub forced_proton_version: Option<String>,
     pub platform_preference: Option<String>,
@@ -1944,7 +1940,7 @@ pub struct PlayOpts {
 /// it; `missing` says what is needed when it is not `available` (e.g.
 /// `"build"`).
 #[derive(Debug, Clone, Default)]
-pub struct LaunchTargetJson {
+pub struct LaunchTarget {
     pub id: String,
     pub platform: String,
     pub steam_mode: Option<String>,
@@ -1954,7 +1950,7 @@ pub struct LaunchTargetJson {
     pub flags: Vec<String>,
 }
 
-impl LaunchTargetJson {
+impl LaunchTarget {
     /// A human label, e.g. `"Linux (native)"` or `"Windows · host Steam"`.
     pub fn label(&self) -> String {
         match (self.platform.as_str(), self.steam_mode.as_deref()) {
@@ -1979,14 +1975,14 @@ impl LaunchTargetJson {
 }
 
 /// List the ways an installed game can be launched.
-pub fn launch_targets(app_id: i32) -> Result<Vec<LaunchTargetJson>, STError> {
+pub fn launch_targets(app_id: i32) -> Result<Vec<LaunchTarget>, TuiError> {
     in_process(async {
         let mut client = worker::global().session().authed().await?;
         let targets = libgaki::ops::launch::targets(&mut client, app_id as u32, false).await?;
         Ok(targets
             .targets
             .into_iter()
-            .map(|t| LaunchTargetJson {
+            .map(|t| LaunchTarget {
                 id: t.id.to_string(),
                 platform: t.platform.to_string(),
                 steam_mode: t.steam_mode.map(str::to_string),
@@ -2001,7 +1997,7 @@ pub fn launch_targets(app_id: i32) -> Result<Vec<LaunchTargetJson>, STError> {
 
 /// Each depot's current manifest id per branch; `depot` restricts it to one
 /// depot. Steam only exposes *current* ids — older ones live on SteamDB.
-pub fn manifests(app_id: i32, depot: Option<u32>) -> Result<Vec<DepotManifestInfo>, STError> {
+pub fn manifests(app_id: i32, depot: Option<u32>) -> Result<Vec<DepotManifestInfo>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         let list = libgaki::ops::install::manifests(&client, app_id as u32, depot).await?;
@@ -2020,9 +2016,9 @@ pub fn manifests(app_id: i32, depot: Option<u32>) -> Result<Vec<DepotManifestInf
 
 /// A game's install and version-pin state, from local files only (no Steam
 /// logon, so per-game polling is cheap).
-pub fn available(app_id: i32) -> Result<AvailableJson, STError> {
+pub fn available(app_id: i32) -> Result<PinState, TuiError> {
     let a = in_process(libgaki::ops::install::availability(app_id as u32))?;
-    Ok(AvailableJson {
+    Ok(PinState {
         app_id: app_id as u32,
         available: a.available,
         install_path: a.install_path,
@@ -2037,9 +2033,9 @@ fn manifest_map(map: &std::collections::HashMap<u32, u64>) -> BTreeMap<String, u
 }
 
 /// Pin a game to its currently-installed manifests, holding gaki's updates.
-pub fn pin(app_id: i32) -> Result<PinJson, STError> {
+pub fn pin(app_id: i32) -> Result<PinResult, TuiError> {
     let manifests = in_process(libgaki::ops::install::pin(app_id as u32))?;
-    Ok(PinJson {
+    Ok(PinResult {
         app_id: app_id as u32,
         pinned: true,
         manifests: manifest_map(&manifests),
@@ -2047,7 +2043,7 @@ pub fn pin(app_id: i32) -> Result<PinJson, STError> {
 }
 
 /// Remove a game's version pin. Returns whether it had been pinned.
-pub fn unpin(app_id: i32) -> Result<bool, STError> {
+pub fn unpin(app_id: i32) -> Result<bool, TuiError> {
     in_process(libgaki::ops::install::unpin(app_id as u32))
 }
 
@@ -2085,16 +2081,16 @@ pub fn downgrade(
 }
 
 /// A game's resolved launch script and its contents.
-pub fn scripts_show(app_id: i32) -> Result<ScriptShowJson, STError> {
+pub fn scripts_show(app_id: i32) -> Result<LaunchScript, TuiError> {
     let view = in_process(libgaki::ops::scripts::show(app_id as u32))?;
     Ok(match view {
-        Some(view) => ScriptShowJson {
+        Some(view) => LaunchScript {
             app_id: app_id as u32,
             path: Some(view.path.display().to_string()),
             exists: view.contents.is_some(),
             contents: view.contents,
         },
-        None => ScriptShowJson {
+        None => LaunchScript {
             app_id: app_id as u32,
             ..Default::default()
         },
@@ -2103,27 +2099,27 @@ pub fn scripts_show(app_id: i32) -> Result<ScriptShowJson, STError> {
 
 /// Scaffold a launch script for a game, returning its path. Refuses to
 /// overwrite an existing one unless `force`.
-pub fn scripts_new(app_id: i32, force: bool) -> Result<String, STError> {
+pub fn scripts_new(app_id: i32, force: bool) -> Result<String, TuiError> {
     let path = in_process(libgaki::ops::scripts::create(app_id as u32, force))?;
     Ok(path.display().to_string())
 }
 
 /// Delete a game's dir-based launch script; a missing one is not an error.
-pub fn scripts_remove(app_id: i32) -> Result<(), STError> {
+pub fn scripts_remove(app_id: i32) -> Result<(), TuiError> {
     libgaki::ops::scripts::remove(app_id as u32)
         .map(drop)
-        .map_err(|e| STError::Problem(format!("{e:#}")))
+        .map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
 /// Map a local-store error to the TUI's error type.
-fn local<T>(result: anyhow::Result<T>) -> Result<T, STError> {
-    result.map_err(|e| STError::Problem(format!("{e:#}")))
+fn local<T>(result: anyhow::Result<T>) -> Result<T, TuiError> {
+    result.map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
 /// A collection as the overlay shows it.
-fn collection_row(c: libgaki::ops::collections::Summary) -> CollectionJson {
+fn collection_row(c: libgaki::ops::collections::Summary) -> Collection {
     use libgaki::ops::collections::Kind;
-    CollectionJson {
+    Collection {
         count: Some(c.count() as u64),
         kind: c.kind.as_str().to_string(),
         dynamic: c.kind == Kind::Dynamic,
@@ -2134,50 +2130,50 @@ fn collection_row(c: libgaki::ops::collections::Summary) -> CollectionJson {
 }
 
 /// App ids as the store keeps them; negative ids can't be Steam apps.
-fn app_ids(ids: &[i32]) -> Result<Vec<u32>, STError> {
+fn app_ids(ids: &[i32]) -> Result<Vec<u32>, TuiError> {
     ids.iter()
-        .map(|&id| u32::try_from(id).map_err(|_| STError::Problem(format!("bad app id {id}"))))
+        .map(|&id| u32::try_from(id).map_err(|_| TuiError::Problem(format!("bad app id {id}"))))
         .collect()
 }
 
 /// The local library collections (not deleted).
-pub fn collections_list() -> Result<Vec<CollectionJson>, STError> {
+pub fn collections_list() -> Result<Vec<Collection>, TuiError> {
     let (_, list) = local(libgaki::ops::collections::list())?;
     Ok(list.into_iter().map(collection_row).collect())
 }
 
 /// One collection by name or id, with its members (none for a dynamic one).
-pub fn collection_show(name: &str) -> Result<CollectionJson, STError> {
+pub fn collection_show(name: &str) -> Result<Collection, TuiError> {
     local(libgaki::ops::collections::show(name)).map(collection_row)
 }
 
 /// Create a new static collection.
-pub fn collection_create(name: &str) -> Result<(), STError> {
+pub fn collection_create(name: &str) -> Result<(), TuiError> {
     local(libgaki::ops::collections::create(name)).map(drop)
 }
 
 /// Mark a collection for deletion; the next push removes it from Steam.
-pub fn collection_delete(name: &str) -> Result<(), STError> {
+pub fn collection_delete(name: &str) -> Result<(), TuiError> {
     local(libgaki::ops::collections::delete(name))
 }
 
 /// Rename a collection.
-pub fn collection_rename(name: &str, new_name: &str) -> Result<(), STError> {
+pub fn collection_rename(name: &str, new_name: &str) -> Result<(), TuiError> {
     local(libgaki::ops::collections::rename(name, new_name))
 }
 
 /// Add games to a collection.
-pub fn collection_add(name: &str, ids: &[i32]) -> Result<(), STError> {
+pub fn collection_add(name: &str, ids: &[i32]) -> Result<(), TuiError> {
     local(libgaki::ops::collections::add(name, &app_ids(ids)?))
 }
 
 /// Remove games from a collection.
-pub fn collection_remove(name: &str, ids: &[i32]) -> Result<(), STError> {
+pub fn collection_remove(name: &str, ids: &[i32]) -> Result<(), TuiError> {
     local(libgaki::ops::collections::remove(name, &app_ids(ids)?))
 }
 
 /// Download Steam's collections and merge them into the local store.
-pub fn collections_pull() -> Result<(), STError> {
+pub fn collections_pull() -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::collections::pull(&client).await
@@ -2187,7 +2183,7 @@ pub fn collections_pull() -> Result<(), STError> {
 
 /// Upload the local collections to Steam. This changes the Steam account;
 /// the overlay key is the confirmation.
-pub fn collection_push() -> Result<(), STError> {
+pub fn collection_push() -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::collections::push(&client).await
@@ -2196,7 +2192,7 @@ pub fn collection_push() -> Result<(), STError> {
 }
 
 /// Pull, then push. This changes the Steam account.
-pub fn collection_sync() -> Result<(), STError> {
+pub fn collection_sync() -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::collections::sync(&client).await
@@ -2208,9 +2204,9 @@ pub fn collection_sync() -> Result<(), STError> {
 fn update_game_config(
     app_id: i32,
     change: libgaki::ops::config::GameSettingsChange,
-) -> Result<GameConfigJson, STError> {
+) -> Result<GameSettings, TuiError> {
     let (settings, _) = in_process(libgaki::ops::config::update_game(app_id as u32, change))?;
-    Ok(GameConfigJson {
+    Ok(GameSettings {
         app_id: settings.app_id,
         forced_proton_version: settings.forced_proton_version,
         platform_preference: settings.platform_preference,
@@ -2219,12 +2215,12 @@ fn update_game_config(
 }
 
 /// Show a game's per-game launch settings.
-pub fn config_game_show(app_id: i32) -> Result<GameConfigJson, STError> {
+pub fn config_game_show(app_id: i32) -> Result<GameSettings, TuiError> {
     update_game_config(app_id, Default::default())
 }
 
 /// Set a game's forced Proton/Wine version.
-pub fn config_game_set_proton(app_id: i32, version: &str) -> Result<(), STError> {
+pub fn config_game_set_proton(app_id: i32, version: &str) -> Result<(), TuiError> {
     update_game_config(
         app_id,
         GameSettingsChange {
@@ -2236,7 +2232,7 @@ pub fn config_game_set_proton(app_id: i32, version: &str) -> Result<(), STError>
 }
 
 /// Clear a game's forced Proton/Wine version, reverting to the global default.
-pub fn config_game_clear_proton(app_id: i32) -> Result<(), STError> {
+pub fn config_game_clear_proton(app_id: i32) -> Result<(), TuiError> {
     update_game_config(
         app_id,
         GameSettingsChange {
@@ -2248,13 +2244,13 @@ pub fn config_game_clear_proton(app_id: i32) -> Result<(), STError> {
 }
 
 /// Set a game's platform target, `"windows"` or `"linux"`.
-pub fn config_game_set_platform(app_id: i32, platform: &str) -> Result<(), STError> {
+pub fn config_game_set_platform(app_id: i32, platform: &str) -> Result<(), TuiError> {
     use libgaki::core::models::DepotPlatform;
     let platform = match platform {
         "windows" => DepotPlatform::Windows,
         "linux" => DepotPlatform::Linux,
         other => {
-            return Err(STError::Problem(format!(
+            return Err(TuiError::Problem(format!(
                 "unknown platform '{other}' (expected windows or linux)"
             )));
         }
@@ -2270,7 +2266,7 @@ pub fn config_game_set_platform(app_id: i32, platform: &str) -> Result<(), STErr
 }
 
 /// Clear a game's platform preference, back to auto-detection.
-pub fn config_game_clear_platform(app_id: i32) -> Result<(), STError> {
+pub fn config_game_clear_platform(app_id: i32) -> Result<(), TuiError> {
     update_game_config(
         app_id,
         GameSettingsChange {
@@ -2282,7 +2278,7 @@ pub fn config_game_clear_platform(app_id: i32) -> Result<(), STError> {
 }
 
 /// Clear a game's per-game launch script, falling back to the auto-detected one.
-pub fn config_game_clear_launch_script(app_id: i32) -> Result<(), STError> {
+pub fn config_game_clear_launch_script(app_id: i32) -> Result<(), TuiError> {
     update_game_config(
         app_id,
         GameSettingsChange {

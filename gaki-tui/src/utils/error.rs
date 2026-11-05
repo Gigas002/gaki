@@ -8,47 +8,47 @@ use std::sync::PoisonError;
 use std::sync::mpsc::SendError;
 
 #[derive(Debug)]
-pub enum STError {
+pub enum TuiError {
     Io(io::Error),
     Problem(String),
 }
 
-impl From<io::Error> for STError {
-    fn from(err: io::Error) -> STError {
-        STError::Io(err)
+impl From<io::Error> for TuiError {
+    fn from(err: io::Error) -> TuiError {
+        TuiError::Io(err)
     }
 }
 
-impl From<SendError<Command>> for STError {
-    fn from(err: SendError<Command>) -> STError {
-        STError::Problem(format!("{:?}", err))
+impl From<SendError<Command>> for TuiError {
+    fn from(err: SendError<Command>) -> TuiError {
+        TuiError::Problem(format!("{:?}", err))
     }
 }
 
-impl From<serde_json::Error> for STError {
-    fn from(err: serde_json::Error) -> STError {
-        STError::Problem(format!("{:?}", err))
+impl From<serde_json::Error> for TuiError {
+    fn from(err: serde_json::Error) -> TuiError {
+        TuiError::Problem(format!("{:?}", err))
     }
 }
 
-impl<T> From<PoisonError<T>> for STError {
-    fn from(err: PoisonError<T>) -> STError {
-        STError::Problem(format!("{:?}", err))
+impl<T> From<PoisonError<T>> for TuiError {
+    fn from(err: PoisonError<T>) -> TuiError {
+        TuiError::Problem(format!("{:?}", err))
     }
 }
 
-impl fmt::Display for STError {
+impl fmt::Display for TuiError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             // The message is already human-readable; show it directly rather
             // than the `Problem("…")` debug wrapper.
-            STError::Problem(msg) => write!(f, "{}", msg),
+            TuiError::Problem(msg) => write!(f, "{}", msg),
             _ => write!(f, "{:?}", self),
         }
     }
 }
 
-impl error::Error for STError {
+impl error::Error for TuiError {
     fn description(&self) -> &str {
         "woosp"
     }

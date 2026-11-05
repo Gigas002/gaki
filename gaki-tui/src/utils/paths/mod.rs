@@ -1,4 +1,4 @@
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 
 use std::fs::File;
 use std::io::Write;
@@ -29,24 +29,24 @@ const SUBDIR: &str = "tui";
 /// Where the TUI kept its config before it moved under gaki's config dir.
 const LEGACY_CONFIG_DIR: &str = ".config/aurelia-tui";
 
-fn mkdir(dir: PathBuf) -> Result<PathBuf, STError> {
+fn mkdir(dir: PathBuf) -> Result<PathBuf, TuiError> {
     fs::create_dir_all(&dir)?;
     Ok(dir)
 }
 
-fn libgaki_dir(dir: anyhow::Result<PathBuf>) -> Result<PathBuf, STError> {
-    dir.map_err(|err| STError::Problem(format!("{err:#}")))
+fn libgaki_dir(dir: anyhow::Result<PathBuf>) -> Result<PathBuf, TuiError> {
+    dir.map_err(|err| TuiError::Problem(format!("{err:#}")))
 }
 
 /// `gaki/tui/` under the cache dir: the cached library and cover art.
-pub fn cache_directory() -> Result<PathBuf, STError> {
+pub fn cache_directory() -> Result<PathBuf, TuiError> {
     mkdir(libgaki_dir(libgaki::core::config::cache_dir())?.join(SUBDIR))
 }
 
 /// `gaki/tui/` under the config dir. On first use, a `config.json` from the
 /// old `~/.config/aurelia-tui` is copied in, so favourites and hidden games
 /// carry over. A config dir set for tests (`set_config_dir`) skips that.
-pub fn config_directory() -> Result<PathBuf, STError> {
+pub fn config_directory() -> Result<PathBuf, TuiError> {
     let dir = mkdir(libgaki_dir(libgaki::core::config::config_dir())?.join(SUBDIR))?;
     if libgaki::core::config::config_dir_override().is_none()
         && let Ok(home) = libgaki::core::config::home_dir()
@@ -69,11 +69,11 @@ fn adopt_legacy_config(legacy: &Path, dir: &Path) -> io::Result<bool> {
     Ok(true)
 }
 
-fn icon_directory() -> Result<PathBuf, STError> {
+fn icon_directory() -> Result<PathBuf, TuiError> {
     mkdir(cache_directory()?.join("icons"))
 }
 
-pub fn icon_exists(id: i32, suffix: &str) -> Result<PathBuf, STError> {
+pub fn icon_exists(id: i32, suffix: &str) -> Result<PathBuf, TuiError> {
     let dir = icon_directory()?;
     let icon = &format!("{}{}.ico", id, suffix);
     let icon = Path::new(icon);
@@ -81,11 +81,11 @@ pub fn icon_exists(id: i32, suffix: &str) -> Result<PathBuf, STError> {
     if icon.exists() {
         Ok(icon)
     } else {
-        Err(STError::Problem(format!("Icon doesn't exist: {:?}", icon)))
+        Err(TuiError::Problem(format!("Icon doesn't exist: {:?}", icon)))
     }
 }
 
-pub fn icon_save(id: i32, suffix: &str, icon: &[u8]) -> Result<(), STError> {
+pub fn icon_save(id: i32, suffix: &str, icon: &[u8]) -> Result<(), TuiError> {
     let dir = icon_directory()?;
     let icon_path = &format!("{}{}.ico", id, suffix);
     let icon_path = Path::new(icon_path);
@@ -95,7 +95,7 @@ pub fn icon_save(id: i32, suffix: &str, icon: &[u8]) -> Result<(), STError> {
     Ok(())
 }
 
-pub fn config_location() -> Result<PathBuf, STError> {
+pub fn config_location() -> Result<PathBuf, TuiError> {
     let dir = config_directory()?;
     let config_path = Path::new(CONFIG_FILE);
     let config_path = dir.join(config_path);
@@ -103,7 +103,7 @@ pub fn config_location() -> Result<PathBuf, STError> {
     Ok(config_path)
 }
 
-pub fn cache_location() -> Result<PathBuf, STError> {
+pub fn cache_location() -> Result<PathBuf, TuiError> {
     let dir = cache_directory()?;
     let cache_path = Path::new("games.json");
     let cache_path = dir.join(cache_path);
@@ -111,7 +111,7 @@ pub fn cache_location() -> Result<PathBuf, STError> {
     Ok(cache_path)
 }
 
-pub fn invalidate_cache() -> Result<(), STError> {
+pub fn invalidate_cache() -> Result<(), TuiError> {
     fs::remove_file(cache_location()?)?;
     Ok(())
 }

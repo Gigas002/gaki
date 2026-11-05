@@ -22,7 +22,7 @@ impl Browser {
         self.collections_input = None;
     }
 
-    pub fn selected_collection(&self) -> Option<&steam::CollectionJson> {
+    pub fn selected_collection(&self) -> Option<&steam::Collection> {
         self.collections.get(self.collections_index)
     }
 

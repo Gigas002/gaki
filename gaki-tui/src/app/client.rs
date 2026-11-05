@@ -6,7 +6,7 @@ use crate::app::game::status::GameStatus;
 use crate::app::game::{self, Game};
 use crate::app::steam::{self, LoginPhase};
 
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 use crate::utils::paths::{cache_location, invalidate_cache};
 
 use std::fs;
@@ -73,7 +73,7 @@ fn handle_login(
     state: &Arc<Mutex<State>>,
     last_error: &Arc<Mutex<Option<String>>>,
     account: &Arc<Mutex<Option<String>>>,
-) -> Result<(), STError> {
+) -> Result<(), TuiError> {
     let (next, err, who) = match steam::health() {
         Ok(health) if health.logged_in => {
             tracing::info!(account = ?health.account, "session authenticated");
@@ -108,7 +108,7 @@ fn handle_login(
 }
 
 /// Fetch the library and write it to the cache, then mark the session loaded.
-fn handle_load_games(state: &Arc<Mutex<State>>) -> Result<(), STError> {
+fn handle_load_games(state: &Arc<Mutex<State>>) -> Result<(), TuiError> {
     match game::load_library() {
         Ok(mut games) => {
             games.sort_by_key(|a| a.name.to_lowercase());
@@ -132,7 +132,7 @@ fn execute(
     last_error: Arc<Mutex<Option<String>>>,
     account: Arc<Mutex<Option<String>>>,
     receiver: Receiver<Command>,
-) -> Result<(), STError> {
+) -> Result<(), TuiError> {
     let mut user = String::new();
     while let Ok(command) = receiver.recv() {
         match command {
@@ -280,17 +280,17 @@ impl Client {
     }
 
     /// Ensures `State` is `State::LoggedIn`.
-    pub fn is_logged_in(&self) -> Result<bool, STError> {
+    pub fn is_logged_in(&self) -> Result<bool, TuiError> {
         Ok(self.get_state()? == State::LoggedIn)
     }
 
-    pub fn get_state(&self) -> Result<State, STError> {
+    pub fn get_state(&self) -> Result<State, TuiError> {
         Ok(self.state.lock()?.clone())
     }
 
     /// Probe whether a session is already available (stored session or daemon),
     /// without a user name. Drives the startup login-vs-library decision.
-    pub fn check_session(&self) -> Result<(), STError> {
+    pub fn check_session(&self) -> Result<(), TuiError> {
         *self.state.lock()? = State::LoggedOut;
         *self.last_error.lock()? = None;
         self.sender.lock()?.send(Command::CheckSession)?;
@@ -305,7 +305,7 @@ impl Client {
     /// Start a QR-code login. Poll [`Client::get_qr`] for the challenge to
     /// render and [`Client::get_state`] for completion (`Loaded(_, -2)`) or
     /// failure (`Failed`).
-    pub fn login_qr(&self) -> Result<(), STError> {
+    pub fn login_qr(&self) -> Result<(), TuiError> {
         let attempt = self.qr_attempt.fetch_add(1, Ordering::SeqCst) + 1;
         *self.state.lock()? = State::LoggedOut;
         *self.qr.lock()? = None;
@@ -316,7 +316,7 @@ impl Client {
 
     /// Abandon the QR login in flight: it stops, and neither its code nor
     /// its outcome reaches the UI.
-    pub fn cancel_qr(&self) -> Result<(), STError> {
+    pub fn cancel_qr(&self) -> Result<(), TuiError> {
         self.qr_attempt.fetch_add(1, Ordering::SeqCst);
         *self.qr.lock()? = None;
         Ok(())
@@ -330,7 +330,7 @@ impl Client {
     /// Start a classic username/password login. Poll [`Client::get_login_phase`]
     /// for progress (including a Steam Guard prompt) and [`Client::get_state`]
     /// for completion (`Loaded(_, -2)`) or failure (`Failed`).
-    pub fn login_classic(&self, username: &str, password: &str) -> Result<(), STError> {
+    pub fn login_classic(&self, username: &str, password: &str) -> Result<(), TuiError> {
         *self.state.lock()? = State::LoggedOut;
         *self.login_phase.lock()? = LoginPhase::Connecting;
         *self.last_error.lock()? = None;
@@ -345,7 +345,7 @@ impl Client {
     }
 
     /// Deliver a Steam Guard code to the in-flight classic login.
-    pub fn submit_guard_code(&self, code: &str) -> Result<(), STError> {
+    pub fn submit_guard_code(&self, code: &str) -> Result<(), TuiError> {
         // Clear the GuardCode phase up front so the UI doesn't immediately
         // re-prompt before the login thread advances.
         *self.login_phase.lock()? = LoginPhase::Connecting;
@@ -371,7 +371,7 @@ impl Client {
         game: &Game,
         control: steam::InstallControl,
         library: Option<String>,
-    ) -> Result<(), STError> {
+    ) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Install(
             game.id,
@@ -383,14 +383,14 @@ impl Client {
     }
 
     /// Queues an integrity check of the provided game.
-    pub fn verify(&self, game: &Game) -> Result<(), STError> {
+    pub fn verify(&self, game: &Game) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Verify(game.id, game.status_counter()))?;
         Ok(())
     }
 
     /// Queues an update of the provided game.
-    pub fn update(&self, game: &Game) -> Result<(), STError> {
+    pub fn update(&self, game: &Game) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Update(game.id, game.status_counter()))?;
         Ok(())
@@ -402,14 +402,14 @@ impl Client {
         &self,
         name: &str,
         status: Arc<Mutex<Option<GameStatus>>>,
-    ) -> Result<(), STError> {
+    ) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::ProtonInstall(name.to_string(), status))?;
         Ok(())
     }
 
     /// Invalidates the cache and re-verifies the session, forcing a fresh load.
-    pub fn restart(&self) -> Result<(), STError> {
+    pub fn restart(&self) -> Result<(), TuiError> {
         // Move off `LoggedIn` synchronously so the Loading loop doesn't act on
         // the stale state — and read the games cache the worker is about to
         // invalidate — before the reload completes. `Loaded(0, -1)` is the
@@ -421,14 +421,14 @@ impl Client {
     }
 
     /// Launches the provided game.
-    pub fn run(&self, game: &Game) -> Result<(), STError> {
+    pub fn run(&self, game: &Game) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Run(game.id, game.status_counter()))?;
         Ok(())
     }
 
     /// Launches the provided game with extra flags.
-    pub fn run_with(&self, game: &Game, opts: steam::PlayOpts) -> Result<(), STError> {
+    pub fn run_with(&self, game: &Game, opts: steam::PlayOpts) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::RunWith(game.id, opts, game.status_counter()))?;
         Ok(())
@@ -436,9 +436,9 @@ impl Client {
 
     /// Verifies the session for the provided user.
     /// The actual credential entry happens out-of-band.
-    pub fn login(&self, user: &str) -> Result<(), STError> {
+    pub fn login(&self, user: &str) -> Result<(), TuiError> {
         if user.is_empty() {
-            return Err(STError::Problem(
+            return Err(TuiError::Problem(
                 "Blank string. Requires user to log in.".to_string(),
             ));
         }
@@ -452,7 +452,7 @@ impl Client {
     /// Fetches the full library and writes it to the cache.
     /// The state moves to `State::Loaded(0, -1)` while loading and
     /// `State::LoggedIn` once the cache has been written.
-    pub fn load_games(&self) -> Result<(), STError> {
+    pub fn load_games(&self) -> Result<(), TuiError> {
         let mut state = self.state.lock()?;
         *state = State::Loaded(0, -1);
         let sender = self.sender.lock()?;
@@ -461,14 +461,14 @@ impl Client {
     }
 
     /// Extracts games from the cache written by [`Client::load_games`].
-    pub fn games(&self) -> Result<Vec<Game>, STError> {
+    pub fn games(&self) -> Result<Vec<Game>, TuiError> {
         let db_content = fs::read_to_string(cache_location()?)?;
         let parsed: Vec<Game> = serde_json::from_str(&db_content)?;
         Ok(parsed)
     }
 
     /// Kept for UI compatibility; launching brings up what it needs.
-    pub fn start_client(&self) -> Result<(), STError> {
+    pub fn start_client(&self) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::StartClient)?;
         Ok(())
@@ -512,13 +512,13 @@ impl Default for Client {
 #[cfg(test)]
 mod tests {
     use crate::app::client::Client;
-    use crate::utils::error::STError;
+    use crate::utils::error::TuiError;
 
     #[test]
     fn test_blank_login() {
         let client = Client::new();
         let result = client.login("");
-        if let Err(STError::Problem(expected)) = result {
+        if let Err(TuiError::Problem(expected)) = result {
             assert!(expected.contains(&"Blank".to_string()));
             return;
         }

@@ -2,7 +2,7 @@
 //! games, the shown game types, and the highlight colour, in
 //! `gaki/tui/config.json` under the config dir. Phase 5 turns it into TOML.
 
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 use crate::utils::paths::config_location;
 
 use crate::app::game::GameType;
@@ -45,7 +45,7 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn new() -> Result<Config, STError> {
+    pub fn new() -> Result<Config, TuiError> {
         let config = match serde_json::from_str(&fs::read_to_string(config_location()?)?) {
             Ok(config) => config,
             _ => {
@@ -71,7 +71,7 @@ impl Config {
         Config::new().unwrap_or_default()
     }
 
-    pub fn save(&self) -> Result<(), STError> {
+    pub fn save(&self) -> Result<(), TuiError> {
         // Publish only persisted settings. A failed save must not make a toggle
         // appear successful in cached readers while the UI retains its old copy.
         fs::write(config_location()?, serde_json::to_string(&self)?)?;

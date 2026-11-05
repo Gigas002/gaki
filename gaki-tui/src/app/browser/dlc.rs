@@ -2,12 +2,12 @@
 
 use super::Browser;
 use crate::app::steam;
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 
 impl Browser {
     /// Fetch the DLC for `app_id` and open the overlay (blocking); the
     /// selection resets to the first row.
-    pub fn open_dlc(&mut self, app_id: i32) -> Result<(), STError> {
+    pub fn open_dlc(&mut self, app_id: i32) -> Result<(), TuiError> {
         self.dlc = steam::dlc(app_id)?;
         self.dlc_app_id = app_id;
         self.dlc_index = 0;
@@ -23,7 +23,7 @@ impl Browser {
     }
 
     /// The highlighted DLC entry, if any.
-    pub fn selected_dlc(&self) -> Option<&steam::DlcJson> {
+    pub fn selected_dlc(&self) -> Option<&steam::Dlc> {
         self.dlc.get(self.dlc_index)
     }
 
@@ -49,7 +49,7 @@ impl Browser {
 
     /// Re-fetch the open overlay's DLC after a toggle, keeping the selection in
     /// range.
-    pub fn refresh_dlc(&mut self) -> Result<(), STError> {
+    pub fn refresh_dlc(&mut self) -> Result<(), TuiError> {
         self.dlc = steam::dlc(self.dlc_app_id)?;
         if self.dlc.is_empty() {
             self.dlc_index = 0;

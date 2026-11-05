@@ -40,7 +40,7 @@ use ratatui::widgets::ListState;
 
 use crate::app::game::Game;
 use crate::app::game::status::GameStatus;
-use crate::app::steam::{self, AccountJson, ConfigJson};
+use crate::app::steam::{self, Account, LauncherSettings};
 
 /// A one-shot result slot a worker thread fills and the UI loop drains.
 type Slot<T> = Arc<Mutex<Option<T>>>;
@@ -61,33 +61,33 @@ pub struct Browser {
     /// Whether the Steam Cloud overlay is open.
     pub show_cloud: bool,
     /// Cloud files for the game the overlay is showing.
-    pub cloud_files: Vec<steam::CloudFileJson>,
+    pub cloud_files: Vec<steam::CloudFile>,
     /// A short status line for the cloud overlay (errors, sync progress).
     pub cloud_status: String,
     /// Whether the account overlay is open.
     pub show_account: bool,
     /// The fetched account details, shown by the account overlay.
-    pub account_info: Option<AccountJson>,
+    pub account_info: Option<Account>,
     /// Whether the config (settings) overlay is open.
     pub show_config: bool,
     /// The fetched launcher configuration, shown by the config overlay.
-    pub config_info: Option<ConfigJson>,
+    pub config_info: Option<LauncherSettings>,
     /// The fetched network proxy setting, shown
     /// in the config overlay. Fetched alongside `config_info` when it opens.
-    pub config_proxy: Option<steam::ProxyJson>,
+    pub config_proxy: Option<steam::ProxySettings>,
     /// The inline proxy-URL edit buffer in the config overlay (None = not
     /// editing; Some = the URL the user is typing, empty to clear).
     pub config_proxy_input: Option<String>,
     /// Whether the Steam Wallet overlay is open.
     pub show_wallet: bool,
     /// The fetched wallet balance, shown by the wallet overlay.
-    pub wallet_info: Option<steam::WalletJson>,
+    pub wallet_info: Option<steam::Wallet>,
     /// Whether the description panel is expanded beyond its collapsed cap.
     pub expand_description: bool,
     /// Whether the achievements overlay is open.
     pub show_achievements: bool,
     /// The selected game's achievements (loaded when the overlay opens).
-    pub achievements: Vec<steam::AchievementJson>,
+    pub achievements: Vec<steam::Achievement>,
     /// Scroll offset (top row) within the achievements overlay.
     pub ach_scroll: usize,
     /// The active top-level view. `Library` shows the game list under the four
@@ -97,7 +97,7 @@ pub struct Browser {
     pub view: View,
     /// The logged-in user's friends (loaded lazily the first time the panel is
     /// focused).
-    pub friends: Vec<steam::FriendJson>,
+    pub friends: Vec<steam::Friend>,
     /// The highlighted row within the Friends panel. The widget derives its own
     /// scroll window from this so the highlight is always visible.
     pub friends_index: usize,
@@ -113,12 +113,12 @@ pub struct Browser {
     /// The account resolved by the last `friends search`, shown as a preview and
     /// used as the confirmation target for `friends add`. Shared with the worker
     /// thread that fills it in.
-    pub friend_search_result: Option<steam::FriendSearchJson>,
+    pub friend_search_result: Option<steam::FriendLookup>,
     /// Resolved account published by an in-flight `friends search`, adopted into
     /// `friend_search_result` on the next poll (off-UI-thread handoff). Tagged
     /// with the search generation it was launched for so a stale (already-edited)
     /// worker's result can be dropped instead of adopted.
-    friend_search_pending: Arc<Mutex<Option<(u64, steam::FriendSearchJson)>>>,
+    friend_search_pending: Arc<Mutex<Option<(u64, steam::FriendLookup)>>>,
     /// Monotonic generation for the add-friend query. Bumped on every query edit
     /// and on overlay open/close; a search worker captures it at spawn and the
     /// poll only adopts a result whose tag still matches (closing the TOCTOU
@@ -131,7 +131,7 @@ pub struct Browser {
     friends_refresh_pending: Arc<Mutex<bool>>,
     /// A freshly fetched roster published by the refresh worker, adopted into
     /// `friends` on the next poll (off-UI-thread handoff).
-    friends_roster_pending: Arc<Mutex<Option<Vec<steam::FriendJson>>>>,
+    friends_roster_pending: Arc<Mutex<Option<Vec<steam::Friend>>>>,
     /// Whether the roster has been fetched at least once. Distinguishes a
     /// genuinely empty friends list from a not-yet-loaded one, so the lazy load
     /// on first entering the Friends tab fires exactly once.
@@ -142,7 +142,7 @@ pub struct Browser {
     /// Whether the chat view is open.
     pub show_chat: bool,
     /// The messages in the open conversation (loaded when chat opens).
-    pub chat_messages: Vec<steam::ChatMessageJson>,
+    pub chat_messages: Vec<steam::ChatMessage>,
     /// SteamID64 of the friend the chat view is talking to.
     pub chat_steamid: u64,
     /// Display name of the chat partner (shown in the title).
@@ -154,19 +154,19 @@ pub struct Browser {
     /// Whether the inventory overlay is open.
     pub show_inventory: bool,
     /// The selected game's inventory items (loaded when the overlay opens).
-    pub inventory: Vec<steam::InventoryItemJson>,
+    pub inventory: Vec<steam::InventoryItem>,
     /// Scroll offset (top row) within the inventory overlay.
     pub inv_scroll: usize,
     /// Whether the market listings overlay is open.
     pub show_market: bool,
     /// The account's active listings and buy orders (loaded when the overlay opens).
-    pub market: Vec<steam::MarketListingJson>,
+    pub market: Vec<steam::MarketListing>,
     /// Scroll offset (top row) within the market overlay.
     pub market_scroll: usize,
     /// Whether the Workshop overlay is open.
     pub show_workshop: bool,
     /// The selected game's Workshop items (loaded when the overlay opens).
-    pub workshop: Vec<steam::WorkshopItemJson>,
+    pub workshop: Vec<steam::WorkshopItem>,
     /// Scroll offset (top row) within the Workshop overlay.
     pub workshop_scroll: usize,
     /// The app id the Workshop overlay is showing (used for browse/subscribe).
@@ -176,7 +176,7 @@ pub struct Browser {
     /// The Workshop browse/search query the user is typing.
     pub workshop_query: String,
     /// Browse/search results (the current page from `workshop browse`).
-    pub workshop_results: Vec<steam::WorkshopItemJson>,
+    pub workshop_results: Vec<steam::WorkshopItem>,
     /// The highlighted row within the browse results list.
     pub workshop_index: usize,
     /// True while a browse/search request is in flight (drives a spinner line).
@@ -188,7 +188,7 @@ pub struct Browser {
     workshop_gen: u64,
     /// Slot a browse worker posts its `(generation, result)` into; polled each
     /// loop iteration by `poll_workshop`.
-    workshop_slot: Slot<(u64, Result<Vec<steam::WorkshopItemJson>, String>)>,
+    workshop_slot: Slot<(u64, Result<Vec<steam::WorkshopItem>, String>)>,
     /// True while a subscribe/unsubscribe request is in flight.
     pub workshop_acting: bool,
     /// Slot a subscribe/unsubscribe worker posts its outcome into:
@@ -199,7 +199,7 @@ pub struct Browser {
     /// `poll_workshop` and installed only if the generation still matches, so a
     /// stale refresh can never clobber newer overlay state. This keeps the
     /// post-action `workshop list` shell-out entirely off the render thread.
-    workshop_refresh_slot: Slot<(u64, Vec<steam::WorkshopItemJson>)>,
+    workshop_refresh_slot: Slot<(u64, Vec<steam::WorkshopItem>)>,
     /// True while a rate (thumbs up/down) request is in flight.
     pub workshop_rating: bool,
     /// Slot a rate worker posts its outcome into: `(generation, Result<(), error>)`.
@@ -211,7 +211,7 @@ pub struct Browser {
     /// True while a comments fetch is in flight (drives a spinner line).
     pub workshop_comments_loading: bool,
     /// The fetched comments for the item the sub-pane is showing.
-    pub workshop_comments: Vec<steam::WorkshopCommentJson>,
+    pub workshop_comments: Vec<steam::WorkshopComment>,
     /// Scroll offset (top row) within the comments sub-pane.
     pub workshop_comments_scroll: usize,
     /// A transient status line for the comments sub-pane (errors / empty).
@@ -221,13 +221,13 @@ pub struct Browser {
     /// Slot a comments worker posts its `(generation, result)` into; drained by
     /// `poll_workshop` and applied only if the generation still matches, so a
     /// slow fetch for a since-closed/superseded sub-pane is discarded.
-    workshop_comments_slot: Slot<(u64, Result<Vec<steam::WorkshopCommentJson>, String>)>,
+    workshop_comments_slot: Slot<(u64, Result<Vec<steam::WorkshopComment>, String>)>,
     /// Whether the uninstall confirmation prompt is open for the selection.
     pub confirm_uninstall: bool,
     /// Whether the DLC overlay is open.
     pub show_dlc: bool,
     /// DLC for the game the overlay was opened for.
-    pub dlc: Vec<steam::DlcJson>,
+    pub dlc: Vec<steam::Dlc>,
     /// The highlighted row within the DLC overlay.
     pub dlc_index: usize,
     /// The base app id the DLC overlay is showing (for re-fetching after a toggle).
@@ -235,7 +235,7 @@ pub struct Browser {
     /// Whether the branches overlay is open.
     pub show_branches: bool,
     /// Beta branches for the game the overlay was opened for.
-    pub branches: Vec<steam::BranchJson>,
+    pub branches: Vec<steam::Branch>,
     /// The highlighted row within the branches overlay.
     pub branch_index: usize,
     /// The app id the branches overlay is showing (used when switching branch).
@@ -243,13 +243,13 @@ pub struct Browser {
     /// Whether the depots overlay is open.
     pub show_depots: bool,
     /// Depots for the game the overlay was opened for.
-    pub depots: Vec<steam::DepotJson>,
+    pub depots: Vec<steam::Depot>,
     /// Scroll offset (top row) within the depots overlay.
     pub depots_scroll: usize,
     /// Whether the launch-options overlay is open.
     pub show_launch: bool,
     /// The selected game's launch options (loaded when the overlay opens).
-    pub launch_options: Vec<steam::LaunchOptionJson>,
+    pub launch_options: Vec<steam::LaunchOption>,
     /// Scroll offset (top row) within the launch-options overlay.
     pub launch_scroll: usize,
     /// Whether the move (relocate install) prompt is open.
@@ -279,7 +279,7 @@ pub struct Browser {
     /// Whether the Proton runtimes overlay is open.
     pub show_proton: bool,
     /// The Proton/Wine runtimes (loaded when the overlay opens).
-    pub protons: Vec<steam::ProtonJson>,
+    pub protons: Vec<steam::ProtonRuntime>,
     /// The highlighted row within the Proton overlay.
     pub proton_index: usize,
     /// Shared status cell for an in-flight Proton install/uninstall, streamed
@@ -290,7 +290,7 @@ pub struct Browser {
     /// Whether the running-games overlay is open.
     pub show_running: bool,
     /// The games gaki currently has running (loaded when the overlay opens).
-    pub running: Vec<steam::RunningJson>,
+    pub running: Vec<steam::RunningGame>,
     /// The highlighted row within the running overlay.
     pub running_index: usize,
     /// Whether the Community Market search overlay is open.
@@ -298,7 +298,7 @@ pub struct Browser {
     /// The query the user is typing into the market search overlay.
     pub market_query: String,
     /// The resolved search results (adopted from the worker cell on each poll).
-    pub market_results: Vec<steam::MarketSearchResultJson>,
+    pub market_results: Vec<steam::MarketSearchResult>,
     /// The highlighted row within the search results.
     pub market_results_index: usize,
     /// Scroll offset (top row) within the search-results list.
@@ -330,7 +330,7 @@ pub struct Browser {
     pub show_install_picker: bool,
     /// The available library folders shown in the picker, each with its
     /// drive's free space.
-    pub install_libraries: Vec<steam::LibraryJson>,
+    pub install_libraries: Vec<steam::LibraryFolder>,
     /// Estimated on-disk size of the game being installed, for the picker to
     /// show and to gauge whether a library has room. `None` if unknown.
     pub install_estimate: Option<u64>,
@@ -340,7 +340,7 @@ pub struct Browser {
     /// an install completes or is cancelled). A worker fetches the fresh `list`
     /// entry and drops it here; [`Browser::poll_game_refresh`] adopts it,
     /// patching just that game's `installed`/update flags — no full reload.
-    game_refresh_slot: Arc<Mutex<Vec<steam::LibraryGameJson>>>,
+    game_refresh_slot: Arc<Mutex<Vec<steam::LibraryGame>>>,
     /// A transient one-line notice (e.g. an action that failed) shown in the
     /// status bar until the next keypress. Keeps a failed backend call from
     /// having to crash the whole TUI to report itself.
@@ -365,7 +365,7 @@ pub struct Browser {
     pub versions_manifests: Vec<steam::DepotManifestInfo>,
     /// Install + pin state for the game: the pin flag
     /// and the pinned depot→manifest map.
-    pub versions_available: Option<steam::AvailableJson>,
+    pub versions_available: Option<steam::PinState>,
     /// The highlighted depot row within the versions overlay.
     pub versions_index: usize,
     /// The app id the versions overlay is showing.
@@ -384,9 +384,9 @@ pub struct Browser {
     /// Whether the per-game settings overlay is open.
     pub show_game_config: bool,
     /// The game's current config overrides.
-    pub game_config: Option<steam::GameConfigJson>,
+    pub game_config: Option<steam::GameSettings>,
     /// The game's launch-script state.
-    pub game_script: Option<steam::ScriptShowJson>,
+    pub game_script: Option<steam::LaunchScript>,
     /// Installed Proton runtime names, for cycling the per-game forced runtime.
     pub game_config_protons: Vec<String>,
     /// The highlighted settings row.
@@ -400,7 +400,7 @@ pub struct Browser {
     /// Whether the collections overlay is open.
     pub show_collections: bool,
     /// The account's Steam library collections.
-    pub collections: Vec<steam::CollectionJson>,
+    pub collections: Vec<steam::Collection>,
     /// The highlighted collection row.
     pub collections_index: usize,
     /// A transient status line for the collections overlay.
@@ -415,7 +415,7 @@ pub struct Browser {
     /// Whether the launch-targets overlay is open.
     pub show_launch_targets: bool,
     /// The game's launch targets.
-    pub launch_targets: Vec<steam::LaunchTargetJson>,
+    pub launch_targets: Vec<steam::LaunchTarget>,
     /// The highlighted target row.
     pub launch_targets_index: usize,
     /// A transient status line (fetch error, unavailable target).

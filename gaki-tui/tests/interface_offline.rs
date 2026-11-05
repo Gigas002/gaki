@@ -149,7 +149,7 @@ fn proton_default_is_saved() {
 /// Steam-backed game data asks for a login instead of failing obscurely.
 fn game_data_needs_a_session() {
     let id = 945360;
-    let calls: [(&str, Result<(), gaki_tui::utils::error::STError>); 7] = [
+    let calls: [(&str, Result<(), gaki_tui::utils::error::TuiError>); 7] = [
         ("achievements", steam::achievements(id).map(drop)),
         ("dlc", steam::dlc(id).map(drop)),
         ("depots", steam::depots(id).map(drop)),
@@ -182,7 +182,7 @@ fn pinning_reads_local_state() {
 /// Friends, chat and Workshop ask for a login; the web-surface calls
 /// (wallet, inventory, market listings) fail without one too.
 fn social_needs_a_session() {
-    type Outcome = Result<(), gaki_tui::utils::error::STError>;
+    type Outcome = Result<(), gaki_tui::utils::error::TuiError>;
     let needs_login: [(&str, Outcome); 11] = [
         ("friends", steam::friends().map(drop)),
         ("friends search", steam::friends_search("gaben").map(drop)),

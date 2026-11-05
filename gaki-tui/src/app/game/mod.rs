@@ -8,8 +8,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::app::game::status::GameStatus;
-use crate::app::steam::{self, InfoJson, LibraryGameJson};
-use crate::utils::{error::STError, stateful::Named};
+use crate::app::steam::{self, LibraryGame, StoreInfo};
+use crate::utils::{error::TuiError, stateful::Named};
 
 use crate::config::Config;
 
@@ -60,7 +60,7 @@ pub struct Game {
     // Lazily-fetched store metadata (developer/publisher/description).
     // `info_requested` guards against re-starting the fetch.
     #[serde(skip)]
-    info: Arc<Mutex<Option<InfoJson>>>,
+    info: Arc<Mutex<Option<StoreInfo>>>,
     #[serde(skip)]
     info_requested: Arc<AtomicBool>,
     #[serde(skip)]
@@ -71,7 +71,7 @@ impl Game {
     /// Build a `Game` from one library entry. Developer/publisher
     /// aren't in the library listing, so they start as `-` and are filled in
     /// lazily on selection via [`Game::query_info`].
-    pub fn from_library(entry: LibraryGameJson) -> Game {
+    pub fn from_library(entry: LibraryGame) -> Game {
         let icon_url = entry.assets.as_ref().and_then(|a| {
             a.header
                 .clone()
@@ -237,7 +237,7 @@ impl Game {
 }
 
 /// Fetch the full library and map it into `Game`s.
-pub fn load_library() -> Result<Vec<Game>, STError> {
+pub fn load_library() -> Result<Vec<Game>, TuiError> {
     let entries = steam::fetch_library()?;
     Ok(entries.into_iter().map(Game::from_library).collect())
 }

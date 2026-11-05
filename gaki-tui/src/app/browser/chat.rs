@@ -35,7 +35,7 @@ impl Browser {
     pub fn refresh_chat(&mut self) {
         self.chat_messages = steam::chat_history(self.chat_steamid, 30).unwrap_or_default();
         // The chat panel is bottom-anchored and renders the Vec top→bottom, so it
-        // must be oldest→newest. The CLI returns history newest-first, so reverse
+        // must be oldest→newest. `steam::chat_history` returns newest-first, so reverse
         // it; then a *stable* sort by send time enforces true chronological order
         // when timestamps are present, and is a harmless no-op (keeping the
         // reversed oldest→newest order) when they are not.

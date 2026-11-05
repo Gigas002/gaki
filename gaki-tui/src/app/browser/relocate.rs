@@ -2,7 +2,7 @@
 
 use super::Browser;
 use crate::app::steam;
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 
 impl Browser {
     /// Open the move prompt for `app_id`, clearing any previous path/status.
@@ -33,7 +33,7 @@ impl Browser {
 
     /// Relocate the game to the typed library folder (blocking). Updates `move_status` to reflect progress/outcome and returns the
     /// backend result.
-    pub fn do_move(&mut self) -> Result<(), STError> {
+    pub fn do_move(&mut self) -> Result<(), TuiError> {
         self.move_status = "moving...".to_string();
         match steam::move_game(self.move_app_id, &self.move_path) {
             Ok(()) => {
@@ -77,7 +77,7 @@ impl Browser {
 
     /// Relink the game to the typed library folder (blocking). Updates `relink_status` to reflect progress/outcome and returns
     /// the backend result.
-    pub fn do_relink(&mut self) -> Result<(), STError> {
+    pub fn do_relink(&mut self) -> Result<(), TuiError> {
         self.relink_status = "relinking...".to_string();
         match steam::relink(self.relink_app_id, &self.relink_path) {
             Ok(()) => {
@@ -122,7 +122,7 @@ impl Browser {
     /// Register the on-disk install at the typed library folder (blocking).
     /// Updates `import_status` to reflect progress/outcome and
     /// returns the backend result.
-    pub fn do_import(&mut self) -> Result<(), STError> {
+    pub fn do_import(&mut self) -> Result<(), TuiError> {
         self.import_status = "importing...".to_string();
         match steam::import_game(self.import_app_id, &self.import_path) {
             Ok(()) => {

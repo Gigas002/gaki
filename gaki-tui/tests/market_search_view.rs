@@ -4,7 +4,7 @@
 //! state API so the test is hermetic.
 
 use gaki_tui::app::browser::Browser;
-use gaki_tui::app::steam::{MarketPriceJson, MarketSearchResultJson};
+use gaki_tui::app::steam::{MarketPrice, MarketSearchResult};
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -13,11 +13,11 @@ use ratatui::layout::Rect;
 /// Display helpers fall back sensibly on empty rows.
 #[test]
 fn search_result_display_falls_back() {
-    let empty = MarketSearchResultJson::default();
+    let empty = MarketSearchResult::default();
     assert_eq!(empty.display_name(), "(unnamed item)");
     assert!(empty.price_text().is_empty());
 
-    let full = MarketSearchResultJson {
+    let full = MarketSearchResult {
         app_id: 440,
         app_name: "Team Fortress 2".into(),
         market_hash_name: "Mann Co. Supply Crate Key".into(),
@@ -30,7 +30,7 @@ fn search_result_display_falls_back() {
     assert_eq!(full.price_text(), "$2.34");
 
     // Missing pre-formatted text falls back to a minor-unit decimal.
-    let no_text = MarketSearchResultJson {
+    let no_text = MarketSearchResult {
         name: "Thing".into(),
         sell_price: 199,
         ..Default::default()
@@ -42,9 +42,9 @@ fn search_result_display_falls_back() {
 /// one-line summary.
 #[test]
 fn price_summary_handles_empty_and_full() {
-    assert!(MarketPriceJson::default().summary().is_none());
+    assert!(MarketPrice::default().summary().is_none());
 
-    let full = MarketPriceJson {
+    let full = MarketPrice {
         market_hash_name: "Mann Co. Supply Crate Key".into(),
         lowest_price: Some("$2.34".into()),
         median_price: Some("$2.34".into()),
@@ -98,7 +98,7 @@ fn overlay_renders_query_and_results() {
     browser.market_search_status = "2 results".to_string();
     // Inject resolved results directly (the worker cell normally does this).
     browser.market_results = vec![
-        MarketSearchResultJson {
+        MarketSearchResult {
             app_id: 440,
             app_name: "Team Fortress 2".to_string(),
             market_hash_name: "Mann Co. Supply Crate Key".to_string(),
@@ -107,7 +107,7 @@ fn overlay_renders_query_and_results() {
             sell_price: 234,
             sell_price_text: "$2.34".to_string(),
         },
-        MarketSearchResultJson {
+        MarketSearchResult {
             app_id: 440,
             app_name: "Team Fortress 2".to_string(),
             market_hash_name: "Mann Co. Store Package".to_string(),

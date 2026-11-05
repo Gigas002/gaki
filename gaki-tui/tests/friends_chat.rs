@@ -10,7 +10,7 @@
 
 use gaki_tui::app::browser::{Browser, View};
 use gaki_tui::app::game::Game;
-use gaki_tui::app::steam::{ChatMessageJson, FriendJson, FriendSearchJson, LibraryGameJson};
+use gaki_tui::app::steam::{ChatMessage, Friend, FriendLookup, LibraryGame};
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -26,8 +26,8 @@ fn isolate_config() {
     }
 }
 
-fn friend(id: u64, name: &str, state: u32, game: Option<&str>) -> FriendJson {
-    FriendJson {
+fn friend(id: u64, name: &str, state: u32, game: Option<&str>) -> Friend {
+    Friend {
         steam_id: id,
         persona_name: Some(name.to_string()),
         persona_state: Some(state),
@@ -36,8 +36,8 @@ fn friend(id: u64, name: &str, state: u32, game: Option<&str>) -> FriendJson {
     }
 }
 
-fn msg(text: &str, from_self: bool) -> ChatMessageJson {
-    ChatMessageJson {
+fn msg(text: &str, from_self: bool) -> ChatMessage {
+    ChatMessage {
         sender: if from_self { 0 } else { 1 },
         from_self,
         message: text.to_string(),
@@ -196,7 +196,7 @@ fn chat_bottom_anchored_with_per_side_alignment() {
 }
 
 fn game(id: u32, name: &str) -> Game {
-    Game::from_library(LibraryGameJson {
+    Game::from_library(LibraryGame {
         app_id: id,
         name: name.to_string(),
         is_installed: true,
@@ -211,8 +211,8 @@ fn game(id: u32, name: &str) -> Game {
     })
 }
 
-/// Mirror `main.rs`'s right pane: split into Detail (top) over the always-visible
-/// Friends panel (bottom). Proves both sections render, ordered, in one frame.
+/// A fixed test layout of Detail (top) over a Friends panel (bottom). Proves
+/// both widgets render, in order, in one frame.
 #[test]
 fn right_pane_splits_detail_over_friends() {
     isolate_config();
@@ -290,7 +290,7 @@ fn friend_add_overlay_shows_input_and_resolved_preview() {
     print_shot("Add friend (input)", &rows);
 
     // After a successful `friends search`, a resolved-account preview appears.
-    b.friend_search_result = Some(FriendSearchJson {
+    b.friend_search_result = Some(FriendLookup {
         steam_id: 76561197960287930,
         persona_name: Some("Rabscuttle".to_string()),
         profile_url: None,

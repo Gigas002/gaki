@@ -381,7 +381,7 @@ fn artwork_candidates(app_id: u32) -> [String; 3] {
 /// already there (or `force`). With `output`, the image is copied there too.
 /// Returns the path of the image.
 pub async fn artwork(app_id: u32, output: Option<&Path>, force: bool) -> Result<PathBuf> {
-    let cache_dir = crate::core::config::opensteam_image_cache_dir()?;
+    let cache_dir = crate::core::config::image_cache_dir()?;
     tokio::fs::create_dir_all(&cache_dir)
         .await
         .with_context(|| format!("failed creating {}", cache_dir.display()))?;

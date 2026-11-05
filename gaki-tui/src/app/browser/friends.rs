@@ -49,7 +49,7 @@ impl Browser {
     }
 
     /// The highlighted friend, if any.
-    pub fn selected_friend(&self) -> Option<&steam::FriendJson> {
+    pub fn selected_friend(&self) -> Option<&steam::Friend> {
         self.friends.get(self.friends_index)
     }
 
@@ -231,8 +231,8 @@ impl Browser {
             self.friend_search_result = Some(found);
         }
 
-        // Re-fetch the roster after a successful add/remove. The fetch itself is
-        // a quick CLI call; run it on a worker and adopt the list next poll via
+        // Re-fetch the roster after a successful add/remove. The fetch is a
+        // network round trip; run it on a worker and adopt the list next poll via
         // the same `friends` field (kept simple: a one-shot blocking re-fetch on
         // a detached thread that swaps the vec in through a channel-free flag).
         let needs_refresh = self

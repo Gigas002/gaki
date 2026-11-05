@@ -102,7 +102,7 @@ impl Browser {
     }
 
     /// The currently highlighted browse result, if any.
-    pub fn selected_workshop_result(&self) -> Option<&steam::WorkshopItemJson> {
+    pub fn selected_workshop_result(&self) -> Option<&steam::WorkshopItem> {
         self.workshop_results.get(self.workshop_index)
     }
 
@@ -181,7 +181,7 @@ impl Browser {
                     };
                     // The refreshed subscribed list (if any) arrives separately
                     // via `workshop_refresh_slot`, drained below — no blocking
-                    // CLI call here on the render thread.
+                    // network call here on the render thread.
                 }
                 Err(err) => {
                     self.workshop_status = if want_subscribed {

@@ -4,7 +4,7 @@
 
 use gaki_tui::app::browser::{Browser, Filter};
 use gaki_tui::app::game::Game;
-use gaki_tui::app::steam::{LibraryGameJson, ProtonJson, WorkshopCommentJson, WorkshopItemJson};
+use gaki_tui::app::steam::{LibraryGame, ProtonRuntime, WorkshopComment, WorkshopItem};
 use gaki_tui::ui::{self, theme};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -22,7 +22,7 @@ fn isolate_config() {
 }
 
 fn game(id: u32, name: &str, installed: bool, update: bool) -> Game {
-    Game::from_library(LibraryGameJson {
+    Game::from_library(LibraryGame {
         app_id: id,
         name: name.to_string(),
         is_installed: installed,
@@ -126,11 +126,11 @@ fn install_picker_lists_libraries_and_marks_choice() {
     isolate_config();
     let mut browser = Browser::new(vec![]);
     browser.install_libraries = vec![
-        gaki_tui::app::steam::LibraryJson {
+        gaki_tui::app::steam::LibraryFolder {
             path: "C:\\SteamLibrary".to_string(),
             free_bytes: Some(2_000_000_000),
         },
-        gaki_tui::app::steam::LibraryJson {
+        gaki_tui::app::steam::LibraryFolder {
             path: "D:\\Games\\SteamLibrary".to_string(),
             free_bytes: Some(80_000_000_000),
         },
@@ -297,7 +297,7 @@ fn cover_and_detail_do_not_overlap() {
     let backend = TestBackend::new(60, 24);
     let mut terminal = Terminal::new(backend).unwrap();
 
-    // Mirror main.rs's right-pane split: Cover (top 40%) over Detail (bottom 60%).
+    // A fixed test layout: a Cover panel (top 40%) over Detail (bottom 60%).
     let right = Rect::new(0, 0, 60, 24);
     terminal
         .draw(|f| {
@@ -336,8 +336,8 @@ fn cover_and_detail_do_not_overlap() {
     );
 }
 
-fn proton(name: &str, official: bool, installed: bool) -> ProtonJson {
-    ProtonJson {
+fn proton(name: &str, official: bool, installed: bool) -> ProtonRuntime {
+    ProtonRuntime {
         name: name.to_string(),
         official,
         installed,
@@ -419,8 +419,8 @@ fn proton_overlay_shows_install_status() {
     );
 }
 
-fn workshop_item(id: u64, title: &str, subscribed: bool) -> WorkshopItemJson {
-    WorkshopItemJson {
+fn workshop_item(id: u64, title: &str, subscribed: bool) -> WorkshopItem {
+    WorkshopItem {
         id: Some(id),
         title: title.to_string(),
         subscribed,
@@ -430,7 +430,7 @@ fn workshop_item(id: u64, title: &str, subscribed: bool) -> WorkshopItemJson {
 
 /// Leaving browse mode and closing the overlay reset the browse state. (We set
 /// the flags directly rather than via `open_workshop`/`workshop_enter_browse`,
-/// which would shell out to the CLI.)
+/// which would reach Steam.)
 #[test]
 fn workshop_browse_mode_toggles() {
     isolate_config();
@@ -523,7 +523,7 @@ fn workshop_comments_state_resets() {
     browser.show_workshop = true;
     browser.workshop_browse = true;
     browser.workshop_comments_open = true;
-    browser.workshop_comments = vec![WorkshopCommentJson {
+    browser.workshop_comments = vec![WorkshopComment {
         author: "Ada".to_string(),
         message: "great mod".to_string(),
         ..Default::default()
@@ -563,12 +563,12 @@ fn workshop_comments_pane_renders() {
     browser.workshop_browse = true;
     browser.workshop_comments_open = true;
     browser.workshop_comments = vec![
-        WorkshopCommentJson {
+        WorkshopComment {
             author: "Ada".to_string(),
             message: "great mod".to_string(),
             ..Default::default()
         },
-        WorkshopCommentJson {
+        WorkshopComment {
             author: "Grace".to_string(),
             message: "crashes on load".to_string(),
             ..Default::default()
@@ -601,12 +601,12 @@ fn workshop_comments_pane_renders() {
 /// A comment without an author shows a placeholder.
 #[test]
 fn workshop_comment_without_author_is_anonymous() {
-    let anon = WorkshopCommentJson {
+    let anon = WorkshopComment {
         message: "no name".into(),
         ..Default::default()
     };
     assert_eq!(anon.display_author(), "(anonymous)");
-    let named = WorkshopCommentJson {
+    let named = WorkshopComment {
         author: "76561197960287930".into(),
         ..Default::default()
     };

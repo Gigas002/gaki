@@ -237,12 +237,12 @@ pub fn config_dir() -> Result<PathBuf> {
 pub async fn ensure_config_dirs() -> Result<()> {
     let config = config_dir()?;
     fs::create_dir_all(&config).await?;
-    let images = opensteam_image_cache_dir()?;
+    let images = image_cache_dir()?;
     fs::create_dir_all(&images).await?;
     Ok(())
 }
 
-pub fn opensteam_image_cache_dir() -> Result<PathBuf> {
+pub fn image_cache_dir() -> Result<PathBuf> {
     Ok(config_dir()?.join("images"))
 }
 

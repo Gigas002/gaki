@@ -5,8 +5,6 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#project-status)
-[![AUR](https://img.shields.io/badge/AUR-aurelia-1793d1.svg)](https://aur.archlinux.org/packages/aurelia)
-[![crates.io](https://img.shields.io/crates/v/aurelia-steam.svg)](https://crates.io/crates/aurelia-steam)
 
 <br clear="left" />
 
@@ -46,17 +44,16 @@ gaki-cli play 1245620
 
 ## Contents
 
-- [Why gaki?](#why-gaki-cli)
+- [Why gaki?](#why-gaki)
 - [How it compares](#how-it-compares)
 - [Project status](#project-status)
 - [Install](#install)
 - [Build from source](#build-from-source)
-- [Published crates](#published-crates)
+- [Crates](#crates)
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Documentation](#documentation)
 - [FAQ](#faq)
-- [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
 - [License](#license)
 
@@ -130,63 +127,7 @@ sync, and Proton or Wine launching all work today.
 
 ## Install
 
-### Arch Linux (AUR)
-
-```bash
-yay -S aurelia          # or: paru -S aurelia
-```
-
-### Nix and NixOS (flake)
-
-```bash
-nix run github:Drackrath/Aurelia          # run it once
-nix profile install github:Drackrath/Aurelia   # install it
-```
-
-### crates.io (Cargo)
-
-Needs the [build prerequisites](#prerequisites). The crate is called `aurelia-steam`, and the
-command it installs is `aurelia`:
-
-```bash
-cargo install aurelia-steam
-```
-
-### Debian and Ubuntu (.deb)
-
-Grab the `.deb` for your architecture from the
-[latest release](https://github.com/Drackrath/Aurelia/releases/latest):
-
-```bash
-sudo apt install ./aurelia_*_amd64.deb
-```
-
-### Prebuilt binaries (Linux, Windows, macOS)
-
-Every release ships static-ish binaries for `linux_x86_64`, `linux_arm64`,
-`windows_x86_64`, `windows_arm64`, `macOS_x86_64` and `macOS_arm64`.
-See the [releases page](https://github.com/Drackrath/Aurelia/releases/latest).
-
-```bash
-curl -LO https://github.com/Drackrath/Aurelia/releases/latest/download/aurelia_linux_x86_64
-chmod +x aurelia_linux_x86_64 && sudo mv aurelia_linux_x86_64 /usr/local/bin/aurelia
-aurelia --help
-```
-
-Each release also publishes `SHA256SUMS`, signed with [Sigstore](https://www.sigstore.dev/)
-by the release workflow (`SHA256SUMS.sig`, `SHA256SUMS.pem`). To check a download before
-installing it:
-
-```bash
-for f in SHA256SUMS SHA256SUMS.sig SHA256SUMS.pem; do
-  curl -LO "https://github.com/Drackrath/Aurelia/releases/latest/download/$f"
-done
-sha256sum --ignore-missing -c SHA256SUMS          # the binary matches the published hash
-cosign verify-blob SHA256SUMS \
-  --signature SHA256SUMS.sig --certificate SHA256SUMS.pem \
-  --certificate-identity-regexp '^https://github\.com/Drackrath/Aurelia/\.github/workflows/release\.yml@refs/tags/v' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-```
+gaki isn't packaged or published yet. [Build it from source](#build-from-source).
 
 ---
 
@@ -211,38 +152,40 @@ Windows and macOS need only the Rust toolchain.
 ### Build
 
 ```bash
-git clone https://github.com/Drackrath/Aurelia.git
-cd Aurelia
+git clone https://github.com/Gigas002/gaki.git
+cd gaki
 cargo build --release
 ```
 
-The binary is produced at `target/release/gaki-cli` (`gaki-cli.exe` on Windows).
+This builds both binaries: `target/release/gaki-cli` and `target/release/gaki-tui`.
 
 ---
 
-## Published crates
+## Crates
 
-Aurelia is published on crates.io as three crates, all licensed under GPL-3.0-or-later:
+The workspace has three crates, none of them on crates.io yet:
 
-| Crate | What it is | Source |
-| --- | --- | --- |
-| [`aurelia-steam`](https://crates.io/crates/aurelia-steam) | The `aurelia` command and its library | [Drackrath/Aurelia](https://github.com/Drackrath/Aurelia) |
-| [`aurelia-steam-cdn`](https://crates.io/crates/aurelia-steam-cdn) | Depot downloads, forked from [steam-cdn](https://github.com/OccamyLab/steam-cdn) | [Drackrath/aurelia-steam-cdn](https://github.com/Drackrath/aurelia-steam-cdn) |
-| [`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat) | Friend chat, forked from [steam-vent-chat](https://codeberg.org/steam-vent/chat) | [Drackrath/aurelia-steam-vent-chat](https://codeberg.org/Drackrath/aurelia-steam-vent-chat) |
+| Crate | What it is |
+| --- | --- |
+| `libgaki` | All the logic: Steam session, library, installs, cloud, launch, config |
+| `gaki-cli` | The `gaki-cli` command, a thin layer over `libgaki` |
+| `gaki-tui` | The `gaki-tui` terminal UI, a thin layer over `libgaki` |
 
-To use Aurelia as a library, add `aurelia-steam` to your project and import it as `aurelia`:
+Two dependencies are forks published by Aurelia's author:
+[`aurelia-steam-cdn`](https://crates.io/crates/aurelia-steam-cdn) (depot downloads, from
+[steam-cdn](https://github.com/OccamyLab/steam-cdn)) and
+[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat) (friend chat,
+from [steam-vent-chat](https://codeberg.org/steam-vent/chat)).
 
-```bash
-cargo add aurelia-steam
-```
+To use the library from another crate in this workspace:
 
 ```rust
-use aurelia::core::utils::is_safe_dir_name;
+use libgaki::core::utils::is_safe_dir_name;
 
 assert!(!is_safe_dir_name("../x"));
 ```
 
-The library is pre-1.0, so its API may change between releases.
+The library is pre-1.0, so its API may change.
 
 ---
 
@@ -516,7 +459,7 @@ On Windows, games run natively and the Linux-only parts are switched off: `proto
 explanation, and `play` rejects `--proton`, `--platform linux`, `--steam-mode runtime`,
 `--umu` and `--native-engine`. Use `play --steam` with your installed Steam client instead.
 
-📖 **See the [Usage page on the wiki](https://github.com/Drackrath/Aurelia/wiki/Usage) for complete documentation of every command and option.**
+📖 `gaki-cli --help` and `gaki-cli <command> --help` list every command and option.
 
 ---
 
@@ -542,9 +485,7 @@ and `config info-cache-ttl <SECONDS>`.
   them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per
   depot.
 - **Install backlog.** Unfinished installs are kept in `install_backlog.json` until they
-  finish or you `install forget` them. See the
-  [installation page](https://github.com/Drackrath/Aurelia/wiki/Usage-Installation-and-Maintenance#install-backlog)
-  on the wiki.
+  finish or you `install forget` them.
 
 ---
 
@@ -552,14 +493,9 @@ and `config info-cache-ttl <SECONDS>`.
 
 | Document | Contents |
 |---|---|
-| [Wiki home](https://github.com/Drackrath/Aurelia/wiki/) | Index of all documentation |
-| [Usage](https://github.com/Drackrath/Aurelia/wiki/Usage) | Full reference for every command and flag |
-| [Windows Steam Runtime](https://github.com/Drackrath/Aurelia/wiki/Windows-Steam-Runtime) | The self-contained Wine Steam prefix (`steam-runtime`) |
-| [Architecture](https://github.com/Drackrath/Aurelia/wiki/Architecture-00-Overview) | Per-subsystem architectural reference |
-| [Releasing](https://github.com/Drackrath/Aurelia/wiki/Releasing) | How to cut a release and publish binaries |
-| [Files Reviewed](https://github.com/Drackrath/Aurelia/wiki/Files-Reviewed) | Manual review checklist for the latest code-review changes |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How to contribute |
-| [SECURITY.md](SECURITY.md) | Reporting a vulnerability |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout, crate roles and the rules the code follows |
+| [docs/PLAN.md](docs/PLAN.md) | The fork plan: what changes from Aurelia, step by step |
+| [gaki-tui/README.md](gaki-tui/README.md) | The terminal UI |
 
 ---
 
@@ -630,26 +566,25 @@ Read the disclaimer at the top of this README before using it. Use at your own r
 
 ---
 
-## Contributing
-
-Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. By
-participating, you agree to abide by our [Code of Conduct](CODE_OF_CONDUCT.md).
-
 ## Acknowledgments
 
-Aurelia grew directly out of **[SteamFlow](https://github.com/weter11/SteamFlow)**, the
-earlier project it is derived from and the foundation this work is built on. Our deepest
-thanks to its author: SteamFlow did the hard groundwork that made Aurelia possible.
+gaki is a fork of **[Aurelia](https://github.com/Drackrath/Aurelia)** and
+**[Aurelia-TUI](https://github.com/Drackrath/Aurelia-TUI)**. Aurelia grew directly out of
+**[SteamFlow](https://github.com/weter11/SteamFlow)**, and Aurelia-TUI out of
+**[steam-tui](https://github.com/dmadisetti/steam-tui)**. Our deepest thanks to their
+authors: they did the groundwork everything here is built on.
 
 It stands, in turn, on **[steam-vent](https://codeberg.org/steam-vent/steam-vent)** and
 **[steam-vent-chat](https://codeberg.org/steam-vent/chat)**, whose reverse-engineering and
-protocol work let Aurelia speak Steam's real network protocols, and on a modified fork of
+protocol work let gaki speak Steam's real network protocols, and on a modified fork of
 [`steam-cdn`](https://github.com/OccamyLab/steam-cdn) (plus the `zip` crate) for the content
 pipeline.
 
 ### Credits
 
+- [Aurelia](https://github.com/Drackrath/Aurelia) and [Aurelia-TUI](https://github.com/Drackrath/Aurelia-TUI): the CLI and TUI gaki is forked from
 - [SteamFlow](https://github.com/weter11/SteamFlow): the project Aurelia is derived from. Its groundwork is the base everything here is built on. Thank you!
+- [steam-tui](https://github.com/dmadisetti/steam-tui): the original TUI that Aurelia-TUI rebuilt
 - [steam-vent](https://codeberg.org/steam-vent/steam-vent): Steam network protocol implementation
 - [steam-vent-chat](https://codeberg.org/steam-vent/chat): Steam Chat protocol implementation (forked & modified as [aurelia-steam-vent-chat](https://codeberg.org/Drackrath/aurelia-steam-vent-chat))
 - [steam-cdn](https://github.com/OccamyLab/steam-cdn): content-delivery and depot download engine (forked & modified as [aurelia-steam-cdn](https://github.com/Drackrath/aurelia-steam-cdn))
@@ -658,33 +593,15 @@ pipeline.
 
 ---
 
-## Star History
-
-<a href="https://www.star-history.com/?repos=Drackrath%2FAurelia&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Drackrath/Aurelia&type=date&theme=dark&legend=top-left&sealed_token=zXdjs_drcHTMkMNbox0hJui2MeqHrik6ffskwkRLfX2hsH8W9nwd9pZ-yEhuBwUuC1WC1pfLVnL7hPyZ5DLdGtDMCxSJh7Kddu-w0eZI-5wM64y56opayjFg_zN1x0rFeHGE6RJh4rG56LXWpv6beBZ42a7cIM0IlxfTeegy72K2xgtbewqQAccsI8b2" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Drackrath/Aurelia&type=date&legend=top-left&sealed_token=zXdjs_drcHTMkMNbox0hJui2MeqHrik6ffskwkRLfX2hsH8W9nwd9pZ-yEhuBwUuC1WC1pfLVnL7hPyZ5DLdGtDMCxSJh7Kddu-w0eZI-5wM64y56opayjFg_zN1x0rFeHGE6RJh4rG56LXWpv6beBZ42a7cIM0IlxfTeegy72K2xgtbewqQAccsI8b2" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Drackrath/Aurelia&type=date&legend=top-left&sealed_token=zXdjs_drcHTMkMNbox0hJui2MeqHrik6ffskwkRLfX2hsH8W9nwd9pZ-yEhuBwUuC1WC1pfLVnL7hPyZ5DLdGtDMCxSJh7Kddu-w0eZI-5wM64y56opayjFg_zN1x0rFeHGE6RJh4rG56LXWpv6beBZ42a7cIM0IlxfTeegy72K2xgtbewqQAccsI8b2" />
- </picture>
-</a>
-
----
-
 ## Related projects
 
 - [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD): Valve's official,
   content-only command-line tool
 - [OpenSteamClient](https://github.com/OpenSteamClient/OpenSteamClient): open-source C++ and
-  Qt Steam client. Aurelia is its Rust CLI successor
-- [SteamFlow](https://github.com/weter11/SteamFlow): the project Aurelia is derived from
+  Qt Steam client
+- [Aurelia](https://github.com/Drackrath/Aurelia): the Rust CLI Steam client gaki is forked from
 - [steam-vent](https://codeberg.org/steam-vent/steam-vent): the Steam network protocol
-  implementation Aurelia is built on
-- [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher):
-  GUI launcher that can drive Aurelia for its Steam integration
-- [umu-launcher](https://github.com/Open-Wine-Components/umu-launcher): optional launch plugin
-  that runs Proton outside Steam
-- [luxtorpeda](https://github.com/luxtorpeda-dev/luxtorpeda): optional launch plugin for
-  native Linux engines
+  implementation gaki is built on
 
 *Topics: steam client cli, headless steam, steam launcher linux, steamcmd alternative,
 open source steam client, terminal steam, install steam games from command line,

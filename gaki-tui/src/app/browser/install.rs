@@ -49,7 +49,7 @@ impl Browser {
 
     /// Whether the highlighted library has room for the estimated install. True
     /// when either the estimate or the library's free space is unknown — don't
-    /// block on missing data; the CLI re-checks authoritatively.
+    /// block on missing data; the install itself re-checks.
     pub fn selected_library_fits(&self) -> bool {
         match self.install_libraries.get(self.install_picker_index) {
             Some(lib) => match (self.install_estimate, lib.free_bytes) {
@@ -169,7 +169,7 @@ impl Browser {
     /// install flags and drop its transient install status so the badge derives
     /// from the refreshed state. Cheap and non-blocking when idle.
     pub fn poll_game_refresh(&mut self) {
-        let updates: Vec<steam::LibraryGameJson> = match self.game_refresh_slot.lock() {
+        let updates: Vec<steam::LibraryGame> = match self.game_refresh_slot.lock() {
             Ok(mut guard) => std::mem::take(&mut *guard),
             Err(_) => Vec::new(),
         };
@@ -231,10 +231,10 @@ mod tests {
     use super::*;
     use crate::app::game::Game;
     use crate::app::game::status::GameStatus;
-    use crate::app::steam::{InstallAction, InstallControl, LibraryGameJson};
+    use crate::app::steam::{InstallAction, InstallControl, LibraryGame};
 
     fn game(id: i32) -> Game {
-        Game::from_library(LibraryGameJson {
+        Game::from_library(LibraryGame {
             app_id: id as u32,
             name: "Game".to_string(),
             is_installed: false,
@@ -286,7 +286,7 @@ mod tests {
         set_state(b.items.iter().find(|x| x.id == 99).unwrap(), "Installed!");
 
         // Simulate the off-thread worker dropping a fresh "now installed" entry.
-        b.game_refresh_slot.lock().unwrap().push(LibraryGameJson {
+        b.game_refresh_slot.lock().unwrap().push(LibraryGame {
             app_id: 99,
             name: "Game".to_string(),
             is_installed: true,

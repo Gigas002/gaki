@@ -1,9 +1,9 @@
 //! Open a URL in the default browser (`xdg-open`). Call from a worker: the
 //! launcher can block while locating or starting the browser.
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 use std::process::{Command, Stdio};
 
-pub fn open(url: &str) -> Result<(), STError> {
+pub fn open(url: &str) -> Result<(), TuiError> {
     let status = Command::new("xdg-open")
         .arg(url)
         .stdin(Stdio::null())
@@ -11,7 +11,7 @@ pub fn open(url: &str) -> Result<(), STError> {
         .stderr(Stdio::null())
         .status()?;
     if !status.success() {
-        return Err(STError::Problem(format!(
+        return Err(TuiError::Problem(format!(
             "Browser launcher exited with {status}"
         )));
     }

@@ -2,12 +2,12 @@
 
 use super::Browser;
 use crate::app::steam;
-use crate::utils::error::STError;
+use crate::utils::error::TuiError;
 
 impl Browser {
     /// Fetch the logged-in account and open the overlay.
     /// Blocking; returns the backend error if the call fails.
-    pub fn open_account(&mut self) -> Result<(), STError> {
+    pub fn open_account(&mut self) -> Result<(), TuiError> {
         self.account_info = Some(steam::account()?);
         self.show_account = true;
         Ok(())
@@ -16,7 +16,7 @@ impl Browser {
     /// Open the settings overlay even if the launcher's settings cannot be read.
     /// Launcher fetches remain blocking, matching this overlay's existing path;
     /// a failure is reported in the overlay.
-    pub fn open_config(&mut self) -> Result<(), STError> {
+    pub fn open_config(&mut self) -> Result<(), TuiError> {
         self.show_config = true;
         self.config_info = None;
         self.config_proxy = None;
@@ -94,7 +94,7 @@ impl Browser {
 
     /// Fetch the Steam Wallet balance and open the overlay.
     /// Blocking; returns the backend error if the call fails.
-    pub fn open_wallet(&mut self) -> Result<(), STError> {
+    pub fn open_wallet(&mut self) -> Result<(), TuiError> {
         self.wallet_info = Some(steam::wallet()?);
         self.show_wallet = true;
         Ok(())

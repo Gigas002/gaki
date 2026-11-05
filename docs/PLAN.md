@@ -932,6 +932,31 @@ I make the changes, and you review, commit, and push.
   Phase 5. Most of `gaki-tui/README.md` still describes the subprocess era;
   7.2 rewrites it.
 
+- [x] **4.7** Clean up leftover names from earlier generations (Aurelia, Aurelia-TUI,
+  steam-tui, OpenSteamClient) across the repo. *Done.* The 32 `*Json` view
+  models in `app/steam.rs` are named for what they hold (`DlcJson` → `Dlc`,
+  `ConfigJson` → `LauncherSettings`, `AvailableJson` → `PinState`, …), and
+  their comments no longer describe CLI keys and string fallbacks that 4.4
+  removed. `STError` (from steam-tui) is `TuiError`, and
+  `opensteam_image_cache_dir` is `image_cache_dir`. Comments that still said
+  "CLI call" for what is now in-process `libgaki` work are fixed, as are
+  module names that no longer exist (`interface`, `util::http`). The root
+  README lost Aurelia's install channels (AUR, Nix, crates.io, .deb,
+  releases), its published-crates table, wiki links, star history, dead
+  links to `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md`, a broken
+  `#why-gaki-cli` anchor, and false "related projects" claims. In their
+  place: build from source, the three workspace crates, and links into
+  `docs/`. The acknowledgments credit Aurelia, Aurelia-TUI and steam-tui
+  too. `gaki-tui/README.md` now describes the in-process design, not the
+  `aurelia` subprocess. `gaki-tui/docs/FEATURE_PLAN.md`, Aurelia-TUI's
+  branch-workflow notes, is deleted. **Kept on purpose:** the
+  `aurelia-steam-cdn`/`aurelia-steam-vent-chat` crate names (real
+  dependencies), license provenance, the `aurelia-tui` legacy-config
+  migration, and the credits. **Still stale, for 7.2:** the README's
+  Windows/macOS claims (title, the Windows paragraph, `%USERPROFILE%`) and
+  feature rows for code removed in Phase 1 (Windows Steam runtime, umu and
+  luxtorpeda plugins, the GE/CachyOS download manager).
+
 ### Phase 5 — configuration overhaul (R26, R29, R30, R27)
 
 - [ ] **5.1** Add a `libgaki::config` module with TOML types for `config.toml`,

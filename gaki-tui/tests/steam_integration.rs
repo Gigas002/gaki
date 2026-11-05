@@ -23,7 +23,7 @@ fn health_reports_session() {
 fn library_loads_and_maps_to_games() {
     // A single fetch, mapped 1:1 (a second library fetch can legitimately
     // return a different count as family-shared/online data resolves).
-    let raw = steam::fetch_library().expect("list --json should parse");
+    let raw = steam::fetch_library().expect("the library should load");
     assert!(!raw.is_empty(), "expected a non-empty library");
 
     let games: Vec<_> = raw.iter().cloned().map(game::Game::from_library).collect();
@@ -83,7 +83,8 @@ fn friends_search_resolves_a_known_account() {
     // `friends search` is read-only and needs no login: it resolves a SteamID64
     // / profile URL / vanity to a concrete account. Gabe Newell's well-known
     // SteamID64 is a stable fixture.
-    let found = steam::friends_search("76561197960287930").expect("friends search --json");
+    let found =
+        steam::friends_search("76561197960287930").expect("the friend search should resolve");
     assert_eq!(found.steam_id, 76561197960287930);
     assert!(!found.display_name().is_empty(), "expected a display name");
 }
@@ -93,7 +94,7 @@ fn friends_search_resolves_a_known_account() {
 fn info_parses_developers_and_publishers() {
     let raw = steam::fetch_library().expect("list");
     let app_id = raw[0].app_id as i32;
-    let info = steam::fetch_info(app_id).expect("info --json should parse");
+    let info = steam::fetch_info(app_id).expect("the store info should load");
     assert_eq!(info.app_id, app_id as u32);
     assert!(!info.name.is_empty());
 }

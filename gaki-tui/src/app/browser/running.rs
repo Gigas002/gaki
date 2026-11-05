@@ -21,7 +21,7 @@ impl Browser {
     }
 
     /// The highlighted running game, if any.
-    pub fn selected_running(&self) -> Option<&steam::RunningJson> {
+    pub fn selected_running(&self) -> Option<&steam::RunningGame> {
         self.running.get(self.running_index)
     }
 

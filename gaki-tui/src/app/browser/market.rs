@@ -127,7 +127,7 @@ impl Browser {
 
     /// Adopt any completed search/price result published by the worker threads,
     /// updating the results list and status line. Called once per frame from the
-    /// event loop; cheap and non-blocking (no disk/CLI access on the UI thread).
+    /// event loop; cheap and non-blocking (no disk or network access on the UI thread).
     pub fn poll_market(&mut self) {
         if !self.show_market_search {
             return;
@@ -206,7 +206,7 @@ impl Browser {
     }
 
     /// The highlighted search result, if any.
-    pub fn selected_market_result(&self) -> Option<&steam::MarketSearchResultJson> {
+    pub fn selected_market_result(&self) -> Option<&steam::MarketSearchResult> {
         self.market_results.get(self.market_results_index)
     }
 
