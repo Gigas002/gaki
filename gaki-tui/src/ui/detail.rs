@@ -1,6 +1,6 @@
 //! The detail pane for the selected game.
 
-use crate::util::bytes::convert;
+use crate::utils::bytes::convert;
 
 use ratatui::layout::Constraint;
 use ratatui::style::Style;
@@ -9,7 +9,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, Table};
 
 use crate::interface::game::Game;
 use crate::theme;
-use crate::util::stateful::Named;
+use crate::utils::stateful::Named;
 
 /// How many wrapped lines of the description to show while collapsed. Pressing
 /// `[i]` removes this cap; the available panel height still bounds the row.

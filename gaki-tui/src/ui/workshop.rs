@@ -7,7 +7,7 @@
 //!
 //! Both are pure builders from `browse::Browser` + `theme`.
 
-use crate::util::bytes::convert;
+use crate::utils::bytes::convert;
 
 use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};

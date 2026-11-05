@@ -1,6 +1,7 @@
 extern crate gaki_tui;
 
 use std::io;
+use std::process::ExitCode;
 use std::time::Instant;
 
 use ratatui::crossterm::event::{DisableMouseCapture, EnableMouseCapture, KeyCode};
@@ -16,15 +17,20 @@ use ratatui_image::protocol::{Protocol, halfblocks::Halfblocks};
 use gaki_tui::browse::{Action, Browser, Filter, InstallPhase, View};
 use gaki_tui::theme;
 use gaki_tui::ui;
-use gaki_tui::util::event::{Event, Events};
-use gaki_tui::util::image as artwork;
-use gaki_tui::util::image::ImageSlot;
+use gaki_tui::utils::event::{Event, Events};
+use gaki_tui::utils::image as artwork;
+use gaki_tui::utils::image::ImageSlot;
+
+use clap::Parser;
 
 use gaki_tui::app::{App, Mode};
+use gaki_tui::cli::CliOptions;
 use gaki_tui::client::{Client, State};
 use gaki_tui::config::Config;
 use gaki_tui::interface::aurelia::{self, LoginPhase};
-use gaki_tui::util::stateful::Named;
+use gaki_tui::logger;
+use gaki_tui::settings::{Settings, Start};
+use gaki_tui::utils::stateful::Named;
 
 /// Blend `img` toward `bg` so the top-aligned cover art reads as a translucent
 /// background: a uniform base blend keeps the overlaid text legible everywhere,
@@ -1793,7 +1799,7 @@ fn entry() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Launch directly into a full-screen chat with a single friend. Used when the
-/// binary is invoked as `gaki --chat <steamid> <name>` — the Friends
+/// binary is invoked as `gaki --chat <steamid> --name <name>` — the Friends
 /// panel's "open in new terminal" action (`t`) spawns exactly this in a fresh
 /// console window. Reuses the shared chat widget and the `Browser` chat state.
 fn chat_entry(steamid: u64, name: String) -> Result<(), Box<dyn std::error::Error>> {
@@ -1840,32 +1846,39 @@ fn chat_entry(steamid: u64, name: String) -> Result<(), Box<dyn std::error::Erro
     Ok(())
 }
 
-fn main() {
+fn main() -> ExitCode {
+    let cli = CliOptions::parse();
+    let settings = match Settings::resolve(cli) {
+        Ok(settings) => settings,
+        Err(err) => {
+            eprintln!("gaki: {err:#}");
+            return ExitCode::FAILURE;
+        }
+    };
     // Route libgaki's (and the artwork loader's) HTTP through the configured
     // proxy. This sets env vars, so it must run before any thread starts.
-    libgaki::core::net::install_proxy_env(&libgaki::core::config::load_proxy_config_blocking());
-
-    // `gaki --chat <steamid> <name>` opens a dedicated chat window.
-    let args: Vec<String> = std::env::args().collect();
-    if let Some(pos) = args.iter().position(|a| a == "--chat")
-        && let Some(steamid) = args.get(pos + 1).and_then(|s| s.parse::<u64>().ok())
-    {
-        let name = args.get(pos + 2).cloned().unwrap_or_default();
-        if let Err(err) = chat_entry(steamid, name) {
-            println!("{:?}", err);
-        }
-        return;
+    libgaki::core::net::install_proxy_env(&settings.proxy);
+    // Still on a cooked terminal, so a warning here is readable. Running
+    // without a log file beats refusing to start.
+    if let Err(err) = logger::init(&settings) {
+        eprintln!("gaki: logging disabled: {err:#}");
     }
 
-    match entry() {
-        Ok(()) => {}
+    let result = match settings.start {
+        Start::Chat { steamid, name } => chat_entry(steamid, name),
+        Start::Library => entry(),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
-            // entry() bailed before its own cleanup ran, so the terminal is
+            // The loop bailed before its own cleanup ran, so the terminal is
             // still in raw mode with the mouse captured. Restore both before
             // printing or the error lands in a garbled console.
             let _ = disable_raw_mode();
             let _ = execute!(io::stdout(), DisableMouseCapture);
-            println!("{}", err);
+            tracing::error!(error = %err, "gaki-tui exited with an error");
+            eprintln!("gaki: {err}");
+            ExitCode::FAILURE
         }
     }
 }

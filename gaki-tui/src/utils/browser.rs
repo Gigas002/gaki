@@ -1,6 +1,6 @@
 //! Open a URL in the default browser (`xdg-open`). Call from a worker: the
 //! launcher can block while locating or starting the browser.
-use crate::util::error::STError;
+use crate::utils::error::STError;
 use std::process::{Command, Stdio};
 
 pub fn open(url: &str) -> Result<(), STError> {

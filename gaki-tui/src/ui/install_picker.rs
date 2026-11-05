@@ -3,7 +3,7 @@
 //! space, plus the game's estimated on-disk size. Drives without room are
 //! marked and can't be chosen.
 
-use crate::util::bytes::convert;
+use crate::utils::bytes::convert;
 
 use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};

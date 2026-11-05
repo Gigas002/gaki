@@ -1,7 +1,7 @@
 //! The Steam Cloud overlay: lists the selected game's Cloud save files, with
 //! keys to sync them — `s` both ways, `d` download-only, `u` upload-only.
 
-use crate::util::bytes::convert;
+use crate::utils::bytes::convert;
 
 use ratatui::layout::Constraint;
 use ratatui::text::Span;

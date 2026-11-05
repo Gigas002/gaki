@@ -824,6 +824,35 @@ I make the changes, and you review, commit, and push.
   `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
 - [ ] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
   `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
+  Split into four commits. Test files keep their current layout until 7.4.
+  - [x] **4.5a** Entry plumbing. `util/` → `utils/`. A clap `cli/` replaces the
+    hand-parsed `--chat <steamid> <name>` with `--chat <STEAMID> [--name <NAME>]`,
+    and adds `--log-level`. `settings/` resolves `CliOptions` (plus the proxy
+    config) into `Settings`. `logger/` sets up a `tracing` subscriber that writes
+    to `$XDG_STATE_HOME/gaki/gaki-tui.log` and never to the terminal. That
+    replaces the `log!` macro. `main` becomes parse → resolve → proxy → logger →
+    run.
+    *Done.* The log path comes from a new `libgaki::core::config::state_dir()`,
+    which honours `XDG_STATE_HOME` and ignores a relative value, as the XDG spec
+    says (D10's `account.toml` will use it too). The file is opened append-only
+    and `0600`, since it can hold account names and SteamIDs. The default level
+    is `info`, and `--log-level off` creates no file. A failure to set up logging
+    prints a warning and the TUI starts anyway. The Friends panel's `t` now
+    spawns `--chat <id> --name=<name>`, so a name starting with `-` isn't read as
+    a flag. Errors from the run loop go to the log and to stderr, and the exit
+    code is non-zero. **Found on the way:** `config_dir()` hard-codes
+    `~/.config/gaki` and ignores `XDG_CONFIG_HOME`, which §11.5 requires; that
+    fix fits 4.6, which moves the TUI's dirs anyway.
+  - [ ] **4.5b** Move the two run loops (`entry`, `chat_entry`) out of `main.rs`.
+    Event handling and key dispatch go to `app/`, the frame drawing to `ui/`
+    (`ui::draw`), and the artwork helpers (`cover_resize`, `fade_bottom`,
+    `halfblock_art`) to `ui/artwork.rs`.
+  - [ ] **4.5c** Split `browse.rs` (the `Browser` state machine) into
+    `app/browser/`, one file per view's state and actions.
+  - [ ] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
+    `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
+    `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,
+    `app`, `ui` and `utils`.
 - [ ] **4.6** Rename the TUI binary from `gaki` to `gaki-tui` (D7): the `[[bin]]` name,
   the clap command name, the footer badge (`gaki-tui vX.Y.Z`), help text,
   `deploy.yml` artifacts, and docs. Move the TUI's own settings and cache from

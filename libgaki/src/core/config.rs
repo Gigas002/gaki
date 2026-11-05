@@ -249,6 +249,25 @@ pub fn data_dir() -> Result<PathBuf> {
     config_dir()
 }
 
+/// gaki's state directory: `$XDG_STATE_HOME/gaki`, or `~/.local/state/gaki`.
+/// Holds data worth keeping between runs that isn't config, such as logs.
+pub fn state_dir() -> Result<PathBuf> {
+    state_dir_from(std::env::var_os("XDG_STATE_HOME"), home_dir)
+}
+
+/// [`state_dir`] with its environment passed in. The XDG spec says a relative
+/// `XDG_STATE_HOME` is invalid and must be ignored, the same as an unset one.
+fn state_dir_from(
+    xdg_state_home: Option<std::ffi::OsString>,
+    home: impl FnOnce() -> Result<PathBuf>,
+) -> Result<PathBuf> {
+    let base = match xdg_state_home.map(PathBuf::from) {
+        Some(dir) if dir.is_absolute() => dir,
+        _ => home()?.join(".local").join("state"),
+    };
+    Ok(base.join("gaki"))
+}
+
 /// Stored session (`session.json`) path.
 pub fn session_path() -> Result<PathBuf> {
     Ok(config_dir()?.join("session.json"))

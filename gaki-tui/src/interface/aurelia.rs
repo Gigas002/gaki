@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::app::worker;
 use crate::interface::game_status::GameStatus;
-use crate::util::error::STError;
+use crate::utils::error::STError;
 use libgaki::ops::config::{Change, GameSettingsChange};
 
 /// Session health.

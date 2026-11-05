@@ -17,7 +17,7 @@ use crate::interface::aurelia::{self, AccountJson, ConfigJson};
 use crate::interface::game::Game;
 use crate::interface::game_status::GameStatus;
 use crate::theme;
-use crate::util::error::STError;
+use crate::utils::error::STError;
 
 /// The quick-filter tabs along the top of the library.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1528,7 +1528,7 @@ impl Browser {
     }
 
     /// Open a dedicated chat **in a new terminal window** with the highlighted
-    /// friend: spawns this same binary with `--chat <steamid> <name>`, which
+    /// friend: spawns this same binary with `--chat <steamid> --name <name>`, which
     /// launches straight into the full-screen chat loop. A missing selection or
     /// spawn failure is a no-op (the panel stays as-is).
     pub fn open_chat_terminal(&self) {
@@ -1545,7 +1545,8 @@ impl Browser {
 
         // Best-effort: launch the chat binary directly, detached.
         let _ = std::process::Command::new(&exe)
-            .args(["--chat", &id, &name])
+            // `--name=` keeps a name that starts with `-` from reading as a flag.
+            .args(["--chat", &id, &format!("--name={name}")])
             .spawn();
     }
 

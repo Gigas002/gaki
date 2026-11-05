@@ -72,3 +72,20 @@ fn proxy_config_omits_empty_and_round_trips() {
     let back: ProxyConfig = serde_json::from_str(&serde_json::to_string(&proxy).unwrap()).unwrap();
     assert_eq!(back, proxy);
 }
+
+#[test]
+fn state_dir_uses_an_absolute_xdg_state_home() {
+    let dir = state_dir_from(Some("/xdg/state".into()), || unreachable!()).unwrap();
+    assert_eq!(dir, PathBuf::from("/xdg/state/gaki"));
+}
+
+#[test]
+fn state_dir_ignores_unset_or_relative_xdg_state_home() {
+    let home = || Ok(PathBuf::from("/home/u"));
+    let expected = PathBuf::from("/home/u/.local/state/gaki");
+    assert_eq!(state_dir_from(None, home).unwrap(), expected);
+    assert_eq!(
+        state_dir_from(Some("rel/state".into()), home).unwrap(),
+        expected
+    );
+}

@@ -7,9 +7,8 @@ use crate::interface::aurelia::{self, LoginPhase};
 use crate::interface::game::{self, Game};
 use crate::interface::game_status::GameStatus;
 
-use crate::util::error::STError;
-use crate::util::log::log;
-use crate::util::paths::{cache_location, invalidate_cache};
+use crate::utils::error::STError;
+use crate::utils::paths::{cache_location, invalidate_cache};
 
 use std::fs;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -78,7 +77,7 @@ fn handle_login(
 ) -> Result<(), STError> {
     let (next, err, who) = match aurelia::health() {
         Ok(health) if health.logged_in => {
-            log!("session authenticated", health.account);
+            tracing::info!(account = ?health.account, "session authenticated");
             // The footer shows `steam: {who}`. Prefer the Steam persona / display
             // name over the login (account) name: the health probe only reports
             // the account name, so resolve the persona for our own SteamID via
@@ -95,11 +94,11 @@ fn handle_login(
             (State::Loaded(0, -2), None, who)
         }
         Ok(_) => {
-            log!("session not authenticated");
+            tracing::info!("session not authenticated");
             (State::Failed, None, None)
         }
         Err(err) => {
-            log!("session health check failed", err);
+            tracing::warn!(error = %err, "session health check failed");
             (State::Failed, Some(format!("{}", err)), None)
         }
     };
@@ -116,10 +115,10 @@ fn handle_load_games(state: &Arc<Mutex<State>>) -> Result<(), STError> {
             games.sort_by_key(|a| a.name.to_lowercase());
             fs::write(cache_location()?, serde_json::to_string(&games)?)?;
             *state.lock()? = State::LoggedIn;
-            log!("Loaded library", games.len());
+            tracing::info!(games = games.len(), "loaded library");
         }
         Err(err) => {
-            log!("Failed to load library", err);
+            tracing::warn!(error = %err, "failed to load library");
             *state.lock()? = State::Terminated(format!("Failed to load library:\n{}", err));
         }
     }
@@ -164,7 +163,7 @@ fn execute(
                     let next = match result {
                         Ok(()) => State::Loaded(0, -2),
                         Err(err) => {
-                            log!("QR login failed", err);
+                            tracing::warn!(error = %err, "QR login failed");
                             if let Ok(mut e) = last_error.lock() {
                                 *e = Some(format!("QR sign-in failed: {}", err));
                             }
@@ -185,7 +184,7 @@ fn execute(
                     {
                         Ok(()) => State::Loaded(0, -2),
                         Err(err) => {
-                            log!("classic login failed", err);
+                            tracing::warn!(error = %err, "classic login failed");
                             if let Ok(mut e) = last_error.lock() {
                                 *e = Some(format!("Sign-in failed: {}", err));
                             }
@@ -204,7 +203,7 @@ fn execute(
                 // Drop the cached library so the next load is a fresh fetch.
                 let _ = invalidate_cache();
                 *state.lock()? = State::LoggedOut;
-                log!("Restarting for user", user);
+                tracing::info!(user = ?user, "restarting for user");
                 handle_login(&state, &last_error, &account)?;
             }
             Command::Install(id, status, control, library) => {
@@ -515,7 +514,7 @@ impl Default for Client {
 #[cfg(test)]
 mod tests {
     use crate::client::Client;
-    use crate::util::error::STError;
+    use crate::utils::error::STError;
 
     #[test]
     fn test_blank_login() {

@@ -1,5 +1,5 @@
-use crate::util::error::STError;
-use crate::util::paths::config_location;
+use crate::utils::error::STError;
+use crate::utils::paths::config_location;
 
 use crate::interface::game::GameType;
 

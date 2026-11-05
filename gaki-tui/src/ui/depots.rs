@@ -1,7 +1,7 @@
 //! The depots overlay (modal popup): the selected game's depots, each with its
 //! id/name and human-readable size. Read-only; j/k scroll.
 
-use crate::util::bytes::convert;
+use crate::utils::bytes::convert;
 
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;

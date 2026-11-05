@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 
 use crate::interface::game::Game;
-use crate::util::paths::{icon_exists, icon_save};
+use crate::utils::paths::{icon_exists, icon_save};
 
 pub type ImgBuf = image::ImageBuffer<image::Rgba<u8>, Vec<u8>>;
 
@@ -55,7 +55,7 @@ fn request(id: i32, kind: ImageKind, url: Option<String>, slot: ImageSlot) {
         let buf = match load_cached(id, kind) {
             Some(buf) => Some(buf),
             None => url.and_then(|url| {
-                let bytes = crate::util::http::get(&url)?;
+                let bytes = crate::utils::http::get(&url)?;
                 let _ = icon_save(id, kind.suffix(), &bytes);
                 image::load_from_memory(&bytes).ok().map(|d| d.to_rgba8())
             }),

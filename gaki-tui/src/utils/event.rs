@@ -6,8 +6,6 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-use crate::util::log::log;
-
 use ratatui::crossterm::event::{
     Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, read,
 };
@@ -73,7 +71,7 @@ impl Events {
                             // A read error (e.g. the terminal going away on
                             // shutdown) must not panic and silently kill input;
                             // log it and stop the thread cleanly.
-                            log!(err);
+                            tracing::warn!(error = %err, "terminal input read failed");
                             return;
                         }
                     };
@@ -103,7 +101,7 @@ impl Events {
                     if let Some(kc) = code
                         && let Err(err) = tx.send(Event::Input(kc))
                     {
-                        log!(err);
+                        tracing::debug!(error = %err, "input channel closed");
                         return;
                     }
                     if stop.load(Ordering::Relaxed) {

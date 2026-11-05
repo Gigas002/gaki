@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use crate::interface::aurelia::{self, InfoJson, LibraryGameJson};
 use crate::interface::game_status::GameStatus;
 use crate::interface::proton_data;
-use crate::util::{error::STError, stateful::Named};
+use crate::utils::{error::STError, stateful::Named};
 
 use crate::config::Config;
 

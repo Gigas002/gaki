@@ -5,7 +5,7 @@ use ratatui::widgets::{List, ListItem};
 
 use crate::browse::{Browser, badge};
 use crate::theme;
-use crate::util::stateful::Named;
+use crate::utils::stateful::Named;
 
 /// Width of the highlight symbol ("▶ ") the `List` reserves on every row.
 const HIGHLIGHT_W: usize = 2;

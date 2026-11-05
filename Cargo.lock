@@ -1475,6 +1475,7 @@ name = "gaki-tui"
 version = "0.1.41"
 dependencies = [
  "anyhow",
+ "clap",
  "fuzzy-matcher",
  "image",
  "libgaki",
@@ -1487,6 +1488,8 @@ dependencies = [
  "shellexpand",
  "tempfile",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

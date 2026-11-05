@@ -18,7 +18,7 @@ const PROTON_API: &str = "https://www.protondb.com/api/v1/reports/summaries";
 impl ProtonData {
     pub fn get(id: i32) -> Option<Self> {
         let url = format!("{}/{}.json", PROTON_API, id);
-        let body = crate::util::http::get(&url)?;
+        let body = crate::utils::http::get(&url)?;
         serde_json::from_slice(&body).ok()
     }
 

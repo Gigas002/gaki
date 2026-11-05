@@ -2,7 +2,7 @@
 //! current manifests, its pin state, and a prompt to downgrade the highlighted
 //! depot to a specific (usually older) manifest id.
 
-use crate::util::bytes::convert;
+use crate::utils::bytes::convert;
 
 use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
