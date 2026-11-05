@@ -97,6 +97,24 @@ impl SteamClient {
         Ok(())
     }
 
+    /// Revoke `refresh_token` at Steam for good (`Authentication.RevokeToken`,
+    /// permanent), so a copy of it stops working too. Needs a live connection.
+    pub async fn revoke_refresh_token(&self, refresh_token: &str) -> Result<()> {
+        use steam_vent::ConnectionTrait;
+        use steam_vent_proto::steammessages_auth_steamclient::{
+            CAuthentication_Token_Revoke_Request, EAuthTokenRevokeAction,
+        };
+        let connection = self.require_connection()?;
+        let mut request = CAuthentication_Token_Revoke_Request::new();
+        request.set_token(refresh_token.to_owned());
+        request.set_revoke_action(EAuthTokenRevokeAction::k_EAuthTokenRevokePermanent);
+        connection
+            .service_method(request)
+            .await
+            .context("Steam refused to revoke the refresh token")?;
+        Ok(())
+    }
+
     pub async fn get_app_ticket(&self, appid: u32) -> Result<Vec<u8>> {
         let connection = self.require_connection()?;
 

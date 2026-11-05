@@ -145,9 +145,61 @@ pub async fn secure_session(client: &SteamClient) {
     }
 }
 
-/// Drop the connection and delete the stored session.
-pub async fn logout(client: &mut SteamClient) -> Result<()> {
-    client.logout().await
+/// How long [`logout`] waits for Steam to revoke the token.
+pub const REVOKE_TIMEOUT: Duration = Duration::from_secs(20);
+
+/// What [`logout`] did about the refresh token at Steam.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(tag = "revocation", content = "reason", rename_all = "snake_case")]
+pub enum Revocation {
+    /// Steam revoked it: copies of it no longer work.
+    Revoked,
+    /// No refresh token was stored (logged out, or a web token only).
+    NoToken,
+    /// Steam couldn't be asked; the token may work until it expires.
+    Failed(String),
+}
+
+/// Revoke the stored refresh token at Steam, then drop the connection and
+/// delete the stored session. The local copy is deleted even when the
+/// revocation fails; the returned [`Revocation`] says which happened. Only
+/// failing to delete the local copy is an error. A browser web token can't
+/// be revoked; it expires on its own.
+pub async fn logout(client: &mut SteamClient) -> Result<Revocation> {
+    let revocation = revoke(client).await;
+    if let Revocation::Failed(reason) = &revocation {
+        tracing::warn!("could not revoke the refresh token at Steam: {reason}");
+    }
+    client.logout().await?;
+    Ok(revocation)
+}
+
+async fn revoke(client: &mut SteamClient) -> Revocation {
+    use secrecy::ExposeSecret;
+    let session = match load_session().await {
+        Ok(session) => session,
+        Err(e) => return Revocation::Failed(format!("{e:#}")),
+    };
+    let Some(token) = session
+        .refresh_token
+        .filter(|t| !t.expose_secret().trim().is_empty())
+    else {
+        return Revocation::NoToken;
+    };
+    let attempt = async {
+        if !client.is_authenticated() {
+            client.restore_session().await?;
+        }
+        client.revoke_refresh_token(token.expose_secret()).await
+    };
+    match tokio::time::timeout(REVOKE_TIMEOUT, attempt).await {
+        Ok(Ok(())) => Revocation::Revoked,
+        Ok(Err(e)) => Revocation::Failed(format!("{e:#}")),
+        Err(_) => Revocation::Failed(format!(
+            "Steam did not answer within {}s",
+            REVOKE_TIMEOUT.as_secs()
+        )),
+    }
 }
 
 pub use crate::auth::StoredAccount as StoredSession;

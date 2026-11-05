@@ -492,14 +492,31 @@ pub(crate) fn report_login_success(account: &str, json: bool) {
 }
 
 pub(crate) async fn cmd_logout(json: bool) -> Result<()> {
-    // No restore: a session that can't be restored must still be removable.
-    // In the daemon, the shared session is dropped after this command.
-    let mut client = libgaki::steam_client::SteamClient::new()?;
-    libgaki::ops::auth::logout(&mut client).await?;
-    if json {
-        print_json(&serde_json::json!({ "logged_out": true }));
+    use libgaki::ops::auth::Revocation;
+    // The daemon's live session can revoke without a second logon. Standalone,
+    // logout restores only to revoke: a session that can't be restored is
+    // still removed. In the daemon, the shared session is dropped afterwards.
+    let mut client = if daemon::in_daemon() {
+        daemon::shared_restored_client().await
     } else {
-        cli_println!("Logged out.");
+        libgaki::steam_client::SteamClient::new()?
+    };
+    let revocation = libgaki::ops::auth::logout(&mut client).await?;
+    if json {
+        print_json(&serde_json::json!({ "logged_out": true, "token": revocation }));
+        return Ok(());
+    }
+    match &revocation {
+        Revocation::Revoked => cli_println!("Logged out; Steam revoked the refresh token."),
+        Revocation::NoToken => cli_println!("Logged out."),
+        Revocation::Failed(reason) => {
+            cli_println!("Logged out locally.");
+            cli_eprintln!(
+                "Warning: Steam could not revoke the refresh token ({reason}); a copy of it \
+                 may keep working until it expires. Revoke it from another device under \
+                 Steam Guard → \"Deauthorize all other devices\" if that matters."
+            );
+        }
     }
     Ok(())
 }

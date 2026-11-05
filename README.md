@@ -198,7 +198,7 @@ of subcommands, or `gaki-cli <command> --help` for a specific one.
 # Account
 gaki-cli login                        # authenticate (prompts for credentials and Steam Guard)
 gaki-cli login --qr --timeout 120     # scan a QR code with the Steam Mobile app; give up after 120 s
-gaki-cli logout                       # clear the stored session
+gaki-cli logout                       # revoke the token at Steam, clear the stored session
 gaki-cli account                      # show account details
 
 # Library

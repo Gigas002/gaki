@@ -791,14 +791,20 @@ pub fn config_proxy_clear() -> Result<(), TuiError> {
     .map(drop)
 }
 
-/// Log out of the current Steam session and delete the stored one.
+/// Revoke the refresh token at Steam, log out, and delete the stored
+/// session. A failed revocation is logged; the local session goes anyway.
 pub fn logout() -> Result<(), TuiError> {
     in_process(async {
         let session = worker::global().session();
-        let mut client = session.ensure().await?;
+        // A live session revokes without a new logon; otherwise logout
+        // restores only to revoke, so a broken session can still be removed.
+        let mut client = match session.client().await {
+            Some(client) if client.is_authenticated() => client,
+            _ => libgaki::steam_client::SteamClient::new()?,
+        };
         let result = libgaki::ops::auth::logout(&mut client).await;
         session.reset().await;
-        result
+        result.map(drop)
     })
 }
 

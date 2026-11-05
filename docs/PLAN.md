@@ -1189,11 +1189,24 @@ I make the changes, and you review, commit, and push.
   errors can't echo one. Left as is: the plain copies handed to
   steam-vent's `Connection::access`/login and the TUI's password input
   buffer.
-- [ ] **5.11** Make logout revoke at Steam. Call
+- [x] **5.11** Make logout revoke at Steam. Call
   `Authentication.RevokeRefreshToken` before deleting the local copy. If
   steam-vent doesn't expose it, hand-wire it as the CloudConfigStore RPC is.
   If revocation fails, delete locally anyway and say the token may still be
   valid until it expires.
+  *Done.* steam-vent already exposes `Authentication.RevokeToken#1`
+  (`CAuthentication_Token_Revoke_Request`: the token plus a revoke action),
+  which is how a client revokes its own refresh token, so nothing needed
+  hand-wiring; `RevokeRefreshToken` takes a token id and a device signature
+  and is for revoking other sessions. `SteamClient::revoke_refresh_token`
+  sends it as `k_EAuthTokenRevokePermanent`. `ops::auth::logout` restores
+  the session if needed (the daemon and the TUI use their live one), revokes
+  within 20 s, then deletes the local session whatever happened, and returns
+  a `Revocation` (`revoked`, `no_token`, `failed` with the reason). The CLI
+  prints it (`--json`: `"token": {"revocation": ...}`); on failure it warns
+  that a copy may work until it expires. The TUI's logout no longer needs a
+  restorable session either. A browser web token can't be revoked; it
+  expires on its own. Not tested against Steam (needs an account).
 - [ ] **5.12** Harden the daemon. The socket lives only under
   `$XDG_RUNTIME_DIR` (with no `/tmp` fallback; refuse to start without it).
   Create it `0600` inside a `0700` `gaki/` directory, check `SO_PEERCRED` so

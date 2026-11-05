@@ -91,6 +91,22 @@ fn logout_clears_the_account() {
     assert!(out.status.success(), "logout failed: {}", stderr(&out));
     assert!(!tmp.path().join("account.toml").exists());
     assert!(!tmp.path().join("session.json").exists());
+    // The token couldn't be read, so Steam couldn't revoke it: say so.
+    let err = stderr(&out);
+    assert!(
+        err.contains("could not revoke") && err.contains("until it expires"),
+        "missing revocation warning: {err}"
+    );
+}
+
+#[test]
+fn logout_without_a_session_has_nothing_to_revoke() {
+    let tmp = config_dir();
+    let out = gaki_cli(tmp.path(), &["--json", "logout"]);
+    assert!(out.status.success(), "logout failed: {}", stderr(&out));
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(json["logged_out"], true);
+    assert_eq!(json["token"]["revocation"], "no_token", "{json}");
 }
 
 mod daemon_e2e {
