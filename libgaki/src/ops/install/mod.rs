@@ -726,8 +726,8 @@ pub async fn check_updates(client: &mut SteamClient) -> Result<UpdateCheck> {
     tracing::info!("Checking {} installed game(s) for updates ...", games.len());
     client.check_for_updates(&mut games).await?;
 
-    let cfg = load_launcher_config().await?;
-    let is_pinned = |app_id: u32| cfg.game_configs.get(&app_id).is_some_and(|g| g.pinned);
+    let pins = crate::core::config::load_pins()?;
+    let is_pinned = |app_id: u32| pins.contains_key(&app_id);
     let installed = games.len();
     let (mut pinned, rest): (Vec<LibraryGame>, Vec<LibraryGame>) =
         games.into_iter().partition(|g| is_pinned(g.app_id));

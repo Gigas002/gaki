@@ -1098,9 +1098,34 @@ I make the changes, and you review, commit, and push.
     to change them. Removed: the TUI's forced-Proton row,
     `GameSettingsChange`, `GameSettings`, `update_game`, `platform_name`
     and `Change::apply_to` from `ops::config`.
-- [ ] **5.8** Remove the JSON config code paths. Caches can stay JSON, because
-  ARCHITECTURE requires TOML only for user configuration files. Confirm that
-  this split is fine.
+- [ ] **5.8** Remove the JSON config code paths. *Decided:* every file gaki
+  stores becomes TOML, in the same directory under the same name, caches
+  included (`--json` output and Steam's JSON APIs are not files and stay).
+  No migration: `config check` warns about a leftover `config.json` or
+  `user_apps.json`. Split into:
+  - [x] **5.8a** Settings. *Done.* `config.json` is gone: its last settings
+    are `config.toml` keys, `default_proton` (what `proton default` sets; the
+    build for a Windows launch whose profile names none) and, until 5.9,
+    `keyring` and `encrypt_session`. `LauncherConfig` is now a plain view of
+    `config.toml` (`from_config`), so the `TomlOverlay` bridge, the blocking
+    JSON readers, `ops::config::update` and `save_launcher_config` are gone.
+    Version pins live in `<config dir>/pins.toml` (one table per app id,
+    depot = "manifest id", strings since manifest ids exceed TOML's integer
+    range), written atomically (`config::edit::write_atomic`). The old
+    per-game forced Proton and platform (`GameConfig`, `BuildPreference`)
+    and `user_apps.json` (launch options, env, graphics layers; nothing wrote
+    it) no longer reach the launch; the in-memory `UserAppConfig` plumbing
+    in the runner stays for now. The TUI's settings moved to
+    `tui/config.toml`; a broken file is logged and left alone instead of
+    being overwritten with defaults, and the copy-over of an
+    `~/.config/aurelia-tui/config.json` is gone.
+  - [ ] **5.8b** gaki's state files to TOML, same paths:
+    `install_backlog`, `collections`, `running/<app id>`, the cloud-sync
+    state. (`session.json` goes in 5.9.)
+  - [ ] **5.8c** Caches and launch-log artifacts to TOML: `library_cache`,
+    the info and name caches, the TUI's `games` cache, `summary`,
+    `effective_env` and the other log files. Drop `serde_json` where only
+    files used it.
 
 **Credentials (D10).** The following steps implement the model described in
 "Authentication and session security". They come after 5.1, which adds the

@@ -116,8 +116,10 @@ impl Runner for WineTkgRunner {
         let (_install_dir, _executable, game_working_dir) = ctx.game_paths()?;
 
         // Resolve proton version for component detection and DLL path building
-        let proton = forced_proton(ctx)
-            .or_else(|| ctx.proton_path.as_deref().filter(|p| !p.is_empty()))
+        let proton = ctx
+            .proton_path
+            .as_deref()
+            .filter(|p| !p.is_empty())
             .unwrap_or("wine");
 
         let active_runner_path = crate::core::utils::resolve_runner(proton, library_root);
@@ -788,30 +790,15 @@ pub(super) fn resolve_steam_mode(
     SteamMode::Standalone
 }
 
-/// Per-game forced Proton/runner override, if one is configured.
-fn forced_proton(ctx: &LaunchContext) -> Option<&str> {
-    ctx.launcher_config
-        .game_configs
-        .get(&ctx.app.app_id)
-        .and_then(|c| c.forced_proton_version.as_ref())
-        .map(|s| s.as_str())
-}
-
 /// Resolve the Proton/runner identifier, erroring if none is available.
-///
-/// Prefers a per-game forced version, then the context's `proton_path`.
 fn resolve_proton_required(ctx: &LaunchContext) -> std::result::Result<&str, LaunchError> {
-    if let Some(forced) = forced_proton(ctx) {
-        Ok(forced)
-    } else {
-        ctx.proton_path
-            .as_deref()
-            .filter(|p| !p.is_empty())
-            .ok_or_else(|| {
-                LaunchError::new(
-                    LaunchErrorKind::Environment,
-                    "proton path is required for Windows launch",
-                )
-            })
-    }
+    ctx.proton_path
+        .as_deref()
+        .filter(|p| !p.is_empty())
+        .ok_or_else(|| {
+            LaunchError::new(
+                LaunchErrorKind::Environment,
+                "proton path is required for Windows launch",
+            )
+        })
 }

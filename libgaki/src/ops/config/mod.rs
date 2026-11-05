@@ -2,18 +2,14 @@
 //!
 //! Global settings live in `config.toml` and per-game ones in `games.toml`;
 //! both are edited in place, keeping the user's comments
-//! ([`crate::config::edit`]). A few settings not in the TOML model yet still
-//! live in `config.json` ([`load`]/[`update`]): the keyring gate (replaced in
-//! 5.9), the default Proton version, and version pins.
+//! ([`crate::config::edit`]). [`load`] gives the settings the Steam session,
+//! installs and launches read.
 
 use crate::config::edit::{self, TomlFile};
 use crate::config::{Catalog, Config, Platform, Severity, SteamIntegration, ValidationContext};
-use crate::core::config::{
-    LauncherConfig, ProxyConfig, load_launcher_config, load_user_configs, save_launcher_config,
-    save_user_configs,
-};
+use crate::core::config::{LauncherConfig, ProxyConfig, load_launcher_config};
 use crate::core::error::{ErrorKind, TypedError};
-use anyhow::{Context, Result};
+use anyhow::Result;
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
@@ -56,6 +52,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("profiles_dir", KeyKind::Path),
     ("default_profile", KeyKind::Text),
     ("default_platform", KeyKind::Text),
+    ("default_proton", KeyKind::Text),
     ("cloud_sync", KeyKind::Bool),
     ("presence", KeyKind::Text),
     ("proxy", KeyKind::Text),
@@ -63,6 +60,8 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("install_resume", KeyKind::Text),
     ("experimental", KeyKind::Bool),
     ("info_cache_ttl", KeyKind::Integer),
+    ("keyring", KeyKind::Bool),
+    ("encrypt_session", KeyKind::Bool),
 ];
 
 fn config_toml_path() -> Result<PathBuf> {
@@ -192,7 +191,9 @@ pub fn check() -> Result<CheckReport> {
     let catalog = Catalog::load_user()?;
     let home = crate::core::config::home_dir()?;
     let mut issues = catalog.validate(&ValidationContext { home: &home });
-    issues.extend(leftover_scripts(&crate::core::config::config_dir()?));
+    let config_dir = crate::core::config::config_dir()?;
+    issues.extend(leftover_scripts(&config_dir));
+    issues.extend(leftover_json(&config_dir));
     Ok(CheckReport {
         load_errors: catalog
             .load_errors
@@ -232,6 +233,31 @@ pub fn leftover_scripts(config_dir: &std::path::Path) -> Vec<crate::config::Issu
             }
         })
         .collect()
+}
+
+/// A warning for each old JSON settings file in `config_dir`, which gaki no
+/// longer reads.
+pub fn leftover_json(config_dir: &std::path::Path) -> Vec<crate::config::Issue> {
+    [
+        (
+            "config.json",
+            "its settings now live in config.toml (`gaki-cli config set`), and version \
+             pins in pins.toml",
+        ),
+        (
+            "user_apps.json",
+            "per-game settings now live in games.toml (`gaki-cli config game`)",
+        ),
+    ]
+    .into_iter()
+    .map(|(name, instead)| (config_dir.join(name), instead))
+    .filter(|(path, _)| path.exists())
+    .map(|(path, instead)| crate::config::Issue {
+        severity: Severity::Warning,
+        subject: crate::config::Subject::File(path),
+        message: format!("no longer read; {instead}. Delete it once you have moved what you need"),
+    })
+    .collect()
 }
 
 /// One profile, for `profiles list`/`profiles show`.
@@ -327,17 +353,6 @@ pub async fn load() -> Result<LauncherConfig> {
     load_launcher_config().await
 }
 
-/// Load, apply `edit`, and save the launcher configuration. Returns the saved
-/// configuration. Nothing is written if `edit` fails.
-pub async fn update(
-    edit: impl FnOnce(&mut LauncherConfig) -> Result<()>,
-) -> Result<LauncherConfig> {
-    let mut config = load_launcher_config().await?;
-    edit(&mut config)?;
-    save_launcher_config(&config).await?;
-    Ok(config)
-}
-
 /// The experimental-features gate.
 #[derive(Debug, Clone, Copy, serde::Serialize)]
 pub struct ExperimentalStatus {
@@ -406,48 +421,26 @@ pub async fn update_proxy(change: ProxyChange) -> Result<ProxyConfig> {
     Ok(proxy(config))
 }
 
-/// App ids that have any per-game settings, in either store.
+/// App ids with a `games.toml` entry.
 pub async fn games_with_settings() -> Result<BTreeSet<u32>> {
-    let config = load().await?;
-    let user_configs = load_user_configs().await?;
     let entries: crate::config::GamesFile = TomlFile::open(&games_toml_path()?)?.parse()?;
-    Ok(config
-        .game_configs
-        .keys()
-        .chain(user_configs.keys())
-        .copied()
-        .chain(entries.games.iter().map(|game| game.app_id))
-        .collect())
+    Ok(entries.games.iter().map(|game| game.app_id).collect())
 }
 
-/// Reset every game's per-game settings (both stores). Returns how many games
-/// had settings.
+/// Remove every game's `games.toml` entry. Returns how many there were.
 pub async fn clear_all_game_settings() -> Result<usize> {
-    let count = games_with_settings().await?.len();
-    if count == 0 {
-        return Ok(0);
-    }
     let mut games = TomlFile::open(&games_toml_path()?)?;
-    if edit::clear_games(&mut games.doc) > 0 {
+    let count = edit::clear_games(&mut games.doc);
+    if count > 0 {
         games.save()?;
     }
-    update(|c| {
-        c.game_configs.clear();
-        Ok(())
-    })
-    .await
-    .context("failed saving game config")?;
-    save_user_configs(&Default::default())
-        .await
-        .context("failed saving per-game config")?;
     Ok(count)
 }
 
 /// A change to one game's `games.toml` entry.
 #[derive(Debug, Clone, Default)]
 pub struct GameEntryChange {
-    /// Remove the entry (and the game's `config.json` settings); the other
-    /// fields are ignored.
+    /// Remove the entry; the other fields are ignored.
     pub reset: bool,
     pub name: Change<String>,
     pub profile: Change<String>,
@@ -490,21 +483,12 @@ pub struct GameEntry {
 }
 
 /// Apply `change` to `app_id`'s `games.toml` entry and return the result.
-/// Setting anything also drops the game's old `config.json` launch settings
-/// (forced Proton, platform), which would otherwise still win.
 /// Returns whether anything changed.
 pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(GameEntry, bool)> {
     let mut file = TomlFile::open(&games_toml_path()?)?;
     let mut changed = false;
     if change.reset {
         changed |= edit::remove_game(&mut file.doc, app_id);
-        let mut user_configs = load_user_configs().await?;
-        if user_configs.remove(&app_id).is_some() {
-            save_user_configs(&user_configs)
-                .await
-                .context("failed saving per-game config")?;
-            changed = true;
-        }
     } else if !change.is_noop() {
         let table = edit::game_mut(&mut file.doc, app_id);
         let text = |change: Change<String>| match change {
@@ -560,19 +544,6 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
     if changed {
         file.save()?;
     }
-    if changed || change.reset {
-        let mut config = load().await?;
-        if let Some(legacy) = config.game_configs.get_mut(&app_id) {
-            let had = legacy.forced_proton_version.take().is_some()
-                | legacy.platform_preference.take().is_some();
-            if had {
-                save_launcher_config(&config)
-                    .await
-                    .context("failed saving game config")?;
-            }
-        }
-    }
-
     let settings = crate::settings::resolve(
         &catalog,
         app_id,

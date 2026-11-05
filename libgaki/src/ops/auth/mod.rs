@@ -134,11 +134,7 @@ pub async fn secure_session(client: &SteamClient) {
     let persona = client.own_persona_name().await;
     let result = async {
         if !crate::ops::config::load().await?.encrypt_session {
-            crate::ops::config::update(|c| {
-                c.encrypt_session = true;
-                Ok(())
-            })
-            .await?;
+            crate::ops::config::set_global("encrypt_session", Some("true"))?;
         }
         let mut session = load_session().await?;
         if persona.is_some() {

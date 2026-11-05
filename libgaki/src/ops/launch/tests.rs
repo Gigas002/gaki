@@ -28,18 +28,22 @@ fn an_uninstalled_game_is_refused() {
     );
 }
 
-mod build_preference {
-    use super::super::BuildPreference;
+mod choose_proton {
+    use super::super::choose_proton;
     use crate::config::Platform;
-    use crate::core::config::GameConfig;
-    use crate::settings::LaunchSettings;
+    use crate::settings::{LaunchSettings, ProtonBuild, ProtonSettings};
 
-    fn settings(platform: Option<Platform>) -> LaunchSettings {
+    fn settings(platform: Option<Platform>, build: Option<ProtonBuild>) -> LaunchSettings {
         LaunchSettings {
             app_id: 1,
             profile: None,
             platform,
-            proton: None,
+            proton: build.map(|build| ProtonSettings {
+                build,
+                prefix: None,
+                dll_overrides: Default::default(),
+                anticheat: Default::default(),
+            }),
             runner_args: Vec::new(),
             wrappers: Vec::new(),
             debug: false,
@@ -50,45 +54,33 @@ mod build_preference {
         }
     }
 
-    fn legacy(platform: Option<&str>, proton: Option<&str>) -> GameConfig {
-        GameConfig {
-            platform_preference: platform.map(Into::into),
-            forced_proton_version: proton.map(Into::into),
-            ..GameConfig::default()
-        }
+    #[test]
+    fn the_request_wins() {
+        let s = settings(
+            Some(Platform::Windows),
+            Some(ProtonBuild::Steam("p".into())),
+        );
+        assert_eq!(choose_proton(Some("GE"), &s, "dflt").as_deref(), Some("GE"));
     }
 
     #[test]
-    fn resolved_platform_applies_without_a_legacy_setting() {
-        let pref = BuildPreference::new(false, &settings(Some(Platform::Linux)), None);
-        assert_eq!(pref.platform, Some(Platform::Linux));
+    fn windows_uses_the_profile_build_then_the_default() {
+        let s = settings(
+            Some(Platform::Windows),
+            Some(ProtonBuild::Steam("p".into())),
+        );
+        assert_eq!(choose_proton(None, &s, "dflt").as_deref(), Some("p"));
+        let s = settings(Some(Platform::Windows), None);
+        assert_eq!(choose_proton(None, &s, "dflt").as_deref(), Some("dflt"));
+    }
+
+    #[test]
+    fn linux_or_no_platform_picks_no_proton() {
+        let build = || Some(ProtonBuild::Steam("p".into()));
         assert_eq!(
-            BuildPreference::new(false, &settings(None), None).platform,
+            choose_proton(None, &settings(Some(Platform::Linux), build()), "d"),
             None
         );
-    }
-
-    #[test]
-    fn legacy_game_setting_beats_the_resolved_platform() {
-        let game = legacy(Some("windows"), None);
-        let pref = BuildPreference::new(false, &settings(Some(Platform::Linux)), Some(&game));
-        assert_eq!(pref.platform, Some(Platform::Windows));
-
-        let game = legacy(None, Some("GE-Proton"));
-        let pref = BuildPreference::new(false, &settings(None), Some(&game));
-        assert_eq!(
-            pref.platform,
-            Some(Platform::Windows),
-            "a forced Proton means Windows"
-        );
-        assert_eq!(pref.forced_proton.as_deref(), Some("GE-Proton"));
-    }
-
-    #[test]
-    fn command_line_beats_the_legacy_setting() {
-        let game = legacy(Some("windows"), Some("GE-Proton"));
-        let pref = BuildPreference::new(true, &settings(Some(Platform::Linux)), Some(&game));
-        assert_eq!(pref.platform, Some(Platform::Linux));
-        assert_eq!(pref.forced_proton, None, "no Proton for a Linux launch");
+        assert_eq!(choose_proton(None, &settings(None, build()), "d"), None);
     }
 }

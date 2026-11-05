@@ -120,7 +120,7 @@ the list down to just your favourites.
 ### Hiding games
 
 `H` hides the selected game. Hidden games are recorded in
-`~/.config/gaki/tui/config.json`.
+`~/.config/gaki/tui/config.toml`.
 
 ### Showing other app types (demos, tools, …)
 
@@ -132,12 +132,12 @@ field in the config to include any of `Game`, `DLC`, `Driver`, `Application`,
 
 | Path | Contents |
 | --- | --- |
-| `$XDG_CONFIG_HOME/gaki/tui/` (`~/.config/gaki/tui/`) | `config.json` (favourites, hidden games, allowed types, highlight colour) |
+| `$XDG_CONFIG_HOME/gaki/tui/` (`~/.config/gaki/tui/`) | `config.toml` (favourites, hidden games, allowed types, highlight colour) |
 | `$XDG_CACHE_HOME/gaki/tui/` (`~/.cache/gaki/tui/`) | cached library (`games.json`) and cover art (`icons/`) |
 | `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `gaki-tui.log` |
 
-A `config.json` left in the old `~/.config/aurelia-tui/` is copied over on
-the first start. The old directories can be deleted afterwards.
+A `config.json` there, or in the old `~/.config/aurelia-tui/`, is no longer
+read and can be deleted.
 
 Launching and Proton are handled by `libgaki`, the same code as `gaki-cli play`,
 so there are no wrapper scripts or separate runtimes to manage on your side.

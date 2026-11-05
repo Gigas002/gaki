@@ -5,7 +5,6 @@ use crate::commands::common::*;
 
 use anyhow::Result;
 use libgaki::config::Config;
-use libgaki::core::config::LauncherConfig;
 use libgaki::ops::config::{Change, GameEntryChange, ProxyChange};
 
 /// `config show`: the `config.toml` settings, defaults filled in.
@@ -231,18 +230,12 @@ pub(crate) async fn cmd_config_install_resume(
 
 /// `config keyring [true|false]`.
 pub(crate) async fn cmd_config_keyring(enabled: Option<bool>, json: bool) -> Result<()> {
-    // Still in config.json until the credential store replaces it (5.9).
-    let changed = enabled.is_some();
-    let config = match enabled {
-        Some(value) => {
-            libgaki::ops::config::update(|c: &mut LauncherConfig| {
-                c.use_keyring = value;
-                Ok(())
-            })
-            .await?
-        }
-        None => libgaki::ops::config::load().await?,
+    // Until the credential store replaces it (5.9).
+    let changed = match enabled {
+        Some(value) => libgaki::ops::config::set_global("keyring", Some(&value.to_string()))?.1,
+        None => false,
     };
+    let config = libgaki::ops::config::load().await?;
     if json {
         print_json(&serde_json::json!({ "use_keyring": config.use_keyring }));
         return Ok(());

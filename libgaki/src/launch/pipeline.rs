@@ -1518,16 +1518,7 @@ impl LaunchPipeline {
                     runner: EffectiveRunnerConfig {
                         name: ctx.runner.as_ref().map(|r| r.name().to_string()),
                         root: {
-                            let proton = if let Some(forced) = ctx
-                                .launcher_config
-                                .as_ref()
-                                .and_then(|c| c.game_configs.get(&ctx.app_id))
-                                .and_then(|c| c.forced_proton_version.as_ref())
-                            {
-                                forced.as_str()
-                            } else {
-                                ctx.proton_path.as_deref().unwrap_or("wine")
-                            };
+                            let proton = ctx.proton_path.as_deref().unwrap_or("wine");
                             let library_root = ctx
                                 .launcher_config
                                 .as_ref()

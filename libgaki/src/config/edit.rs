@@ -50,18 +50,7 @@ impl TomlFile {
 
     /// Write the document atomically (a temp file renamed over the old one).
     pub fn save(&self) -> Result<()> {
-        let dir = self.path.parent().unwrap_or(Path::new("."));
-        fs::create_dir_all(dir).with_context(|| format!("could not create {}", dir.display()))?;
-        let name = self
-            .path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        let tmp = dir.join(format!(".{name}.tmp"));
-        fs::write(&tmp, self.doc.to_string())
-            .with_context(|| format!("could not write {}", tmp.display()))?;
-        fs::rename(&tmp, &self.path)
-            .with_context(|| format!("could not replace {}", self.path.display()))
+        write_atomic(&self.path, &self.doc.to_string())
     }
 
     /// Set (`Some`) or remove (`None`) a top-level key. Returns whether the
@@ -69,6 +58,20 @@ impl TomlFile {
     pub fn set(&mut self, key: &str, value: Option<Value>) -> bool {
         set_in(self.doc.as_table_mut(), key, value)
     }
+}
+
+/// Write `text` to `path` through a temporary file in the same directory, so
+/// a reader never sees half a file. Creates the directory.
+pub fn write_atomic(path: &Path, text: &str) -> Result<()> {
+    let dir = path.parent().unwrap_or(Path::new("."));
+    fs::create_dir_all(dir).with_context(|| format!("could not create {}", dir.display()))?;
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let tmp = dir.join(format!(".{name}.tmp"));
+    fs::write(&tmp, text).with_context(|| format!("could not write {}", tmp.display()))?;
+    fs::rename(&tmp, path).with_context(|| format!("could not replace {}", path.display()))
 }
 
 /// Set or remove `key` in `table`, keeping the comment above an existing key.

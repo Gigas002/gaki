@@ -12,6 +12,10 @@ default_profile = "proton"
 # Unset: install the Windows build, run whichever build is installed.
 default_platform = "linux"
 
+# The Proton build for a Windows launch whose profile names none: an official
+# build name or a path. `gaki-cli proton default` sets it. Default: experimental.
+# default_proton = "Proton 9.0"
+
 cloud_sync = true
 
 # Steam presence while gaki is signed in: offline | online.
@@ -26,3 +30,6 @@ install_resume = "manual"
 
 # Share profiles with lootrs.
 # profiles_dir = "~/.config/lootrs/profiles"
+
+# Use the OS keyring for the session key; turn off on headless machines.
+# keyring = true

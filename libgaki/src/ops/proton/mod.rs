@@ -75,12 +75,9 @@ pub async fn start_install(
 /// Make `name` the global default Proton version. Returns whether a runtime
 /// with that name is installed (the default is saved either way).
 pub async fn set_default(name: &str) -> Result<bool> {
-    let config = crate::ops::config::update(|c| {
-        c.proton_version = name.to_string();
-        Ok(())
-    })
-    .await
-    .context("failed saving the default Proton version")?;
+    crate::ops::config::set_global("default_proton", Some(name))
+        .context("failed saving the default Proton version")?;
+    let config = crate::core::config::load_launcher_config().await?;
     Ok(list_installed(Path::new(&config.steam_library_path))
         .iter()
         .any(|i| i.name.eq_ignore_ascii_case(name)))

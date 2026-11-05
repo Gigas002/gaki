@@ -3,8 +3,7 @@
 
 use crate::compat::running::RunningGame;
 use crate::config::{Platform, SteamIntegration};
-use crate::core::config::GameConfig;
-use crate::core::config::{load_launcher_config, load_user_configs};
+use crate::core::config::load_launcher_config;
 use crate::core::error::{ErrorKind, TypedError};
 use crate::core::models::{DepotPlatform, DownloadProgress, LibraryGame};
 use crate::ops::install::InstallGuard;
@@ -46,16 +45,13 @@ pub async fn targets(client: &mut SteamClient, app_id: u32, steam: bool) -> Resu
         .await
         .with_context(|| format!("failed to load launch options for app {app_id}"))?;
 
-    let launcher_config = load_launcher_config().await?;
     let settings = crate::settings::resolve_user(app_id, &Overrides::default())?;
     let steam = steam || settings.steam == SteamIntegration::Host;
-    let preference =
-        BuildPreference::new(false, &settings, launcher_config.game_configs.get(&app_id));
     let default_entry = crate::steam_client::select_launch_entry(
         &options,
         &game,
-        preference.platform == Some(Platform::Windows),
-        preference.platform == Some(Platform::Linux),
+        settings.platform == Some(Platform::Windows),
+        settings.platform == Some(Platform::Linux),
     )
     .map(|e| e.target);
 
@@ -69,36 +65,22 @@ pub async fn targets(client: &mut SteamClient, app_id: u32, steam: bool) -> Resu
     Ok(Targets { game, targets })
 }
 
-/// Which build a launch prefers, and the game's legacy forced Proton.
-struct BuildPreference {
-    platform: Option<Platform>,
-    forced_proton: Option<String>,
-}
-
-impl BuildPreference {
-    /// The command line (already in `settings`) wins. Otherwise the game's
-    /// JSON setting from `config.json` (until `games.toml` replaces it), then
-    /// the resolved platform: the `games.toml` entry, an explicit profile, or
-    /// `default_platform`.
-    fn new(from_cli: bool, settings: &LaunchSettings, game_cfg: Option<&GameConfig>) -> Self {
-        let legacy = game_cfg.and_then(|c| match c.platform_preference.as_deref() {
-            Some("windows") => Some(Platform::Windows),
-            Some("linux") => Some(Platform::Linux),
-            _ => c.forced_proton_version.as_ref().map(|_| Platform::Windows),
-        });
-        let platform = if from_cli {
-            settings.platform
-        } else {
-            legacy.or(settings.platform)
-        };
-        let forced_proton = game_cfg
-            .and_then(|c| c.forced_proton_version.clone())
-            .filter(|_| platform != Some(Platform::Linux));
-        Self {
-            platform,
-            forced_proton,
-        }
-    }
+/// The Proton a launch runs under: the request's, then for a Windows launch
+/// the profile's build or `default`. `None` lets the installed build decide.
+fn choose_proton(
+    request: Option<&str>,
+    settings: &LaunchSettings,
+    default: &str,
+) -> Option<String> {
+    request.map(str::to_owned).or_else(|| {
+        (settings.platform == Some(Platform::Windows)).then(|| {
+            settings
+                .proton
+                .as_ref()
+                .and_then(|p| p.build.as_runner())
+                .unwrap_or_else(|| default.to_owned())
+        })
+    })
 }
 
 /// How to launch a game.
@@ -183,39 +165,21 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
         }
     }
 
-    let from_cli = request.platform.is_some() || request.proton.is_some();
-    let preference = BuildPreference::new(
-        from_cli,
+    let proton_path = choose_proton(
+        request.proton.as_deref(),
         &settings,
-        launcher_config.game_configs.get(&app_id),
+        &launcher_config.proton_version,
     );
-    // The request → the game's forced Proton → (for Windows) the profile's
-    // build or the global default; none lets the installed build decide.
-    let proton_path = request
-        .proton
-        .clone()
-        .or(preference.forced_proton)
-        .or_else(|| {
-            (preference.platform == Some(Platform::Windows)).then(|| {
-                settings
-                    .proton
-                    .as_ref()
-                    .and_then(|p| p.build.as_runner())
-                    .unwrap_or_else(|| launcher_config.proton_version.clone())
-            })
-        });
 
-    let user_configs = load_user_configs().await?;
     on_event(LaunchEvent::Launching);
     let on_target = |proton: Option<&str>| on_event(LaunchEvent::Target { proton });
     client
         .play_game(
             &game,
             proton_path.as_deref(),
-            user_configs.get(&app_id),
             &settings,
             settings.steam == SteamIntegration::Host,
-            preference.platform == Some(Platform::Linux),
+            settings.platform == Some(Platform::Linux),
             Some(&on_target),
         )
         .await

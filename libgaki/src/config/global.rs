@@ -28,6 +28,10 @@ pub struct Config {
     /// Windows build and runs whichever build is installed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_platform: Option<Platform>,
+    /// The Proton build for a Windows launch whose profile names none: an
+    /// official build name or a path. `None` is `experimental`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_proton: Option<String>,
     #[serde(default = "default_true")]
     pub cloud_sync: bool,
     /// Steam presence while gaki is signed in.
@@ -49,6 +53,15 @@ pub struct Config {
     /// disables the cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub info_cache_ttl: Option<u64>,
+    /// Whether the OS keyring may hold the session key. Off for headless
+    /// machines, where no keyring service runs. Until the credential store
+    /// replaces it (5.9).
+    #[serde(default = "default_true")]
+    pub keyring: bool,
+    /// Keep `session.json` encrypted with the keyring key; set by the first
+    /// login. Until the credential store replaces it (5.9).
+    #[serde(default)]
+    pub encrypt_session: bool,
 }
 
 fn default_true() -> bool {
@@ -62,6 +75,7 @@ impl Default for Config {
             profiles_dir: None,
             default_profile: None,
             default_platform: None,
+            default_proton: None,
             cloud_sync: true,
             presence: ChatPresence::default(),
             proxy: None,
@@ -69,6 +83,8 @@ impl Default for Config {
             install_resume: InstallResume::default(),
             experimental: false,
             info_cache_ttl: None,
+            keyring: true,
+            encrypt_session: false,
         }
     }
 }

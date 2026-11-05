@@ -18,6 +18,26 @@ fn empty_proxy_change_is_a_noop() {
 }
 
 #[test]
+fn leftover_json_settings_are_reported() {
+    let dir = tempfile::tempdir().unwrap();
+    assert!(leftover_json(dir.path()).is_empty());
+    std::fs::write(dir.path().join("config.json"), "{}").unwrap();
+    std::fs::write(dir.path().join("user_apps.json"), "{}").unwrap();
+    let issues = leftover_json(dir.path());
+    assert_eq!(issues.len(), 2);
+    assert!(
+        issues[0].message.contains("config.toml"),
+        "{}",
+        issues[0].message
+    );
+    assert!(
+        issues[1].message.contains("games.toml"),
+        "{}",
+        issues[1].message
+    );
+}
+
+#[test]
 fn leftover_launch_scripts_are_reported() {
     let dir = tempfile::tempdir().unwrap();
     assert!(leftover_scripts(dir.path()).is_empty());

@@ -1,4 +1,4 @@
-use crate::core::models::{OwnedGame, SessionState, UserConfigStore};
+use crate::core::models::{OwnedGame, SessionState};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -30,21 +30,6 @@ async fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
         .await
         .with_context(|| format!("failed reading {}", path.display()))?;
     serde_json::from_str(&raw).with_context(|| format!("failed parsing {}", path.display()))
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
-pub struct GameConfig {
-    pub forced_proton_version: Option<String>,
-    pub platform_preference: Option<String>,
-    /// Depot → manifest ids this game is pinned to (recorded when the game is
-    /// downgraded or pinned). Used to display what an update lock is holding the
-    /// game at; empty when the game isn't pinned.
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub pinned_manifests: HashMap<u32, u64>,
-    /// Whether gaki's update commands are locked for this game. A pinned game is
-    /// not upgraded by `update` / `check-updates` (which report it as pinned).
-    #[serde(default)]
-    pub pinned: bool,
 }
 
 /// Network proxy settings applied to all of gaki's HTTP(S) traffic: the Steam
@@ -82,86 +67,85 @@ impl ChatPresence {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+/// The `config.toml` settings the Steam session, installs and launches read,
+/// with defaults filled in and paths expanded. Built by
+/// [`load_launcher_config`]; changed through [`crate::ops::config::set_global`].
+#[derive(Debug, Clone, PartialEq)]
 pub struct LauncherConfig {
     pub steam_library_path: String,
+    /// The Proton build for a Windows launch whose profile names none
+    /// (`default_proton`).
     pub proton_version: String,
-    // (default: offline).
-    #[serde(default)]
     pub chat_presence: ChatPresence,
     pub enable_cloud_sync: bool,
-    #[serde(default)]
-    pub preferred_launch_options: HashMap<u32, String>,
-    #[serde(default)]
-    pub game_configs: HashMap<u32, GameConfig>,
-    /// Network proxy for all HTTP(S) communication. Empty by default (a direct
-    /// connection). Applied process-wide at startup; see [`crate::core::net`].
-    #[serde(default)]
+    /// Network proxy for all HTTP(S) communication. Applied process-wide at
+    /// startup; see [`crate::core::net`].
     pub proxy: ProxyConfig,
     /// Whether the daemon resumes interrupted installs on start.
-    #[serde(default)]
     pub install_resume: crate::library::backlog::InstallResume,
-    /// Opt-in gate for experimental features. Off by default. Currently gates the
-    /// browser/OpenID identity check (`login --openid`) and web-token auth
-    /// (`login --web-token`), which prove identity / enable web-surface commands
-    /// but cannot create the full client session that library/install/launch need.
-    /// Enable with `gaki-cli config experimental true`.
-    #[serde(default)]
+    /// Opt-in gate for experimental features: the browser/OpenID identity
+    /// check (`login --openid`) and web-token auth (`login --web-token`).
     pub experimental: bool,
-    /// Keep `session.json` encrypted with the OS-keyring key.
-    /// Enabled automatically by the first successful login.
-    #[serde(default)]
+    /// Keep `session.json` encrypted with the OS-keyring key. Enabled
+    /// automatically by the first successful login.
     pub encrypt_session: bool,
     /// Whether the OS keyring may be used for the session key. Off for
     /// headless machines and CI, where no keyring service runs.
-    #[serde(default = "default_true")]
     pub use_keyring: bool,
     /// Lifetime of a cached `info` record in seconds; `None` is the default
     /// (6h) and `0` disables the cache.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub info_cache_ttl: Option<u64>,
 }
 
-fn default_true() -> bool {
-    true
-}
+/// The Proton build used when neither the profile nor `default_proton` names
+/// one.
+pub const DEFAULT_PROTON: &str = "experimental";
 
 impl LauncherConfig {
     pub async fn load() -> Result<Self> {
         load_launcher_config().await
     }
 
-    pub async fn save(&self) -> Result<()> {
-        save_launcher_config(self).await
+    /// `config`'s settings, with `~/` expanded against `home` and the Steam
+    /// library detected when unset.
+    pub fn from_config(config: &crate::config::Config, home: Option<&Path>) -> Self {
+        let steam_library_path = match (&config.steam_library, home) {
+            (Some(path), Some(home)) => crate::config::expand_tilde(path, home),
+            (Some(path), None) => path.clone(),
+            (None, _) => detect_steam_path().unwrap_or_else(|| {
+                home.map(|home| home.join("Games").join("gaki"))
+                    .unwrap_or_else(|| PathBuf::from("~/Games/gaki"))
+            }),
+        }
+        .to_string_lossy()
+        .into_owned();
+        Self {
+            steam_library_path,
+            proton_version: config
+                .default_proton
+                .clone()
+                .unwrap_or_else(|| DEFAULT_PROTON.to_owned()),
+            chat_presence: config.presence,
+            enable_cloud_sync: config.cloud_sync,
+            proxy: ProxyConfig {
+                url: config.proxy.clone(),
+                no_proxy: config.no_proxy.clone(),
+            },
+            install_resume: config.install_resume,
+            experimental: config.experimental,
+            encrypt_session: config.encrypt_session,
+            use_keyring: config.keyring,
+            info_cache_ttl: config.info_cache_ttl,
+        }
     }
 }
 
 impl Default for LauncherConfig {
     fn default() -> Self {
-        let steam_library_path = detect_steam_path()
-            .map(|path| path.to_string_lossy().to_string())
-            .unwrap_or_else(|| {
-                home_dir()
-                    .map(|home| home.join("Games").join("gaki"))
-                    .unwrap_or_else(|_| PathBuf::from("~/Games/gaki"))
-                    .to_string_lossy()
-                    .into_owned()
-            });
-
-        Self {
-            steam_library_path,
-            proton_version: "experimental".to_string(),
-            chat_presence: ChatPresence::default(),
-            enable_cloud_sync: true,
-            preferred_launch_options: HashMap::new(),
-            game_configs: HashMap::new(),
-            proxy: ProxyConfig::default(),
-            install_resume: crate::library::backlog::InstallResume::default(),
-            experimental: false,
-            encrypt_session: false,
-            use_keyring: true,
-            info_cache_ttl: None,
-        }
+        Self::from_config(
+            &crate::config::Config::default(),
+            home_dir().ok().as_deref(),
+        )
     }
 }
 
@@ -375,153 +359,55 @@ pub async fn delete_session() -> Result<()> {
     Ok(())
 }
 
-/// Load `config.json`.
+/// Load the settings from `config.toml`.
 ///
 /// A *missing* config is not an error: it yields defaults with the Steam library
 /// auto-detected. So an `Err` here always means the file exists but could not be read
 /// or parsed — never "you have no config yet". Callers must therefore propagate it
-/// rather than falling back to defaults: doing so would silently discard every setting
-/// the user has, and any caller that then saves would write those defaults straight
-/// over the file it failed to read.
+/// rather than falling back to defaults, which would silently discard every setting
+/// the user has.
 pub async fn load_launcher_config() -> Result<LauncherConfig> {
-    let path = config_dir()?.join("config.json");
-    let mut config = if path.exists() {
-        read_json(&path).await.with_context(|| {
-            format!(
-                "invalid launcher config — fix the JSON in {}, or delete it to regenerate defaults",
-                path.display()
-            )
-        })?
-    } else {
-        let mut config = LauncherConfig::default();
-        if let Some(detected) = detect_steam_path() {
-            config.steam_library_path = detected.to_string_lossy().to_string();
-        }
-        config
+    let config = read_config_toml()?;
+    Ok(LauncherConfig::from_config(
+        &config,
+        home_dir().ok().as_deref(),
+    ))
+}
+
+/// Parse `config.toml`; a missing file is all defaults.
+fn read_config_toml() -> Result<crate::config::Config> {
+    let path = config_dir()?.join(crate::config::CONFIG_FILE);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Default::default()),
+        Err(e) => return Err(e).with_context(|| format!("could not read {}", path.display())),
     };
-    if let Some(toml) = TomlOverlay::load()? {
-        toml.apply(&mut config);
-    }
-    Ok(config)
+    toml::from_str(&text).with_context(|| format!("invalid {}", path.display()))
 }
 
-/// The keys set in `config.toml`, laid over the `config.json` values they
-/// replace, so every reader of [`LauncherConfig`] sees the TOML settings.
-/// Only keys present in the file apply. Goes away with `config.json` (5.8).
-struct TomlOverlay {
-    keys: toml::Table,
-    config: crate::config::Config,
-    home: Option<PathBuf>,
+/// [`read_config_toml`] for the synchronous readers: a broken file is logged
+/// and treated as all defaults.
+fn read_config_toml_lenient() -> crate::config::Config {
+    read_config_toml()
+        .inspect_err(|e| tracing::warn!("ignoring config.toml: {e:#}"))
+        .unwrap_or_default()
 }
 
-impl TomlOverlay {
-    /// `None` when there is no `config.toml`.
-    fn load() -> Result<Option<Self>> {
-        let path = config_dir()?.join(crate::config::CONFIG_FILE);
-        let text = match std::fs::read_to_string(&path) {
-            Ok(text) => text,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
-            Err(e) => return Err(e).with_context(|| format!("could not read {}", path.display())),
-        };
-        let parse = || -> Result<Self> {
-            Ok(Self {
-                keys: toml::from_str(&text)?,
-                config: toml::from_str(&text)?,
-                home: home_dir().ok(),
-            })
-        };
-        parse()
-            .with_context(|| format!("invalid {}", path.display()))
-            .map(Some)
-    }
-
-    fn has(&self, key: &str) -> bool {
-        self.keys.contains_key(key)
-    }
-
-    fn path_string(&self, path: &Path) -> String {
-        match &self.home {
-            Some(home) => crate::config::expand_tilde(path, home),
-            None => path.to_path_buf(),
-        }
-        .to_string_lossy()
-        .into_owned()
-    }
-
-    fn apply(&self, config: &mut LauncherConfig) {
-        let toml = &self.config;
-        if let Some(library) = &toml.steam_library {
-            config.steam_library_path = self.path_string(library);
-        }
-        if self.has("presence") {
-            config.chat_presence = toml.presence;
-        }
-        if self.has("cloud_sync") {
-            config.enable_cloud_sync = toml.cloud_sync;
-        }
-        if self.has("proxy") {
-            config.proxy.url.clone_from(&toml.proxy);
-        }
-        if self.has("no_proxy") {
-            config.proxy.no_proxy.clone_from(&toml.no_proxy);
-        }
-        if self.has("install_resume") {
-            config.install_resume = toml.install_resume;
-        }
-        if self.has("experimental") {
-            config.experimental = toml.experimental;
-        }
-        if toml.info_cache_ttl.is_some() {
-            config.info_cache_ttl = toml.info_cache_ttl;
-        }
-    }
-
-    /// Like [`Self::load`], for the synchronous readers: a broken file is
-    /// logged and ignored.
-    fn load_lenient() -> Option<Self> {
-        Self::load()
-            .inspect_err(|e| tracing::warn!("ignoring config.toml: {e:#}"))
-            .ok()
-            .flatten()
-    }
-}
-
-pub async fn save_launcher_config(config: &LauncherConfig) -> Result<()> {
-    let path = config_dir()?.join("config.json");
-    write_json_pretty(&path, config).await
-}
-
-/// Synchronously read just the proxy settings from `config.json`. Used at process
-/// startup — before the async runtime and worker threads exist — to install the proxy
-/// environment variables (see [`crate::core::net::install_proxy_env`]), which is why it
-/// can't use the async loader. Returns the default (direct connection) on a missing,
-/// unreadable, or unparseable config.
+/// Synchronously read just the proxy settings. Used at process startup —
+/// before the async runtime and worker threads exist — to install the proxy
+/// environment variables (see [`crate::core::net::install_proxy_env`]).
+/// Returns the default (direct connection) on a missing or unreadable config.
 pub fn load_proxy_config_blocking() -> ProxyConfig {
-    let Ok(path) = config_dir().map(|dir| dir.join("config.json")) else {
-        return ProxyConfig::default();
-    };
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return ProxyConfig::default();
-    };
-    let mut proxy = serde_json::from_str::<LauncherConfig>(&raw)
-        .map(|config| config.proxy)
-        .unwrap_or_default();
-    if let Some(toml) = TomlOverlay::load_lenient() {
-        if toml.has("proxy") {
-            proxy.url.clone_from(&toml.config.proxy);
-        }
-        if toml.has("no_proxy") {
-            proxy.no_proxy.clone_from(&toml.config.no_proxy);
-        }
+    let config = read_config_toml_lenient();
+    ProxyConfig {
+        url: config.proxy,
+        no_proxy: config.no_proxy,
     }
-    proxy
 }
 
 /// The settings read from synchronous code paths (the keyring gate, the info
-/// cache TTL). Parsed leniently from `config.json`: other
-/// fields are ignored, and a missing or unreadable file yields the defaults.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default)]
+/// cache TTL). A missing or unreadable `config.toml` yields the defaults.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeSettings {
     pub use_keyring: bool,
     pub info_cache_ttl: Option<u64>,
@@ -529,63 +415,119 @@ pub struct RuntimeSettings {
 
 impl Default for RuntimeSettings {
     fn default() -> Self {
+        Self::from(&crate::config::Config::default())
+    }
+}
+
+impl From<&crate::config::Config> for RuntimeSettings {
+    fn from(config: &crate::config::Config) -> Self {
         Self {
-            use_keyring: true,
-            info_cache_ttl: None,
+            use_keyring: config.keyring,
+            info_cache_ttl: config.info_cache_ttl,
         }
     }
 }
 
-/// Synchronously read the [`RuntimeSettings`] from `config.json`.
+/// Synchronously read the [`RuntimeSettings`] from `config.toml`.
 pub fn load_runtime_settings_blocking() -> RuntimeSettings {
-    let mut settings: RuntimeSettings = config_dir()
-        .ok()
-        .and_then(|dir| std::fs::read_to_string(dir.join("config.json")).ok())
-        .map(|raw| parse_runtime_settings(&raw))
-        .unwrap_or_default();
-    if let Some(toml) = TomlOverlay::load_lenient()
-        && toml.config.info_cache_ttl.is_some()
-    {
-        settings.info_cache_ttl = toml.config.info_cache_ttl;
-    }
-    settings
+    RuntimeSettings::from(&read_config_toml_lenient())
 }
 
-fn parse_runtime_settings(raw: &str) -> RuntimeSettings {
-    serde_json::from_str(raw).unwrap_or_default()
+/// `pins.toml`: the games gaki's update commands leave alone, each with the
+/// depot manifests it is held at. Written by gaki.
+const PINS_FILE: &str = "pins.toml";
+
+/// Every pinned game: app id → depot → manifest id.
+pub type Pins = std::collections::BTreeMap<u32, HashMap<u32, u64>>;
+
+fn pins_path() -> Result<PathBuf> {
+    Ok(config_dir()?.join(PINS_FILE))
+}
+
+/// Read `pins.toml`; a missing file has no pins.
+pub fn load_pins() -> Result<Pins> {
+    let path = pins_path()?;
+    match std::fs::read_to_string(&path) {
+        Ok(text) => parse_pins(&text).with_context(|| format!("invalid {}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Pins::new()),
+        Err(e) => Err(e).with_context(|| format!("could not read {}", path.display())),
+    }
+}
+
+fn save_pins(pins: &Pins) -> Result<()> {
+    crate::config::edit::write_atomic(&pins_path()?, &render_pins(pins))
+}
+
+/// Parse `pins.toml` text. App and depot ids are table keys; manifest ids
+/// are strings, since they can exceed TOML's integer range.
+fn parse_pins(text: &str) -> Result<Pins> {
+    use std::collections::BTreeMap;
+    let raw: BTreeMap<String, BTreeMap<String, String>> = toml::from_str(text)?;
+    let id = |text: &str, what: &str| -> Result<u64> {
+        text.parse()
+            .with_context(|| format!("invalid {what} `{text}`"))
+    };
+    let small = |text: &str, what: &str| -> Result<u32> {
+        u32::try_from(id(text, what)?).with_context(|| format!("{what} `{text}` is too large"))
+    };
+    raw.into_iter()
+        .map(|(app, depots)| {
+            let depots = depots
+                .into_iter()
+                .map(|(depot, manifest)| {
+                    Ok((small(&depot, "depot id")?, id(&manifest, "manifest id")?))
+                })
+                .collect::<Result<_>>()?;
+            Ok((small(&app, "app id")?, depots))
+        })
+        .collect()
+}
+
+/// `pins` as `pins.toml` text, sorted.
+fn render_pins(pins: &Pins) -> String {
+    let mut text = String::from(
+        "# Written by gaki: games its update commands leave alone, held at these\n\
+         # depot manifests (depot id = \"manifest id\").\n",
+    );
+    for (app_id, depots) in pins {
+        text.push_str(&format!("\n[{app_id}]\n"));
+        let mut depots: Vec<_> = depots.iter().collect();
+        depots.sort();
+        for (depot, manifest) in depots {
+            text.push_str(&format!("{depot} = \"{manifest}\"\n"));
+        }
+    }
+    text
 }
 
 /// Pin a game to `manifests` (depot → manifest ids), locking gaki's update
-/// commands for it. Preserves the game's other `GameConfig` fields.
+/// commands for it.
 pub async fn set_game_pin(app_id: u32, manifests: HashMap<u32, u64>) -> Result<()> {
-    let mut cfg = load_launcher_config().await?;
-    let gc = cfg.game_configs.entry(app_id).or_default();
-    gc.pinned = true;
-    gc.pinned_manifests = manifests;
-    save_launcher_config(&cfg).await
+    let mut pins = load_pins()?;
+    pins.insert(app_id, manifests);
+    save_pins(&pins)
 }
 
 /// Clear a game's version pin (unlock gaki's update commands). No-op if the
 /// game was never pinned.
 pub async fn clear_game_pin(app_id: u32) -> Result<()> {
-    let mut cfg = load_launcher_config().await?;
-    if let Some(gc) = cfg.game_configs.get_mut(&app_id) {
-        gc.pinned = false;
-        gc.pinned_manifests.clear();
+    let mut pins = load_pins()?;
+    if pins.remove(&app_id).is_some() {
+        save_pins(&pins)?;
     }
-    save_launcher_config(&cfg).await
+    Ok(())
 }
 
-/// Return `(pinned, pinned_manifests)` for a game, reading the launcher config.
-/// `(false, empty)` when the game has no pin (or the config can't be read).
+/// Return `(pinned, pinned_manifests)` for a game. `(false, empty)` when the
+/// game has no pin (or `pins.toml` can't be read).
 pub async fn game_pin_state(app_id: u32) -> (bool, HashMap<u32, u64>) {
-    match load_launcher_config().await {
-        Ok(cfg) => cfg
-            .game_configs
-            .get(&app_id)
-            .map(|gc| (gc.pinned, gc.pinned_manifests.clone()))
-            .unwrap_or((false, HashMap::new())),
-        Err(_) => (false, HashMap::new()),
+    match load_pins().map(|mut pins| pins.remove(&app_id)) {
+        Ok(Some(manifests)) => (true, manifests),
+        Ok(None) => (false, HashMap::new()),
+        Err(e) => {
+            tracing::warn!("{e:#}");
+            (false, HashMap::new())
+        }
     }
 }
 
@@ -705,31 +647,6 @@ pub async fn save_name_cache(
     names: &std::collections::HashMap<u32, String>,
 ) -> Result<()> {
     write_json_pretty(&name_cache_path(kind)?, names).await
-}
-
-/// Load the per-game user config store (`user_apps.json`).
-///
-/// A *missing* file is not an error — it yields an empty store. So an `Err` here always
-/// means the file exists but could not be parsed, and callers must propagate it rather
-/// than falling back to an empty store: silently dropping every per-game setting (launch
-/// options, env vars, the Steam-runtime policy) on one typo is exactly the footgun this
-/// avoids. See the same contract on [`load_launcher_config`].
-pub async fn load_user_configs() -> Result<UserConfigStore> {
-    let path = config_dir()?.join("user_apps.json");
-    if !path.exists() {
-        return Ok(UserConfigStore::new());
-    }
-    read_json(&path).await.with_context(|| {
-        format!(
-            "invalid per-game config — fix the JSON in {}, or delete it to start fresh",
-            path.display()
-        )
-    })
-}
-
-pub async fn save_user_configs(configs: &UserConfigStore) -> Result<()> {
-    let path = config_dir()?.join("user_apps.json");
-    write_json_pretty(&path, configs).await
 }
 
 #[cfg(test)]

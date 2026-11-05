@@ -175,17 +175,12 @@ impl SteamClient {
         Ok((install_dir, executable, args, game_working_dir))
     }
 
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "launch options; folded into resolved settings in Phase 5"
-    )]
     pub(crate) async fn spawn_game_process(
         &self,
         app: &LibraryGame,
         launch_info: &LaunchInfo,
         proton_path: Option<&str>,
         launcher_config: &crate::core::config::LauncherConfig,
-        user_config: Option<&crate::core::models::UserAppConfig>,
         settings: &crate::settings::LaunchSettings,
         steam_enabled: bool,
     ) -> Result<std::process::Child> {
@@ -196,7 +191,6 @@ impl SteamClient {
         ctx.app = Some(app.clone());
         ctx.launch_info = Some(launch_info.clone());
         ctx.launcher_config = Some(launcher_config.clone());
-        ctx.user_config = user_config.cloned();
         ctx.proton_path = proton_path.map(|s| s.to_string());
         ctx.settings = Some(settings.clone());
         ctx.steam_enabled = steam_enabled;

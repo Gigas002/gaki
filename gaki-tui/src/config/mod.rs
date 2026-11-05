@@ -1,6 +1,6 @@
 //! The TUI's own settings file: the default user, hidden and favourite
 //! games, the shown game types, and the highlight colour, in
-//! `gaki/tui/config.json` under the config dir. Phase 5 turns it into TOML.
+//! `gaki/tui/config.toml` under the config dir.
 
 use crate::utils::error::TuiError;
 use crate::utils::paths::config_location;
@@ -19,11 +19,12 @@ use crate::ui::theme;
 mod tests;
 
 /// Process-wide cache of the parsed config. `Config::new`/`save` keep it in sync.
-/// Avoids a `config.json` disk read + JSON parse on every `get_name`/`is_valid`
+/// Avoids a `config.toml` disk read + parse on every `get_name`/`is_valid`
 /// call (which the list filter runs for every game, several times per keypress).
 static CACHE: RwLock<Option<Config>> = RwLock::new(None);
 
 #[derive(Serialize, Deserialize, Clone)]
+#[serde(default)]
 pub struct Config {
     pub default_user: String,
     pub hidden_games: Vec<i32>,
@@ -45,17 +46,21 @@ impl Default for Config {
 }
 
 impl Config {
+    /// Read the settings file. A missing or empty one is the defaults; a
+    /// broken one is logged and the defaults are used, leaving the file alone
+    /// until the next change is saved.
     pub fn new() -> Result<Config, TuiError> {
-        let config = match serde_json::from_str(&fs::read_to_string(config_location()?)?) {
-            Ok(config) => config,
-            _ => {
-                let config = Config::default();
-                config.save()?;
-                config
-            }
-        };
+        let path = config_location()?;
+        let config = Self::parse(&fs::read_to_string(&path)?).unwrap_or_else(|e| {
+            tracing::warn!("ignoring {}: {e}", path.display());
+            Config::default()
+        });
         *CACHE.write()? = Some(config.clone());
         Ok(config)
+    }
+
+    fn parse(text: &str) -> Result<Config, toml::de::Error> {
+        toml::from_str(text)
     }
 
     /// Cheap, cached read of the config. Loads from disk only on the first call;
@@ -74,7 +79,9 @@ impl Config {
     pub fn save(&self) -> Result<(), TuiError> {
         // Publish only persisted settings. A failed save must not make a toggle
         // appear successful in cached readers while the UI retains its old copy.
-        fs::write(config_location()?, serde_json::to_string(&self)?)?;
+        let text = toml::to_string(&self).map_err(|e| TuiError::Problem(e.to_string()))?;
+        libgaki::config::edit::write_atomic(&config_location()?, &text)
+            .map_err(|e| TuiError::Problem(format!("{e:#}")))?;
         *CACHE.write()? = Some(self.clone());
         Ok(())
     }

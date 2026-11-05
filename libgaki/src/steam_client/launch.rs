@@ -225,15 +225,10 @@ fn pick_launch_entry(
 pub type TargetResolvedHook<'a> = dyn Fn(Option<&str>) + Send + Sync + 'a;
 
 impl SteamClient {
-    #[expect(
-        clippy::too_many_arguments,
-        reason = "launch options; folded into resolved settings in Phase 5"
-    )]
     pub async fn play_game(
         &mut self,
         app: &LibraryGame,
         proton_path: Option<&str>,
-        user_config: Option<&crate::core::models::UserAppConfig>,
         settings: &crate::settings::LaunchSettings,
         steam_enabled: bool,
         prefer_native_target: bool,
@@ -392,7 +387,6 @@ impl SteamClient {
                 &launch_info,
                 chosen_proton_path,
                 &launcher_config,
-                user_config,
                 settings,
                 steam_enabled,
             )
