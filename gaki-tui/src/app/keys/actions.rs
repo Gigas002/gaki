@@ -5,12 +5,13 @@
 use ratatui::crossterm::event::KeyCode;
 
 use super::shared;
-use crate::app::AppResult;
 use crate::app::browser::Action;
 use crate::app::library::Library;
+use crate::app::{AppResult, SensitiveView};
 
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
     let Library {
+        app,
         browser,
         client,
         config,
@@ -60,7 +61,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
                         Action::Cloud => browser.open_cloud(game.id),
                         Action::Achievements => browser.open_achievements(),
                         Action::Depots => browser.open_depots(game.id),
-                        Action::Inventory => browser.open_inventory(game.id),
+                        Action::Inventory => {
+                            app.open_sensitive(browser, SensitiveView::Inventory(game.id))
+                        }
                         Action::Move => {
                             if game.installed {
                                 browser.open_move(game.id);

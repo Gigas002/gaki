@@ -101,9 +101,15 @@ fn must_run_locally(cli: &Cli) -> bool {
     // Same for `profiles`, which only reads config files.
     let local_disk_scan = matches!(cli.command, Command::Duplicates | Command::Profiles { .. });
 
+    // With `reauth_sensitive`, an interactive sensitive read signs in again
+    // first, which needs the terminal for the same reason as `login`.
+    let interactive_reauth =
+        !cli.json && is_sensitive(&cli.command) && libgaki::ops::auth::reauth_sensitive();
+
     interactive_login
         || web_token_login
         || local_disk_scan
+        || interactive_reauth
         || matches!(
             cli.command,
             // `capabilities` describes this binary.
@@ -114,6 +120,18 @@ fn must_run_locally(cli: &Cli) -> bool {
                     ..
                 }
         )
+}
+
+/// The commands that read sensitive account data (`reauth_sensitive`).
+fn is_sensitive(command: &Command) -> bool {
+    matches!(
+        command,
+        Command::Inventory { .. }
+            | Command::Wallet
+            | Command::Market {
+                command: MarketCommand::Listings,
+            }
+    )
 }
 
 /// Parse the command line, exiting on errors, `--help` and `--version`.

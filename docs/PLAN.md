@@ -262,7 +262,7 @@ a refresh token, which is scoped and revocable. The safer equivalent:
 | Setting (`config.toml`) | Default | Effect |
 | --- | --- | --- |
 | `session_store` | `keyring` | `keyring`: the refresh token and web token are separate Secret Service items. No file holds a secret. `memory`: nothing is persisted. |
-| `reauth_sensitive` | `false` | A fresh login before market, wallet and trade actions. |
+| `reauth_sensitive` | `false` | A fresh login before reading the inventory, wallet or market listings (and any future market, wallet or trade action). |
 | `daemon_idle_timeout` | `1800` (seconds) | The daemon drops its session and exits after this much idle time. |
 
 If the keyring is unreachable, gaki **refuses to persist** and falls back to
@@ -1224,11 +1224,30 @@ I make the changes, and you review, commit, and push.
   quiet that long, removing its marker and socket. The version marker is now
   `daemon.toml` next to the socket (it was JSON at `gaki-<uid>.info`). The
   socket protocol carries argv, stdio and an exit code, never a token.
-- [ ] **5.13** Add `reauth_sensitive`. A `Sensitive` marker on the
+- [x] **5.13** Add `reauth_sensitive`. A `Sensitive` marker on the
   market/wallet/trade `ops` makes them demand a fresh `LoginStep` flow
   before they run. The CLI prompts, and the TUI opens the login page and
   resumes the action afterwards. Document the threat model in `docs/FAQ.md`
   (7.2).
+  *Done.* gaki has no buy, sell, cancel or trade action, so (your call) the
+  gate covers the account reads: `ops::market::{inventory, wallet,
+  listings}` take a `SensitiveGrant` by value, and only
+  `ops::auth::sensitive_grant()` makes one. With the `reauth_sensitive`
+  key off it is free; with it on it needs a password or QR login
+  (`ops::auth::login`/`login_qr`) finished in this process within
+  `REAUTH_WINDOW` (5 min), and each login is good for one grant. A
+  restored session never counts. Prices and search stay open. The CLI runs
+  an interactive sensitive command locally (it needs the terminal, like
+  `login`), signs in as the stored account (empty password means a QR
+  code) and uses that fresh client for the web session; `--json` fails
+  with `auth_required` unless the process has an unused fresh login (the
+  daemon after `login --json`). The TUI's wallet, inventory and listings
+  go through `App::open_sensitive`: the sign-in page names the view, `Esc`
+  goes back, and the view opens once the library is back. Open: each
+  fresh login, like every `login`, mints a new refresh token and leaves the
+  previous one valid at Steam until it expires (not revoked). Any future
+  buy/sell/trade op must take a `SensitiveGrant`. The FAQ write-up stays
+  with 7.2.
 
 ### Phase 6 — feature gates (R24)
 

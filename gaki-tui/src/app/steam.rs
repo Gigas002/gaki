@@ -811,8 +811,9 @@ pub fn logout() -> Result<(), TuiError> {
 /// The Steam Wallet balance.
 pub fn wallet() -> Result<Wallet, TuiError> {
     in_process(async {
+        let grant = libgaki::ops::auth::sensitive_grant()?;
         let web = web_session().await?;
-        let w = libgaki::ops::market::wallet(&web).await?;
+        let w = libgaki::ops::market::wallet(&web, grant).await?;
         Ok(Wallet {
             balance_cents: w.balance_cents,
             currency: w.currency,
@@ -1108,8 +1109,9 @@ pub fn chat_send(steamid: u64, message: &str) -> Result<(), TuiError> {
 /// The account's inventory for a game (context 2, the game-items context).
 pub fn inventory(app_id: i32) -> Result<Vec<InventoryItem>, TuiError> {
     in_process(async {
+        let grant = libgaki::ops::auth::sensitive_grant()?;
         let web = web_session().await?;
-        let items = libgaki::ops::market::inventory(&web, app_id as u32, 2).await?;
+        let items = libgaki::ops::market::inventory(&web, app_id as u32, 2, grant).await?;
         Ok(items
             .into_iter()
             .map(|i| InventoryItem {
@@ -1275,8 +1277,9 @@ pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopComment
 /// The account's active market listings and open buy orders, as one list.
 pub fn market_listings() -> Result<Vec<MarketListing>, TuiError> {
     let state = in_process(async {
+        let grant = libgaki::ops::auth::sensitive_grant()?;
         let web = web_session().await?;
-        libgaki::ops::market::listings(&web).await
+        libgaki::ops::market::listings(&web, grant).await
     })?;
     let mut rows = Vec::with_capacity(state.listings.len() + state.buy_orders.len());
     for l in state.listings {

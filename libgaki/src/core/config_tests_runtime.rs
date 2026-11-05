@@ -7,6 +7,7 @@ fn runtime_settings_default_when_absent() {
         RuntimeSettings {
             info_cache_ttl: None,
             daemon_idle_timeout: None,
+            reauth_sensitive: false,
         }
     );
 }

@@ -1,5 +1,6 @@
 //! `market` command handlers.
 
+use crate::commands::auth::sensitive_access;
 use crate::commands::common::*;
 
 use anyhow::Result;
@@ -7,8 +8,8 @@ use libgaki::ops::market;
 
 /// `gaki-cli inventory <appid>`: list the logged-in account's inventory for a game.
 pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Result<()> {
-    let web = web_access().await?;
-    let items = market::inventory(&web, app_id, context).await?;
+    let (web, grant) = sensitive_access(json).await?;
+    let items = market::inventory(&web, app_id, context, grant).await?;
     if json {
         print_json(&items);
         return Ok(());
@@ -33,8 +34,8 @@ pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Resu
 
 /// `gaki-cli wallet`: show the account's Steam Wallet balance.
 pub(crate) async fn cmd_wallet(json: bool) -> Result<()> {
-    let web = web_access().await?;
-    let w = market::wallet(&web).await?;
+    let (web, grant) = sensitive_access(json).await?;
+    let w = market::wallet(&web, grant).await?;
     if json {
         print_json(&serde_json::json!({
             "balance_cents": w.balance_cents,
@@ -110,8 +111,8 @@ pub(crate) async fn cmd_market_search(
 
 /// `gaki-cli market listings`: the account's active listings and open buy orders.
 pub(crate) async fn cmd_market_listings(json: bool) -> Result<()> {
-    let web = web_access().await?;
-    let state = market::listings(&web).await?;
+    let (web, grant) = sensitive_access(json).await?;
+    let state = market::listings(&web, grant).await?;
     if json {
         print_json(&state);
         return Ok(());

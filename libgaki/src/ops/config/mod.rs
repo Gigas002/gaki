@@ -61,6 +61,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("experimental", KeyKind::Bool),
     ("info_cache_ttl", KeyKind::Integer),
     ("daemon_idle_timeout", KeyKind::Integer),
+    ("reauth_sensitive", KeyKind::Bool),
     ("secret_store", KeyKind::Text),
 ];
 

@@ -44,7 +44,10 @@ pub fn draw(frame: &mut Frame, app: &App, client: &Client) {
     };
     match &app.mode {
         Mode::Failed => frame.render_widget(no_session(), placement[0]),
-        Mode::Login => frame.render_widget(login_landing(client.get_last_error()), placement[0]),
+        Mode::Login => frame.render_widget(
+            login_landing(client.get_last_error(), app.reauth.map(|v| v.label())),
+            placement[0],
+        ),
         Mode::LoginQr => frame.render_widget(qr(client.get_qr(), placement[0]), placement[0]),
         Mode::LoginUser | Mode::LoginPass => frame.render_widget(splash(), placement[0]),
         Mode::LoginClassic => {
@@ -147,17 +150,24 @@ pub fn loading() -> Paragraph<'static> {
 }
 /// Landing page shown when no Steam session is available. Offers classic
 /// (username/password) login and a QR login.
-pub fn login_landing(error: Option<String>) -> Paragraph<'static> {
+pub fn login_landing(error: Option<String>, reauth_for: Option<&str>) -> Paragraph<'static> {
     // Instructions come first so they stay visible even when the (tall)
     // splash overflows the panel.
     let problem = match error {
         Some(err) => format!("\n {}\n", err),
         None => String::new(),
     };
+    let (why, back) = match reauth_for {
+        Some(view) => (
+            format!(" Sign in again to open the {view} (reauth_sensitive)."),
+            "\n [Esc]    back to the library",
+        ),
+        None => (" No Steam session found.".to_string(), ""),
+    };
     infobox(
         "Sign in".to_string(),
         format!(
-            " No Steam session found.{}\n [Enter]  sign in with username & password\n [y]      sign in by QR code (Steam Mobile app)\n [r]      re-check session (after `gaki-cli login`)\n [q]      quit\n\n{}",
+            "{why}{}\n [Enter]  sign in with username & password\n [y]      sign in by QR code (Steam Mobile app)\n [r]      re-check session (after `gaki-cli login`){back}\n [q]      quit\n\n{}",
             problem, SPLASH
         ),
         Alignment::Center,

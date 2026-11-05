@@ -7,6 +7,11 @@ use crate::steam_client::SteamClient;
 use anyhow::{Context, Result};
 use std::time::Duration;
 
+mod sensitive;
+pub use sensitive::{
+    REAUTH_WINDOW, SensitiveGrant, reauth_needed, reauth_sensitive, sensitive_grant,
+};
+
 /// Default wait for a QR login to be approved.
 pub const QR_DEFAULT_TIMEOUT: Duration = Duration::from_secs(600);
 
@@ -83,6 +88,7 @@ pub async fn login(client: &mut SteamClient, request: &PasswordLogin) -> Result<
     };
     match result {
         Ok(_) => {
+            sensitive::record_fresh_login();
             secure_session(client).await;
             Ok(LoginStep::LoggedIn)
         }
@@ -124,6 +130,7 @@ pub async fn login_qr(
         .login_qr(timeout, on_event)
         .await
         .context("QR login failed")?;
+    sensitive::record_fresh_login();
     secure_session(client).await;
     Ok(session)
 }

@@ -6,7 +6,7 @@ use ratatui::crossterm::event::KeyCode;
 use super::{Flow, actions, overlays, shared};
 use crate::app::browser::Filter;
 use crate::app::library::Library;
-use crate::app::{AppResult, Mode};
+use crate::app::{AppResult, Mode, SensitiveView};
 
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
     // Any keypress dismisses the previous action's notice (this action sets
@@ -47,9 +47,9 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             let _ = browser.open_config();
         }
         KeyCode::Char('w') => {
-            // Fetch the wallet (blocking) and open the overlay;
-            // ignore failures so a missing session is non-fatal.
-            let _ = browser.open_wallet();
+            // Fetch the wallet (blocking) and open the overlay; a
+            // failure becomes a notice.
+            app.open_sensitive(browser, SensitiveView::Wallet);
         }
         KeyCode::Char('/') => browser.filtering = true,
         KeyCode::Char('l') => {
@@ -68,10 +68,10 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
         KeyCode::Char('F') => browser.toggle_friends_focus(),
         KeyCode::Char('I') => {
             if let Some(game) = browser.selected() {
-                browser.open_inventory(game.id);
+                app.open_sensitive(browser, SensitiveView::Inventory(game.id));
             }
         }
-        KeyCode::Char('m') => browser.open_market(),
+        KeyCode::Char('m') => app.open_sensitive(browser, SensitiveView::Listings),
         KeyCode::Char('S') => browser.open_market_search(),
         KeyCode::Char('W') => {
             if let Some(game) = browser.selected() {

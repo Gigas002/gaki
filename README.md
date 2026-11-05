@@ -482,6 +482,11 @@ Settings are changed with `config` commands, never environment variables: for ex
   with nothing to do the daemon drops its session and exits; the next command starts a new
   one. Change that with `config set daemon_idle_timeout <SECONDS>` (`0` keeps it running).
   With `secret_store = "memory"` an idle exit forgets the tokens too.
+- **Fresh sign-in for account data.** `config set reauth_sensitive true` makes the
+  inventory, wallet and market listings ask for your password (or a QR code) every time,
+  in `gaki-cli` and `gaki-tui` alike, so a stolen or copied session can't read them.
+  Prices and market search are unaffected. A sign-in counts for one view, within five
+  minutes. `--json` can't prompt, so those commands fail there with `auth_required`.
 - **Download engine.** Installs, updates, verifications and Workshop downloads share one
   engine. It picks the least-loaded content servers, spreads chunk requests over a pool of
   them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per

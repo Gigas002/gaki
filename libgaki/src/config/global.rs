@@ -57,6 +57,10 @@ pub struct Config {
     /// session and exits. `None` is 30 minutes, `0` never.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub daemon_idle_timeout: Option<u64>,
+    /// Ask for a fresh login before reading account data that concerns money
+    /// or items: the inventory, the wallet and the market listings.
+    #[serde(default)]
+    pub reauth_sensitive: bool,
     /// Where the session's tokens are kept: `keyring` (the OS keyring) or
     /// `memory` (the running daemon only, for machines without a keyring).
     #[serde(default)]
@@ -94,6 +98,7 @@ impl Default for Config {
             experimental: false,
             info_cache_ttl: None,
             daemon_idle_timeout: None,
+            reauth_sensitive: false,
             secret_store: SecretStoreKind::default(),
         }
     }

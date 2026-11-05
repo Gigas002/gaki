@@ -18,6 +18,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             KeyCode::Char('q') => {
                 return Ok(Flow::Quit);
             }
+            // Skip the fresh sign-in a sensitive view asked for.
+            KeyCode::Esc if app.reauth.take().is_some() => {
+                app.mode = Mode::Browse;
+            }
             KeyCode::Char('r') => {
                 // A session may have been established out-of-band via
                 // `gaki-cli login`; re-probe it.

@@ -264,6 +264,7 @@ pub fn load_proxy_config_blocking() -> ProxyConfig {
 pub struct RuntimeSettings {
     pub info_cache_ttl: Option<u64>,
     pub daemon_idle_timeout: Option<u64>,
+    pub reauth_sensitive: bool,
 }
 
 impl Default for RuntimeSettings {
@@ -277,6 +278,7 @@ impl From<&crate::config::Config> for RuntimeSettings {
         Self {
             info_cache_ttl: config.info_cache_ttl,
             daemon_idle_timeout: config.daemon_idle_timeout,
+            reauth_sensitive: config.reauth_sensitive,
         }
     }
 }

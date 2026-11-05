@@ -28,6 +28,41 @@ pub struct App {
     /// In-progress Steam Guard code entry.
     pub guard_code: String,
     pub highlight: Color,
+    /// The view waiting for a fresh login (`reauth_sensitive`); it opens once
+    /// the login finishes and the library is back.
+    pub reauth: Option<SensitiveView>,
+}
+
+/// A view that reads sensitive account data: with `reauth_sensitive` on, it
+/// opens only after a fresh login.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SensitiveView {
+    Wallet,
+    /// The inventory for this app id.
+    Inventory(i32),
+    Listings,
+}
+
+impl SensitiveView {
+    pub fn label(self) -> &'static str {
+        match self {
+            SensitiveView::Wallet => "wallet",
+            SensitiveView::Inventory(_) => "inventory",
+            SensitiveView::Listings => "market listings",
+        }
+    }
+
+    fn open(self, browser: &mut browser::Browser) {
+        match self {
+            SensitiveView::Wallet => {
+                if let Err(e) = browser.open_wallet() {
+                    browser.notice = Some(format!("Wallet: {e}"));
+                }
+            }
+            SensitiveView::Inventory(app_id) => browser.open_inventory(app_id),
+            SensitiveView::Listings => browser.open_market(),
+        }
+    }
 }
 
 #[derive(PartialEq, Clone)]
@@ -63,6 +98,37 @@ impl App {
             password: String::new(),
             guard_code: String::new(),
             highlight,
+            reauth: None,
+        }
+    }
+
+    /// Open `view`, or, when it needs a fresh login first, go to the sign-in
+    /// page and open it afterwards.
+    pub fn open_sensitive(&mut self, browser: &mut browser::Browser, view: SensitiveView) {
+        if libgaki::ops::auth::reauth_needed() {
+            self.reauth = Some(view);
+            self.mode = Mode::Login;
+        } else {
+            view.open(browser);
+        }
+    }
+
+    /// Back in the library: open the view a login was for, if there is one.
+    /// Without a fresh login (the sign-in was skipped) it stays closed.
+    pub fn resume_sensitive(&mut self, browser: &mut browser::Browser) {
+        if self.mode != Mode::Browse {
+            return;
+        }
+        let Some(view) = self.reauth.take() else {
+            return;
+        };
+        if libgaki::ops::auth::reauth_needed() {
+            browser.notice = Some(format!(
+                "The {} needs a fresh sign-in (reauth_sensitive).",
+                view.label()
+            ));
+        } else {
+            view.open(browser);
         }
     }
 }

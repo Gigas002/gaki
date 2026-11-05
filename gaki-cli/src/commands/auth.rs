@@ -104,10 +104,21 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
         }
     };
 
+    password_login_interactive(username, password, guard, code).await?;
+    report_login_success(&account, json);
+    Ok(())
+}
+
+/// A password login at the terminal. `--code` (alias `--pin`) lets the Steam
+/// client read the Guard code from stdin itself; otherwise we wait for
+/// Mobile-app approval and only prompt for a code when Steam asks for one.
+async fn password_login_interactive(
+    username: String,
+    password: String,
+    guard: Option<String>,
+    code: bool,
+) -> Result<SteamClient> {
     let mut client = SteamClient::new()?;
-    // `--code` (alias `--pin`) lets the Steam client read the Guard code from
-    // stdin itself; otherwise we wait for Mobile-app approval and only prompt
-    // for a code when Steam asks for one.
     let mut request = PasswordLogin {
         username,
         password: password.into(),
@@ -134,8 +145,61 @@ pub(crate) async fn cmd_login(args: crate::cli::LoginArgs, json: bool) -> Result
             bail!("approve this login in the Steam Mobile app, then run `gaki-cli login` again")
         }
     }
-    report_login_success(&account, json);
-    Ok(())
+    Ok(client)
+}
+
+/// A web session and the grant for one sensitive read (inventory, wallet,
+/// market listings). With `reauth_sensitive` on this signs in again first:
+/// the stored account's password, or a QR code when the password is left
+/// empty. `--json` can't prompt, so it fails unless this process (the daemon,
+/// after a `login --json`) has an unused fresh login.
+pub(crate) async fn sensitive_access(
+    json: bool,
+) -> Result<(
+    libgaki::web::web_session::WebSession,
+    libgaki::ops::auth::SensitiveGrant,
+)> {
+    use libgaki::ops::auth::{reauth_needed, sensitive_grant};
+    if !reauth_needed() {
+        let web = web_access().await?;
+        return Ok((web, sensitive_grant()?));
+    }
+    if json {
+        return Err(TypedError::new(
+            ErrorKind::AuthRequired,
+            "reauth_sensitive is on: run this command without --json to sign in again",
+        )
+        .into());
+    }
+    cli_eprintln!("reauth_sensitive is on: sign in again to continue.");
+    let stored = libgaki::auth::load_session()
+        .await
+        .ok()
+        .and_then(|session| session.account_name);
+    let username = match stored {
+        Some(name) => {
+            cli_eprintln!("Account: {name}");
+            name
+        }
+        None => prompt_line("Steam username: ")?,
+    };
+    let password = rpassword::prompt_password("Steam password (empty for a QR code): ")
+        .context("failed reading password")?;
+    let client = if password.is_empty() {
+        let mut client = SteamClient::new()?;
+        libgaki::ops::auth::login_qr(
+            &mut client,
+            libgaki::ops::auth::QR_DEFAULT_TIMEOUT,
+            render_login_qr,
+        )
+        .await?;
+        client
+    } else {
+        password_login_interactive(username, password, None, false).await?
+    };
+    let grant = sensitive_grant()?;
+    let web = libgaki::ops::session::web_session(&client).await?;
+    Ok((web, grant))
 }
 
 /// Log in by scanning a QR code with the Steam Mobile app.

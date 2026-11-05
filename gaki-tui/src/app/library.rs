@@ -212,6 +212,7 @@ impl Library {
         if let State::Terminated(err) = client.get_state()? {
             app.mode = Mode::Terminated(err);
         }
+        app.resume_sensitive(browser);
         Ok(())
     }
 
