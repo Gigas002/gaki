@@ -195,8 +195,14 @@ fn game_settings_overlay_renders_rows() {
     browser.show_game_config = true;
     browser.game_config = Some(GameSettings {
         app_id: 1,
-        forced_proton_version: Some("GE-Proton9".to_string()),
-        platform_preference: Some("windows".to_string()),
+        profile: None,
+        platform: Some("windows".to_string()),
+        steam: None,
+        effective_profile: Some("proton".to_string()),
+        effective_steam: "host".to_string(),
+        wrappers: vec!["gamemoderun".to_string(), "mangohud".to_string()],
+        game_wrappers: vec!["mangohud".to_string()],
+        profiles: vec!["proton".to_string()],
     });
     let text = render(70, 12, |f| {
         f.render_widget(
@@ -205,11 +211,19 @@ fn game_settings_overlay_renders_rows() {
         );
     });
     assert!(
-        text.contains("Forced Proton: GE-Proton9"),
-        "forced proton renders"
+        text.contains("Profile: (default: proton)"),
+        "an unset profile shows the default"
     );
     assert!(text.contains("Platform: windows"), "platform renders");
-    for gone in ["Runner", "Steam runtime", "Steam prefix", "Launch script"] {
+    assert!(
+        text.contains("Steam: (profile: host)"),
+        "an unset Steam integration shows the profile's"
+    );
+    assert!(
+        text.contains("Wrappers: gamemoderun mangohud"),
+        "wrappers render"
+    );
+    for gone in ["Forced Proton", "Runner", "Launch script"] {
         assert!(!text.contains(gone), "{gone} row is gone");
     }
 }

@@ -79,26 +79,31 @@ fn settings_round_trip() {
     assert_eq!((proxy.url, proxy.no_proxy), (None, None));
 }
 
-/// Per-game overrides set, read back, and clear.
+/// Per-game settings set in `games.toml`, read back, and clear.
 fn game_settings_round_trip() {
     let id = 945360;
     let cfg = steam::config_game_show(id).unwrap();
-    assert_eq!(cfg.forced_proton_version, None);
-    assert_eq!(cfg.platform_preference, None);
+    assert_eq!((cfg.profile, cfg.platform, cfg.steam), (None, None, None));
 
-    steam::config_game_set_proton(id, "Proton 9.0").unwrap();
-    steam::config_game_set_platform(id, "windows").unwrap();
+    steam::config_game_set_platform(id, Some("windows")).unwrap();
+    steam::config_game_set_steam(id, Some("host")).unwrap();
     let cfg = steam::config_game_show(id).unwrap();
-    assert_eq!(cfg.forced_proton_version.as_deref(), Some("Proton 9.0"));
-    assert_eq!(cfg.platform_preference.as_deref(), Some("windows"));
+    assert_eq!(cfg.platform.as_deref(), Some("windows"));
+    assert_eq!(cfg.steam.as_deref(), Some("host"));
+    assert_eq!(cfg.effective_steam, "host");
 
-    assert!(steam::config_game_set_platform(id, "macos").is_err());
+    assert!(steam::config_game_set_platform(id, Some("macos")).is_err());
+    assert!(steam::config_game_set_steam(id, Some("maybe")).is_err());
+    assert!(
+        steam::config_game_set_profile(id, Some("ghost")).is_err(),
+        "an unknown profile is rejected"
+    );
+    assert_eq!(steam::config_game_show(id).unwrap().profile, None);
 
-    steam::config_game_clear_proton(id).unwrap();
-    steam::config_game_clear_platform(id).unwrap();
+    steam::config_game_set_platform(id, None).unwrap();
+    steam::config_game_set_steam(id, None).unwrap();
     let cfg = steam::config_game_show(id).unwrap();
-    assert_eq!(cfg.forced_proton_version, None);
-    assert_eq!(cfg.platform_preference, None);
+    assert_eq!((cfg.profile, cfg.platform, cfg.steam), (None, None, None));
 }
 
 /// The official builds are always listed, and a new default is marked.

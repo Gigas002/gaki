@@ -385,8 +385,6 @@ pub struct Browser {
     pub show_game_config: bool,
     /// The game's current config overrides.
     pub game_config: Option<steam::GameSettings>,
-    /// Installed Proton runtime names, for cycling the per-game forced runtime.
-    pub game_config_protons: Vec<String>,
     /// The highlighted settings row.
     pub game_config_index: usize,
     /// The app id the settings overlay is showing.
@@ -563,7 +561,6 @@ impl Browser {
             versions_busy: Arc::new(Mutex::new(None)),
             show_game_config: false,
             game_config: None,
-            game_config_protons: Vec::new(),
             game_config_index: 0,
             game_config_app_id: 0,
             game_config_status: String::new(),

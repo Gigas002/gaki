@@ -1,19 +1,10 @@
 use super::*;
 
 #[test]
-fn change_keep_leaves_the_slot_alone() {
-    let mut slot = Some(1);
-    assert!(!Change::<i32>::Keep.apply_to(&mut slot));
-    assert_eq!(slot, Some(1));
-}
-
-#[test]
-fn change_clear_and_set_report_a_change() {
-    let mut slot = Some(1);
-    assert!(Change::Clear.apply_to(&mut slot));
-    assert_eq!(slot, None);
-    assert!(Change::Set(2).apply_to(&mut slot));
-    assert_eq!(slot, Some(2));
+fn change_map_keeps_the_kind() {
+    assert_eq!(Change::<i32>::Keep.map(|v| v + 1), Change::Keep);
+    assert_eq!(Change::<i32>::Clear.map(|v| v + 1), Change::Clear);
+    assert_eq!(Change::Set(1).map(|v| v + 1), Change::Set(2));
 }
 
 #[test]
@@ -24,12 +15,6 @@ fn empty_proxy_change_is_a_noop() {
         ..Default::default()
     };
     assert!(!set.is_noop());
-}
-
-#[test]
-fn platform_names_match_the_config_spelling() {
-    assert_eq!(platform_name(DepotPlatform::Windows), "windows");
-    assert_eq!(platform_name(DepotPlatform::Linux), "linux");
 }
 
 #[test]

@@ -98,8 +98,11 @@ selected game — type to narrow it, `Enter` to run. Two entries live only here:
 - **Play as…** lists every way the game can be started: the native Linux build, or the Windows build with the host
   Steam client or without Steam. Launching one applies to that
   run only; unavailable targets say what's missing.
-- **Game settings** holds the per-game overrides: forced Proton and platform
-  (auto / windows / linux).
+- **Game settings** edits the game's `games.toml` entry: `Enter` cycles the
+  profile (default, then each profile), the platform (auto / windows / linux)
+  and the Steam integration (the profile's / auto / host / none). The
+  wrappers are shown read-only; change them with
+  `gaki-cli config game <id> --wrapper …`.
 
 Selecting a game fetches its details lazily — developer/publisher metadata
 (Steam store info), the ProtonDB compatibility tier, and cover art all load in the

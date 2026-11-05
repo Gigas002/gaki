@@ -9,11 +9,10 @@
 use crate::config::edit::{self, TomlFile};
 use crate::config::{Catalog, Config, Platform, Severity, SteamIntegration, ValidationContext};
 use crate::core::config::{
-    GameConfig, LauncherConfig, ProxyConfig, load_launcher_config, load_user_configs,
-    save_launcher_config, save_user_configs,
+    LauncherConfig, ProxyConfig, load_launcher_config, load_user_configs, save_launcher_config,
+    save_user_configs,
 };
 use crate::core::error::{ErrorKind, TypedError};
-use crate::core::models::DepotPlatform;
 use anyhow::{Context, Result};
 use std::collections::BTreeSet;
 use std::path::PathBuf;
@@ -37,21 +36,6 @@ impl<T> Change<T> {
             Change::Keep => Change::Keep,
             Change::Clear => Change::Clear,
             Change::Set(v) => Change::Set(f(v)),
-        }
-    }
-
-    /// Apply to `slot`; returns whether anything was requested.
-    fn apply_to(self, slot: &mut Option<T>) -> bool {
-        match self {
-            Change::Keep => false,
-            Change::Clear => {
-                *slot = None;
-                true
-            }
-            Change::Set(v) => {
-                *slot = Some(v);
-                true
-            }
         }
     }
 }
@@ -608,86 +592,6 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
         },
         changed,
     ))
-}
-
-/// A change to one game's launch settings in `config.json`. The TUI's game
-/// settings still use this until they move to [`update_game_entry`].
-#[derive(Debug, Clone, Default)]
-pub struct GameSettingsChange {
-    /// Reset every per-game setting (both stores); the other fields are ignored.
-    pub reset: bool,
-    pub proton: Change<String>,
-    pub platform: Change<DepotPlatform>,
-}
-
-/// One game's launch settings, plus what they fall back to.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct GameSettings {
-    pub app_id: u32,
-    pub forced_proton_version: Option<String>,
-    pub platform_preference: Option<String>,
-    /// The global default Proton version, used when none is forced.
-    #[serde(skip)]
-    pub default_proton_version: String,
-    /// Which platform payloads are installed, as `(linux, windows)`; `None`
-    /// when the game isn't installed or its directory can't be read.
-    #[serde(skip)]
-    pub installed_platforms: Option<(bool, bool)>,
-}
-
-/// Apply `change` to `app_id`'s settings and return them. Also returns whether
-/// anything was saved.
-pub async fn update_game(app_id: u32, change: GameSettingsChange) -> Result<(GameSettings, bool)> {
-    let mut config = load().await?;
-    let changed = if change.reset {
-        // The launch tweaks (env, options, graphics layers) live in a second store.
-        let mut user_configs = load_user_configs().await?;
-        if user_configs.remove(&app_id).is_some() {
-            save_user_configs(&user_configs)
-                .await
-                .context("failed saving per-game config")?;
-        }
-        config.game_configs.remove(&app_id).is_some()
-    } else {
-        let entry = config.game_configs.entry(app_id).or_default();
-        let platform = match change.platform {
-            Change::Keep => Change::Keep,
-            Change::Clear => Change::Clear,
-            Change::Set(p) => Change::Set(platform_name(p).to_string()),
-        };
-        // Evaluate every change; `|` doesn't short-circuit.
-        change.proton.apply_to(&mut entry.forced_proton_version)
-            | platform.apply_to(&mut entry.platform_preference)
-    };
-    if changed {
-        save_launcher_config(&config)
-            .await
-            .context("failed saving game config")?;
-    }
-
-    let entry: GameConfig = config
-        .game_configs
-        .get(&app_id)
-        .cloned()
-        .unwrap_or_default();
-    Ok((
-        GameSettings {
-            app_id,
-            forced_proton_version: entry.forced_proton_version,
-            platform_preference: entry.platform_preference,
-            default_proton_version: config.proton_version,
-            installed_platforms: installed_platforms(app_id).await,
-        },
-        changed,
-    ))
-}
-
-/// The config spelling of a platform preference.
-pub fn platform_name(platform: DepotPlatform) -> &'static str {
-    match platform {
-        DepotPlatform::Windows => "windows",
-        DepotPlatform::Linux => "linux",
-    }
 }
 
 /// Which platform payloads `app_id` has installed: `(linux, windows)`.

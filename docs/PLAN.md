@@ -1048,7 +1048,7 @@ I make the changes, and you review, commit, and push.
   forces `host`, with a warning when `none` was asked for. `launch-targets`
   marks its default the same way. Settings are now resolved before the
   pre-launch update, so a config error fails before anything downloads.
-- [ ] **5.7** CLI: rewrite the `config` subcommand for the new model and add a
+- [x] **5.7** CLI: rewrite the `config` subcommand for the new model and add a
   `profiles list|show` command. TUI: wire `ui/game_config.rs` to profile
   selection and per-game overrides. Split into:
   - [x] **5.7a** TOML writes and the `config` command. *Done.*
@@ -1088,8 +1088,16 @@ I make the changes, and you review, commit, and push.
     TUI's launch-script row. `config check` warns about each leftover
     `<config dir>/scripts/*.sh` and how to keep it as a wrapper. An old
     `script` key in `games.toml` fails to load with "unknown field".
-  - [ ] **5.7d** TUI: `game_config` on `games.toml` with profile selection;
-    drop the JSON `update_game`.
+  - [x] **5.7d** TUI: `game_config` on `games.toml` with profile selection;
+    drop the JSON `update_game`. *Done.* The Game settings overlay has
+    Profile, Platform and Steam rows, all written to the `games.toml` entry
+    through `update_game_entry` (so the game's old `config.json` forced
+    Proton and platform are dropped on the first change). An unset row
+    shows what it falls back to (`default_profile`, the profile's Steam
+    integration). The wrappers are shown read-only, with the CLI command
+    to change them. Removed: the TUI's forced-Proton row,
+    `GameSettingsChange`, `GameSettings`, `update_game`, `platform_name`
+    and `Change::apply_to` from `ops::config`.
 - [ ] **5.8** Remove the JSON config code paths. Caches can stay JSON, because
   ARCHITECTURE requires TOML only for user configuration files. Confirm that
   this split is fine.

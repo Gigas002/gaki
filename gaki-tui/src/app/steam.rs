@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use crate::app::game::status::GameStatus;
 use crate::app::worker;
 use crate::utils::error::TuiError;
-use libgaki::ops::config::{Change, GameSettingsChange};
+use libgaki::ops::config::{Change, GameEntryChange};
 
 /// Session health.
 #[derive(Debug, Clone)]
@@ -1891,12 +1891,27 @@ pub struct Collection {
     pub app_ids: Vec<u32>,
 }
 
-/// A game's per-game launch settings.
+/// A game's `games.toml` settings, and what it launches with.
 #[derive(Debug, Clone, Default)]
 pub struct GameSettings {
     pub app_id: u32,
-    pub forced_proton_version: Option<String>,
-    pub platform_preference: Option<String>,
+    /// The entry's `profile`; `None` uses `default_profile`.
+    pub profile: Option<String>,
+    /// The entry's `platform`, `"windows"` or `"linux"`; `None` is automatic.
+    pub platform: Option<String>,
+    /// The entry's `steam`, `"auto"`, `"host"` or `"none"`; `None` uses the
+    /// profile's.
+    pub steam: Option<String>,
+    /// The profile the game launches with.
+    pub effective_profile: Option<String>,
+    /// The Steam integration the game launches with.
+    pub effective_steam: String,
+    /// Every wrapper, the profile's first.
+    pub wrappers: Vec<String>,
+    /// The game's own wrappers.
+    pub game_wrappers: Vec<String>,
+    /// Every profile's name, for picking one.
+    pub profiles: Vec<String>,
 }
 
 /// Extra launch options for [`play_with`].
@@ -2150,55 +2165,59 @@ pub fn collection_sync() -> Result<(), TuiError> {
     .map(drop)
 }
 
-/// Apply a change to one game's launch settings and return them.
-fn update_game_config(
-    app_id: i32,
-    change: libgaki::ops::config::GameSettingsChange,
-) -> Result<GameSettings, TuiError> {
-    let (settings, _) = in_process(libgaki::ops::config::update_game(app_id as u32, change))?;
+/// Apply a change to one game's `games.toml` entry and return its settings.
+fn update_game_config(app_id: i32, change: GameEntryChange) -> Result<GameSettings, TuiError> {
+    let (entry, _) = in_process(libgaki::ops::config::update_game_entry(
+        app_id as u32,
+        change,
+    ))?;
+    let (_, profiles, _) =
+        libgaki::ops::config::profiles().map_err(|e| TuiError::Problem(format!("{e:#}")))?;
+    let game = entry
+        .entry
+        .unwrap_or_else(|| libgaki::config::Game::new(app_id as u32));
     Ok(GameSettings {
-        app_id: settings.app_id,
-        forced_proton_version: settings.forced_proton_version,
-        platform_preference: settings.platform_preference,
+        app_id: entry.app_id,
+        profile: game.profile,
+        platform: game.platform.map(|p| p.as_str().to_owned()),
+        steam: game.steam.map(|s| s.as_str().to_owned()),
+        effective_profile: entry.profile,
+        effective_steam: entry.steam.as_str().to_owned(),
+        wrappers: entry.wrappers,
+        game_wrappers: game.wrappers,
+        profiles: profiles.into_iter().map(|p| p.profile.name).collect(),
     })
 }
 
-/// Show a game's per-game launch settings.
+/// Show a game's settings.
 pub fn config_game_show(app_id: i32) -> Result<GameSettings, TuiError> {
     update_game_config(app_id, Default::default())
 }
 
-/// Set a game's forced Proton/Wine version.
-pub fn config_game_set_proton(app_id: i32, version: &str) -> Result<(), TuiError> {
+fn set_or_clear<T>(value: Option<T>) -> Change<T> {
+    value.map_or(Change::Clear, Change::Set)
+}
+
+/// Set a game's profile; `None` goes back to `default_profile`.
+pub fn config_game_set_profile(app_id: i32, profile: Option<&str>) -> Result<(), TuiError> {
     update_game_config(
         app_id,
-        GameSettingsChange {
-            proton: Change::Set(version.to_string()),
+        GameEntryChange {
+            profile: set_or_clear(profile.map(str::to_owned)),
             ..Default::default()
         },
     )
     .map(drop)
 }
 
-/// Clear a game's forced Proton/Wine version, reverting to the global default.
-pub fn config_game_clear_proton(app_id: i32) -> Result<(), TuiError> {
-    update_game_config(
-        app_id,
-        GameSettingsChange {
-            proton: Change::Clear,
-            ..Default::default()
-        },
-    )
-    .map(drop)
-}
-
-/// Set a game's platform target, `"windows"` or `"linux"`.
-pub fn config_game_set_platform(app_id: i32, platform: &str) -> Result<(), TuiError> {
-    use libgaki::core::models::DepotPlatform;
+/// Set a game's platform, `"windows"` or `"linux"`; `None` is automatic.
+pub fn config_game_set_platform(app_id: i32, platform: Option<&str>) -> Result<(), TuiError> {
+    use libgaki::config::Platform;
     let platform = match platform {
-        "windows" => DepotPlatform::Windows,
-        "linux" => DepotPlatform::Linux,
-        other => {
+        None => None,
+        Some("windows") => Some(Platform::Windows),
+        Some("linux") => Some(Platform::Linux),
+        Some(other) => {
             return Err(TuiError::Problem(format!(
                 "unknown platform '{other}' (expected windows or linux)"
             )));
@@ -2206,20 +2225,33 @@ pub fn config_game_set_platform(app_id: i32, platform: &str) -> Result<(), TuiEr
     };
     update_game_config(
         app_id,
-        GameSettingsChange {
-            platform: Change::Set(platform),
+        GameEntryChange {
+            platform: set_or_clear(platform),
             ..Default::default()
         },
     )
     .map(drop)
 }
 
-/// Clear a game's platform preference, back to auto-detection.
-pub fn config_game_clear_platform(app_id: i32) -> Result<(), TuiError> {
+/// Set a game's Steam integration, `"auto"`, `"host"` or `"none"`; `None`
+/// uses the profile's.
+pub fn config_game_set_steam(app_id: i32, steam: Option<&str>) -> Result<(), TuiError> {
+    use libgaki::config::SteamIntegration;
+    let steam = match steam {
+        None => None,
+        Some("auto") => Some(SteamIntegration::Auto),
+        Some("host") => Some(SteamIntegration::Host),
+        Some("none") => Some(SteamIntegration::None),
+        Some(other) => {
+            return Err(TuiError::Problem(format!(
+                "unknown Steam integration '{other}' (expected auto, host or none)"
+            )));
+        }
+    };
     update_game_config(
         app_id,
-        GameSettingsChange {
-            platform: Change::Clear,
+        GameEntryChange {
+            steam: set_or_clear(steam),
             ..Default::default()
         },
     )
