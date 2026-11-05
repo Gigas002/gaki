@@ -470,6 +470,11 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: ProtonCommand,
     },
+    /// List and inspect launch profiles (`profiles/<name>.toml`).
+    Profiles {
+        #[command(subcommand)]
+        command: ProfilesCommand,
+    },
     /// Manage per-game launch scripts.
     Scripts {
         #[command(subcommand)]
@@ -1179,6 +1184,18 @@ impl From<PlatformArg> for DepotPlatform {
             PlatformArg::Linux => DepotPlatform::Linux,
         }
     }
+}
+
+/// `profiles list|show`.
+#[derive(Subcommand)]
+pub(crate) enum ProfilesCommand {
+    /// List every profile: runner, Proton build, prefix, and the games using it.
+    List,
+    /// Print a profile's file, the games using it, and any problems.
+    Show {
+        /// The profile's name (its file name without `.toml`).
+        name: String,
+    },
 }
 
 /// `wishlist add|remove`.

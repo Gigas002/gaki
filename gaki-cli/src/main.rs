@@ -98,7 +98,8 @@ fn must_run_locally(cli: &Cli) -> bool {
     // daemon holds. Forwarding it would gain nothing and cost accuracy: a long-lived
     // daemon answers from the code it was started with, so a freshly fixed scan would
     // still report the old result until the daemon happened to be restarted.
-    let local_disk_scan = matches!(cli.command, Command::Duplicates);
+    // Same for `profiles`, which only reads config files.
+    let local_disk_scan = matches!(cli.command, Command::Duplicates | Command::Profiles { .. });
 
     interactive_login
         || web_token_login
@@ -548,6 +549,10 @@ async fn run(cli: Cli) -> Result<()> {
             ProtonCommand::Install { version } => cmd_proton_install(version, json).await,
             ProtonCommand::Uninstall { version } => cmd_proton_uninstall(version, json).await,
             ProtonCommand::Default { version } => cmd_proton_default(version, json).await,
+        },
+        Command::Profiles { command } => match command {
+            ProfilesCommand::List => cmd_profiles_list(json),
+            ProfilesCommand::Show { name } => cmd_profiles_show(&name, json),
         },
         Command::Scripts { command } => match command {
             ScriptsCommand::Dir => cmd_scripts_dir(json).await,

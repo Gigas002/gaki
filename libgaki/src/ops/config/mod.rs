@@ -218,6 +218,94 @@ pub fn check() -> Result<CheckReport> {
     })
 }
 
+/// One profile, for `profiles list`/`profiles show`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ProfileInfo {
+    pub profile: crate::config::Profile,
+    /// The profile's file.
+    pub path: PathBuf,
+    /// Whether it is `default_profile`.
+    pub is_default: bool,
+    /// The games whose `games.toml` entry names it.
+    pub games: Vec<GameRef>,
+    /// What's wrong with it.
+    #[serde(serialize_with = "issue_strings")]
+    pub issues: Vec<crate::config::Issue>,
+}
+
+fn issue_strings<S: serde::Serializer>(
+    issues: &[crate::config::Issue],
+    serializer: S,
+) -> std::result::Result<S::Ok, S::Error> {
+    serializer.collect_seq(issues.iter().map(ToString::to_string))
+}
+
+/// A game by app id and alias.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct GameRef {
+    pub app_id: u32,
+    pub name: Option<String>,
+}
+
+impl std::fmt::Display for GameRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.name {
+            Some(name) => write!(f, "{name} ({})", self.app_id),
+            None => write!(f, "{}", self.app_id),
+        }
+    }
+}
+
+/// Every profile, sorted by name, and the directory they come from. Profile
+/// files that failed to load are returned as errors alongside.
+pub fn profiles() -> Result<(PathBuf, Vec<ProfileInfo>, Vec<String>)> {
+    let config_dir = crate::core::config::config_dir()?;
+    let home = crate::core::config::home_dir()?;
+    let catalog = Catalog::load(&config_dir, &home);
+    let dir = crate::config::profiles_dir(&config_dir, &catalog.config, &home);
+    let ctx = ValidationContext { home: &home };
+    let infos = catalog
+        .profiles
+        .iter()
+        .map(|profile| ProfileInfo {
+            path: dir.join(format!("{}.toml", profile.name)),
+            is_default: catalog.config.default_profile.as_deref() == Some(profile.name.as_str()),
+            games: catalog
+                .games_using(&profile.name)
+                .iter()
+                .map(|game| GameRef {
+                    app_id: game.app_id,
+                    name: game.name.clone(),
+                })
+                .collect(),
+            issues: profile.validate(&ctx),
+            profile: profile.clone(),
+        })
+        .collect();
+    let errors = catalog
+        .load_errors
+        .iter()
+        .filter(|e| e.path().starts_with(&dir))
+        .map(ToString::to_string)
+        .collect();
+    Ok((dir, infos, errors))
+}
+
+/// One profile by name.
+pub fn profile(name: &str) -> Result<ProfileInfo> {
+    let (dir, infos, _) = profiles()?;
+    infos
+        .into_iter()
+        .find(|info| info.profile.name == name)
+        .ok_or_else(|| {
+            TypedError::new(
+                ErrorKind::NotFound,
+                format!("no profile `{name}` in {}", dir.display()),
+            )
+            .into()
+        })
+}
+
 /// Load the launcher configuration (defaults when the file is missing).
 pub async fn load() -> Result<LauncherConfig> {
     load_launcher_config().await

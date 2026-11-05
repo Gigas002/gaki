@@ -1067,7 +1067,14 @@ I make the changes, and you review, commit, and push.
     win; its `--proton` is gone (a per-game Proton is a profile). `keyring`
     stays in `config.json` until 5.9. Known wrinkle until 5.8: a JSON save
     (pins, keyring) writes the overlaid TOML values into `config.json` too.
-  - [ ] **5.7b** `gaki-cli profiles list|show`.
+  - [x] **5.7b** `gaki-cli profiles list|show`. *Done.* `list` shows each
+    profile's runner and Proton build, how many games name it, its prefix,
+    the `default_profile` marker, profiles with errors, and profile files
+    that didn't load; `show` prints the file itself, the games using it
+    (with aliases), and its issues. Both take `--json` and run locally, not
+    through the daemon (they only read files), and follow `profiles_dir`.
+    Profiles with a lootrs-only runner now report just that error, not
+    warnings about fields that mean something else in lootrs.
   - [ ] **5.7c** TUI: `game_config` on `games.toml` with profile selection;
     drop the JSON `update_game`.
 - [ ] **5.8** Remove the JSON config code paths. Caches can stay JSON, because

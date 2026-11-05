@@ -151,10 +151,7 @@ impl Catalog {
         let mut load_errors = Vec::new();
         let config: Config =
             read_toml(&config_dir.join(CONFIG_FILE), &mut load_errors).unwrap_or_default();
-        let profiles_dir = match &config.profiles_dir {
-            Some(dir) => expand_tilde(dir, home),
-            None => config_dir.join(PROFILES_DIR),
-        };
+        let profiles_dir = profiles_dir(config_dir, &config, home);
         let profiles = load_profiles(&profiles_dir, &mut load_errors);
         let games = read_toml::<GamesFile>(&config_dir.join(GAMES_FILE), &mut load_errors)
             .unwrap_or_default()
@@ -180,6 +177,14 @@ impl Catalog {
 
     pub fn game(&self, app_id: u32) -> Option<&Game> {
         self.games.iter().find(|game| game.app_id == app_id)
+    }
+
+    /// The games whose entry names profile `name`.
+    pub fn games_using(&self, name: &str) -> Vec<&Game> {
+        self.games
+            .iter()
+            .filter(|game| game.profile.as_deref() == Some(name))
+            .collect()
     }
 
     /// The game whose `name` alias is `alias`.
@@ -248,6 +253,14 @@ impl Catalog {
             }
         }
         issues
+    }
+}
+
+/// Where `config`'s profiles live: `profiles_dir`, or `<config dir>/profiles`.
+pub fn profiles_dir(config_dir: &Path, config: &Config, home: &Path) -> PathBuf {
+    match &config.profiles_dir {
+        Some(dir) => expand_tilde(dir, home),
+        None => config_dir.join(PROFILES_DIR),
     }
 }
 

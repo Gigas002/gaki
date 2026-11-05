@@ -142,6 +142,8 @@ impl Profile {
             issues.error(format!(
                 "runner `{runner}` is a lootrs runner; gaki supports `proton` and `native`"
             ));
+            // The rest is lootrs' to judge: its fields mean other things there.
+            return issues.finish();
         }
 
         let proton = runner == Runner::Proton;

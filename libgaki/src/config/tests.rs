@@ -141,7 +141,12 @@ fn lootrs_profiles_load_and_lootrs_runners_are_reported() {
         "{:?}",
         messages(&issues)
     );
-    assert!(has(&issues, Severity::Warning, "`prefix` is ignored"));
+    assert_eq!(
+        issues.len(),
+        1,
+        "only the runner is reported: {:?}",
+        messages(&issues)
+    );
 
     let native: Profile = toml::from_str("name = \"native\"\nrunner = \"native\"").unwrap();
     assert!(native.validate(&ctx()).is_empty());
@@ -433,4 +438,23 @@ mod editing {
         assert!(file.parse::<GamesFile>().unwrap().games.is_empty());
         assert!(!file.doc.to_string().contains("[[game]]"));
     }
+}
+
+#[test]
+fn games_using_a_profile() {
+    let mut a = Game::new(1);
+    a.profile = Some("native".into());
+    let mut b = Game::new(2);
+    b.profile = Some("proton".into());
+    let catalog = Catalog {
+        games: vec![a, b, Game::new(3)],
+        ..Catalog::default()
+    };
+    let ids: Vec<u32> = catalog
+        .games_using("native")
+        .iter()
+        .map(|g| g.app_id)
+        .collect();
+    assert_eq!(ids, [1]);
+    assert!(catalog.games_using("other").is_empty());
 }
