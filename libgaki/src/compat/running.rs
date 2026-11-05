@@ -3,8 +3,8 @@
 //!
 //! `gaki-cli play` blocks in the foreground process while the game runs, so the
 //! PID of the launched process can't be queried from another invocation. To make
-//! `stop` work across processes, each launch records a small JSON file under
-//! `~/.config/gaki/running/<app_id>.json` holding the child PID (and, for a
+//! `stop` work across processes, each launch records a small TOML file under
+//! `~/.config/gaki/running/<app_id>.toml` holding the child PID (and, for a
 //! per-game Proton/Wine launch, the WINEPREFIX the game runs in). The launching
 //! process removes the file when the game exits.
 //!
@@ -27,7 +27,7 @@
 //!   crash mid-write leaves the previous record rather than a truncated one.
 
 use crate::core::config::config_dir;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
@@ -98,28 +98,20 @@ fn running_dir() -> Result<PathBuf> {
 }
 
 fn record_path(app_id: u32) -> Result<PathBuf> {
-    Ok(running_dir()?.join(format!("{app_id}.json")))
+    Ok(running_dir()?.join(format!("{app_id}.toml")))
 }
 
-/// Persist that `game` is now running so `stop` can find it later.
+/// Persist that `game` is now running so `stop` can find it later. Written
+/// atomically, so a reader (or a crash) never sees a half-written record.
 pub fn record_launch(game: &RunningGame) -> Result<()> {
-    let dir = running_dir()?;
-    std::fs::create_dir_all(&dir).with_context(|| format!("failed creating {}", dir.display()))?;
-    let path = record_path(game.app_id)?;
-    let body = serde_json::to_string_pretty(game)?;
-    // Write-then-rename so a reader (or a crash) never sees a half-written
-    // record. The `.tmp` extension keeps it out of `list()`.
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, body).with_context(|| format!("failed writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, &path).with_context(|| format!("failed replacing {}", path.display()))?;
-    Ok(())
+    crate::core::store::write(&record_path(game.app_id)?, game)
 }
 
 /// Load the running-game record for `app_id`, if one exists.
 pub fn load(app_id: u32) -> Option<RunningGame> {
-    let path = record_path(app_id).ok()?;
-    let raw = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&raw).ok()
+    crate::core::store::read(&record_path(app_id).ok()?)
+        .ok()
+        .flatten()
 }
 
 /// Remove the running-game record for `app_id` (no-op if absent).
@@ -141,9 +133,8 @@ pub fn list() -> Vec<RunningGame> {
     let mut games: Vec<RunningGame> = entries
         .flatten()
         .map(|entry| entry.path())
-        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("json"))
-        .filter_map(|path| std::fs::read_to_string(path).ok())
-        .filter_map(|raw| serde_json::from_str(&raw).ok())
+        .filter(|path| path.extension().and_then(|e| e.to_str()) == Some("toml"))
+        .filter_map(|path| crate::core::store::read(&path).ok().flatten())
         .collect();
     games.sort_by(|a, b| a.name.cmp(&b.name));
     games

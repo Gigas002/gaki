@@ -475,7 +475,7 @@ Settings are changed with `config` commands, never environment variables: for ex
   engine. It picks the least-loaded content servers, spreads chunk requests over a pool of
   them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per
   depot.
-- **Install backlog.** Unfinished installs are kept in `install_backlog.json` until they
+- **Install backlog.** Unfinished installs are kept in `install_backlog.toml` until they
   finish or you `install forget` them.
 
 ---

@@ -154,6 +154,7 @@ struct BaselineEntry {
 /// and would either clobber data or flag a conflict on every routine save.
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 struct SyncBaseline {
+    #[serde(default)]
     files: HashMap<String, BaselineEntry>,
 }
 
@@ -161,16 +162,17 @@ impl SyncBaseline {
     fn path_for(appid: u32) -> Result<PathBuf> {
         Ok(crate::core::config::config_dir()?
             .join("cloud_sync")
-            .join(format!("{appid}.json")))
+            .join(format!("{appid}.toml")))
     }
 
     fn load(appid: u32) -> Self {
         let Ok(path) = Self::path_for(appid) else {
             return Self::default();
         };
-        std::fs::read_to_string(&path)
+        crate::core::store::read(&path)
+            .inspect_err(|e| tracing::warn!("ignoring cloud-sync state: {e:#}"))
             .ok()
-            .and_then(|raw| serde_json::from_str(&raw).ok())
+            .flatten()
             .unwrap_or_default()
     }
 
@@ -178,19 +180,8 @@ impl SyncBaseline {
         let Ok(path) = Self::path_for(appid) else {
             return;
         };
-        if let Some(parent) = path.parent()
-            && let Err(e) = std::fs::create_dir_all(parent)
-        {
-            tracing::warn!("could not create cloud-sync state dir: {e}");
-            return;
-        }
-        match serde_json::to_string_pretty(self) {
-            Ok(raw) => {
-                if let Err(e) = std::fs::write(&path, raw) {
-                    tracing::warn!("could not persist cloud-sync state {}: {e}", path.display());
-                }
-            }
-            Err(e) => tracing::warn!("could not serialize cloud-sync state: {e}"),
+        if let Err(e) = crate::core::store::write(&path, self) {
+            tracing::warn!("could not persist cloud-sync state: {e:#}");
         }
     }
 }

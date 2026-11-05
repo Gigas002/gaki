@@ -5,6 +5,7 @@ pub mod models;
 pub mod net;
 pub mod session_crypto;
 pub mod steam_urls;
+pub mod store;
 pub mod utils;
 
 /// Steam API language for every store and community request. gaki shows

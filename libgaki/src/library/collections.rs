@@ -5,7 +5,7 @@
 //! namespace: each collection is one entry keyed `user-collections.<id>` whose
 //! `value` is a JSON blob `{ id, name, added:[appid], removed:[appid],
 //! filterSpec? }`. gaki keeps a **local working copy** in
-//! `config_dir()/collections.json` that is edited offline; changes reach Steam
+//! `config_dir()/collections.toml` that is edited offline; changes reach Steam
 //! only via [`pull`], [`push`], and [`sync`].
 //!
 //! Collections come in two flavours:
@@ -42,8 +42,13 @@ pub struct Collection {
     #[serde(default)]
     pub removed: Vec<u32>,
     /// Opaque dynamic-collection filter. When present the collection is
-    /// *dynamic* and is round-tripped verbatim; gaki never edits it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// *dynamic* and is round-tripped verbatim; gaki never edits it. Stored
+    /// as Steam's JSON text.
+    #[serde(
+        default,
+        with = "crate::core::store::json_text",
+        skip_serializing_if = "Option::is_none"
+    )]
     pub filter_spec: Option<Value>,
     /// Marked for deletion; pushed to Steam as a tombstone, then dropped locally.
     #[serde(default)]
@@ -139,29 +144,18 @@ pub struct CollectionsStore {
 
 /// Path to the local collections store.
 fn store_path() -> Result<std::path::PathBuf> {
-    Ok(crate::core::config::config_dir()?.join("collections.json"))
+    Ok(crate::core::config::config_dir()?.join("collections.toml"))
 }
 
 impl CollectionsStore {
     /// Load the local store. A missing file yields an empty store.
     pub fn load() -> Result<CollectionsStore> {
-        let path = store_path()?;
-        match std::fs::read_to_string(&path) {
-            Ok(text) => serde_json::from_str(&text)
-                .with_context(|| format!("failed parsing {}", path.display())),
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(CollectionsStore::default()),
-            Err(e) => Err(e).with_context(|| format!("failed reading {}", path.display())),
-        }
+        Ok(crate::core::store::read(&store_path()?)?.unwrap_or_default())
     }
 
-    /// Persist the local store (pretty JSON).
+    /// Persist the local store, atomically.
     pub fn save(&self) -> Result<()> {
-        let path = store_path()?;
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).ok();
-        }
-        let text = serde_json::to_string_pretty(self).context("failed serializing collections")?;
-        std::fs::write(&path, text).with_context(|| format!("failed writing {}", path.display()))
+        crate::core::store::write(&store_path()?, self)
     }
 
     /// Resolve a collection by exact id or case-insensitive name. Errors on

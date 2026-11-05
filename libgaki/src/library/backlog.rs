@@ -1,10 +1,10 @@
-//! Persistent install backlog (`install_backlog.json`).
+//! Persistent install backlog (`install_backlog.toml`).
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::core::config::config_dir;
@@ -85,6 +85,7 @@ pub struct BacklogEntry {
 #[derive(Debug, Default, Serialize, Deserialize)]
 struct BacklogFile {
     version: u32,
+    #[serde(default)]
     entries: Vec<BacklogEntry>,
 }
 
@@ -99,9 +100,9 @@ pub fn now() -> u64 {
         .unwrap_or(0)
 }
 
-/// `<config>/install_backlog.json`.
+/// `<config>/install_backlog.toml`.
 pub fn backlog_path() -> Result<PathBuf> {
-    Ok(config_dir()?.join("install_backlog.json"))
+    Ok(config_dir()?.join("install_backlog.toml"))
 }
 
 /// All entries, oldest first.
@@ -178,14 +179,9 @@ pub fn auto_resumable(entries: &[BacklogEntry]) -> Vec<u32> {
 }
 
 pub(crate) fn load_from(path: &Path) -> Result<Vec<BacklogEntry>> {
-    let raw = match std::fs::read_to_string(path) {
-        Ok(raw) => raw,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e).with_context(|| format!("failed reading {}", path.display())),
-    };
-    let file: BacklogFile =
-        serde_json::from_str(&raw).with_context(|| format!("failed parsing {}", path.display()))?;
-    Ok(file.entries)
+    Ok(crate::core::store::read::<BacklogFile>(path)?
+        .map(|file| file.entries)
+        .unwrap_or_default())
 }
 
 pub(crate) fn update_at<T>(
@@ -201,19 +197,11 @@ pub(crate) fn update_at<T>(
 
 /// Write via temp file and rename.
 fn save_to(path: &Path, entries: &[BacklogEntry]) -> Result<()> {
-    if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .with_context(|| format!("failed creating {}", parent.display()))?;
-    }
     let file = BacklogFile {
         version: 1,
         entries: entries.to_vec(),
     };
-    let body = serde_json::to_string_pretty(&file)?;
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, body).with_context(|| format!("failed writing {}", tmp.display()))?;
-    std::fs::rename(&tmp, path).with_context(|| format!("failed replacing {}", path.display()))?;
-    Ok(())
+    crate::core::store::write(path, &file)
 }
 
 /// Folder `forget --delete-files` may remove.

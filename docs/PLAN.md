@@ -1119,9 +1119,18 @@ I make the changes, and you review, commit, and push.
     `tui/config.toml`; a broken file is logged and left alone instead of
     being overwritten with defaults, and the copy-over of an
     `~/.config/aurelia-tui/config.json` is gone.
-  - [ ] **5.8b** gaki's state files to TOML, same paths:
+  - [x] **5.8b** gaki's state files to TOML, same paths:
     `install_backlog`, `collections`, `running/<app id>`, the cloud-sync
-    state. (`session.json` goes in 5.9.)
+    state. (`session.json` goes in 5.9.) *Done.* All four go through
+    `core::store::{read, write}` (TOML, atomic temp-file-and-rename; a
+    missing file is `None`); collections and the cloud-sync baselines are
+    now written atomically too. A dynamic collection's `filter_spec` is
+    Steam's opaque JSON, which can hold `null`, so it is kept as JSON text
+    in a TOML string (`store::json_text`). `config check` also warns about
+    a leftover `collections.json` (unpushed edits are only there) and
+    `install_backlog.json`; old `running/*.json` and `cloud_sync/*.json`
+    are ignored (a missing baseline only means the next sync compares
+    from scratch).
   - [ ] **5.8c** Caches and launch-log artifacts to TOML: `library_cache`,
     the info and name caches, the TUI's `games` cache, `summary`,
     `effective_env` and the other log files. Drop `serde_json` where only

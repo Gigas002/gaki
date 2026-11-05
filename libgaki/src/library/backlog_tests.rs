@@ -29,7 +29,7 @@ fn missing_file_is_empty() {
 #[test]
 fn round_trips_and_replaces_by_app_id() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("install_backlog.json");
+    let path = dir.path().join("install_backlog.toml");
     update_at(&path, |e| upsert_in(e, entry(1, BacklogState::Interrupted))).unwrap();
     update_at(&path, |e| upsert_in(e, entry(2, BacklogState::Paused))).unwrap();
     let mut again = entry(1, BacklogState::Aborted);
@@ -40,10 +40,10 @@ fn round_trips_and_replaces_by_app_id() {
     assert_eq!(all[0].state, BacklogState::Aborted);
     // The first add time survives.
     assert_eq!(all[0].added_at, 1);
-    assert!(!path.with_extension("json.tmp").exists());
+    assert!(!dir.path().join(".install_backlog.toml.tmp").exists());
     let raw = std::fs::read_to_string(&path).unwrap();
     assert!(
-        raw.contains("\"state\": \"aborted\"") && raw.contains("\"version\": 1"),
+        raw.contains("state = \"aborted\"") && raw.contains("version = 1"),
         "{raw}"
     );
 }
@@ -51,7 +51,7 @@ fn round_trips_and_replaces_by_app_id() {
 #[test]
 fn corrupt_file_is_an_error_not_wiped() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("install_backlog.json");
+    let path = dir.path().join("install_backlog.toml");
     std::fs::write(&path, "{not json").unwrap();
     assert!(update_at(&path, |e| e.clear()).is_err());
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "{not json");
@@ -100,7 +100,7 @@ fn deletable_dir_guards() {
 #[test]
 fn early_failures_still_use_up_auto_attempts() {
     let dir = tempfile::tempdir().unwrap();
-    let path = dir.path().join("install_backlog.json");
+    let path = dir.path().join("install_backlog.toml");
     update_at(&path, |e| upsert_in(e, entry(1, BacklogState::Interrupted))).unwrap();
     for expected in 1..=MAX_AUTO_ATTEMPTS {
         let bumped = update_at(&path, |e| bump_in(e, 1)).unwrap();

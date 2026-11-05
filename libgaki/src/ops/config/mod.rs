@@ -235,8 +235,8 @@ pub fn leftover_scripts(config_dir: &std::path::Path) -> Vec<crate::config::Issu
         .collect()
 }
 
-/// A warning for each old JSON settings file in `config_dir`, which gaki no
-/// longer reads.
+/// A warning for each old JSON file in `config_dir`, which gaki no longer
+/// reads.
 pub fn leftover_json(config_dir: &std::path::Path) -> Vec<crate::config::Issue> {
     [
         (
@@ -247,6 +247,16 @@ pub fn leftover_json(config_dir: &std::path::Path) -> Vec<crate::config::Issue> 
         (
             "user_apps.json",
             "per-game settings now live in games.toml (`gaki-cli config game`)",
+        ),
+        (
+            "collections.json",
+            "collections now live in collections.toml; `gaki-cli collections pull` \
+             fetches them from Steam again, but unpushed local edits are only in the old file",
+        ),
+        (
+            "install_backlog.json",
+            "the backlog now lives in install_backlog.toml; start unfinished installs \
+             again with `gaki-cli install`",
         ),
     ]
     .into_iter()
