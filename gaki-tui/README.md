@@ -133,7 +133,7 @@ field in the config to include any of `Game`, `DLC`, `Driver`, `Application`,
 | Path | Contents |
 | --- | --- |
 | `$XDG_CONFIG_HOME/gaki/tui/` (`~/.config/gaki/tui/`) | `config.toml` (favourites, hidden games, allowed types, highlight colour) |
-| `$XDG_CACHE_HOME/gaki/tui/` (`~/.cache/gaki/tui/`) | cached library (`games.json`) and cover art (`icons/`) |
+| `$XDG_CACHE_HOME/gaki/tui/` (`~/.cache/gaki/tui/`) | cached library (`games.toml`) and cover art (`icons/`) |
 | `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `gaki-tui.log` |
 
 A `config.json` there, or in the old `~/.config/aurelia-tui/`, is no longer

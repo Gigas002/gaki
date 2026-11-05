@@ -26,6 +26,38 @@ fn launcher_config_takes_the_toml_settings() {
 }
 
 #[test]
+fn info_cache_keeps_dlc_without_a_name() {
+    let record = CachedAppInfo {
+        fetched_at: 7,
+        details: crate::steam_client::StoreAppInfo {
+            app_id: 570,
+            name: "Dota 2".into(),
+            price_cents: Some(-1),
+            ..Default::default()
+        },
+        dlc: vec![(1, Some("Pack".into())), (2, None)],
+    };
+    let text = toml::to_string(&record).unwrap();
+    let back: CachedAppInfo = toml::from_str(&text).unwrap();
+    assert_eq!(back.dlc, record.dlc);
+    assert_eq!(back.details.name, "Dota 2");
+}
+
+#[test]
+fn library_cache_keeps_large_manifest_ids() {
+    let game = OwnedGame {
+        app_id: 570,
+        name: "Dota 2".into(),
+        playtime_forever_minutes: 3,
+        local_manifest_ids: HashMap::from([(573, u64::MAX)]),
+        update_available: true,
+    };
+    let text = toml::to_string(&LibraryCache { games: vec![game] }).unwrap();
+    let back: LibraryCache = toml::from_str(&text).unwrap();
+    assert_eq!(back.games[0].local_manifest_ids[&573], u64::MAX);
+}
+
+#[test]
 fn pins_round_trip_with_large_manifest_ids() {
     let mut pins = Pins::new();
     pins.insert(570, HashMap::from([(573, u64::MAX), (571, 7)]));

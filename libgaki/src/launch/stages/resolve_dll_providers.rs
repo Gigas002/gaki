@@ -198,9 +198,9 @@ impl PipelineStage for ResolveDllProvidersStage {
         }
 
         if let Some(session) = &ctx.session {
-            let scan_report_path = session.log_dir.join("component_scan.json");
-            if let Ok(content) = serde_json::to_string_pretty(&scan_report) {
-                let _ = std::fs::write(scan_report_path, content);
+            let scan_report_path = session.log_dir.join("component_scan.toml");
+            if let Err(e) = crate::core::store::write(&scan_report_path, &scan_report) {
+                tracing::warn!("could not write the component scan: {e:#}");
             }
         }
 

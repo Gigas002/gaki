@@ -91,8 +91,8 @@ async fn test_launch_verification_early_exit() {
     assert_eq!(ctx.verification.exit_code, Some(0));
 
     let summary = summary_content(&ctx);
-    assert!(summary.contains("\"result\": \"Failure\""));
-    assert!(summary.contains("\"status\": \"failed_after_spawn\""));
+    assert!(summary.contains("result = \"Failure\""));
+    assert!(summary.contains("status = \"failed_after_spawn\""));
 }
 
 #[tokio::test]
@@ -105,8 +105,8 @@ async fn test_launch_verification_success() {
     assert!(ctx.verification.process_lifetime_ms.is_some());
 
     let summary = summary_content(&ctx);
-    assert!(summary.contains("\"result\": \"Success\""));
-    assert!(summary.contains("\"status\": \"verified\""));
+    assert!(summary.contains("result = \"Success\""));
+    assert!(summary.contains("status = \"verified\""));
 
     // Cleanup the sleep process
     if let Some(mut child) = ctx.child.take() {

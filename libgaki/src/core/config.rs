@@ -1,14 +1,12 @@
 use crate::core::models::{OwnedGame, SessionState};
 use anyhow::{Context, Result};
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use tokio::fs;
 
-/// Serialize `value` as pretty JSON and write it to `path`, creating the parent
-/// directory first. Shared by the `save_*` helpers so the create-dir / serialize /
-/// write / error-context sequence lives in one place.
+/// Write `session.json`, the one JSON file left: the credential store
+/// replaces it in 5.9.
 async fn write_json_pretty<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)
@@ -22,20 +20,6 @@ async fn write_json_pretty<T: Serialize>(path: &Path, value: &T) -> Result<()> {
     Ok(())
 }
 
-/// Read `path` and parse it as JSON into `T`. Shared by the `load_*` helpers so the
-/// read / parse / error-context sequence lives in one place. Callers handle the
-/// missing-file fallback themselves, since each returns a different default.
-async fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T> {
-    let raw = fs::read_to_string(path)
-        .await
-        .with_context(|| format!("failed reading {}", path.display()))?;
-    serde_json::from_str(&raw).with_context(|| format!("failed parsing {}", path.display()))
-}
-
-/// Network proxy settings applied to all of gaki's HTTP(S) traffic: the Steam
-/// Community/store/market web endpoints, depot content downloads (steam-cdn), and the
-/// GitHub/Codeberg release lookups used by the Proton manager. Empty by default
-/// (a direct connection). See [`crate::core::net`] for how these are applied.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
 pub struct ProxyConfig {
     /// Proxy URL for all HTTP(S) requests, e.g. `http://host:8080`,
@@ -532,19 +516,30 @@ pub async fn game_pin_state(app_id: u32) -> (bool, HashMap<u32, u64>) {
 }
 
 pub fn library_cache_path() -> Result<PathBuf> {
-    Ok(data_dir()?.join("library_cache.json"))
+    Ok(data_dir()?.join("library_cache.toml"))
+}
+
+/// `library_cache.toml`: the owned games, under `[[games]]`.
+#[derive(Serialize, Deserialize)]
+struct LibraryCache {
+    games: Vec<OwnedGame>,
 }
 
 pub async fn save_library_cache(owned_games: &[OwnedGame]) -> Result<()> {
-    write_json_pretty(&library_cache_path()?, &owned_games).await
+    crate::core::store::write(
+        &library_cache_path()?,
+        &LibraryCache {
+            games: owned_games.to_vec(),
+        },
+    )
 }
 
 pub async fn load_library_cache() -> Result<Vec<OwnedGame>> {
-    let path = library_cache_path()?;
-    if !path.exists() {
-        return Ok(Vec::new());
-    }
-    read_json(&path).await
+    Ok(
+        crate::core::store::read::<LibraryCache>(&library_cache_path()?)?
+            .map(|cache| cache.games)
+            .unwrap_or_default(),
+    )
 }
 
 /// Default lifetime of a cached `gaki-cli info` record before it is re-fetched
@@ -569,7 +564,43 @@ pub fn info_cache_ttl() -> std::time::Duration {
 pub struct CachedAppInfo {
     pub fetched_at: u64,
     pub details: crate::steam_client::StoreAppInfo,
+    #[serde(with = "dlc_names")]
     pub dlc: Vec<(u32, Option<String>)>,
+}
+
+/// `(app_id, name)` pairs as `[[dlc]]` tables: TOML arrays can't hold the
+/// missing names.
+mod dlc_names {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Serialize, Deserialize)]
+    struct Dlc {
+        app_id: u32,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
+    }
+
+    pub fn serialize<S: Serializer>(
+        dlc: &[(u32, Option<String>)],
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        dlc.iter()
+            .map(|(app_id, name)| Dlc {
+                app_id: *app_id,
+                name: name.clone(),
+            })
+            .collect::<Vec<_>>()
+            .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Vec<(u32, Option<String>)>, D::Error> {
+        Ok(Vec::<Dlc>::deserialize(deserializer)?
+            .into_iter()
+            .map(|dlc| (dlc.app_id, dlc.name))
+            .collect())
+    }
 }
 
 fn info_cache_dir() -> Result<PathBuf> {
@@ -590,7 +621,7 @@ fn info_cache_path(app_id: u32, country: &str) -> Result<PathBuf> {
             }
         })
         .collect();
-    Ok(info_cache_dir()?.join(format!("{app_id}.{cc}.json")))
+    Ok(info_cache_dir()?.join(format!("{app_id}.{cc}.toml")))
 }
 
 use crate::core::utils::now_unix;
@@ -607,8 +638,7 @@ pub async fn load_info_cache(
         return None;
     }
     let path = info_cache_path(app_id, country).ok()?;
-    let raw = fs::read_to_string(&path).await.ok()?;
-    let cached: CachedAppInfo = serde_json::from_str(&raw).ok()?;
+    let cached: CachedAppInfo = crate::core::store::read(&path).ok()??;
     let age = now_unix().saturating_sub(cached.fetched_at);
     (age <= ttl.as_secs()).then_some(cached)
 }
@@ -625,12 +655,12 @@ pub async fn save_info_cache(
         details: details.clone(),
         dlc: dlc.to_vec(),
     };
-    write_json_pretty(&info_cache_path(app_id, country)?, &record).await
+    crate::core::store::write(&info_cache_path(app_id, country)?, &record)
 }
 
 /// Cache file for a store name table (`tag_names`, `category_names`).
 fn name_cache_path(kind: &str) -> Result<PathBuf> {
-    Ok(data_dir()?.join(format!("{kind}.json")))
+    Ok(data_dir()?.join(format!("{kind}.toml")))
 }
 
 /// Cached store names of `kind`; empty on miss.
@@ -638,7 +668,10 @@ pub async fn load_name_cache(kind: &str) -> std::collections::HashMap<u32, Strin
     let Ok(path) = name_cache_path(kind) else {
         return Default::default();
     };
-    read_json(&path).await.unwrap_or_default()
+    crate::core::store::read(&path)
+        .ok()
+        .flatten()
+        .unwrap_or_default()
 }
 
 /// Persist store names of `kind`.
@@ -646,7 +679,7 @@ pub async fn save_name_cache(
     kind: &str,
     names: &std::collections::HashMap<u32, String>,
 ) -> Result<()> {
-    write_json_pretty(&name_cache_path(kind)?, names).await
+    crate::core::store::write(&name_cache_path(kind)?, names)
 }
 
 #[cfg(test)]

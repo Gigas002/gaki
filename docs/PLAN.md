@@ -1098,7 +1098,7 @@ I make the changes, and you review, commit, and push.
     to change them. Removed: the TUI's forced-Proton row,
     `GameSettingsChange`, `GameSettings`, `update_game`, `platform_name`
     and `Change::apply_to` from `ops::config`.
-- [ ] **5.8** Remove the JSON config code paths. *Decided:* every file gaki
+- [x] **5.8** Remove the JSON config code paths. *Decided:* every file gaki
   stores becomes TOML, in the same directory under the same name, caches
   included (`--json` output and Steam's JSON APIs are not files and stay).
   No migration: `config check` warns about a leftover `config.json` or
@@ -1131,10 +1131,19 @@ I make the changes, and you review, commit, and push.
     `install_backlog.json`; old `running/*.json` and `cloud_sync/*.json`
     are ignored (a missing baseline only means the next sync compares
     from scratch).
-  - [ ] **5.8c** Caches and launch-log artifacts to TOML: `library_cache`,
+  - [x] **5.8c** Caches and launch-log artifacts to TOML: `library_cache`,
     the info and name caches, the TUI's `games` cache, `summary`,
     `effective_env` and the other log files. Drop `serde_json` where only
-    files used it.
+    files used it. *Done.* All go through `core::store` (the TUI writes its
+    cache with `write_atomic`). TOML can't hold a bare list or a missing
+    value inside an array, so the lists sit under a key (`[[games]]`,
+    `[[resolution]]`) and the info cache's DLC `(id, name)` pairs are
+    `[[dlc]]` tables. The launch event log is `events.toml`, one
+    `[[event]]` table appended per event, so the file stays valid TOML
+    (`EventLog::parse` reads it back). Old `.json` caches are ignored and
+    refill themselves. `serde_json` stays in all three crates: Steam's web
+    APIs, ProtonDB, `--json` output and `session.json` (until 5.9) use it.
+    The only JSON file gaki still writes is `session.json`.
 
 **Credentials (D10).** The following steps implement the model described in
 "Authentication and session security". They come after 5.1, which adds the

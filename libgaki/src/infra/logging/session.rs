@@ -43,13 +43,11 @@ pub struct LaunchSummary {
     pub verification: LaunchVerification,
 }
 
-/// Read back `summary.json` from `log_dir`.
+/// Read back `summary.toml` from `log_dir`.
 pub fn load_launch_summary(log_dir: &std::path::Path) -> anyhow::Result<LaunchSummary> {
-    use anyhow::Context;
-    let summary_path = log_dir.join("summary.json");
-    let content = std::fs::read_to_string(&summary_path)
-        .with_context(|| format!("Failed to read summary at {}", summary_path.display()))?;
-    Ok(serde_json::from_str(&content)?)
+    let summary_path = log_dir.join("summary.toml");
+    crate::core::store::read(&summary_path)?
+        .ok_or_else(|| anyhow::anyhow!("no summary at {}", summary_path.display()))
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -161,15 +159,15 @@ impl LaunchSession {
     }
 
     pub fn event_log_path(&self) -> PathBuf {
-        self.log_dir.join("events.jsonl")
+        self.log_dir.join("events.toml")
     }
 
     pub fn summary_path(&self) -> PathBuf {
-        self.log_dir.join("summary.json")
+        self.log_dir.join("summary.toml")
     }
 
     pub fn effective_env_path(&self) -> PathBuf {
-        self.log_dir.join("effective_env.json")
+        self.log_dir.join("effective_env.toml")
     }
 
     pub fn effective_env_txt_path(&self) -> PathBuf {
@@ -181,7 +179,7 @@ impl LaunchSession {
     }
 
     pub fn preflight_report_path(&self) -> PathBuf {
-        self.log_dir.join("preflight_report.json")
+        self.log_dir.join("preflight_report.toml")
     }
 
     pub fn stdout_path(&self) -> PathBuf {
@@ -192,27 +190,19 @@ impl LaunchSession {
         self.log_dir.join("stderr.log")
     }
 
-    /// Serialize `value` as pretty JSON and write it to `path`, ensuring the
-    /// session log directory exists first. Shared by all JSON artifact writers.
-    fn write_json_artifact<T: serde::Serialize + ?Sized>(
-        &self,
-        path: &Path,
-        value: &T,
-    ) -> anyhow::Result<()> {
-        std::fs::create_dir_all(&self.log_dir)?;
-        let content = serde_json::to_string_pretty(value)?;
-        std::fs::write(path, content)?;
-        Ok(())
+    /// Write `value` to `path` as TOML. Shared by all the artifact writers.
+    fn write_artifact<T: serde::Serialize>(&self, path: &Path, value: &T) -> anyhow::Result<()> {
+        crate::core::store::write(path, value)
     }
 
     pub fn write_summary(&self, summary: &LaunchSummary) -> anyhow::Result<()> {
-        self.write_json_artifact(&self.summary_path(), summary)
+        self.write_artifact(&self.summary_path(), summary)
     }
 
     pub fn write_effective_env(&self, env: &EffectiveEnv) -> anyhow::Result<()> {
         let mut redacted_env = env.clone();
         redacted_env.env_vars = redact_environment(redacted_env.env_vars);
-        self.write_json_artifact(&self.effective_env_path(), &redacted_env)
+        self.write_artifact(&self.effective_env_path(), &redacted_env)
     }
 
     pub fn write_effective_env_txt(&self, env: &HashMap<String, String>) -> anyhow::Result<()> {
@@ -244,21 +234,31 @@ impl LaunchSession {
     }
 
     pub fn write_preflight_report<T: serde::Serialize>(&self, report: &T) -> anyhow::Result<()> {
-        self.write_json_artifact(&self.preflight_report_path(), report)
+        self.write_artifact(&self.preflight_report_path(), report)
     }
 
     pub fn write_dll_resolution_artifact(
         &self,
         resolutions: &[crate::launch::dll_provider_resolver::DllResolution],
     ) -> anyhow::Result<()> {
-        self.write_json_artifact(&self.log_dir.join("dll_resolution.json"), resolutions)
+        /// `[[resolution]]` tables: a TOML file can't be a bare list.
+        #[derive(serde::Serialize)]
+        struct Resolutions<'a> {
+            resolution: &'a [crate::launch::dll_provider_resolver::DllResolution],
+        }
+        self.write_artifact(
+            &self.log_dir.join("dll_resolution.toml"),
+            &Resolutions {
+                resolution: resolutions,
+            },
+        )
     }
 
     pub fn write_effective_launch_config(
         &self,
         config: &EffectiveLaunchConfig,
     ) -> anyhow::Result<()> {
-        self.write_json_artifact(&self.log_dir.join("effective_launch_config.json"), config)
+        self.write_artifact(&self.log_dir.join("effective_launch_config.toml"), config)
     }
 }
 

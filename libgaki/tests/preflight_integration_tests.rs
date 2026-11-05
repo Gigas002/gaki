@@ -233,8 +233,8 @@ async fn test_launch_artifacts_generation() {
             .collect::<Vec<_>>()
     );
 
-    // 1. Check preflight_report.json
-    assert!(session_dir.join("preflight_report.json").exists());
+    // 1. Check preflight_report.toml
+    assert!(session_dir.join("preflight_report.toml").exists());
 
     // 2. Check effective_env.txt (should be written in write_summary_if_possible on failure)
     assert!(session_dir.join("effective_env.txt").exists());
@@ -242,8 +242,8 @@ async fn test_launch_artifacts_generation() {
     // 3. Check command.txt
     assert!(session_dir.join("command.txt").exists());
 
-    // 4. Check dll_resolution.json
-    assert!(session_dir.join("dll_resolution.json").exists());
+    // 4. Check dll_resolution.toml
+    assert!(session_dir.join("dll_resolution.toml").exists());
 
     // Verify content of effective_env.txt is sorted
     let env_content = std::fs::read_to_string(session_dir.join("effective_env.txt")).unwrap();

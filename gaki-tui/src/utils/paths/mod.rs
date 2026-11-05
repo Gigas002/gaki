@@ -79,7 +79,7 @@ pub fn config_location() -> Result<PathBuf, TuiError> {
 
 pub fn cache_location() -> Result<PathBuf, TuiError> {
     let dir = cache_directory()?;
-    let cache_path = Path::new("games.json");
+    let cache_path = Path::new("games.toml");
     let cache_path = dir.join(cache_path);
     touch(&cache_path)?;
     Ok(cache_path)

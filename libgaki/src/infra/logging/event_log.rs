@@ -26,6 +26,19 @@ pub struct LogEvent {
     pub metadata: HashMap<String, String>,
 }
 
+/// `events.toml` as read back: every `[[event]]`, oldest first.
+#[derive(Debug, Default, Deserialize)]
+pub struct EventLog {
+    #[serde(default)]
+    pub event: Vec<LogEvent>,
+}
+
+impl EventLog {
+    pub fn parse(text: &str) -> Result<Self> {
+        Ok(toml::from_str(text)?)
+    }
+}
+
 pub struct EventLogger {
     file_path: PathBuf,
 }
@@ -59,7 +72,12 @@ impl EventLogger {
             .append(true)
             .open(&self.file_path)?;
 
-        writeln!(file, "{}", serde_json::to_string(&event)?)?;
+        // One `[[event]]` table per event: appending keeps the file valid TOML.
+        #[derive(Serialize)]
+        struct One<'a> {
+            event: [&'a LogEvent; 1],
+        }
+        writeln!(file, "{}", toml::to_string(&One { event: [&event] })?)?;
 
         Ok(())
     }

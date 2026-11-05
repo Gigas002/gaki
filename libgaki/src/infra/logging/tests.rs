@@ -1,4 +1,4 @@
-use crate::infra::logging::{EventLogger, LaunchSession, LaunchSessionId, LogEvent, LogLevel};
+use crate::infra::logging::{EventLog, EventLogger, LaunchSession, LaunchSessionId, LogLevel};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use tempfile::tempdir;
@@ -22,7 +22,7 @@ fn test_launch_session_path_generation() {
     assert!(
         session
             .event_log_path()
-            .ends_with(format!("{}/events.jsonl", id_str))
+            .ends_with(format!("{}/events.toml", id_str))
     );
     assert!(
         session
@@ -55,7 +55,9 @@ fn test_event_logger_append() {
     let content =
         std::fs::read_to_string(session.event_log_path()).expect("Failed to read log file");
 
-    let event: LogEvent = serde_json::from_str(&content).expect("Failed to parse log event");
+    let log = EventLog::parse(&content).expect("Failed to parse log event");
+    assert_eq!(log.event.len(), 1);
+    let event = &log.event[0];
 
     assert_eq!(event.message, "Test message");
     assert_eq!(event.stage, Some("Init".to_string()));
@@ -79,8 +81,19 @@ fn test_event_redaction() {
         .log(LogLevel::Info, "test", "msg".to_string(), None, metadata)
         .expect("Failed to log");
 
+    logger
+        .log(
+            LogLevel::Warn,
+            "second",
+            "again".to_string(),
+            None,
+            HashMap::new(),
+        )
+        .expect("Failed to log");
     let content = std::fs::read_to_string(session.event_log_path()).unwrap();
-    let event: LogEvent = serde_json::from_str(&content).unwrap();
+    let log = EventLog::parse(&content).unwrap();
+    assert_eq!(log.event.len(), 2, "appended events stay one valid file");
+    let event = &log.event[0];
 
     assert_eq!(event.metadata.get("STEAM_TOKEN").unwrap(), "[REDACTED]");
     assert_eq!(event.metadata.get("NORMAL_VAR").unwrap(), "safe");
@@ -107,7 +120,7 @@ fn test_effective_env_redaction() {
     session.write_effective_env(&env).unwrap();
 
     let content = std::fs::read_to_string(session.effective_env_path()).unwrap();
-    let read_env: EffectiveEnv = serde_json::from_str(&content).unwrap();
+    let read_env: EffectiveEnv = toml::from_str(&content).unwrap();
 
     assert_eq!(read_env.env_vars.get("STEAM_TOKEN").unwrap(), "[REDACTED]");
     assert_eq!(
