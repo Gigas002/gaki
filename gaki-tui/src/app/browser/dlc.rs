@@ -1,14 +1,14 @@
 //! The DLC overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 use crate::utils::error::STError;
 
 impl Browser {
     /// Fetch the DLC for `app_id` and open the overlay (blocking); the
     /// selection resets to the first row.
     pub fn open_dlc(&mut self, app_id: i32) -> Result<(), STError> {
-        self.dlc = aurelia::dlc(app_id)?;
+        self.dlc = steam::dlc(app_id)?;
         self.dlc_app_id = app_id;
         self.dlc_index = 0;
         self.show_dlc = true;
@@ -23,7 +23,7 @@ impl Browser {
     }
 
     /// The highlighted DLC entry, if any.
-    pub fn selected_dlc(&self) -> Option<&aurelia::DlcJson> {
+    pub fn selected_dlc(&self) -> Option<&steam::DlcJson> {
         self.dlc.get(self.dlc_index)
     }
 
@@ -50,7 +50,7 @@ impl Browser {
     /// Re-fetch the open overlay's DLC after a toggle, keeping the selection in
     /// range.
     pub fn refresh_dlc(&mut self) -> Result<(), STError> {
-        self.dlc = aurelia::dlc(self.dlc_app_id)?;
+        self.dlc = steam::dlc(self.dlc_app_id)?;
         if self.dlc.is_empty() {
             self.dlc_index = 0;
         } else if self.dlc_index >= self.dlc.len() {

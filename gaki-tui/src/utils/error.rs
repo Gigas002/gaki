@@ -1,4 +1,4 @@
-use crate::client::Command;
+use crate::app::client::Command;
 
 use shellexpand::LookupError;
 use std::error;

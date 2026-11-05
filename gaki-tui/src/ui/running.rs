@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the running overlay list from the browser's open running state. Each
 /// row shows the game name and its pid; the highlighted row gets a bright

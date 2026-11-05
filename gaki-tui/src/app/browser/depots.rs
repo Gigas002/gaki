@@ -1,13 +1,13 @@
 //! The depots overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the depots for `app_id` (blocking) and open the overlay. A fetch
     /// error simply opens an empty overlay ("No depots.").
     pub fn open_depots(&mut self, app_id: i32) {
-        self.depots = aurelia::depots(app_id).unwrap_or_default();
+        self.depots = steam::depots(app_id).unwrap_or_default();
         self.depots_scroll = 0;
         self.show_depots = true;
     }

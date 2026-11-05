@@ -1,7 +1,7 @@
 //! The chat view, in the overlay or the stand-alone `--chat` window.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Open the chat view for the highlighted friend. Sets the partner, clears
@@ -17,7 +17,7 @@ impl Browser {
         self.chat_partner = partner;
         self.chat_input.clear();
         self.chat_scroll = 0;
-        self.chat_messages = aurelia::chat_history(self.chat_steamid, 30).unwrap_or_default();
+        self.chat_messages = steam::chat_history(self.chat_steamid, 30).unwrap_or_default();
         self.show_chat = true;
     }
 
@@ -33,7 +33,7 @@ impl Browser {
 
     /// Re-fetch the open conversation's history (e.g. after sending a message).
     pub fn refresh_chat(&mut self) {
-        self.chat_messages = aurelia::chat_history(self.chat_steamid, 30).unwrap_or_default();
+        self.chat_messages = steam::chat_history(self.chat_steamid, 30).unwrap_or_default();
         // The chat panel is bottom-anchored and renders the Vec top→bottom, so it
         // must be oldest→newest. The CLI returns history newest-first, so reverse
         // it; then a *stable* sort by send time enforces true chronological order
@@ -49,7 +49,7 @@ impl Browser {
         if self.chat_input.is_empty() {
             return;
         }
-        let _ = aurelia::chat_send(self.chat_steamid, &self.chat_input);
+        let _ = steam::chat_send(self.chat_steamid, &self.chat_input);
         self.chat_input.clear();
         self.refresh_chat();
     }

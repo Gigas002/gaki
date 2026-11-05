@@ -7,7 +7,7 @@ use ratatui::layout::Rect;
 use ratatui_image::Image;
 use ratatui_image::protocol::{Protocol, halfblocks::Halfblocks};
 
-use crate::theme;
+use crate::ui::theme;
 use crate::utils::image::ImgBuf;
 
 /// Paint the art for a detail pane whose inner (border-less) area is `inner`.

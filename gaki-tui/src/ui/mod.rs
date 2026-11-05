@@ -1,7 +1,7 @@
 //! Everything drawn on screen. [`draw`] renders one frame of the library
 //! window, and [`chat::window`] one of the stand-alone chat window. The other
 //! submodules are one element each: pure builders that render from the app
-//! state plus the shared [`crate::theme`].
+//! state plus the shared [`crate::ui::theme`].
 
 pub mod account;
 pub mod achievements;
@@ -37,6 +37,7 @@ pub mod relink;
 pub mod running;
 pub mod status;
 pub mod tabs;
+pub mod theme;
 pub mod versions;
 pub mod wallet;
 pub mod workshop;
@@ -48,9 +49,8 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, ListItem, Paragraph};
 
 use crate::app::browser::Browser;
+use crate::app::client::Client;
 use crate::app::{App, Mode};
-use crate::client::Client;
-use crate::theme;
 use crate::utils::image::ImgBuf;
 
 /// The art loaded for the highlighted game, if any.

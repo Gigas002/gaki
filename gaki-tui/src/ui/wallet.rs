@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the wallet overlay content from the fetched balance.
 pub fn wallet(browser: &Browser) -> Paragraph<'static> {

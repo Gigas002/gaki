@@ -3,7 +3,7 @@
 use std::thread;
 
 use super::{Browser, View};
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Whether the Friends tab is the active view (so the Friends & Chat panel
@@ -49,7 +49,7 @@ impl Browser {
     }
 
     /// The highlighted friend, if any.
-    pub fn selected_friend(&self) -> Option<&aurelia::FriendJson> {
+    pub fn selected_friend(&self) -> Option<&steam::FriendJson> {
         self.friends.get(self.friends_index)
     }
 
@@ -141,7 +141,7 @@ impl Browser {
         // Tag the worker with the generation it was launched for; the poll only
         // adopts a result whose tag still matches the current generation.
         let search_gen = self.friend_search_gen;
-        thread::spawn(move || match aurelia::friends_search(&query) {
+        thread::spawn(move || match steam::friends_search(&query) {
             Ok(found) => {
                 if let Ok(mut status) = status.lock() {
                     *status = format!("Found {}", found.display_name());
@@ -176,7 +176,7 @@ impl Browser {
         }
         let status = self.friend_add_status.clone();
         let refresh = self.friends_refresh_pending.clone();
-        thread::spawn(move || match aurelia::friends_add(&target) {
+        thread::spawn(move || match steam::friends_add(&target) {
             Ok(()) => {
                 if let Ok(mut status) = status.lock() {
                     *status = "Request sent.".to_string();
@@ -203,7 +203,7 @@ impl Browser {
         let steamid = friend.steam_id;
         let refresh = self.friends_refresh_pending.clone();
         thread::spawn(move || {
-            if aurelia::friends_remove(steamid).is_ok()
+            if steam::friends_remove(steamid).is_ok()
                 && let Ok(mut refresh) = refresh.lock()
             {
                 *refresh = true;
@@ -245,7 +245,7 @@ impl Browser {
             // roster cell adopted on a later poll.
             let roster = self.friends_roster_pending.clone();
             thread::spawn(move || {
-                let list = aurelia::friends().unwrap_or_default();
+                let list = steam::friends().unwrap_or_default();
                 if let Ok(mut slot) = roster.lock() {
                     *slot = Some(list);
                 }

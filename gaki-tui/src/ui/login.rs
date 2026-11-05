@@ -9,10 +9,10 @@ use ratatui::{
     widgets::Paragraph,
 };
 
+use crate::app::client::{Client, State};
+use crate::app::steam::LoginPhase;
 use crate::app::{App, Mode};
-use crate::client::{Client, State};
-use crate::interface::aurelia::LoginPhase;
-use crate::theme;
+use crate::ui::theme;
 
 const SPLASH: &str = include_str!("../../assets/splash.txt");
 

@@ -1,13 +1,13 @@
 //! The inventory overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the inventory for `app_id` (blocking) and open the overlay. A fetch
     /// error simply opens an empty overlay ("No inventory items.").
     pub fn open_inventory(&mut self, app_id: i32) {
-        self.inventory = aurelia::inventory(app_id).unwrap_or_default();
+        self.inventory = steam::inventory(app_id).unwrap_or_default();
         self.inv_scroll = 0;
         self.show_inventory = true;
     }

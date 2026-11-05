@@ -9,7 +9,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
 /// Build the versions overlay from the browser's open versions state. Shows the

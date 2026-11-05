@@ -3,9 +3,12 @@
 mod artwork;
 pub mod browser;
 pub mod chat;
+pub mod client;
+pub mod game;
 mod keys;
 pub mod library;
 mod marquee;
+pub mod steam;
 mod terminal;
 pub mod worker;
 

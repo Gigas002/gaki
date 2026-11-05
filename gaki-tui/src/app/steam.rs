@@ -7,8 +7,8 @@ use std::collections::BTreeMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 
+use crate::app::game::status::GameStatus;
 use crate::app::worker;
-use crate::interface::game_status::GameStatus;
 use crate::utils::error::STError;
 use libgaki::ops::config::{Change, GameSettingsChange};
 
@@ -2338,7 +2338,7 @@ pub fn play_with(id: i32, opts: PlayOpts, status: Arc<Mutex<Option<GameStatus>>>
 #[cfg(test)]
 mod progress_tests {
     use super::{ProgressLabel, drive_progress};
-    use crate::interface::game_status::GameStatus;
+    use crate::app::game::status::GameStatus;
     use libgaki::core::error::{ErrorKind, classify};
     use libgaki::core::models::{DownloadProgress, DownloadProgressState as State};
     use std::sync::{Arc, Mutex};

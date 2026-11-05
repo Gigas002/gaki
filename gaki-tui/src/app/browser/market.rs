@@ -4,13 +4,13 @@ use std::sync::Arc;
 use std::thread;
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the account's market listings (blocking) and open the overlay. A
     /// fetch error simply opens an empty overlay ("No active listings.").
     pub fn open_market(&mut self) {
-        self.market = aurelia::market_listings().unwrap_or_default();
+        self.market = steam::market_listings().unwrap_or_default();
         self.market_scroll = 0;
         self.show_market = true;
     }
@@ -50,10 +50,10 @@ impl Browser {
         // a late worker's tagged result is dropped by `poll_market`.
         self.market_search_gen = self.market_search_gen.wrapping_add(1);
         if let Ok(mut slot) = self.market_search_cell.lock() {
-            *slot = (self.market_search_gen, aurelia::MarketSearchState::Idle);
+            *slot = (self.market_search_gen, steam::MarketSearchState::Idle);
         }
         if let Ok(mut slot) = self.market_price_cell.lock() {
-            *slot = aurelia::MarketPriceState::Idle;
+            *slot = steam::MarketPriceState::Idle;
         }
     }
 
@@ -98,10 +98,10 @@ impl Browser {
         // an out-of-order OLDER search can't clobber a NEWER one's results.
         let search_gen = self.market_search_gen;
         if let Ok(mut slot) = self.market_search_cell.lock() {
-            *slot = (search_gen, aurelia::MarketSearchState::Loading);
+            *slot = (search_gen, steam::MarketSearchState::Loading);
         }
         let cell = Arc::clone(&self.market_search_cell);
-        thread::spawn(move || aurelia::market_search_async(query, search_gen, cell));
+        thread::spawn(move || steam::market_search_async(query, search_gen, cell));
     }
 
     /// Look up the highlighted result's market price, off the UI thread. The
@@ -119,10 +119,10 @@ impl Browser {
         }
         self.market_search_status = format!("pricing {}...", result.display_name());
         if let Ok(mut slot) = self.market_price_cell.lock() {
-            *slot = aurelia::MarketPriceState::Loading;
+            *slot = steam::MarketPriceState::Loading;
         }
         let cell = Arc::clone(&self.market_price_cell);
-        thread::spawn(move || aurelia::market_price_async(app_id, name, cell));
+        thread::spawn(move || steam::market_price_async(app_id, name, cell));
     }
 
     /// Adopt any completed search/price result published by the worker threads,
@@ -142,24 +142,24 @@ impl Browser {
             let search_gen = slot.0;
             let done = !matches!(
                 &slot.1,
-                aurelia::MarketSearchState::Idle | aurelia::MarketSearchState::Loading
+                steam::MarketSearchState::Idle | steam::MarketSearchState::Loading
             );
             if done && search_gen == self.market_search_gen {
                 let (_, state) = std::mem::replace(
                     &mut *slot,
-                    (self.market_search_gen, aurelia::MarketSearchState::Idle),
+                    (self.market_search_gen, steam::MarketSearchState::Idle),
                 );
                 Some(state)
             } else if done {
                 // Stale result: discard it (reset to Idle) without adopting.
-                slot.1 = aurelia::MarketSearchState::Idle;
+                slot.1 = steam::MarketSearchState::Idle;
                 None
             } else {
                 None
             }
         });
         match search {
-            Some(aurelia::MarketSearchState::Ready(results)) => {
+            Some(steam::MarketSearchState::Ready(results)) => {
                 let count = results.len();
                 self.market_results = results;
                 self.market_results_index = 0;
@@ -170,7 +170,7 @@ impl Browser {
                     format!("{} results", count)
                 };
             }
-            Some(aurelia::MarketSearchState::Failed(err)) => {
+            Some(steam::MarketSearchState::Failed(err)) => {
                 self.market_results.clear();
                 self.market_results_index = 0;
                 self.market_results_scroll = 0;
@@ -183,22 +183,22 @@ impl Browser {
         let price = self.market_price_cell.lock().ok().map(|mut slot| {
             let done = !matches!(
                 &*slot,
-                aurelia::MarketPriceState::Idle | aurelia::MarketPriceState::Loading
+                steam::MarketPriceState::Idle | steam::MarketPriceState::Loading
             );
             if done {
-                std::mem::replace(&mut *slot, aurelia::MarketPriceState::Idle)
+                std::mem::replace(&mut *slot, steam::MarketPriceState::Idle)
             } else {
-                aurelia::MarketPriceState::Loading
+                steam::MarketPriceState::Loading
             }
         });
         match price {
-            Some(aurelia::MarketPriceState::Ready(p)) => {
+            Some(steam::MarketPriceState::Ready(p)) => {
                 self.market_search_status = match p.summary() {
                     Some(s) => format!("{} — {}", p.market_hash_name, s),
                     None => format!("{} — no price data", p.market_hash_name),
                 };
             }
-            Some(aurelia::MarketPriceState::Failed(err)) => {
+            Some(steam::MarketPriceState::Failed(err)) => {
                 self.market_search_status = format!("Price failed: {}", err);
             }
             _ => {}
@@ -206,7 +206,7 @@ impl Browser {
     }
 
     /// The highlighted search result, if any.
-    pub fn selected_market_result(&self) -> Option<&aurelia::MarketSearchResultJson> {
+    pub fn selected_market_result(&self) -> Option<&steam::MarketSearchResultJson> {
         self.market_results.get(self.market_results_index)
     }
 

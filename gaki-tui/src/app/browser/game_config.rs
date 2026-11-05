@@ -1,7 +1,7 @@
 //! The per-game settings overlay (config overrides and launch script).
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Number of editable rows in the game-settings overlay: Forced Proton,
@@ -11,9 +11,9 @@ impl Browser {
     /// Fetch the game's per-game config, launch-script state, and the installed
     /// Proton list (for cycling the forced runtime) and open the overlay.
     pub fn open_game_config(&mut self, app_id: i32) {
-        self.game_config = aurelia::config_game_show(app_id).ok();
-        self.game_script = aurelia::scripts_show(app_id).ok();
-        self.game_config_protons = aurelia::proton_list()
+        self.game_config = steam::config_game_show(app_id).ok();
+        self.game_script = steam::scripts_show(app_id).ok();
+        self.game_config_protons = steam::proton_list()
             .map(|v| {
                 v.into_iter()
                     .filter(|p| p.installed)
@@ -49,8 +49,8 @@ impl Browser {
 
     fn refresh_game_config(&mut self) {
         let id = self.game_config_app_id;
-        self.game_config = aurelia::config_game_show(id).ok();
-        self.game_script = aurelia::scripts_show(id).ok();
+        self.game_config = steam::config_game_show(id).ok();
+        self.game_script = steam::scripts_show(id).ok();
     }
 
     /// Activate (Enter) the highlighted settings row, cycling its value.
@@ -64,7 +64,7 @@ impl Browser {
                     .as_ref()
                     .and_then(|c| c.forced_proton_version.clone());
                 let res = if self.game_config_protons.is_empty() {
-                    aurelia::config_game_clear_proton(id)
+                    steam::config_game_clear_proton(id)
                 } else {
                     let next = match cur.as_deref() {
                         None => Some(0),
@@ -74,10 +74,8 @@ impl Browser {
                         },
                     };
                     match next {
-                        Some(i) => {
-                            aurelia::config_game_set_proton(id, &self.game_config_protons[i])
-                        }
-                        None => aurelia::config_game_clear_proton(id),
+                        Some(i) => steam::config_game_set_proton(id, &self.game_config_protons[i]),
+                        None => steam::config_game_clear_proton(id),
                     }
                 };
                 self.game_config_status = match res {
@@ -92,9 +90,9 @@ impl Browser {
                     .as_ref()
                     .and_then(|c| c.platform_preference.clone());
                 let (next, res) = match cur.as_deref() {
-                    None => ("windows", aurelia::config_game_set_platform(id, "windows")),
-                    Some("windows") => ("linux", aurelia::config_game_set_platform(id, "linux")),
-                    Some(_) => ("auto", aurelia::config_game_clear_platform(id)),
+                    None => ("windows", steam::config_game_set_platform(id, "windows")),
+                    Some("windows") => ("linux", steam::config_game_set_platform(id, "linux")),
+                    Some(_) => ("auto", steam::config_game_clear_platform(id)),
                 };
                 self.game_config_status = match res {
                     Ok(()) => format!("Platform set to {next}."),
@@ -105,9 +103,9 @@ impl Browser {
             _ => {
                 let has_script = self.game_script.as_ref().map(|s| s.exists).unwrap_or(false);
                 let res = if has_script {
-                    aurelia::config_game_clear_launch_script(id)
+                    steam::config_game_clear_launch_script(id)
                 } else {
-                    aurelia::scripts_new(id, false).map(|_| ())
+                    steam::scripts_new(id, false).map(|_| ())
                 };
                 self.game_config_status = match res {
                     Ok(()) if has_script => "Launch-script override cleared.".to_string(),
@@ -122,7 +120,7 @@ impl Browser {
     /// Delete the game's launch-script file.
     pub fn game_config_remove_script(&mut self) {
         let id = self.game_config_app_id;
-        self.game_config_status = match aurelia::scripts_remove(id) {
+        self.game_config_status = match steam::scripts_remove(id) {
             Ok(()) => "Launch script removed.".to_string(),
             Err(e) => format!("Failed: {e}"),
         };

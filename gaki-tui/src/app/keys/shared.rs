@@ -2,10 +2,10 @@
 //! the prompts, so each one behaves the same from every place it's reached.
 
 use crate::app::browser::{Browser, InstallPhase};
+use crate::app::client::Client;
+use crate::app::game::Game;
 use crate::app::{App, AppResult, Mode};
-use crate::client::Client;
 use crate::config::Config;
-use crate::interface::game::Game;
 
 /// Install `game`. The location picker opens first; when no libraries can
 /// be listed, it installs into the default one.

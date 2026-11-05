@@ -3,11 +3,9 @@
 //! paint the expected content.
 
 use gaki_tui::app::browser::{Browser, Filter};
-use gaki_tui::interface::aurelia::{
-    LibraryGameJson, ProtonJson, WorkshopCommentJson, WorkshopItemJson,
-};
-use gaki_tui::interface::game::Game;
-use gaki_tui::{theme, ui};
+use gaki_tui::app::game::Game;
+use gaki_tui::app::steam::{LibraryGameJson, ProtonJson, WorkshopCommentJson, WorkshopItemJson};
+use gaki_tui::ui::{self, theme};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
@@ -127,11 +125,11 @@ fn install_picker_lists_libraries_and_marks_choice() {
     isolate_config();
     let mut browser = Browser::new(vec![]);
     browser.install_libraries = vec![
-        gaki_tui::interface::aurelia::LibraryJson {
+        gaki_tui::app::steam::LibraryJson {
             path: "C:\\SteamLibrary".to_string(),
             free_bytes: Some(2_000_000_000),
         },
-        gaki_tui::interface::aurelia::LibraryJson {
+        gaki_tui::app::steam::LibraryJson {
             path: "D:\\Games\\SteamLibrary".to_string(),
             free_bytes: Some(80_000_000_000),
         },
@@ -410,9 +408,10 @@ fn proton_overlay_shows_install_status() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
     browser.protons = vec![proton("Proton 9.0", true, false)];
-    *browser.proton_status.lock().unwrap() = Some(
-        gaki_tui::interface::game_status::GameStatus::msg(&None, "downloading 42.0%"),
-    );
+    *browser.proton_status.lock().unwrap() = Some(gaki_tui::app::game::status::GameStatus::msg(
+        &None,
+        "downloading 42.0%",
+    ));
     assert!(
         render_proton(&browser).contains("downloading 42.0%"),
         "streamed install status appears in the overlay"

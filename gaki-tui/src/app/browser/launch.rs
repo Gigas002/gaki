@@ -1,13 +1,13 @@
 //! The launch-options overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the launch options for `app_id` (blocking) and open the overlay. A
     /// fetch error simply opens an empty overlay ("No launch options.").
     pub fn open_launch(&mut self, app_id: i32) {
-        self.launch_options = aurelia::launch_options(app_id).unwrap_or_default();
+        self.launch_options = steam::launch_options(app_id).unwrap_or_default();
         self.launch_scroll = 0;
         self.show_launch = true;
     }

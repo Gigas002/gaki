@@ -2,7 +2,7 @@
 //! Steam palette is actually painted into the cell buffer (not just that the
 //! code compiles).
 
-use gaki_tui::theme;
+use gaki_tui::ui::theme;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::widgets::Paragraph;

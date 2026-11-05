@@ -1,7 +1,7 @@
 //! The move, relink and import prompts for an install on disk.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 use crate::utils::error::STError;
 
 impl Browser {
@@ -35,7 +35,7 @@ impl Browser {
     /// backend result.
     pub fn do_move(&mut self) -> Result<(), STError> {
         self.move_status = "moving...".to_string();
-        match aurelia::move_game(self.move_app_id, &self.move_path) {
+        match steam::move_game(self.move_app_id, &self.move_path) {
             Ok(()) => {
                 self.move_status = "done".to_string();
                 Ok(())
@@ -79,7 +79,7 @@ impl Browser {
     /// the backend result.
     pub fn do_relink(&mut self) -> Result<(), STError> {
         self.relink_status = "relinking...".to_string();
-        match aurelia::relink(self.relink_app_id, &self.relink_path) {
+        match steam::relink(self.relink_app_id, &self.relink_path) {
             Ok(()) => {
                 self.relink_status = "done".to_string();
                 Ok(())
@@ -124,7 +124,7 @@ impl Browser {
     /// returns the backend result.
     pub fn do_import(&mut self) -> Result<(), STError> {
         self.import_status = "importing...".to_string();
-        match aurelia::import_game(self.import_app_id, &self.import_path) {
+        match steam::import_game(self.import_app_id, &self.import_path) {
             Ok(()) => {
                 self.import_status = "done".to_string();
                 Ok(())

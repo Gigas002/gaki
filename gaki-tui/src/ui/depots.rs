@@ -7,8 +7,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
 use crate::ui::paneled_paragraph;
+use crate::ui::theme;
 
 /// Build the depots overlay from the browser's open depots state. Each row shows
 /// the depot name (falling back to its id) and the (human-readable) size; the

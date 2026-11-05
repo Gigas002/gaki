@@ -1,14 +1,14 @@
 //! The branches overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 use crate::utils::error::STError;
 
 impl Browser {
     /// Fetch the beta branches for `app_id` and open the overlay (blocking);
     /// the selection resets to the first row.
     pub fn open_branches(&mut self, app_id: i32) -> Result<(), STError> {
-        self.branches = aurelia::branches(app_id)?;
+        self.branches = steam::branches(app_id)?;
         self.branch_app_id = app_id;
         self.branch_index = 0;
         self.show_branches = true;
@@ -28,7 +28,7 @@ impl Browser {
     }
 
     /// The highlighted branch entry, if any.
-    pub fn selected_branch(&self) -> Option<&aurelia::BranchJson> {
+    pub fn selected_branch(&self) -> Option<&steam::BranchJson> {
         self.branches.get(self.branch_index)
     }
 

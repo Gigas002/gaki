@@ -4,14 +4,14 @@ use std::sync::Arc;
 use std::thread;
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the given game's subscribed Workshop items (blocking) and open the
     /// overlay in its subscribed-list mode. A fetch error simply opens an empty
     /// overlay ("No workshop items.").
     pub fn open_workshop(&mut self, app_id: i32) {
-        self.workshop = aurelia::workshop_list(app_id).unwrap_or_default();
+        self.workshop = steam::workshop_list(app_id).unwrap_or_default();
         self.workshop_scroll = 0;
         self.workshop_app_id = app_id;
         self.workshop_browse = false;
@@ -102,7 +102,7 @@ impl Browser {
     }
 
     /// The currently highlighted browse result, if any.
-    pub fn selected_workshop_result(&self) -> Option<&aurelia::WorkshopItemJson> {
+    pub fn selected_workshop_result(&self) -> Option<&steam::WorkshopItemJson> {
         self.workshop_results.get(self.workshop_index)
     }
 
@@ -120,7 +120,7 @@ impl Browser {
         self.workshop_searching = true;
         self.workshop_status.clear();
         thread::spawn(move || {
-            let result = aurelia::workshop_browse(app_id, &query).map_err(|e| e.to_string());
+            let result = steam::workshop_browse(app_id, &query).map_err(|e| e.to_string());
             if let Ok(mut guard) = slot.lock() {
                 *guard = Some((generation, result));
             }
@@ -292,9 +292,9 @@ impl Browser {
         };
         thread::spawn(move || {
             let result = if want_subscribed {
-                aurelia::workshop_subscribe(id)
+                steam::workshop_subscribe(id)
             } else {
-                aurelia::workshop_unsubscribe(id)
+                steam::workshop_unsubscribe(id)
             }
             .map_err(|e| e.to_string());
             // On success, re-fetch the subscribed list *here on the worker
@@ -302,7 +302,7 @@ impl Browser {
             // the generation captured up front, so the UI thread never blocks on
             // `workshop list` and a stale refresh is dropped on arrival.
             if result.is_ok()
-                && let Ok(items) = aurelia::workshop_list(app_id)
+                && let Ok(items) = steam::workshop_list(app_id)
                 && let Ok(mut guard) = refresh_slot.lock()
             {
                 *guard = Some((generation, items));
@@ -337,7 +337,7 @@ impl Browser {
             "Rating down…".to_string()
         };
         thread::spawn(move || {
-            let result = aurelia::workshop_rate(id, up).map_err(|e| e.to_string());
+            let result = steam::workshop_rate(id, up).map_err(|e| e.to_string());
             if let Ok(mut guard) = slot.lock() {
                 *guard = Some((generation, result));
             }
@@ -366,7 +366,7 @@ impl Browser {
         let generation = self.workshop_gen;
         let slot = Arc::clone(&self.workshop_comments_slot);
         thread::spawn(move || {
-            let result = aurelia::workshop_comments(id, 30).map_err(|e| e.to_string());
+            let result = steam::workshop_comments(id, 30).map_err(|e| e.to_string());
             if let Ok(mut guard) = slot.lock() {
                 *guard = Some((generation, result));
             }

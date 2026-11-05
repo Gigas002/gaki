@@ -5,8 +5,8 @@ use std::sync::Arc;
 use std::thread;
 
 use super::Browser;
-use crate::interface::aurelia;
-use crate::interface::game::Game;
+use crate::app::game::Game;
+use crate::app::steam;
 
 /// Where a game's install currently sits, from the UI's point of view. Drives
 /// whether the pause / resume / stop keys do anything for the selected game.
@@ -26,14 +26,14 @@ impl Browser {
     /// libraries could be enumerated, so the caller can fall back to a default
     /// install.
     pub fn open_install_picker(&mut self, app_id: i32) -> bool {
-        let libraries = aurelia::libraries().unwrap_or_default();
+        let libraries = steam::libraries().unwrap_or_default();
         if libraries.is_empty() {
             return false;
         }
         self.install_libraries = libraries;
         // The on-disk estimate, for showing the size and gauging fit. Treat 0
         // (unavailable) as unknown.
-        self.install_estimate = aurelia::install_estimate(app_id).ok().filter(|&b| b > 0);
+        self.install_estimate = steam::install_estimate(app_id).ok().filter(|&b| b > 0);
         self.install_picker_index = 0;
         self.show_install_picker = true;
         true
@@ -82,14 +82,10 @@ impl Browser {
 
     /// Register a fresh install control for `app_id` (replacing any prior one),
     /// remember the chosen `library` (so a later resume targets the same one),
-    /// and return a clone to hand to [`crate::client::Client::install`]. Called
+    /// and return a clone to hand to [`crate::app::client::Client::install`]. Called
     /// when the UI starts (or resumes) an install.
-    pub fn begin_install(
-        &mut self,
-        app_id: i32,
-        library: Option<String>,
-    ) -> aurelia::InstallControl {
-        let control = aurelia::InstallControl::new();
+    pub fn begin_install(&mut self, app_id: i32, library: Option<String>) -> steam::InstallControl {
+        let control = steam::InstallControl::new();
         self.install_controls.insert(app_id, control.clone());
         self.install_library_choice.insert(app_id, library);
         control
@@ -129,8 +125,8 @@ impl Browser {
     /// install is tracked for the game.
     pub fn pause_install(&mut self, app_id: i32) {
         if let Some(control) = self.install_controls.get(&app_id) {
-            control.set(aurelia::InstallAction::Paused);
-            let _ = aurelia::install_pause(app_id);
+            control.set(steam::InstallAction::Paused);
+            let _ = steam::install_pause(app_id);
         }
     }
 
@@ -141,8 +137,8 @@ impl Browser {
     pub fn stop_install(&mut self, app_id: i32) {
         if let Some(control) = self.install_controls.remove(&app_id) {
             self.install_library_choice.remove(&app_id);
-            control.set(aurelia::InstallAction::Stopped);
-            let _ = aurelia::install_stop(app_id);
+            control.set(steam::InstallAction::Stopped);
+            let _ = steam::install_stop(app_id);
             if let Some(game) = self.items.iter_mut().find(|g| g.id == app_id) {
                 game.installed = false;
                 if let Ok(mut s) = game.status_counter().lock() {
@@ -160,7 +156,7 @@ impl Browser {
     pub fn request_game_refresh(&self, app_id: i32) {
         let slot = Arc::clone(&self.game_refresh_slot);
         thread::spawn(move || {
-            if let Ok(entries) = aurelia::fetch_library()
+            if let Ok(entries) = steam::fetch_library()
                 && let Some(entry) = entries.into_iter().find(|e| e.app_id as i32 == app_id)
                 && let Ok(mut guard) = slot.lock()
             {
@@ -173,7 +169,7 @@ impl Browser {
     /// install flags and drop its transient install status so the badge derives
     /// from the refreshed state. Cheap and non-blocking when idle.
     pub fn poll_game_refresh(&mut self) {
-        let updates: Vec<aurelia::LibraryGameJson> = match self.game_refresh_slot.lock() {
+        let updates: Vec<steam::LibraryGameJson> = match self.game_refresh_slot.lock() {
             Ok(mut guard) => std::mem::take(&mut *guard),
             Err(_) => Vec::new(),
         };
@@ -233,9 +229,9 @@ impl Browser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::interface::aurelia::{InstallAction, InstallControl, LibraryGameJson};
-    use crate::interface::game::Game;
-    use crate::interface::game_status::GameStatus;
+    use crate::app::game::Game;
+    use crate::app::game::status::GameStatus;
+    use crate::app::steam::{InstallAction, InstallControl, LibraryGameJson};
 
     fn game(id: i32) -> Game {
         Game::from_library(LibraryGameJson {

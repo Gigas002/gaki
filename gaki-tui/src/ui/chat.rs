@@ -23,7 +23,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// One fully-rendered visual line of the message region: the styled spans plus
 /// whether it belongs to an own (right-aligned) message. The display width is

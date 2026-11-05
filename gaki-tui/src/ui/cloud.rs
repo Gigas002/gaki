@@ -8,7 +8,7 @@ use ratatui::text::Span;
 use ratatui::widgets::{Cell, Row, Table};
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the Steam Cloud file table from the browser's fetched state. Each row
 /// shows the file name and its (human-readable) size; a status line, when set,

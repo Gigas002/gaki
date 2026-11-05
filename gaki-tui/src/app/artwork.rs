@@ -1,6 +1,6 @@
 //! The art for the highlighted game, loaded off the UI thread.
 
-use crate::interface::game::Game;
+use crate::app::game::Game;
 use crate::ui;
 use crate::utils::image::{self as artwork, ImageSlot, ImgBuf};
 

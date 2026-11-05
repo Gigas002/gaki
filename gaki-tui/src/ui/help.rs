@@ -5,7 +5,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
-use crate::theme;
+use crate::ui::theme;
 
 /// One entry in the help list: either a group header or a key binding.
 enum Entry {

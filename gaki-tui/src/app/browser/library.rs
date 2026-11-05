@@ -6,9 +6,9 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::style::Style;
 
 use super::Browser;
+use crate::app::game::Game;
 use crate::config::Config;
-use crate::interface::game::Game;
-use crate::theme;
+use crate::ui::theme;
 
 /// The quick-filter tabs along the top of the library.
 #[derive(Clone, Copy, PartialEq, Eq)]

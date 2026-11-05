@@ -6,7 +6,7 @@ use ratatui::text::Span;
 use ratatui::widgets::{Cell, Row, Table};
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// One key-value row in the settings table.
 fn row(label: &str, value: String) -> Row<'static> {

@@ -5,11 +5,11 @@
 //! fields directly so the tests never reach Steam.
 
 use gaki_tui::app::browser::{Action, Browser};
-use gaki_tui::interface::aurelia::{
+use gaki_tui::app::game::Game;
+use gaki_tui::app::steam::{
     AvailableJson, CollectionJson, ConfigJson, DepotManifestInfo, GameConfigJson, LaunchTargetJson,
     LibraryGameJson, ProxyJson,
 };
-use gaki_tui::interface::game::Game;
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;

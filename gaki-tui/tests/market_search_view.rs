@@ -4,7 +4,7 @@
 //! state API so the test is hermetic.
 
 use gaki_tui::app::browser::Browser;
-use gaki_tui::interface::aurelia::{MarketPriceJson, MarketSearchResultJson};
+use gaki_tui::app::steam::{MarketPriceJson, MarketSearchResultJson};
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;

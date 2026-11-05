@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the DLC overlay list from the browser's open DLC state. Each row shows
 /// the DLC name and a colour-coded status; the highlighted row gets a bright

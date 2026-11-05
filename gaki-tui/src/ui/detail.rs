@@ -7,8 +7,8 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, Table};
 
-use crate::interface::game::Game;
-use crate::theme;
+use crate::app::game::Game;
+use crate::ui::theme;
 use crate::utils::stateful::Named;
 
 /// How many wrapped lines of the description to show while collapsed. Pressing

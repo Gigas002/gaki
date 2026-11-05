@@ -822,7 +822,7 @@ I make the changes, and you review, commit, and push.
   `aurelia` CLI now describe the in-process calls; sign-in hints say
   `gaki-cli login`. Still open: the TUI's own settings and cache live in
   `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
-- [ ] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
+- [x] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
   `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
   Split into four commits. Test files keep their current layout until 7.4.
   - [x] **4.5a** Entry plumbing. `util/` → `utils/`. A clap `cli/` replaces the
@@ -888,10 +888,23 @@ I make the changes, and you review, commit, and push.
     feature gating (6.x), where each view's state needs a `cfg` anyway. Some
     integration-test comments still describe `main.rs` layouts that no longer
     exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.4 covers them.
-  - [ ] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
+  - [x] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
     `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
     `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,
     `app`, `ui` and `utils`.
+    *Done.* `interface/aurelia.rs` is now `app/steam.rs`, since it's the TUI's
+    view of Steam over `libgaki` and the `aurelia` name was left over from the
+    CLI it once shelled out to; `aurelia::` call sites read `steam::`.
+    `interface/game*.rs` became `app/game/` (`mod.rs` for `Game`, `status.rs`,
+    and `protondb.rs`, which was `proton_data`). `client.rs` is
+    `app/client.rs`, with its stale "shells out to the aurelia CLI" doc
+    rewritten. `config.rs` is `config/` with its test in `config/tests.rs`,
+    and `theme.rs` is `ui/theme.rs`. `tests/aurelia_integration.rs` became
+    `tests/steam_integration.rs`. **Left as is:** the `*Json` struct names in
+    `app/steam.rs` (`DlcJson`, `FriendJson`, …) date from parsing the CLI's
+    JSON output. They're plain view models now, and renaming them touches
+    every view, so that's a separate cleanup. The `aurelia-tui` directory
+    names wait for 4.6.
 - [ ] **4.6** Rename the TUI binary from `gaki` to `gaki-tui` (D7): the `[[bin]]` name,
   the clap command name, the footer badge (`gaki-tui vX.Y.Z`), help text,
   `deploy.yml` artifacts, and docs. Move the TUI's own settings and cache from

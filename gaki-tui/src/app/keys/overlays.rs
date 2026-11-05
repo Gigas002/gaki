@@ -5,8 +5,8 @@ use ratatui::crossterm::event::KeyCode;
 
 use super::shared;
 use crate::app::library::Library;
+use crate::app::steam;
 use crate::app::{AppResult, Mode};
-use crate::interface::aurelia;
 
 /// Handle `input` in the open overlay. Returns `false` when none is open.
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
@@ -95,17 +95,17 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_cloud(),
             KeyCode::Char('s') => {
                 if let Some(game) = browser.selected() {
-                    browser.sync_cloud(game.id, aurelia::CloudDirection::Both);
+                    browser.sync_cloud(game.id, steam::CloudDirection::Both);
                 }
             }
             KeyCode::Char('d') => {
                 if let Some(game) = browser.selected() {
-                    browser.sync_cloud(game.id, aurelia::CloudDirection::Down);
+                    browser.sync_cloud(game.id, steam::CloudDirection::Down);
                 }
             }
             KeyCode::Char('u') => {
                 if let Some(game) = browser.selected() {
-                    browser.sync_cloud(game.id, aurelia::CloudDirection::Up);
+                    browser.sync_cloud(game.id, steam::CloudDirection::Up);
                 }
             }
             _ => {}
@@ -301,7 +301,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         match input {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
                 if let Some(game) = browser.selected() {
-                    match aurelia::uninstall(game.id) {
+                    match steam::uninstall(game.id) {
                         Ok(()) => {
                             // Reload the library so the listing
                             // reflects the now-uninstalled game
@@ -327,13 +327,13 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.dlc_previous(),
             KeyCode::Char('e') => {
                 if let Some(entry) = browser.selected_dlc() {
-                    let _ = aurelia::set_dlc(entry.app_id as i32, true);
+                    let _ = steam::set_dlc(entry.app_id as i32, true);
                     let _ = browser.refresh_dlc();
                 }
             }
             KeyCode::Char('x') => {
                 if let Some(entry) = browser.selected_dlc() {
-                    let _ = aurelia::set_dlc(entry.app_id as i32, false);
+                    let _ = steam::set_dlc(entry.app_id as i32, false);
                     let _ = browser.refresh_dlc();
                 }
             }
@@ -347,7 +347,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.branch_previous(),
             KeyCode::Char('\n') | KeyCode::Enter | KeyCode::Char('s') => {
                 if let Some(branch) = browser.selected_branch() {
-                    let _ = aurelia::set_branch(browser.branch_app_id(), &branch.name);
+                    let _ = steam::set_branch(browser.branch_app_id(), &branch.name);
                     browser.close_branches();
                 }
             }
@@ -361,7 +361,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.running_previous(),
             KeyCode::Char('s') | KeyCode::Char('x') => {
                 if let Some(r) = browser.selected_running() {
-                    let _ = aurelia::stop(r.app_id as i32);
+                    let _ = steam::stop(r.app_id as i32);
                     browser.refresh_running();
                 }
             }
@@ -386,7 +386,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.proton_previous(),
             KeyCode::Char('d') => {
                 if let Some(p) = browser.selected_proton() {
-                    let _ = aurelia::proton_default(&p.name);
+                    let _ = steam::proton_default(&p.name);
                     // Re-fetch so the [default] marker updates,
                     // keeping the current row highlighted.
                     let keep = browser.proton_index;
@@ -472,7 +472,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         // `o` logs out of Steam; any other key dismisses the overlay.
         match input {
             KeyCode::Char('o') => {
-                let _ = aurelia::logout();
+                let _ = steam::logout();
                 browser.show_account = false;
                 app.mode = Mode::Login;
             }
@@ -501,7 +501,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                         .as_ref()
                         .map(|c| c.is_online())
                         .unwrap_or(false);
-                    let _ = aurelia::set_presence(!online);
+                    let _ = steam::set_presence(!online);
                     let _ = browser.open_config();
                 }
                 KeyCode::Char('e') => browser.begin_proxy_edit(),

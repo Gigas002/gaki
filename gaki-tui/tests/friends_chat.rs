@@ -9,10 +9,8 @@
 //! `cargo test --test friends_chat -- --nocapture` to eyeball the layout.
 
 use gaki_tui::app::browser::{Browser, View};
-use gaki_tui::interface::aurelia::{
-    ChatMessageJson, FriendJson, FriendSearchJson, LibraryGameJson,
-};
-use gaki_tui::interface::game::Game;
+use gaki_tui::app::game::Game;
+use gaki_tui::app::steam::{ChatMessageJson, FriendJson, FriendSearchJson, LibraryGameJson};
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;

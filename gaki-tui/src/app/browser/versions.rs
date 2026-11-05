@@ -4,14 +4,14 @@ use std::sync::Arc;
 use std::thread;
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the game's per-depot current manifests and pin/install state and
     /// open the overlay. A fetch error simply opens an empty overlay.
     pub fn open_versions(&mut self, app_id: i32) {
-        self.versions_manifests = aurelia::manifests(app_id, None).unwrap_or_default();
-        self.versions_available = aurelia::available(app_id).ok();
+        self.versions_manifests = steam::manifests(app_id, None).unwrap_or_default();
+        self.versions_available = steam::available(app_id).ok();
         self.versions_index = 0;
         self.versions_app_id = app_id;
         self.versions_status.clear();
@@ -32,7 +32,7 @@ impl Browser {
         self.versions_app_id
     }
 
-    pub fn selected_manifest(&self) -> Option<&aurelia::DepotManifestInfo> {
+    pub fn selected_manifest(&self) -> Option<&steam::DepotManifestInfo> {
         self.versions_manifests.get(self.versions_index)
     }
 
@@ -57,7 +57,7 @@ impl Browser {
     }
 
     fn refresh_available(&mut self) {
-        self.versions_available = aurelia::available(self.versions_app_id).ok();
+        self.versions_available = steam::available(self.versions_app_id).ok();
     }
 
     /// Whether the game is currently pinned (so its updates are held).
@@ -70,7 +70,7 @@ impl Browser {
 
     /// Pin the game at its currently-installed depot versions.
     pub fn pin_current(&mut self) {
-        self.versions_status = match aurelia::pin(self.versions_app_id) {
+        self.versions_status = match steam::pin(self.versions_app_id) {
             Ok(p) => format!(
                 "Pinned {} depot(s) at the installed version.",
                 p.manifests.len()
@@ -82,7 +82,7 @@ impl Browser {
 
     /// Clear the game's pin so it updates normally again.
     pub fn unpin_current(&mut self) {
-        self.versions_status = match aurelia::unpin(self.versions_app_id) {
+        self.versions_status = match steam::unpin(self.versions_app_id) {
             Ok(true) => "Unpinned — updates re-enabled.".to_string(),
             Ok(false) => "Was not pinned.".to_string(),
             Err(e) => format!("Unpin failed: {e}"),
@@ -133,7 +133,7 @@ impl Browser {
         let busy = Arc::clone(&self.versions_busy);
         self.versions_status = format!("Downgrading depot {depot} → manifest {manifest}…");
         thread::spawn(move || {
-            aurelia::downgrade(app_id, &[(depot, manifest)], None, false, false, busy);
+            steam::downgrade(app_id, &[(depot, manifest)], None, false, false, busy);
         });
     }
 

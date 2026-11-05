@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the Proton overlay list from the browser's open runtime state. Each row
 /// shows the runtime name, an "installed"/"default" marker, and is dimmed when

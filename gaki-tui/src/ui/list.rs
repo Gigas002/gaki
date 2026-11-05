@@ -4,7 +4,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::{Browser, badge};
-use crate::theme;
+use crate::ui::theme;
 use crate::utils::stateful::Named;
 
 /// Width of the highlight symbol ("▶ ") the `List` reserves on every row.

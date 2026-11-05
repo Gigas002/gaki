@@ -1,14 +1,14 @@
 //! The launch targets ("Play as…") overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the game's launch targets and open the
     /// overlay, highlighting the target plain `play` would pick.
     pub fn open_launch_targets(&mut self, app_id: i32) {
         self.launch_targets_status.clear();
-        self.launch_targets = match aurelia::launch_targets(app_id) {
+        self.launch_targets = match steam::launch_targets(app_id) {
             Ok(targets) => targets,
             Err(e) => {
                 self.launch_targets_status = format!("Failed: {e}");
@@ -48,7 +48,7 @@ impl Browser {
 
     /// The `play` options for the highlighted target, or `None` (with a status
     /// explaining why) when it cannot be launched.
-    pub fn selected_launch_target(&mut self) -> Option<aurelia::PlayOpts> {
+    pub fn selected_launch_target(&mut self) -> Option<steam::PlayOpts> {
         let target = self.launch_targets.get(self.launch_targets_index)?;
         if !target.available {
             let missing = target.missing.as_deref().unwrap_or("unknown");

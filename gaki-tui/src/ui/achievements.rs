@@ -6,8 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
 use crate::ui::paneled_paragraph;
+use crate::ui::theme;
 
 /// Build the achievements overlay content from the browse state. Each row is a
 /// unlock marker (✓ unlocked / ○ locked), the achievement name, and its global

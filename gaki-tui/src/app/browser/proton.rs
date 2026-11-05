@@ -1,14 +1,14 @@
 //! The Proton runtimes overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 use crate::utils::error::STError;
 
 impl Browser {
     /// Fetch the Proton/Wine runtimes and open the overlay (blocking); the
     /// selection resets to the first row.
     pub fn open_proton(&mut self) -> Result<(), STError> {
-        self.protons = aurelia::proton_list()?;
+        self.protons = steam::proton_list()?;
         self.proton_index = 0;
         self.show_proton = true;
         Ok(())
@@ -25,7 +25,7 @@ impl Browser {
     /// Re-fetch the Proton runtimes (e.g. after an install/uninstall) while
     /// keeping the current row highlighted. A fetch error leaves the list as-is.
     pub fn refresh_proton(&mut self) {
-        if let Ok(protons) = aurelia::proton_list() {
+        if let Ok(protons) = steam::proton_list() {
             self.protons = protons;
             self.proton_index = self.proton_index.min(self.protons.len().saturating_sub(1));
         }
@@ -62,13 +62,13 @@ impl Browser {
             Some(p) if p.uninstallable() => p.name.clone(),
             _ => return Ok(()),
         };
-        aurelia::proton_uninstall(&name)?;
+        steam::proton_uninstall(&name)?;
         self.refresh_proton();
         Ok(())
     }
 
     /// The highlighted Proton runtime, if any.
-    pub fn selected_proton(&self) -> Option<&aurelia::ProtonJson> {
+    pub fn selected_proton(&self) -> Option<&steam::ProtonJson> {
         self.protons.get(self.proton_index)
     }
 

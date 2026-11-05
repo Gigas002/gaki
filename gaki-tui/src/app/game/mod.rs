@@ -1,12 +1,14 @@
+pub mod protondb;
+pub mod status;
+
 use std::thread;
 
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::interface::aurelia::{self, InfoJson, LibraryGameJson};
-use crate::interface::game_status::GameStatus;
-use crate::interface::proton_data;
+use crate::app::game::status::GameStatus;
+use crate::app::steam::{self, InfoJson, LibraryGameJson};
 use crate::utils::{error::STError, stateful::Named};
 
 use crate::config::Config;
@@ -119,7 +121,7 @@ impl Game {
             let reference = self.proton_tier.clone();
             let id = self.id;
             thread::spawn(move || {
-                if let Some(response) = proton_data::ProtonData::get(id)
+                if let Some(response) = protondb::ProtonData::get(id)
                     && let Ok(mut status) = reference.lock()
                 {
                     *status = Some(response.format());
@@ -146,7 +148,7 @@ impl Game {
         let reference = self.info.clone();
         let id = self.id;
         thread::spawn(move || {
-            if let Ok(info) = aurelia::fetch_info(id)
+            if let Ok(info) = steam::fetch_info(id)
                 && let Ok(mut slot) = reference.lock()
             {
                 *slot = Some(info);
@@ -236,7 +238,7 @@ impl Game {
 
 /// Fetch the full library and map it into `Game`s.
 pub fn load_library() -> Result<Vec<Game>, STError> {
-    let entries = aurelia::fetch_library()?;
+    let entries = steam::fetch_library()?;
     Ok(entries.into_iter().map(Game::from_library).collect())
 }
 

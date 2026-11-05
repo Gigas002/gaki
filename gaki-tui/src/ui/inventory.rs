@@ -5,8 +5,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
 use crate::ui::paneled_paragraph;
+use crate::ui::theme;
 
 /// Build the inventory overlay content from the browse state. Each row is the
 /// item name, its stack count (accented when more than one), and a dim type

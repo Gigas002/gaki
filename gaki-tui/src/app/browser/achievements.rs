@@ -1,7 +1,7 @@
 //! The achievements overlay.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 
 impl Browser {
     /// Fetch the selected game's achievements (blocking) and open the overlay.
@@ -10,7 +10,7 @@ impl Browser {
         let Some(game) = self.selected() else {
             return;
         };
-        self.achievements = aurelia::achievements(game.id).unwrap_or_default();
+        self.achievements = steam::achievements(game.id).unwrap_or_default();
         self.ach_scroll = 0;
         self.show_achievements = true;
     }

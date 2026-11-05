@@ -4,13 +4,13 @@ use std::time::{Duration, Instant};
 
 use crate::app::artwork::Artwork;
 use crate::app::browser::Browser;
+use crate::app::client::{Client, State};
 use crate::app::keys::Flow;
 use crate::app::marquee::Marquee;
+use crate::app::steam::LoginPhase;
 use crate::app::terminal::{self, TerminalGuard};
 use crate::app::{App, AppResult, Mode};
-use crate::client::{Client, State};
 use crate::config::Config;
-use crate::interface::aurelia::LoginPhase;
 use crate::ui;
 use crate::utils::event::{Event, Events};
 

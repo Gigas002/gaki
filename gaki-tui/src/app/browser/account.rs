@@ -1,14 +1,14 @@
 //! The account, settings (presence, proxy) and wallet overlays.
 
 use super::Browser;
-use crate::interface::aurelia;
+use crate::app::steam;
 use crate::utils::error::STError;
 
 impl Browser {
     /// Fetch the logged-in account and open the overlay.
     /// Blocking; returns the backend error if the call fails.
     pub fn open_account(&mut self) -> Result<(), STError> {
-        self.account_info = Some(aurelia::account()?);
+        self.account_info = Some(steam::account()?);
         self.show_account = true;
         Ok(())
     }
@@ -20,7 +20,7 @@ impl Browser {
         self.show_config = true;
         self.config_info = None;
         self.config_proxy = None;
-        match aurelia::config_show() {
+        match steam::config_show() {
             Ok(info) => self.config_info = Some(info),
             Err(error) => {
                 self.notice = Some(format!("Launcher settings unavailable: {error}"));
@@ -28,7 +28,7 @@ impl Browser {
             }
         }
         // Best-effort: a missing/failed proxy read just leaves the row blank.
-        self.config_proxy = aurelia::config_proxy_show().ok();
+        self.config_proxy = steam::config_proxy_show().ok();
         Ok(())
     }
 
@@ -43,7 +43,7 @@ impl Browser {
     /// Re-fetch just the proxy setting (after an edit/clear), keeping the overlay
     /// open.
     fn refresh_proxy(&mut self) {
-        self.config_proxy = aurelia::config_proxy_show().ok();
+        self.config_proxy = steam::config_proxy_show().ok();
     }
 
     /// Start editing the proxy URL, prefilling the current value.
@@ -78,7 +78,7 @@ impl Browser {
         let Some(url) = self.config_proxy_input.take() else {
             return;
         };
-        if let Err(e) = aurelia::config_proxy_set(url.trim()) {
+        if let Err(e) = steam::config_proxy_set(url.trim()) {
             self.notice = Some(format!("Proxy: {e}"));
         }
         self.refresh_proxy();
@@ -86,7 +86,7 @@ impl Browser {
 
     /// Clear the configured proxy.
     pub fn clear_proxy(&mut self) {
-        if let Err(e) = aurelia::config_proxy_clear() {
+        if let Err(e) = steam::config_proxy_clear() {
             self.notice = Some(format!("Proxy: {e}"));
         }
         self.refresh_proxy();
@@ -95,7 +95,7 @@ impl Browser {
     /// Fetch the Steam Wallet balance and open the overlay.
     /// Blocking; returns the backend error if the call fails.
     pub fn open_wallet(&mut self) -> Result<(), STError> {
-        self.wallet_info = Some(aurelia::wallet()?);
+        self.wallet_info = Some(steam::wallet()?);
         self.show_wallet = true;
         Ok(())
     }

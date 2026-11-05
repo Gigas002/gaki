@@ -6,8 +6,8 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
-use crate::theme;
 use crate::ui::paneled_paragraph;
+use crate::ui::theme;
 
 /// Build the launch-options overlay content from the browse state. Each option
 /// renders as its description, the command (executable + arguments), and an OS

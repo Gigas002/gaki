@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::thread;
 
-use crate::interface::game::Game;
+use crate::app::game::Game;
 use crate::utils::paths::{icon_exists, icon_save};
 
 pub type ImgBuf = image::ImageBuffer<image::Rgba<u8>, Vec<u8>>;

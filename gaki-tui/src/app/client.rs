@@ -1,11 +1,10 @@
-//! Backend client. Spawns a worker thread that services UI requests by shelling
-//! out to the `aurelia` CLI (see [`crate::interface::aurelia`]). The public API
-//! and the [`State`] signalling are kept compatible with the old `steamcmd`
-//! client so the UI event loop is unchanged.
+//! The session client. A background thread runs the long operations (session
+//! check, library load, logins, installs) through [`crate::app::steam`], and
+//! the run loop polls their progress as a [`State`].
 
-use crate::interface::aurelia::{self, LoginPhase};
-use crate::interface::game::{self, Game};
-use crate::interface::game_status::GameStatus;
+use crate::app::game::status::GameStatus;
+use crate::app::game::{self, Game};
+use crate::app::steam::{self, LoginPhase};
 
 use crate::utils::error::STError;
 use crate::utils::paths::{cache_location, invalidate_cache};
@@ -49,7 +48,7 @@ pub enum Command {
     Install(
         i32,
         Arc<Mutex<Option<GameStatus>>>,
-        aurelia::InstallControl,
+        steam::InstallControl,
         Option<String>,
     ),
     /// Verify a game's integrity, streaming progress into the shared status cell.
@@ -59,7 +58,7 @@ pub enum Command {
     /// Launch a game and wait for it to exit.
     Run(i32, Arc<Mutex<Option<GameStatus>>>),
     /// Launch a game with extra `play` flags (e.g. a chosen launch target).
-    RunWith(i32, aurelia::PlayOpts, Arc<Mutex<Option<GameStatus>>>),
+    RunWith(i32, steam::PlayOpts, Arc<Mutex<Option<GameStatus>>>),
     /// Download and install a Proton/Wine runtime by name, streaming progress
     /// into the shared status cell.
     ProtonInstall(String, Arc<Mutex<Option<GameStatus>>>),
@@ -75,7 +74,7 @@ fn handle_login(
     last_error: &Arc<Mutex<Option<String>>>,
     account: &Arc<Mutex<Option<String>>>,
 ) -> Result<(), STError> {
-    let (next, err, who) = match aurelia::health() {
+    let (next, err, who) = match steam::health() {
         Ok(health) if health.logged_in => {
             tracing::info!(account = ?health.account, "session authenticated");
             // The footer shows `steam: {who}`. Prefer the Steam persona / display
@@ -86,7 +85,7 @@ fn handle_login(
                 health
                     .steam_id
                     .filter(|id| *id != 0)
-                    .and_then(|id| aurelia::friends_search(&id.to_string()).ok())
+                    .and_then(|id| steam::friends_search(&id.to_string()).ok())
                     .and_then(|f| f.persona_name)
                     .filter(|n| !n.is_empty())
                     .unwrap_or(account)
@@ -156,7 +155,7 @@ fn execute(
                 let last_error = last_error.clone();
                 thread::spawn(move || {
                     let stale = || qr_attempt.load(Ordering::SeqCst) != attempt;
-                    let result = aurelia::login_qr(&qr, stale);
+                    let result = steam::login_qr(&qr, stale);
                     if stale() {
                         return;
                     }
@@ -180,8 +179,7 @@ fn execute(
                 let phase = login_phase.clone();
                 let last_error = last_error.clone();
                 thread::spawn(move || {
-                    let next = match aurelia::login_classic(&username, &password, &phase, guard_rx)
-                    {
+                    let next = match steam::login_classic(&username, &password, &phase, guard_rx) {
                         Ok(()) => State::Loaded(0, -2),
                         Err(err) => {
                             tracing::warn!(error = %err, "classic login failed");
@@ -207,22 +205,22 @@ fn execute(
                 handle_login(&state, &last_error, &account)?;
             }
             Command::Install(id, status, control, library) => {
-                thread::spawn(move || aurelia::install(id, status, control, library));
+                thread::spawn(move || steam::install(id, status, control, library));
             }
             Command::Verify(id, status) => {
-                thread::spawn(move || aurelia::verify(id, status));
+                thread::spawn(move || steam::verify(id, status));
             }
             Command::Update(id, status) => {
-                thread::spawn(move || aurelia::update(id, status));
+                thread::spawn(move || steam::update(id, status));
             }
             Command::Run(id, status) => {
-                thread::spawn(move || aurelia::play(id, status));
+                thread::spawn(move || steam::play(id, status));
             }
             Command::RunWith(id, opts, status) => {
-                thread::spawn(move || aurelia::play_with(id, opts, status));
+                thread::spawn(move || steam::play_with(id, opts, status));
             }
             Command::ProtonInstall(name, status) => {
-                thread::spawn(move || aurelia::proton_install(name, status));
+                thread::spawn(move || steam::proton_install(name, status));
             }
             Command::StartClient => {
                 // Launching brings up whatever it needs; nothing to do.
@@ -371,7 +369,7 @@ impl Client {
     pub fn install(
         &self,
         game: &Game,
-        control: aurelia::InstallControl,
+        control: steam::InstallControl,
         library: Option<String>,
     ) -> Result<(), STError> {
         let sender = self.sender.lock()?;
@@ -430,7 +428,7 @@ impl Client {
     }
 
     /// Launches the provided game with extra flags.
-    pub fn run_with(&self, game: &Game, opts: aurelia::PlayOpts) -> Result<(), STError> {
+    pub fn run_with(&self, game: &Game, opts: steam::PlayOpts) -> Result<(), STError> {
         let sender = self.sender.lock()?;
         sender.send(Command::RunWith(game.id, opts, game.status_counter()))?;
         Ok(())
@@ -513,7 +511,7 @@ impl Default for Client {
 
 #[cfg(test)]
 mod tests {
-    use crate::client::Client;
+    use crate::app::client::Client;
     use crate::utils::error::STError;
 
     #[test]

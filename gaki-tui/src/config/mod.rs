@@ -1,7 +1,12 @@
+//! The TUI's own settings file: the default user, hidden and favourite
+//! games, the shown game types, and the highlight colour. It's still
+//! `config.json` under the old `aurelia-tui` directory; step 4.6 moves it and
+//! Phase 5 turns it into TOML.
+
 use crate::utils::error::STError;
 use crate::utils::paths::config_location;
 
-use crate::interface::game::GameType;
+use crate::app::game::GameType;
 
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -9,7 +14,10 @@ use std::sync::RwLock;
 
 use ratatui::style::Color;
 
-use crate::theme;
+use crate::ui::theme;
+
+#[cfg(test)]
+mod tests;
 
 /// Process-wide cache of the parsed config. `Config::new`/`save` keep it in sync.
 /// Avoids a `config.json` disk read + JSON parse on every `get_name`/`is_valid`
@@ -70,19 +78,5 @@ impl Config {
         fs::write(config_location()?, serde_json::to_string(&self)?)?;
         *CACHE.write()? = Some(self.clone());
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn configs_with_the_dropped_hltb_switch_still_load() {
-        let mut legacy = serde_json::to_value(Config::default()).unwrap();
-        legacy["hltb_enabled"] = serde_json::json!(true);
-        legacy["favorite_games"] = serde_json::json!([400]);
-        let config: Config = serde_json::from_value(legacy).unwrap();
-        assert_eq!(config.favorite_games, [400]);
     }
 }

@@ -5,7 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the branches overlay list from the browser's open branches state. Each
 /// row shows the branch name, a `●` active marker, and an optional description;

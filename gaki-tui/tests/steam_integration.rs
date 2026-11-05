@@ -4,16 +4,16 @@
 //! explicitly with:
 //!
 //! ```text
-//! cargo test -p gaki-tui --test aurelia_integration -- --ignored
+//! cargo test -p gaki-tui --test steam_integration -- --ignored
 //! ```
 
-use gaki_tui::interface::aurelia;
-use gaki_tui::interface::game;
+use gaki_tui::app::game;
+use gaki_tui::app::steam;
 
 #[test]
 #[ignore]
 fn health_reports_session() {
-    let health = aurelia::health().expect("health check should parse");
+    let health = steam::health().expect("health check should parse");
     assert!(health.logged_in, "expected an authenticated session");
     assert!(health.account.is_some(), "expected an account name");
 }
@@ -23,7 +23,7 @@ fn health_reports_session() {
 fn library_loads_and_maps_to_games() {
     // A single fetch, mapped 1:1 (a second library fetch can legitimately
     // return a different count as family-shared/online data resolves).
-    let raw = aurelia::fetch_library().expect("list --json should parse");
+    let raw = steam::fetch_library().expect("list --json should parse");
     assert!(!raw.is_empty(), "expected a non-empty library");
 
     let games: Vec<_> = raw.iter().cloned().map(game::Game::from_library).collect();
@@ -50,19 +50,19 @@ fn library_loads_and_maps_to_games() {
 fn https_proton_lookup_does_not_abort() {
     // This HTTPS request must complete (returning Some/None) without crashing
     // the process.
-    let _ = gaki_tui::interface::proton_data::ProtonData::get(1888160);
+    let _ = gaki_tui::app::game::protondb::ProtonData::get(1888160);
 }
 
 #[test]
 #[ignore]
 fn classic_login_rejects_bad_credentials() {
-    use gaki_tui::interface::aurelia::LoginPhase;
+    use gaki_tui::app::steam::LoginPhase;
     use std::sync::mpsc::channel;
     use std::sync::{Arc, Mutex};
 
     let phase = Arc::new(Mutex::new(LoginPhase::Idle));
     let (_tx, rx) = channel();
-    let result = aurelia::login_classic(
+    let result = steam::login_classic(
         "not_a_real_user_xyz",
         "definitely-wrong-password",
         &phase,
@@ -83,7 +83,7 @@ fn friends_search_resolves_a_known_account() {
     // `friends search` is read-only and needs no login: it resolves a SteamID64
     // / profile URL / vanity to a concrete account. Gabe Newell's well-known
     // SteamID64 is a stable fixture.
-    let found = aurelia::friends_search("76561197960287930").expect("friends search --json");
+    let found = steam::friends_search("76561197960287930").expect("friends search --json");
     assert_eq!(found.steam_id, 76561197960287930);
     assert!(!found.display_name().is_empty(), "expected a display name");
 }
@@ -91,9 +91,9 @@ fn friends_search_resolves_a_known_account() {
 #[test]
 #[ignore]
 fn info_parses_developers_and_publishers() {
-    let raw = aurelia::fetch_library().expect("list");
+    let raw = steam::fetch_library().expect("list");
     let app_id = raw[0].app_id as i32;
-    let info = aurelia::fetch_info(app_id).expect("info --json should parse");
+    let info = steam::fetch_info(app_id).expect("info --json should parse");
     assert_eq!(info.app_id, app_id as u32);
     assert!(!info.name.is_empty());
 }
@@ -101,13 +101,13 @@ fn info_parses_developers_and_publishers() {
 #[test]
 #[ignore]
 fn market_search_then_price_round_trips() {
-    use aurelia::{MarketPriceState, MarketSearchState};
     use std::sync::{Arc, Mutex};
+    use steam::{MarketPriceState, MarketSearchState};
 
     // Both calls are read-only and need no login. Search for a well-known TF2
     // item, then price the first result by its (app_id, market hash name).
     let search = Arc::new(Mutex::new((0, MarketSearchState::Idle)));
-    aurelia::market_search_async("Mann Co".to_string(), 7, search.clone());
+    steam::market_search_async("Mann Co".to_string(), 7, search.clone());
     let (generation, state) = search.lock().unwrap().clone();
     assert_eq!(generation, 7, "the result carries the search generation");
     let results = match state {
@@ -120,7 +120,7 @@ fn market_search_then_price_round_trips() {
     assert!(!first.market_hash_name.is_empty(), "result has a hash name");
 
     let price = Arc::new(Mutex::new(MarketPriceState::Idle));
-    aurelia::market_price_async(first.app_id, first.market_hash_name.clone(), price.clone());
+    steam::market_price_async(first.app_id, first.market_hash_name.clone(), price.clone());
     let price = match price.lock().unwrap().clone() {
         MarketPriceState::Ready(price) => price,
         other => panic!("market price failed: {other:?}"),

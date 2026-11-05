@@ -5,7 +5,7 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{BorderType, Borders, Paragraph};
 
-use crate::theme;
+use crate::ui::theme;
 
 /// Build the uninstall confirmation prompt for `game_name`.
 pub fn confirm_uninstall(game_name: &str) -> Paragraph<'static> {

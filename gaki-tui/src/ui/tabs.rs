@@ -8,7 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Tabs;
 
 use crate::app::browser::{Browser, Filter, View};
-use crate::theme;
+use crate::ui::theme;
 
 /// The library filter tabs (left section). The active filter is highlighted
 /// only while the Library view is active; in the Friends view the section is
