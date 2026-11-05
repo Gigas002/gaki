@@ -1,7 +1,7 @@
 //! The QR sign-in page draws a complete, scannable code: decoding the drawn
 //! cells gives back exactly the QR matrix, quiet zone included, black on white.
 
-use gaki_tui::app::App;
+use gaki_tui::ui::login;
 use qrcode::{Color as Module, QrCode};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -16,8 +16,8 @@ fn draw(qr: Option<&str>, w: u16, h: u16) -> Buffer {
     let mut terminal = Terminal::new(TestBackend::new(w, h)).unwrap();
     terminal
         .draw(|f| {
-            let pane = App::build_layout().split(f.area())[0];
-            f.render_widget(App::build_qr(qr.map(str::to_string), pane), pane);
+            let pane = login::layout().split(f.area())[0];
+            f.render_widget(login::qr(qr.map(str::to_string), pane), pane);
         })
         .unwrap();
     terminal.backend().buffer().clone()

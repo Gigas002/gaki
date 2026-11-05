@@ -2,7 +2,6 @@
 //! Steam palette is actually painted into the cell buffer (not just that the
 //! code compiles).
 
-use gaki_tui::app::App;
 use gaki_tui::theme;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -41,7 +40,7 @@ fn infobox_is_themed() {
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|f| {
-            f.render_widget(App::build_loading(), f.area());
+            f.render_widget(gaki_tui::ui::login::loading(), f.area());
         })
         .unwrap();
 

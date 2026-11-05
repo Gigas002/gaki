@@ -2444,6 +2444,41 @@ impl Browser {
         games
     }
 
+    /// Whether an overlay or prompt covers the library (the detail pane is
+    /// hidden, so its art and details needn't load).
+    pub fn overlay_open(&self) -> bool {
+        self.show_help
+            || self.show_dlc
+            || self.show_account
+            || self.show_config
+            || self.show_achievements
+            || self.show_cloud
+            || self.show_branches
+            || self.show_depots
+            || self.show_chat
+            || self.show_inventory
+            || self.show_launch
+            || self.show_market
+            || self.show_market_search
+            || self.show_move
+            || self.show_relink
+            || self.show_import
+            || self.show_proton
+            || self.show_running
+            || self.show_wallet
+            || self.show_workshop
+            || self.show_friend_add
+            || self.confirm_friend_remove
+            || self.confirm_uninstall
+            || self.show_install_picker
+            || self.confirm_install
+            || self.show_actions
+            || self.show_versions
+            || self.show_game_config
+            || self.show_launch_targets
+            || self.show_collections
+    }
+
     pub fn selected(&self) -> Option<Game> {
         let visible = self.visible();
         self.state

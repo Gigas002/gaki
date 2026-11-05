@@ -843,10 +843,33 @@ I make the changes, and you review, commit, and push.
     code is non-zero. **Found on the way:** `config_dir()` hard-codes
     `~/.config/gaki` and ignores `XDG_CONFIG_HOME`, which §11.5 requires; that
     fix fits 4.6, which moves the TUI's dirs anyway.
-  - [ ] **4.5b** Move the two run loops (`entry`, `chat_entry`) out of `main.rs`.
+  - [x] **4.5b** Move the two run loops (`entry`, `chat_entry`) out of `main.rs`.
     Event handling and key dispatch go to `app/`, the frame drawing to `ui/`
     (`ui::draw`), and the artwork helpers (`cover_resize`, `fade_bottom`,
     `halfblock_art`) to `ui/artwork.rs`.
+    *Done.* `main.rs` is down to 41 lines. `app/library.rs` holds the loop and
+    the screen transitions (`advance`). `app/keys/` handles keys per screen
+    (`login`, `browse`, `overlays`, `actions`), and `app/keys/shared.rs` holds
+    install, pause/resume, cancel, favourite, hide and reload. Before, the
+    Actions menu and the accelerators each had their own copy of those.
+    `app/artwork.rs` and `app/marquee.rs` carry the art and marquee state that
+    used to be loose locals. `app/chat.rs` runs the `--chat` window, and
+    `app/terminal.rs` has a `TerminalGuard` that restores raw mode and the
+    mouse on drop, so `main` no longer has to. On the drawing side,
+    `ui::draw` dispatches to `ui/library.rs` (the layout), `ui/overlays.rs`
+    (the overlay stack) and `ui/login.rs` (the old `App::build_*` builders,
+    now free functions; the unused `build_login` is gone). The new
+    `Browser::overlay_open` replaces a 30-flag condition.
+    **Fixed on the way:** every quit exited with "The cursor position could
+    not be read within a normal duration". `Terminal::clear` queries the
+    cursor, and the input thread, blocked reading stdin, takes the reply. The
+    clears after a login or reload ran the same risk mid-session.
+    `app::terminal::clear` clears without asking (`clear_region(All)` plus
+    `swap_buffers`). **Dropped:** the 17 `show_cursor`/`hide_cursor` calls.
+    Nothing sets a cursor position, so each `draw` hid the cursor again and
+    the calls did nothing. Checked in a scripted pty: sign-in page, username
+    entry, Esc, quit with exit 0, and the `--chat` window. `HEAD` showed the
+    quit error under the same script.
   - [ ] **4.5c** Split `browse.rs` (the `Browser` state machine) into
     `app/browser/`, one file per view's state and actions.
   - [ ] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,

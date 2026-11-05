@@ -1,0 +1,206 @@
+//! Keys in the library itself. Overlays and the Actions menu take keys
+//! first; the rest is the base keymap.
+
+use ratatui::crossterm::event::KeyCode;
+
+use super::{Flow, actions, overlays, shared};
+use crate::app::library::Library;
+use crate::app::{AppResult, Mode};
+use crate::browse::Filter;
+
+pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
+    // Any keypress dismisses the previous action's notice (this action sets
+    // it again if it fails too).
+    lib.browser.notice = None;
+    if lib.browser.show_actions {
+        actions::key(lib, input)?;
+    } else if !overlays::key(lib, input)? {
+        return base(lib, input);
+    }
+    Ok(Flow::Continue)
+}
+
+/// The base keymap, with no overlay open.
+fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
+    let Library {
+        app,
+        browser,
+        client,
+        config,
+        cached,
+        ..
+    } = lib;
+    match input {
+        KeyCode::Char('q') => return Ok(Flow::Quit),
+        KeyCode::Char('?') => {
+            browser.help_scroll = 0;
+            browser.show_help = true;
+        }
+        KeyCode::Char('A') => {
+            // Fetch the account (blocking) and open the overlay;
+            // ignore failures so a missing session is non-fatal.
+            let _ = browser.open_account();
+        }
+        KeyCode::Char('p') => {
+            // Fetch the launcher configuration (blocking) and
+            // open the settings overlay; ignore failures.
+            let _ = browser.open_config();
+        }
+        KeyCode::Char('w') => {
+            // Fetch the wallet (blocking) and open the overlay;
+            // ignore failures so a missing session is non-fatal.
+            let _ = browser.open_wallet();
+        }
+        KeyCode::Char('/') => browser.filtering = true,
+        KeyCode::Char('l') => {
+            app.mode = Mode::Login;
+        }
+        KeyCode::Char('r') => shared::reload(app, client, cached)?,
+        KeyCode::Tab => browser.cycle_filter(true),
+        KeyCode::BackTab => browser.cycle_filter(false),
+        KeyCode::Char('1') => browser.set_filter(Filter::All),
+        KeyCode::Char('2') => browser.set_filter(Filter::Installed),
+        KeyCode::Char('3') => browser.set_filter(Filter::Updates),
+        KeyCode::Char('4') => browser.set_filter(Filter::Favourites),
+        KeyCode::Char('5') => browser.enter_friends(),
+        KeyCode::Char('s') => browser.cycle_sort(),
+        KeyCode::Char('a') => browser.open_achievements(),
+        KeyCode::Char('F') => browser.toggle_friends_focus(),
+        KeyCode::Char('I') => {
+            if let Some(game) = browser.selected() {
+                browser.open_inventory(game.id);
+            }
+        }
+        KeyCode::Char('m') => browser.open_market(),
+        KeyCode::Char('S') => browser.open_market_search(),
+        KeyCode::Char('W') => {
+            if let Some(game) = browser.selected() {
+                browser.open_workshop(game.id);
+            }
+        }
+        KeyCode::Char('i') => browser.toggle_description(),
+        KeyCode::Down | KeyCode::Char('j') => browser.next(),
+        KeyCode::Up | KeyCode::Char('k') => browser.previous(),
+        KeyCode::Char('g') => browser.home(),
+        KeyCode::Char('G') => browser.end(),
+        KeyCode::PageDown => browser.page_down(10),
+        KeyCode::PageUp => browser.page_up(10),
+        KeyCode::Char('\n') | KeyCode::Enter => {
+            // Open the per-game Actions menu (command palette).
+            // Power users keep the direct accelerators below;
+            // the menu is the discoverable path to all of them
+            // (Play is the default-highlighted row).
+            browser.open_actions();
+        }
+        KeyCode::Char('V') => {
+            if let Some(game) = browser.selected() {
+                browser.open_versions(game.id);
+            }
+        }
+        KeyCode::Char('O') => {
+            if let Some(game) = browser.selected() {
+                browser.open_collections(game.id);
+            }
+        }
+        KeyCode::Char('d') => {
+            if let Some(game) = browser.selected() {
+                shared::install(browser, client, &game)?;
+            }
+        }
+        KeyCode::Char(' ') => {
+            if let Some(game) = browser.selected() {
+                shared::pause_or_resume(browser, client, &game)?;
+            }
+        }
+        KeyCode::Char('c') => {
+            if let Some(game) = browser.selected() {
+                shared::cancel_install(browser, &game);
+            }
+        }
+        KeyCode::Char('x') => {
+            // Only offer uninstall for installed games.
+            if let Some(game) = browser.selected()
+                && game.installed
+            {
+                browser.confirm_uninstall = true;
+            }
+        }
+        KeyCode::Char('M') => {
+            // Only offer move for installed games.
+            if let Some(game) = browser.selected()
+                && game.installed
+            {
+                browser.open_move(game.id);
+            }
+        }
+        KeyCode::Char('K') => {
+            // Only offer relink for installed games.
+            if let Some(game) = browser.selected()
+                && game.installed
+            {
+                browser.open_relink(game.id);
+            }
+        }
+        KeyCode::Char('N') => {
+            // Import registers an on-disk install, so it does
+            // not require the game to already be installed.
+            if let Some(game) = browser.selected() {
+                browser.open_import(game.id);
+            }
+        }
+        KeyCode::Char('v') => {
+            if let Some(game) = browser.selected() {
+                client.verify(&game)?;
+            }
+        }
+        KeyCode::Char('U') => {
+            if let Some(game) = browser.selected() {
+                client.update(&game)?;
+            }
+        }
+        KeyCode::Char('D') => {
+            if let Some(game) = browser.selected() {
+                // Blocking fetch; failure leaves the overlay closed.
+                let _ = browser.open_dlc(game.id);
+            }
+        }
+        KeyCode::Char('b') => {
+            if let Some(game) = browser.selected() {
+                // Blocking fetch; failure leaves the overlay closed.
+                let _ = browser.open_branches(game.id);
+            }
+        }
+        KeyCode::Char('P') => {
+            // Blocking fetch; failure leaves the overlay closed.
+            let _ = browser.open_proton();
+        }
+        KeyCode::Char('R') => browser.open_running(),
+        KeyCode::Char('f') => {
+            if let Some(game) = browser.selected() {
+                shared::toggle_favourite(browser, config, &game)?;
+            }
+        }
+        KeyCode::Char('H') => {
+            if let Some(game) = browser.selected() {
+                shared::hide(browser, config, &game)?;
+            }
+        }
+        KeyCode::Char('C') => {
+            if let Some(game) = browser.selected() {
+                browser.open_cloud(game.id);
+            }
+        }
+        KeyCode::Char('o') => {
+            if let Some(game) = browser.selected() {
+                browser.open_depots(game.id);
+            }
+        }
+        KeyCode::Char('L') => {
+            if let Some(game) = browser.selected() {
+                browser.open_launch(game.id);
+            }
+        }
+        _ => {}
+    }
+    Ok(Flow::Continue)
+}

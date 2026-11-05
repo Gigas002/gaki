@@ -1,10 +1,12 @@
-//! Browse-view widgets. Each submodule is a pure builder that renders from the
-//! [`crate::browse::Browser`] state plus the shared [`crate::theme`], so the
-//! event loop only has to lay them out.
+//! Everything drawn on screen. [`draw`] renders one frame of the library
+//! window, and [`chat::window`] one of the stand-alone chat window. The other
+//! submodules are one element each: pure builders that render from the app
+//! state plus the shared [`crate::theme`].
 
 pub mod account;
 pub mod achievements;
 pub mod actions;
+pub mod artwork;
 pub mod branches;
 pub mod chat;
 pub mod cloud;
@@ -23,10 +25,13 @@ pub mod install_picker;
 pub mod inventory;
 pub mod launch;
 pub mod launch_targets;
+pub mod library;
 pub mod list;
+pub mod login;
 pub mod market;
 pub mod market_search;
 pub mod move_game;
+pub mod overlays;
 pub mod proton;
 pub mod relink;
 pub mod running;
@@ -36,12 +41,50 @@ pub mod versions;
 pub mod wallet;
 pub mod workshop;
 
+use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{ListItem, Paragraph};
+use ratatui::widgets::{Block, ListItem, Paragraph};
 
+use crate::app::{App, Mode};
+use crate::browse::Browser;
+use crate::client::Client;
 use crate::theme;
+use crate::utils::image::ImgBuf;
+
+/// The art loaded for the highlighted game, if any.
+#[derive(Clone, Copy, Default)]
+pub struct Art<'a> {
+    pub background: Option<&'a ImgBuf>,
+    pub cover: Option<&'a ImgBuf>,
+}
+
+/// Draw one frame of the library window: the library itself in
+/// `Mode::Browse`, and the matching sign-in or status screen otherwise.
+pub fn draw(
+    frame: &mut Frame,
+    app: &App,
+    browser: &mut Browser,
+    client: &Client,
+    art: Art,
+    marquee_tick: usize,
+) {
+    frame.render_widget(Block::default().style(theme::canvas()), frame.area());
+    if app.mode == Mode::Browse {
+        let account = client.get_account();
+        library::draw(
+            frame,
+            browser,
+            account.as_deref(),
+            art.background,
+            art.cover,
+            marquee_tick,
+        );
+    } else {
+        login::draw(frame, app, client);
+    }
+}
 
 /// A [`Paragraph`] framed by the standard [`theme::panel`] (titled, soft-blue
 /// border) over a [`theme::base`] fill — the common scaffolding behind the

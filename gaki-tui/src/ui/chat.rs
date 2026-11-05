@@ -243,6 +243,16 @@ pub fn chat(browser: &Browser, width: u16, height: u16) -> Paragraph<'static> {
         .alignment(Alignment::Left)
 }
 
+/// Draw one frame of the stand-alone chat window (`gaki --chat`).
+pub fn window(frame: &mut ratatui::Frame, browser: &Browser) {
+    let size = frame.area();
+    frame.render_widget(
+        ratatui::widgets::Block::default().style(theme::canvas()),
+        size,
+    );
+    frame.render_widget(chat(browser, size.width, size.height), size);
+}
+
 #[cfg(test)]
 mod tests {
     use super::wrap_body;
