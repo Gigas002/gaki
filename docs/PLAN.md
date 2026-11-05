@@ -9,7 +9,7 @@ in one workspace:
 | ---------- | ---- | ---------- | ------------------------------------------------------- |
 | `libgaki`  | lib  | —          | All logic: Steam session, library, install, cloud, launch, config/profiles |
 | `gaki-cli` | bin  | `gaki-cli` | Thin CLI over `libgaki`                                 |
-| `gaki-tui` | bin  | `gaki`     | Thin TUI over `libgaki` (imported from Aurelia-TUI)     |
+| `gaki-tui` | bin  | `gaki-tui` | Thin TUI over `libgaki` (imported from Aurelia-TUI)     |
 
 Sources: `docs/aurelia-questions.md` (the original upstream questions plus the request
 list), `../rust-template` (ARCHITECTURE.md, CI, lint/deny/typos configs),
@@ -42,7 +42,7 @@ Request items are referenced as **R<n>** (the numbered "Agent request" list) and
   luxtorpeda). Users install these with their package manager, and gaki
   discovers them.
 - Localized store or metadata. gaki keeps Steam's default (English) behavior.
-- HowLongToBeat integration.
+- HowLongToBeat integration, including a link hotkey (see 7.1).
 - Packaging scripts in the repo (AUR push, Nix flake, .deb metadata).
 
 ---
@@ -59,8 +59,10 @@ Each item has a default. The plan follows the default unless you say otherwise.
 | D4 | **Daemon** (`aurelia daemon`). It holds one Steam session so separate CLI calls don't each log in again, which Steam rate-limits. | **Keep it in `gaki-cli`**, behind an `authentication` gate. The TUI holds its own in-process session and doesn't need it. Revisit after Phase 5. |
 | D5 | **TUI framework.** Aurelia-TUI uses `tui` 0.18 (abandoned), crossterm 0.25, `atty` (RustSec advisory), and reqwest 0.11 blocking. ARCHITECTURE §7.2 forbids abandoned crates. | **Migrate to `ratatui` + current crossterm**, drop `atty`, and use `libgaki`'s async stack. |
 | D6 | **Sync TUI vs async lib.** `libgaki` is tokio-async, while the TUI loop is synchronous. | The TUI owns a tokio runtime. It sends requests to `libgaki` tasks and receives results over channels, so the UI thread never blocks. |
-| D7 | **Binary names.** R7 calls the TUI `gaki`, while R13 calls its crate `gaki-tui`. | Crate and directory are `gaki-tui`, and the binary is `gaki`. The CLI crate and binary are both `gaki-cli`. |
+| D7 | **Binary names.** R7 calls the TUI `gaki`, while R13 calls its crate `gaki-tui`. | **Decided (plans2):** crate, directory and binary are all `gaki-tui` (step 4.6). The CLI crate and binary are both `gaki-cli`. |
 | D8 | **Store/wishlist/news/reviews/deals** commands. R24 doesn't list them. | Add a `store` feature (off). Also add `achievements` (on), unless you'd rather fold it into `library`. |
+| D9 | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings. | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). |
+| D10 | **Credential storage.** See "Authentication and session security" below. | **The refresh token lives only in the OS keyring, or only in memory.** It's never in a file and never stored as plaintext. Re-authenticating for every action isn't the default (see that section for why). Sensitive actions can opt into a fresh login. |
 
 ---
 
@@ -105,7 +107,7 @@ gaki/
     src/{main.rs,cli/,settings/,logger/,app/,ui/,utils/}
     tests/
   README.md             # short: what, install, links into docs/
-  LICENSE               # GPL-3.0-or-later (unchanged)
+  LICENSE               # plain GPLv3 text only (step 0.7)
 ```
 
 ---
@@ -155,7 +157,11 @@ cloud_sync = true
 ```
 
 **`profiles/<name>.toml`** describes one runner, one prefix, and their
-environment. A prefix can be shared by any number of games.
+environment. A prefix can be shared by any number of games. The schema follows
+lootrs' `Profile` field for field (D9), so a lootrs `native` profile loads
+unchanged, and `profiles_dir` in `config.toml` can point at lootrs' directory.
+gaki reports runners it doesn't support (`wine`, `umu`) as validation issues,
+the same way lootrs reports a runner left out of its build.
 
 ```toml
 name = "proton"
@@ -200,6 +206,70 @@ convention (replaced by `script`, with a fallback to the old path if it exists).
 
 ---
 
+## Authentication and session security (D10)
+
+### Current state (checked 2026-11-05)
+
+- **What's stored.** `~/.config/gaki/session.json` holds the Steam
+  **refresh token** (long-lived, and enough to act as the account), plus the
+  optional web access token, the account name and the SteamID.
+- **Encryption is opt-in by accident.** `encrypt_session` defaults to `false`.
+  The first successful login turns it on (`ops::auth::secure_session`). If
+  the keyring is unreachable, the token is written **in plaintext**. The file
+  is `chmod 0600`'d only after a non-atomic write, so for a moment it has
+  umask permissions.
+- **Wrong directory.** The file sits in the config dir, which people commonly
+  sync or commit with their dotfiles.
+- **The envelope adds little.** It's ChaCha20-Poly1305 with a random key kept
+  in the Secret Service (`gaki`/`session-key`), run through Argon2, which does
+  nothing for a random key. A legacy password-keyed mode still exists.
+- **Who shares it.** `gaki-cli`, its daemon and `gaki-tui` read the same file
+  and keyring entry. Launched games and scripts get no token (the `GAKI_*`
+  variables carry none).
+- **The daemon holds a live session** behind a Unix socket. There's no peer
+  check (`SO_PEERCRED`), the socket gets umask permissions, and it falls back
+  to `/tmp` when `XDG_RUNTIME_DIR` is unset.
+- **Logout is local only.** It deletes the file but doesn't revoke the
+  refresh token at Steam, so a copied token keeps working.
+
+**Threat model, honestly:** on Linux the Secret Service has no per-app access
+control. Any process running as your user, including a game under Proton, can
+read an unlocked keyring item, connect to the daemon socket, or read gaki's
+memory. What gaki can defend against: token leaks through files (backups,
+dotfiles, other users), a token that outlives logout, tokens in logs, and
+other local users.
+
+### Why not re-authenticate on every action
+
+Each Steam login takes the password plus a Steam Guard code or mobile approval,
+and Steam rate-limits logins (a rate limit is also why the daemon exists). Asking
+for them on every command would make gaki unusable. It would also expose the
+**password**, which can't be revoked and is used everywhere, far more often than
+a refresh token, which is scoped and revocable. The safer equivalent:
+
+- `session_store = "memory"`: never persist anything. You authenticate once
+  per process lifetime: one TUI session, or one daemon lifetime for the CLI.
+- `reauth_sensitive = true`: actions that move money or items require a fresh
+  login before they run (market buy/sell/cancel, and any future
+  trade or wallet action). Login, presence and library reads don't.
+  Those actions are already behind the off-by-default `market` and
+  `inventory` features.
+
+### Target model
+
+| Setting (`config.toml`) | Default | Effect |
+| --- | --- | --- |
+| `session_store` | `keyring` | `keyring`: the refresh token and web token are separate Secret Service items. No file holds a secret. `memory`: nothing is persisted. |
+| `reauth_sensitive` | `false` | A fresh login before market, wallet and trade actions. |
+| `daemon_idle_timeout` | `30m` | The daemon drops its session and exits after this much idle time. |
+
+If the keyring is unreachable, gaki **refuses to persist** and falls back to
+`memory` with a warning. It never writes plaintext. Non-secret metadata
+(account and persona name, used for "signed in as …") goes to
+`$XDG_STATE_HOME/gaki/account.toml`.
+
+---
+
 ## Steps
 
 Each step is a single commit-sized change. The workspace must build and test green
@@ -232,6 +302,20 @@ I make the changes, and you review, commit, and push.
   only on tags. The `lint` and `doc` workflows stay red until step 1.8.
 - [x] **0.6** Copy `rust-template/docs/ARCHITECTURE.md` to `docs/ARCHITECTURE.md`
   (R10). Add a short gaki section covering crate roles and the features table.
+- [x] **0.7** Make `LICENSE` the plain GPLv3 text. Drop the preamble: the
+  MIT-until-commit and SteamFlow-derivation notes and the Aurelia copyright
+  line. Git history already records all of it. Delete `gaki-tui/LICENSE`,
+  because its GPLv3 text is the same. "Only" vs "or later" is set by each
+  crate's `license` field, not by the text. **Caveat:** MIT requires its
+  copyright and permission notice to ship with "substantial portions" of the
+  code. While Aurelia's pre-GPL code is still in the tree, that notice moves
+  to the README acknowledgements (7.2), next to the SteamFlow credit, instead
+  of being deleted.
+  *Done.* `LICENSE` now starts at the GPLv3 title (its first line re-indented to
+  the canonical form), and `gaki-tui/LICENSE` is gone. The MIT notice, the Aurelia
+  fork note and the SteamFlow derivation note sit in the README's License section
+  for now, and the 7.2 split can move them. `gaki-tui/README.md` links the root
+  `LICENSE`.
 
 ### Phase 1 — removal (single crate, before the restructure, so diffs stay readable)
 
@@ -740,6 +824,11 @@ I make the changes, and you review, commit, and push.
   `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
 - [ ] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
   `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
+- [ ] **4.6** Rename the TUI binary from `gaki` to `gaki-tui` (D7): the `[[bin]]` name,
+  the clap command name, the footer badge (`gaki-tui vX.Y.Z`), help text,
+  `deploy.yml` artifacts, and docs. Move the TUI's own settings and cache from
+  `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`) to
+  `gaki/tui/` under the gaki XDG dirs, so both binaries share one config root.
 
 ### Phase 5 — configuration overhaul (R26, R29, R30, R27)
 
@@ -770,6 +859,39 @@ I make the changes, and you review, commit, and push.
   ARCHITECTURE requires TOML only for user configuration files. Confirm that
   this split is fine.
 
+**Credentials (D10).** The following steps implement the model described in
+"Authentication and session security". They come after 5.1, which adds the
+`config.toml` keys.
+
+- [ ] **5.9** Add a `libgaki::auth::store` module with a `SecretStore` trait
+  and two backends, `Keyring` (one Secret Service item per secret:
+  `gaki`/`refresh-token:<steamid>` and `gaki`/`web-token:<steamid>`) and
+  `Memory`. Add `session_store`. Delete `session.json`, the ChaCha/Argon2
+  envelope (`core/session_crypto.rs`), the legacy password mode,
+  `encrypt_session`, `use_keyring`, and the `argon2`, `chacha20poly1305` and
+  `hex` dependencies if nothing else uses them. Never fall back to plaintext.
+  Non-secret account metadata goes to `$XDG_STATE_HOME/gaki/account.toml`.
+  A user with an old `session.json` logs in once; gaki then deletes the file.
+- [ ] **5.10** Token hygiene. Wrap tokens in `secrecy::SecretString`:
+  redacted `Debug`, zeroized on drop, and no `Serialize`. Add a test that
+  `{:?}` of every session type contains no token. Grep `tracing` calls for
+  token fields.
+- [ ] **5.11** Make logout revoke at Steam. Call
+  `Authentication.RevokeRefreshToken` before deleting the local copy. If
+  steam-vent doesn't expose it, hand-wire it as the CloudConfigStore RPC is.
+  If revocation fails, delete locally anyway and say the token may still be
+  valid until it expires.
+- [ ] **5.12** Harden the daemon. The socket lives only under
+  `$XDG_RUNTIME_DIR` (with no `/tmp` fallback; refuse to start without it).
+  Create it `0600` inside a `0700` `gaki/` directory, check `SO_PEERCRED` so
+  only the same uid can connect, and enforce `daemon_idle_timeout`. The daemon
+  reads the token from the store itself; it never travels over the socket.
+- [ ] **5.13** Add `reauth_sensitive`. A `Sensitive` marker on the
+  market/wallet/trade `ops` makes them demand a fresh `LoginStep` flow
+  before they run. The CLI prompts, and the TUI opens the login page and
+  resumes the action afterwards. Document the threat model in `docs/FAQ.md`
+  (7.2).
+
 ### Phase 6 — feature gates (R24)
 
 - [ ] **6.1** Declare the features in `libgaki` and gate modules at their
@@ -787,6 +909,12 @@ I make the changes, and you review, commit, and push.
   They run `xdg-open` through `std::process::Command`, with no new crate, and
   are added to the TUI help. A CLI equivalent, `gaki-cli open protondb <app>`,
   is optional.
+  **HLTB (plans2):** add it only if it can search by Steam app id, and it
+  can't. HowLongToBeat has no public URL that looks up a game by Steam app id.
+  Its own search takes a title, and the community tools that map app ids
+  scrape HLTB pages. A title search (`howlongtobeat.com/?q=<name>`) would be
+  name-based and can match the wrong game, so it stays out unless you want it
+  anyway.
 - [ ] **7.2** Split the README (R34) into `docs/CONFIG.md`, `docs/GAKI-CLI.md`,
   `docs/GAKI-TUI.md`, `docs/FEATURES.md`, and `docs/FAQ.md`. `FAQ.md` covers
   prerequisites: Steam must be installed, Proton must be installed
@@ -802,9 +930,13 @@ I make the changes, and you review, commit, and push.
   advisories as well as licenses. Known issues: `webpki-roots` (the
   distrusted emSign roots advisory), yanked `spin` and `chacha20`, duplicate
   `rand` and `getrandom` versions, and a future-incompat warning in `binrw`.
-  Also replace `aws-lc-sys` (rustls' default provider, under the OpenSSL
-  license, which is GPL-incompatible) with the `ring` provider, then drop the
-  exception in `deny.toml`. Once `cargo deny check` passes in full, switch
+  **`aws-lc-sys` stays (plans2).** Its license is
+  `ISC AND (Apache-2.0 OR ISC) AND OpenSSL`. You've decided this is acceptable
+  for GPLv3. Keep the `OpenSSL` exception in `deny.toml` and reword its comment
+  so it records the decision instead of pointing here as a to-do. (For the
+  record: the FSF considers the old OpenSSL license GPL-incompatible. Switching
+  rustls to `ring` remains a one-feature change if that ever matters, for
+  example for a distro package.) Once `cargo deny check` passes in full, switch
   `deny.yml` from `check licenses` to `check`.
 - [ ] **7.4** Refactor tests to the ARCHITECTURE layout (R32): convert the
   `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
@@ -833,5 +965,11 @@ I make the changes, and you review, commit, and push.
 | Q8 named scripts | Step 5.5 |
 | Q9 ProtonDB/GitHub hotkey | Step 7.1 |
 | Profiles / shared prefixes | Phase 5 |
+| plans2: reuse liblootrs profiles | D9: shared file format, no dependency (5.1) |
+| plans2: rename binary to `gaki-tui` | Step 4.6 |
+| plans2: pure GPLv3 `LICENSE` | Step 0.7 |
+| plans2: HLTB link by app id | Not possible; stays a non-goal (7.1) |
+| plans2: `aws-lc-sys` with GPLv3 | Kept (7.3) |
+| plans2: auth and session safety | D10, steps 5.9–5.13 |
 
 `docs/aurelia-questions.md` can be deleted once this plan is accepted.

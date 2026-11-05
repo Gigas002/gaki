@@ -165,4 +165,4 @@ so there are no wrapper scripts or separate runtimes to manage on your side.
 
 ## License
 
-Distributed under GPL-3.0. See [`LICENSE`](LICENSE) for details.
+Distributed under GPL-3.0. See [`LICENSE`](../LICENSE) for details.
