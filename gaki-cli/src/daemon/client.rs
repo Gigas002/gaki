@@ -40,6 +40,12 @@ pub async fn try_forward(no_spawn: bool) -> Result<Forwarded> {
 /// So when an existing daemon is a different version from this binary, stop it and start a
 /// fresh one before forwarding.
 async fn connect_or_spawn(no_spawn: bool) -> Option<impl AsyncRead + AsyncWrite + Unpin + Send> {
+    // No private socket location (no `XDG_RUNTIME_DIR`): no daemon to reach or
+    // start, so the command runs here.
+    if let Err(e) = transport::endpoint() {
+        tracing::debug!("{e}");
+        return None;
+    }
     if let Ok(stream) = transport::connect().await {
         let current = env!("CARGO_PKG_VERSION");
         let info = super::read_daemon_info();

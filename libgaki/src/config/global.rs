@@ -53,6 +53,10 @@ pub struct Config {
     /// disables the cache.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub info_cache_ttl: Option<u64>,
+    /// Seconds the daemon waits with nothing to do before it drops its
+    /// session and exits. `None` is 30 minutes, `0` never.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub daemon_idle_timeout: Option<u64>,
     /// Where the session's tokens are kept: `keyring` (the OS keyring) or
     /// `memory` (the running daemon only, for machines without a keyring).
     #[serde(default)]
@@ -89,6 +93,7 @@ impl Default for Config {
             install_resume: InstallResume::default(),
             experimental: false,
             info_cache_ttl: None,
+            daemon_idle_timeout: None,
             secret_store: SecretStoreKind::default(),
         }
     }

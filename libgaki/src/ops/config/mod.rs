@@ -60,6 +60,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("install_resume", KeyKind::Text),
     ("experimental", KeyKind::Bool),
     ("info_cache_ttl", KeyKind::Integer),
+    ("daemon_idle_timeout", KeyKind::Integer),
     ("secret_store", KeyKind::Text),
 ];
 

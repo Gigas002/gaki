@@ -135,7 +135,7 @@ mod daemon_e2e {
             .spawn()
             .expect("failed spawning the daemon");
         // Marker too, so clients skip mismatch handling.
-        let marker = socket.with_extension("info");
+        let marker = socket.with_extension("toml");
         let deadline = Instant::now() + Duration::from_secs(10);
         while !socket.exists() || !marker.exists() {
             assert!(Instant::now() < deadline, "daemon socket never appeared");

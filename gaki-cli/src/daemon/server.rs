@@ -1,7 +1,8 @@
 //! Daemon server: accept forwarded commands and run them against the shared session.
 
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 
 use anyhow::{Context, Result};
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt};
@@ -28,8 +29,73 @@ impl InflightGuard {
 
 impl Drop for InflightGuard {
     fn drop(&mut self) {
+        touch();
         INFLIGHT.fetch_sub(1, Ordering::SeqCst);
     }
+}
+
+/// When the daemon last finished something (a request, an auto-resume). The
+/// idle timeout counts from here.
+static LAST_ACTIVITY: Mutex<Option<Instant>> = Mutex::new(None);
+
+fn touch() {
+    *LAST_ACTIVITY.lock().unwrap() = Some(Instant::now());
+}
+
+fn idle_for() -> Duration {
+    LAST_ACTIVITY
+        .lock()
+        .unwrap()
+        .map_or(Duration::ZERO, |at| at.elapsed())
+}
+
+/// How often the idle watcher looks.
+const IDLE_CHECK_INTERVAL: Duration = Duration::from_secs(30);
+
+/// Whether the daemon should exit: nothing is running (no request, install
+/// or game) and it has been quiet for `timeout`. `None` never expires.
+fn idle_expired(busy: bool, idle_for: Duration, timeout: Option<Duration>) -> bool {
+    timeout.is_some_and(|timeout| !busy && idle_for >= timeout)
+}
+
+fn busy() -> bool {
+    INFLIGHT.load(Ordering::SeqCst) > 0
+        || !libgaki::ops::install::active_installs()
+            .lock()
+            .unwrap()
+            .is_empty()
+        || !libgaki::compat::running::list_active().is_empty()
+}
+
+/// Exit after `daemon_idle_timeout` with nothing to do, so a logged-in
+/// session does not sit in memory forever. The next command starts a new
+/// daemon, which logs on again from the stored token. The setting is re-read
+/// on every check, so a change applies without a restart.
+async fn watch_for_idle() {
+    touch();
+    loop {
+        tokio::time::sleep(IDLE_CHECK_INTERVAL).await;
+        let timeout = libgaki::core::config::daemon_idle_timeout();
+        if busy() {
+            touch();
+        } else if idle_expired(false, idle_for(), timeout) {
+            tracing::info!(
+                "daemon: idle for {:?}; dropping the session and exiting",
+                idle_for()
+            );
+            shut_down();
+        }
+    }
+}
+
+/// Leave cleanly: forget the session (and its in-memory tokens), remove the
+/// marker and the socket, exit.
+fn shut_down() -> ! {
+    super::clear_daemon_info();
+    if let Ok(path) = transport::endpoint() {
+        let _ = std::fs::remove_file(path);
+    }
+    std::process::exit(0);
 }
 
 /// `(mtime, len)` of the running executable, used to detect an on-disk upgrade.
@@ -61,8 +127,7 @@ async fn watch_for_upgrade(startup: Option<(SystemTime, u64)>) {
                 "daemon: binary changed on disk; exiting so the next command starts a \
                  fresh daemon"
             );
-            super::clear_daemon_info();
-            std::process::exit(0);
+            shut_down();
         }
     }
 }
@@ -90,12 +155,15 @@ pub async fn run_server() -> Result<()> {
             return Ok(());
         }
         Err(e) => {
-            return Err(e).with_context(|| {
-                format!("failed to bind daemon endpoint {}", transport::endpoint())
-            });
+            let place = transport::endpoint()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|_| "socket".into());
+            return Err(e).with_context(|| format!("failed to bind daemon endpoint {place}"));
         }
     };
-    tracing::info!("gaki-cli daemon listening on {}", transport::endpoint());
+    if let Ok(path) = transport::endpoint() {
+        tracing::info!("gaki-cli daemon listening on {}", path.display());
+    }
 
     // Record our version + pid so a differently-versioned thin client can detect the
     // mismatch and restart us instead of forwarding a command our CLI can't parse.
@@ -112,6 +180,7 @@ pub async fn run_server() -> Result<()> {
 
     // Self-restart on binary upgrade so the daemon never serves stale code.
     tokio::spawn(watch_for_upgrade(exe_signature()));
+    tokio::spawn(watch_for_idle());
 
     loop {
         match listener.next().await {
@@ -160,6 +229,10 @@ async fn auto_resume_installs() {
         tracing::warn!("daemon: auto-resume: {e:#}");
     }
 }
+
+#[cfg(test)]
+#[path = "server_idle_tests.rs"]
+mod idle_tests;
 
 /// The write half of a connection, shared between the exit-frame writer and the
 /// background stdout/stderr pump.

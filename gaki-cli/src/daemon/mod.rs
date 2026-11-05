@@ -84,29 +84,26 @@ fn write_daemon_info() {
         pid: std::process::id(),
         build_id: current_build_id(),
     };
-    let path = transport::version_marker_path();
-    match serde_json::to_vec(&info) {
-        Ok(bytes) => {
-            if let Err(e) = std::fs::write(&path, bytes) {
-                tracing::warn!(
-                    "daemon: could not write version marker {}: {e}",
-                    path.display()
-                );
-            }
-        }
-        Err(e) => tracing::warn!("daemon: could not serialize version marker: {e}"),
+    let written = transport::version_marker_path()
+        .map_err(anyhow::Error::from)
+        .and_then(|path| libgaki::core::store::write(&path, &info));
+    if let Err(e) = written {
+        tracing::warn!("daemon: could not write the version marker: {e:#}");
     }
 }
 
 /// Read the running daemon's identity marker, if present and parseable.
 fn read_daemon_info() -> Option<DaemonInfo> {
-    let bytes = std::fs::read(transport::version_marker_path()).ok()?;
-    serde_json::from_slice(&bytes).ok()
+    libgaki::core::store::read(&transport::version_marker_path().ok()?)
+        .ok()
+        .flatten()
 }
 
 /// Remove the marker (best-effort) on clean daemon shutdown.
 fn clear_daemon_info() {
-    let _ = std::fs::remove_file(transport::version_marker_path());
+    if let Ok(path) = transport::version_marker_path() {
+        let _ = std::fs::remove_file(path);
+    }
 }
 
 /// Process-global daemon session. Present (`Some`) only inside the daemon process;

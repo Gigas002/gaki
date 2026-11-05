@@ -263,6 +263,7 @@ pub fn load_proxy_config_blocking() -> ProxyConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeSettings {
     pub info_cache_ttl: Option<u64>,
+    pub daemon_idle_timeout: Option<u64>,
 }
 
 impl Default for RuntimeSettings {
@@ -275,6 +276,7 @@ impl From<&crate::config::Config> for RuntimeSettings {
     fn from(config: &crate::config::Config) -> Self {
         Self {
             info_cache_ttl: config.info_cache_ttl,
+            daemon_idle_timeout: config.daemon_idle_timeout,
         }
     }
 }
@@ -422,6 +424,21 @@ pub fn info_cache_ttl() -> std::time::Duration {
         .info_cache_ttl
         .unwrap_or(INFO_CACHE_DEFAULT_TTL_SECS);
     std::time::Duration::from_secs(secs)
+}
+
+/// How long the daemon idles before it exits, unless `daemon_idle_timeout`
+/// says otherwise.
+pub const DAEMON_IDLE_DEFAULT_SECS: u64 = 30 * 60;
+
+/// The configured daemon idle timeout; `None` means the daemon never idles out.
+pub fn daemon_idle_timeout() -> Option<std::time::Duration> {
+    match load_runtime_settings_blocking()
+        .daemon_idle_timeout
+        .unwrap_or(DAEMON_IDLE_DEFAULT_SECS)
+    {
+        0 => None,
+        secs => Some(std::time::Duration::from_secs(secs)),
+    }
 }
 
 /// A cached `gaki-cli info` result: the StoreBrowse metadata plus resolved DLC

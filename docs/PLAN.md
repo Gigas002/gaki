@@ -263,7 +263,7 @@ a refresh token, which is scoped and revocable. The safer equivalent:
 | --- | --- | --- |
 | `session_store` | `keyring` | `keyring`: the refresh token and web token are separate Secret Service items. No file holds a secret. `memory`: nothing is persisted. |
 | `reauth_sensitive` | `false` | A fresh login before market, wallet and trade actions. |
-| `daemon_idle_timeout` | `30m` | The daemon drops its session and exits after this much idle time. |
+| `daemon_idle_timeout` | `1800` (seconds) | The daemon drops its session and exits after this much idle time. |
 
 If the keyring is unreachable, gaki **refuses to persist** and falls back to
 `memory` with a warning. It never writes plaintext. Non-secret metadata
@@ -1207,11 +1207,23 @@ I make the changes, and you review, commit, and push.
   that a copy may work until it expires. The TUI's logout no longer needs a
   restorable session either. A browser web token can't be revoked; it
   expires on its own. Not tested against Steam (needs an account).
-- [ ] **5.12** Harden the daemon. The socket lives only under
+- [x] **5.12** Harden the daemon. The socket lives only under
   `$XDG_RUNTIME_DIR` (with no `/tmp` fallback; refuse to start without it).
   Create it `0600` inside a `0700` `gaki/` directory, check `SO_PEERCRED` so
   only the same uid can connect, and enforce `daemon_idle_timeout`. The daemon
   reads the token from the store itself; it never travels over the socket.
+  *Done.* The socket is `$XDG_RUNTIME_DIR/gaki/daemon.sock`; an unset, empty
+  or relative `XDG_RUNTIME_DIR` means no daemon (`gaki-cli daemon` fails, a
+  client runs the command locally without trying to spawn one). `gaki/` is
+  created `0700`; an existing one we own is tightened, anything else is
+  refused. The socket is chmod `0600` after bind, `--socket` paths included,
+  and `accept` drops a peer whose `SO_PEERCRED` uid isn't ours, with a
+  warning. `daemon_idle_timeout` is a `config.toml` key in seconds (default
+  1800, `0` never, like `info_cache_ttl`), re-read every 30 s check; the
+  daemon exits when no request, install or game is running and it has been
+  quiet that long, removing its marker and socket. The version marker is now
+  `daemon.toml` next to the socket (it was JSON at `gaki-<uid>.info`). The
+  socket protocol carries argv, stdio and an exit code, never a token.
 - [ ] **5.13** Add `reauth_sensitive`. A `Sensitive` marker on the
   market/wallet/trade `ops` makes them demand a fresh `LoginStep` flow
   before they run. The CLI prompts, and the TUI opens the login page and

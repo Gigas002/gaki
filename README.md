@@ -476,6 +476,12 @@ Settings are changed with `config` commands, never environment variables: for ex
   `config set secret_store memory` keeps the tokens in the running daemon only, so a
   daemon restart needs a new login. A `session.json` from an older gaki is no longer
   read; log in once and it is deleted.
+- **Session daemon.** Its socket is `$XDG_RUNTIME_DIR/gaki/daemon.sock`, in a directory
+  only you can open, and it accepts connections from your user only. Without
+  `XDG_RUNTIME_DIR` no daemon runs and every command logs on by itself. After 30 minutes
+  with nothing to do the daemon drops its session and exits; the next command starts a new
+  one. Change that with `config set daemon_idle_timeout <SECONDS>` (`0` keeps it running).
+  With `secret_store = "memory"` an idle exit forgets the tokens too.
 - **Download engine.** Installs, updates, verifications and Workshop downloads share one
   engine. It picks the least-loaded content servers, spreads chunk requests over a pool of
   them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per
