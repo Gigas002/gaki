@@ -343,10 +343,10 @@ modules add the CLI layer on top and hand a fully resolved `Settings` down, so t
 ### 11.3 Features
 
 Capabilities are Cargo features defined in `libgaki` and forwarded one-to-one by
-both binaries (e.g. `library = ["libgaki/library"]`). Binaries gate commands, views,
-key bindings, and help text on the same feature names. See `PLAN.md`
-("Feature matrix") for the list and dependency graph; it moves to `FEATURES.md`
-once implemented.
+both binaries (e.g. `library = ["authentication", "libgaki/library"]`); `gaki-tui`
+always builds `authentication` and `library`. Binaries gate commands, views, key
+bindings, and help text on the same feature names. `FEATURES.md` has the list,
+the dependency graph, what each feature gates in each binary, and the matrix.
 
 ### 11.4 Async
 

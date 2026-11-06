@@ -117,7 +117,8 @@ gaki/
 These are defined in `libgaki`. `gaki-cli` and `gaki-tui` re-export each one
 (`library = ["authentication", "libgaki/library"]`) and gate their commands and
 views on it. `gaki-tui` always builds `authentication` and `library` (a TUI
-without a library has nothing to show), so it re-exports the other ten.
+without a library has nothing to show), so it re-exports the other ten. The
+implemented matrix, per binary, is in `docs/FEATURES.md`.
 
 | Feature          | Default | Requires         | Covers (current code)                                          |
 | ---------------- | :-----: | ---------------- | -------------------------------------------------------------- |
@@ -1312,9 +1313,19 @@ I make the changes, and you review, commit, and push.
   each can carry a cfg. Play on a game that isn't installed says so without
   `install`. Tests are gated with what they exercise. Checked: clippy for
   each crate with each feature alone, plus the §8 gates.
-- [ ] **6.3** Get the three-level matrix (`--no-default-features`, default,
+- [x] **6.3** Get the three-level matrix (`--no-default-features`, default,
   `--all-features`) green for clippy and tests, and document it in
   `docs/FEATURES.md`.
+  *Done.* The matrix was already green after 6.2 (clippy, tests, docs at all
+  three levels). New `docs/FEATURES.md`: each feature with what it requires,
+  its optional dependencies and protos, the commands it gates in `gaki-cli`
+  (taken from `capabilities` in single-feature builds), the views and keys it
+  gates in `gaki-tui`, slim-build examples, the matrix, a single-feature
+  clippy sweep, and how to add a feature. `depot` and the TUI's `store` have no
+  binary surface yet, and the doc says so. CI's doc job now runs at all three
+  levels (it was `--all-features` only, which missed doc links to gated-out
+  items). `ARCHITECTURE.md` §11.3 and the PLAN feature matrix point at
+  `FEATURES.md`. 7.2 still owns the README split.
 
 ### Phase 7 — small features, docs, dependencies, tests
 

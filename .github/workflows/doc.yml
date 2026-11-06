@@ -12,6 +12,15 @@ permissions:
 
 jobs:
   doc:
+    strategy:
+      fail-fast: false
+      matrix:
+        features:
+          - ""
+          - --all-features
+          - --no-default-features
+
+    name: doc (${{ matrix.features || 'default' }})
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,7 +31,9 @@ jobs:
 
       - name: Build cache
         uses: Swatinem/rust-cache@v2
-      - name: Doc
-        run: cargo doc --workspace --no-deps --all-features
+        with:
+          key: ${{ matrix.features }}
+      - name: Doc (${{ matrix.features }})
+        run: cargo doc --workspace --no-deps ${{ matrix.features }}
         env:
           RUSTDOCFLAGS: -D warnings
