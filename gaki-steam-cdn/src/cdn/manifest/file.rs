@@ -220,13 +220,11 @@ impl ManifestFile {
         }
         out.flush().await.map_err(Error::Io)?;
 
-        #[cfg(unix)]
         self.apply_unix_mode(target_path).await?;
 
         Ok(())
     }
 
-    #[cfg(unix)]
     pub(crate) async fn apply_unix_mode(&self, target_path: &std::path::Path) -> Result<(), Error> {
         use std::os::unix::fs::PermissionsExt;
 

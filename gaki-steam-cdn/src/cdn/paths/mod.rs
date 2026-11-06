@@ -134,14 +134,11 @@ pub(crate) fn place(root: &Path, raw: &str, entry: Entry) -> Result<Option<PathB
                 );
                 return Ok(None);
             }
-            #[cfg(unix)]
-            {
-                let points_there = std::fs::read_link(&full_path)
-                    .is_ok_and(|existing| existing == Path::new(&target));
-                if !points_there {
-                    let _ = std::fs::remove_file(&full_path);
-                    std::os::unix::fs::symlink(&target, &full_path).map_err(Error::Io)?;
-                }
+            let points_there =
+                std::fs::read_link(&full_path).is_ok_and(|existing| existing == Path::new(&target));
+            if !points_there {
+                let _ = std::fs::remove_file(&full_path);
+                std::os::unix::fs::symlink(&target, &full_path).map_err(Error::Io)?;
             }
             Ok(None)
         }

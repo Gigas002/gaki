@@ -234,7 +234,6 @@ impl CDNClient {
                         if !full_path.is_file() {
                             std::fs::File::create(&full_path).map_err(Error::Io)?;
                         }
-                        #[cfg(unix)]
                         file.apply_unix_mode(&full_path).await?;
                         Ok(())
                     }

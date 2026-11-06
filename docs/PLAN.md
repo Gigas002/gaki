@@ -1532,9 +1532,33 @@ I make the changes, and you review, commit, and push.
   `llvm-tools-preview`, set `LLVM_COV=/usr/bin/llvm-cov` and
   `LLVM_PROFDATA=/usr/bin/llvm-profdata`. Tests: 457 / 565 / 633 at the
   three levels.
-- [ ] **7.8** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
+- [x] **7.8** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
   clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
   `luxtorpeda`, `hltb`, and `locale`.
+  *Done.* The grep turned up three things to fix:
+  - **Steam-mode leftovers in gaki-tui.** The "Play as…" overlay still had a
+    label for a `none` mode that libgaki no longer emits, while the `auto`
+    target fell through to a lowercase `windows · auto`; it now reads
+    "Windows · Steam if running". `PlayOpts::steam_mode` was set but never
+    read, so it is gone. The launch itself was right, since it takes
+    `--steam` from the target's flags. The tests still built targets from
+    the removed `--steam-mode host` flag and a `runtime` mode; they now use
+    the flags libgaki produces and check both Windows targets. GAKI-TUI.md
+    describes the two Windows targets as they are.
+  - **`#[cfg(unix)]` gates** in gaki-steam-cdn (file modes, symlinks) and in
+    tests. On a Linux-only codebase they guard nothing, and libgaki already
+    calls `std::os::unix` without them, so they were removed.
+  - A doc comment promising "a plain copy on non-unix" for DLL deployment,
+    which has no such branch.
+  The remaining hits are intended. `aurelia` appears in credits, the
+  forked crate names, the gaki-steam-cdn headers, the old-config note and
+  PLAN's history. `windows` is the game platform, Wine prefix paths and
+  Steam's `libraryfolders.vdf` samples. `umu` is the lootrs runner that
+  profiles parse and `config check` rejects. `luxtorpeda`, `hltb` and
+  `locale` remain only in PLAN. Gates: fmt, typos and `cargo deny check`
+  are clean; clippy, tests (457 / 565 / 633) and docs pass at all three
+  levels. `docs/aurelia-questions.md`, which PLAN cites as a source, is
+  untracked in git.
 - [ ] **7.9** Library export and import as TOML. `gaki-cli library export
   library.toml` writes the library (by default the installed games, `--all`
   for every owned one) as `[[game]]` entries with `app_id`, `name`, the

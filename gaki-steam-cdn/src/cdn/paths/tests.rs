@@ -35,7 +35,6 @@ fn link_targets() {
     assert!(link_stays_inside(Path::new(""), "."));
 }
 
-#[cfg(unix)]
 #[test]
 fn on_disk_symlinks_are_followed_for_parents() {
     let tmp = tempfile::tempdir().unwrap();
@@ -60,7 +59,6 @@ fn on_disk_symlinks_are_followed_for_parents() {
     ));
 }
 
-#[cfg(unix)]
 #[test]
 fn unlinks_only_symlinks() {
     let tmp = tempfile::tempdir().unwrap();
@@ -79,7 +77,6 @@ fn unlinks_only_symlinks() {
 
 /// Plays a manifest's entries, in order, into a fresh install directory next
 /// to an `outside` directory, and returns both.
-#[cfg(unix)]
 fn play(
     entries: Vec<(&str, Entry)>,
 ) -> (
@@ -99,7 +96,6 @@ fn play(
     (tmp, root, results)
 }
 
-#[cfg(unix)]
 #[test]
 fn places_an_ordinary_depot() {
     let (_tmp, root, results) = play(vec![
@@ -120,7 +116,6 @@ fn places_an_ordinary_depot() {
     assert!(root.join("bin").is_dir());
 }
 
-#[cfg(unix)]
 #[test]
 fn a_forged_manifest_stays_inside() {
     let (tmp, root, results) = play(vec![
@@ -167,7 +162,6 @@ fn a_forged_manifest_stays_inside() {
     }
 }
 
-#[cfg(unix)]
 #[test]
 fn files_replace_planted_links() {
     let (tmp, root, _) = play(vec![]);
@@ -180,7 +174,6 @@ fn files_replace_planted_links() {
     assert_eq!(std::fs::read(&victim).unwrap(), b"keep me");
 }
 
-#[cfg(unix)]
 #[test]
 fn planted_directory_links_are_refused() {
     let (tmp, root, _) = play(vec![]);

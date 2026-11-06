@@ -243,7 +243,7 @@ fn launch_targets_parse_and_map_to_play_opts() {
         platform: "windows".into(),
         steam_mode: Some("host".into()),
         available: true,
-        flags: ["--platform", "windows", "--steam-mode", "host"]
+        flags: ["--platform", "windows", "--steam"]
             .map(String::from)
             .to_vec(),
         ..Default::default()
@@ -251,8 +251,16 @@ fn launch_targets_parse_and_map_to_play_opts() {
     assert_eq!(target.label(), "Windows · host Steam");
     let opts = target.play_opts();
     assert_eq!(opts.platform.as_deref(), Some("windows"));
-    assert_eq!(opts.steam_mode.as_deref(), Some("host"));
-    assert!(!opts.steam);
+    assert!(opts.steam, "the host target bridges to Steam");
+
+    let auto = LaunchTarget {
+        platform: "windows".into(),
+        steam_mode: Some("auto".into()),
+        flags: ["--platform", "windows"].map(String::from).to_vec(),
+        ..Default::default()
+    };
+    assert_eq!(auto.label(), "Windows · Steam if running");
+    assert!(!auto.play_opts().steam);
 
     let native = LaunchTarget {
         platform: "linux".into(),
@@ -278,9 +286,9 @@ fn launch_targets_overlay_renders_targets() {
             ..Default::default()
         },
         LaunchTarget {
-            id: "windows-runtime".to_string(),
+            id: "windows".to_string(),
             platform: "windows".to_string(),
-            steam_mode: Some("runtime".to_string()),
+            steam_mode: Some("auto".to_string()),
             missing: Some("build".to_string()),
             ..Default::default()
         },

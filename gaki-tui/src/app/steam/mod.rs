@@ -1983,9 +1983,6 @@ pub struct PlayOpts {
     pub steam: bool,
     /// Run this installed build, `"linux"` or `"windows"`, for this launch only.
     pub platform: Option<String>,
-    /// The launch target's Steam mode, for display. The launch itself follows
-    /// [`PlayOpts::steam`].
-    pub steam_mode: Option<String>,
     /// Skip the pre-launch update check.
     pub no_update: bool,
 }
@@ -2011,7 +2008,7 @@ impl LaunchTarget {
         match (self.platform.as_str(), self.steam_mode.as_deref()) {
             ("linux", _) => "Linux (native)".to_string(),
             ("windows", Some("host")) => "Windows · host Steam".to_string(),
-            ("windows", Some("none")) => "Windows · standalone".to_string(),
+            ("windows", Some("auto")) => "Windows · Steam if running".to_string(),
             (p, Some(m)) => format!("{p} · {m}"),
             (p, None) => p.to_string(),
         }
@@ -2021,8 +2018,8 @@ impl LaunchTarget {
     pub fn play_opts(&self) -> PlayOpts {
         PlayOpts {
             platform: Some(self.platform.clone()),
-            steam_mode: self.steam_mode.clone(),
-            // The native target's flags carry `--steam` when computed for it.
+            // `--steam` is in the flags of the host-Steam target, and of the
+            // native one when `play` would pass it.
             steam: self.flags.iter().any(|f| f == "--steam"),
             ..PlayOpts::default()
         }

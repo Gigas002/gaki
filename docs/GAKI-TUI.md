@@ -80,7 +80,8 @@ background, so the list stays responsive while they fill in.
 game: type to narrow it, `Enter` to run. Two entries live only here:
 
 - **Play as…** lists every way the game can start: the native Linux build, or
-  the Windows build with or without the host Steam client. The choice applies
+  the Windows build, either always bridged to the host Steam client or bridged
+  only when Steam is running. The choice applies
   to that launch only, and an unavailable one says what's missing.
 - **Game settings** edits the game's `games.toml` entry: `Enter` cycles the
   profile, the platform (auto, windows, linux) and the Steam integration (the

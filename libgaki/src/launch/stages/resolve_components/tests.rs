@@ -50,7 +50,6 @@ async fn native_runner_appends_user_launch_options() {
 }
 
 /// Writes `bytes` to `dir/name`, executable.
-#[cfg(unix)]
 fn write_exec(dir: &std::path::Path, name: &str, bytes: &[u8]) -> PathBuf {
     use std::os::unix::fs::PermissionsExt;
     let path = dir.join(name);
@@ -62,7 +61,6 @@ fn write_exec(dir: &std::path::Path, name: &str, bytes: &[u8]) -> PathBuf {
 const ELF32: &[u8] = b"\x7fELF\x01\x01\x01\0rest";
 const ELF64: &[u8] = b"\x7fELF\x02\x01\x01\0rest";
 
-#[cfg(unix)]
 #[test]
 fn scout_libraries_are_for_32_bit_natives() {
     let tmp = tempfile::tempdir().unwrap();
@@ -115,7 +113,6 @@ async fn the_stage_picks_the_runner_for_the_target() {
     assert_eq!(err.kind, LaunchErrorKind::Validation);
 }
 
-#[cfg(unix)]
 #[test]
 fn native_launch_runs_scripts_without_a_shebang_and_logs_to_the_session() {
     let tmp = tempfile::tempdir().unwrap();

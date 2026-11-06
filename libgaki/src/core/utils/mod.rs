@@ -1120,12 +1120,11 @@ pub fn detect_exe_architecture(exe_path: &Path) -> crate::core::models::Executab
     }
 }
 
-/// Place a single DLL at `dest` as a symlink to `src` (a plain copy on non-unix),
-/// first clearing any existing entry: a real (non-symlink) file is moved aside to
-/// `*.dll.bak` (or removed if a backup already exists), and a stale symlink is
-/// removed. When `log` is set the backup and symlink steps emit info-level traces;
-/// the sibling-arch deploy passes `log = false` to stay quiet, preserving prior
-/// behavior exactly.
+/// Place a single DLL at `dest` as a symlink to `src`, first clearing any
+/// existing entry: a real (non-symlink) file is moved aside to `*.dll.bak` (or
+/// removed if a backup already exists), and a stale symlink is removed. When
+/// `log` is set the backup and symlink steps emit info-level traces; the
+/// sibling-arch deploy passes `log = false` to stay quiet.
 fn deploy_one_dll_symlink(src: &Path, dest: &Path, log: bool) -> Result<()> {
     // Safety check: if it exists and is not a symlink, back it up or skip?
     // Usually we want to replace it if it's a Wine builtin.
