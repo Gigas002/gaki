@@ -116,7 +116,7 @@ fn cover_resize(src: &ImgBuf, tw: u32, th: u32) -> ImgBuf {
 /// so the detail text drawn on top keeps the art behind it; graphics protocols
 /// (kitty, sixel) would hide that text.
 fn halfblock_art(img: image::RgbaImage, area: Rect) -> Option<Protocol> {
-    Halfblocks::new(image::DynamicImage::ImageRgba8(img), area)
+    Halfblocks::new(image::DynamicImage::ImageRgba8(img), area.as_size())
         .ok()
         .map(Protocol::Halfblocks)
 }

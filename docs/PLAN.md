@@ -1371,7 +1371,7 @@ I make the changes, and you review, commit, and push.
   related-projects list. Every `gaki-cli` example in the new docs was checked
   against the binary's command tree and flags (`capabilities`), and every
   relative link and anchor resolves.
-- [ ] **7.3** Update all dependencies to their latest versions (R31) through
+- [x] **7.3** Update all dependencies to their latest versions (R31) through
   `[workspace.dependencies]`. Watch the coupled pins: `steam-vent`,
   `steam-vent-proto`, `-proto-common`, `protobuf`, `rand`, and `directories`
   are matched to steam-vent on purpose. The forks `aurelia-steam-vent-chat` and
@@ -1388,6 +1388,29 @@ I make the changes, and you review, commit, and push.
   rustls to `ring` remains a one-feature change if that ever matters, for
   example for a distro package.) Once `cargo deny check` passes in full, switch
   `deny.yml` from `check licenses` to `check`.
+  *Done.* `cargo update`, then the majors: `sysinfo` 0.40 (constructors
+  return `Result`), `ratatui` 0.30, `ratatui-image` 11, `toml_edit` 0.25,
+  `zip` 9, `sha1` 0.11, `image` 0.25 and `fuzzy-matcher` moved into
+  `[workspace.dependencies]`. keyring 4 split into `keyring-core` plus store
+  crates, so libgaki now uses `keyring-core` with
+  `dbus-secret-service-keyring-store` (`crypto-rust`), the same libdbus
+  Secret Service backend keyring 3 used. Items are found by `service` and
+  `username`, so tokens stored by keyring 3 still load. `zip` is down to
+  `deflate-flate2-zlib-rs`, which drops bzip2 (an unlisted license) and the
+  AES stack. `aws-lc-sys` 0.47 no longer carries the OpenSSL license, so the
+  exception is gone rather than reworded. `cargo deny check` passes in full,
+  and `deny.yml` runs it. Seven advisories are ignored in `deny.toml`, each
+  with a reason: protobuf (pinned `=3.5.1` by steam-vent), rsa Marvin (no fix
+  exists; steam-vent only encrypts with Steam's public key), and ruzstd 0.7
+  plus four zip 2 `extract()` advisories through `aurelia-steam-cdn` (it never
+  calls `extract`, and ruzstd only reads depot-key-decrypted chunks). The
+  forks stay: upstream `steam-cdn` 1.0.0 is still on an old steam-vent, and
+  `aurelia-steam-vent-chat` has no upstream. A gaki-owned `steam-cdn` fork
+  bumping zip and ruzstd would clear five of the ignores. The webpki-roots
+  and yanked-crate advisories and the `binrw` future-incompat warning are
+  gone after the update. The duplicate `rand` (0.8, 0.9, 0.10) and
+  `getrandom` versions come from steam-vent-crypto, ratatui-image and
+  tungstenite, so they stay as warnings.
 - [ ] **7.4** Refactor tests to the ARCHITECTURE layout (R32): convert the
   `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
   integration tests under each crate's `tests/`.
@@ -1481,7 +1504,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 | plans2: rename binary to `gaki-tui` | Step 4.6 |
 | plans2: pure GPLv3 `LICENSE` | Step 0.7 |
 | plans2: HLTB link by app id | Not possible; stays a non-goal (7.1) |
-| plans2: `aws-lc-sys` with GPLv3 | Kept (7.3) |
+| plans2: `aws-lc-sys` with GPLv3 | Moot: 0.47 dropped the OpenSSL license (7.3) |
 | plans2: auth and session safety | D10, steps 5.9–5.13 |
 
 `docs/aurelia-questions.md` can be deleted once this plan is accepted.

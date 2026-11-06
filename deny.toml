@@ -19,14 +19,32 @@ allow = [
 ]
 confidence-threshold = 0.8
 private = { ignore = true }
-# aws-lc-sys (rustls' default crypto provider, via reqwest) carries the OpenSSL
-# license, which the FSF deems GPL-incompatible. Tracked in docs/PLAN.md step 7.3.
-exceptions = [
-    { allow = ["OpenSSL"], crate = "aws-lc-sys" },
-]
 
 [advisories]
 db-urls = ["https://github.com/rustsec/advisory-db"]
+# Each ignore is for a version pinned by a dependency gaki doesn't own, and
+# names why the advisory can't be reached. Revisit when the pin moves.
+ignore = [
+    # protobuf: stack overflow on deeply nested messages. steam-vent pins
+    # `=3.5.1`; the messages come from Valve's CM servers over an encrypted,
+    # authenticated channel.
+    { id = "RUSTSEC-2024-0437", reason = "pinned =3.5.1 by steam-vent; input is Valve's CM traffic" },
+    # rsa: Marvin timing attack on private-key operations. No fixed release
+    # exists. steam-vent only encrypts the password with Steam's public key,
+    # so no private key is ever used.
+    { id = "RUSTSEC-2023-0071", reason = "public-key encryption only (login password); no private key" },
+    # ruzstd < 0.9.1: decompression bomb. aurelia-steam-cdn pins 0.7 and
+    # decompresses depot chunks only after AES-decrypting them with the
+    # depot key, so nobody without that key can choose what ruzstd reads.
+    { id = "RUSTSEC-2026-0344", reason = "pinned by aurelia-steam-cdn; input is depot-key-decrypted CDN chunks" },
+    # zip < 9: four `extract()` flaws (symlinks, permissions, SUID bits).
+    # aurelia-steam-cdn pins zip 2 and only reads entries; neither it nor
+    # gaki calls `extract`.
+    { id = "RUSTSEC-2026-0367", reason = "zip 2 via aurelia-steam-cdn; extract() never called" },
+    { id = "RUSTSEC-2026-0368", reason = "zip 2 via aurelia-steam-cdn; extract() never called" },
+    { id = "RUSTSEC-2026-0369", reason = "zip 2 via aurelia-steam-cdn; extract() never called" },
+    { id = "RUSTSEC-2026-0429", reason = "zip 2 via aurelia-steam-cdn; extract() never called" },
+]
 
 [bans]
 multiple-versions = "warn"

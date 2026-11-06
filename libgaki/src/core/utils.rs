@@ -1383,7 +1383,7 @@ pub fn resolve_path_ignore_case(base: &Path, rel: &str) -> Option<PathBuf> {
 /// Free bytes on the filesystem that `path` lives on, or `None` if no mounted
 /// disk contains it.
 pub fn available_space_for(path: &Path) -> Option<u64> {
-    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let disks = sysinfo::Disks::new_with_refreshed_list().ok()?;
     disks
         .iter()
         .filter(|disk| path.starts_with(disk.mount_point()))

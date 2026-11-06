@@ -24,12 +24,28 @@ pub trait SecretStore: Send + Sync {
 pub struct Keyring;
 
 impl Keyring {
-    fn entry(key: &str) -> Result<keyring::Entry> {
-        keyring::Entry::new(SERVICE, key).map_err(|e| unavailable(&e))
+    fn entry(key: &str) -> Result<keyring_core::Entry> {
+        install_store()?;
+        keyring_core::Entry::new(SERVICE, key).map_err(|e| unavailable(&e))
     }
 }
 
-fn unavailable(e: &keyring::Error) -> anyhow::Error {
+/// Make the Secret Service the keyring's store, once per process. A failure
+/// (no D-Bus session, no Secret Service) is remembered and reported on every
+/// use, so `secret_store = "memory"` keeps working without one.
+fn install_store() -> Result<()> {
+    static INSTALLED: OnceLock<std::result::Result<(), String>> = OnceLock::new();
+    INSTALLED
+        .get_or_init(|| {
+            dbus_secret_service_keyring_store::Store::new()
+                .map(|store| keyring_core::set_default_store(store))
+                .map_err(|e| unavailable(&e).to_string())
+        })
+        .clone()
+        .map_err(|e| anyhow::anyhow!(e))
+}
+
+fn unavailable(e: &keyring_core::Error) -> anyhow::Error {
     anyhow::anyhow!(
         "the OS keyring is unavailable ({e}); gaki keeps tokens only there, never in a \
          file. Start a Secret Service keyring (e.g. gnome-keyring or KeePassXC), or run \
@@ -41,7 +57,7 @@ impl SecretStore for Keyring {
     fn get(&self, key: &str) -> Result<Option<String>> {
         match Self::entry(key)?.get_password() {
             Ok(secret) => Ok(Some(secret)),
-            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(keyring_core::Error::NoEntry) => Ok(None),
             Err(e) => Err(unavailable(&e)),
         }
     }
@@ -55,7 +71,7 @@ impl SecretStore for Keyring {
 
     fn delete(&self, key: &str) -> Result<()> {
         match Self::entry(key)?.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
             Err(e) => Err(unavailable(&e)),
         }
     }

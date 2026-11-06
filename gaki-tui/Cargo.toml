@@ -33,13 +33,12 @@ store = ["libgaki/store"]
 libgaki = { workspace = true, default-features = false, features = ["library"] }
 anyhow.workspace = true
 clap.workspace = true
-fuzzy-matcher = "0.3.7"
-image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+fuzzy-matcher.workspace = true
+image.workspace = true
 # Render the Steam login QR challenge as terminal blocks on the login page.
 qrcode.workspace = true
-# Crossterm comes re-exported as `ratatui::crossterm`, which keeps the two in step.
-ratatui = { version = "0.30", features = ["serde"] }
-ratatui-image = { version = "10", default-features = false, features = ["crossterm"] }
+ratatui.workspace = true
+ratatui-image.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

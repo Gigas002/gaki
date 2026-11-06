@@ -35,7 +35,9 @@ fn cmd_is_daemon(cmd: &[String]) -> bool {
 /// Enumerate running `gaki-cli` processes, excluding the current process.
 pub fn find_gaki_processes() -> Vec<GakiProcess> {
     let me = std::process::id();
-    let sys = System::new_all();
+    let Ok(sys) = System::new_all() else {
+        return Vec::new();
+    };
 
     let mut out: Vec<GakiProcess> = sys
         .processes()
@@ -64,7 +66,9 @@ pub fn kill_pids(pids: &[u32]) -> usize {
     if pids.is_empty() {
         return 0;
     }
-    let sys = System::new_all();
+    let Ok(sys) = System::new_all() else {
+        return 0;
+    };
     pids.iter()
         .filter_map(|&pid| sys.process(Pid::from_u32(pid)))
         .filter(|p| p.kill())
