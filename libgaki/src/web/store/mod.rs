@@ -52,12 +52,13 @@ pub async fn fetch_requirements(
             format!("failed parsing requirements for app {app_id}: {e}"),
         )
     })?;
-    let Some(env) = map.get(&app_id.to_string()) else {
-        return Ok(None);
-    };
-    let Some(data) = env.data.as_ref().filter(|_| env.success) else {
-        return Ok(None);
-    };
+    Ok(requirements_from(&map, app_id))
+}
+
+/// The requirements in an `appdetails` response, if the app has any.
+fn requirements_from(map: &HashMap<String, Envelope>, app_id: u32) -> Option<Requirements> {
+    let env = map.get(&app_id.to_string())?;
+    let data = env.data.as_ref().filter(|_| env.success)?;
 
     // Prefer Windows, then Linux, then macOS.
     let block = [
@@ -74,10 +75,10 @@ pub async fn fetch_requirements(
             .map(requirements_lines)
             .unwrap_or_default()
     };
-    Ok(Some(Requirements {
+    Some(Requirements {
         minimum: lines("minimum"),
         recommended: lines("recommended"),
-    }))
+    })
 }
 
 /// HTML blob → clean "Label: value" lines.
@@ -122,3 +123,6 @@ pub fn strip_html(input: &str) -> String {
         .trim()
         .to_string()
 }
+
+#[cfg(test)]
+mod tests;

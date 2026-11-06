@@ -190,3 +190,6 @@ impl SteamClient {
         Ok(profile)
     }
 }
+
+#[cfg(test)]
+mod tests;

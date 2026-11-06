@@ -191,3 +191,6 @@ impl SteamClient {
         Ok(page_from(&response.ids, response.metadata.as_ref()))
     }
 }
+
+#[cfg(test)]
+mod tests;

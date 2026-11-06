@@ -281,3 +281,111 @@ fn steam_integration_picks_the_bridge_mode() {
         super::SteamMode::Standalone
     );
 }
+
+/// A context launching `game.exe` from a fresh install directory with the
+/// runner tree at `runner` (both under `tmp`).
+fn command_context(tmp: &std::path::Path, runner: &std::path::Path) -> LaunchContext {
+    let install = tmp.join("install");
+    std::fs::create_dir_all(install.join("bin")).unwrap();
+    let mut ctx = mock_context();
+    ctx.app.install_path = Some(install.to_string_lossy().into_owned());
+    ctx.launch_info.executable = "bin\\game.exe".into();
+    ctx.launch_info.arguments = "-v  -fullscreen".into();
+    ctx.launcher_config.steam_library_path = tmp.join("library").to_string_lossy().into_owned();
+    ctx.proton_path = Some(runner.to_string_lossy().into_owned());
+    ctx
+}
+
+fn settings_with_runner_args(args: &[&str]) -> crate::settings::LaunchSettings {
+    crate::settings::LaunchSettings {
+        app_id: 123,
+        profile: None,
+        platform: None,
+        proton: None,
+        runner_args: args.iter().map(|a| a.to_string()).collect(),
+        wrappers: Vec::new(),
+        debug: false,
+        env: Default::default(),
+        args: Vec::new(),
+        cloud_sync: false,
+        steam: Default::default(),
+    }
+}
+
+#[tokio::test]
+async fn proton_command_runs_the_game_through_proton_run() {
+    let tmp = tempfile::tempdir().unwrap();
+    let proton = tmp.path().join("GE-Proton9");
+    std::fs::create_dir_all(&proton).unwrap();
+    std::fs::write(proton.join("proton"), "#!/bin/sh\n").unwrap();
+    let mut ctx = command_context(tmp.path(), &proton);
+    ctx.settings = Some(settings_with_runner_args(&["--verbose"]));
+    ctx.user_config = Some(crate::core::models::UserAppConfig {
+        launch_options: "-novid -mangohud --mangohud -console".into(),
+        ..Default::default()
+    });
+
+    let spec = WineTkgRunner.build_command(&ctx).await.unwrap();
+    let install = tmp.path().join("install");
+    assert_eq!(spec.program, proton.join("proton"));
+    assert_eq!(
+        spec.args,
+        [
+            "run".to_string(),
+            "--verbose".into(),
+            install.join("bin/game.exe").to_string_lossy().into_owned(),
+            "-v".into(),
+            "-fullscreen".into(),
+            // MangoHud flags are wrapper switches, not game arguments.
+            "-novid".into(),
+            "-console".into(),
+        ]
+    );
+    // The working directory defaults to the executable's.
+    assert_eq!(spec.cwd, Some(install.join("bin")));
+    assert_eq!(spec.env.get("SteamAppId").map(String::as_str), Some("123"));
+}
+
+#[tokio::test]
+async fn wine_command_runs_the_game_through_bare_wine() {
+    let tmp = tempfile::tempdir().unwrap();
+    let wine = tmp.path().join("wine-tkg");
+    std::fs::create_dir_all(wine.join("bin")).unwrap();
+    std::fs::write(wine.join("bin/wine"), "#!/bin/sh\n").unwrap();
+    let mut ctx = command_context(tmp.path(), &wine);
+    ctx.launch_info.workingdir = Some("data\\levels".into());
+
+    let spec = WineTkgRunner.build_command(&ctx).await.unwrap();
+    assert_eq!(spec.program, wine.join("bin/wine"));
+    assert_ne!(spec.args.first().map(String::as_str), Some("run"));
+    assert!(spec.args[0].ends_with("install/bin/game.exe"));
+    assert_eq!(spec.cwd, Some(tmp.path().join("install/data/levels")));
+}
+
+#[tokio::test]
+async fn command_needs_a_runner_and_an_install() {
+    use crate::launch::pipeline::LaunchErrorKind;
+    let tmp = tempfile::tempdir().unwrap();
+
+    let mut ctx = command_context(tmp.path(), tmp.path());
+    ctx.proton_path = None;
+    let err = WineTkgRunner.build_command(&ctx).await.unwrap_err();
+    assert_eq!(err.kind, LaunchErrorKind::Environment);
+
+    ctx.proton_path = Some(String::new());
+    let err = WineTkgRunner.build_command(&ctx).await.unwrap_err();
+    assert_eq!(err.kind, LaunchErrorKind::Environment);
+
+    // A path that is neither a Proton nor a Wine tree, nor a file.
+    let mut ctx = command_context(tmp.path(), &tmp.path().join("missing"));
+    let err = WineTkgRunner.build_command(&ctx).await.unwrap_err();
+    assert_eq!(err.kind, LaunchErrorKind::Runner);
+
+    let proton = tmp.path().join("proton-dir");
+    std::fs::create_dir_all(&proton).unwrap();
+    std::fs::write(proton.join("proton"), "").unwrap();
+    ctx.proton_path = Some(proton.to_string_lossy().into_owned());
+    ctx.app.install_path = None;
+    let err = WineTkgRunner.build_command(&ctx).await.unwrap_err();
+    assert_eq!(err.kind, LaunchErrorKind::GameData);
+}

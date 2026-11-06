@@ -70,19 +70,9 @@ impl DepotManifest {
     pub fn decrypt_filenames(&mut self, key: [u8; 32]) -> Result<(), ManifestError> {
         if self.filenames_encrypted {
             for file in &mut self.files {
-                let mut encrypted = base64_decode(file.filename.as_bytes())?;
-                file.filename = str::from_utf8(&aes256::decrypt_cbc_with_iv_extraction(
-                    &mut encrypted[..],
-                    key,
-                )?)?
-                .to_string();
+                file.filename = decrypt_name(&file.filename, key)?;
                 if !file.linktarget.is_empty() {
-                    let mut encrypted = base64_decode(file.linktarget.as_bytes())?;
-                    file.linktarget = str::from_utf8(&aes256::decrypt_cbc_with_iv_extraction(
-                        &mut encrypted[..],
-                        key,
-                    )?)?
-                    .to_string();
+                    file.linktarget = decrypt_name(&file.linktarget, key)?;
                 }
             }
             self.filenames_encrypted = false;
@@ -97,70 +87,7 @@ impl DepotManifest {
         manifest_gid: u64,
         data: &[u8],
     ) -> Result<Self, ManifestError> {
-        let mut buffer = Vec::new();
-        let is_zip = data.len() > 2 && data[0] == 0x50 && data[1] == 0x4B;
-
-        let raw_data = if is_zip {
-            let cursor = Cursor::new(data);
-            match ZipArchive::new(cursor) {
-                Ok(mut archive) if !archive.is_empty() => {
-                    if let Ok(mut file) = archive.by_index(0) {
-                        if file.read_to_end(&mut buffer).is_ok() {
-                            &buffer[..]
-                        } else {
-                            data
-                        }
-                    } else {
-                        data
-                    }
-                }
-                _ => data,
-            }
-        } else {
-            data
-        };
-
-        let mut bytes = Bytes::from(raw_data.to_vec());
-        let mut payload = None;
-        let mut metadata = None;
-
-        // Try parsing using the magic-wrapped sequence first
-        if raw_data.len() > 8
-            && u32::from_le_bytes(raw_data[0..4].try_into().unwrap()) == PROTOBUF_PAYLOAD_MAGIC
-        {
-            while bytes.remaining() >= 8 {
-                let magic = bytes.get_u32_le();
-                let len = bytes.get_u32_le() as usize;
-
-                if bytes.remaining() < len {
-                    break;
-                }
-
-                let body = bytes.copy_to_bytes(len);
-                if magic == PROTOBUF_PAYLOAD_MAGIC {
-                    payload = ContentManifestPayload::parse_from_bytes(&body).ok();
-                } else if magic == PROTOBUF_METADATA_MAGIC {
-                    metadata = ContentManifestMetadata::parse_from_bytes(&body).ok();
-                }
-            }
-        }
-
-        if payload.is_none() {
-            // Fallback: a bare payload, after an 8- or 4-byte header or none
-            let offset = if raw_data.len() > 8 && raw_data[8] == 0x0A {
-                8
-            } else if raw_data.len() > 4 && raw_data[4] == 0x0A {
-                4
-            } else {
-                0
-            };
-
-            payload = Some(ContentManifestPayload::parse_from_bytes(
-                &raw_data[offset..],
-            )?);
-        }
-
-        let payload = payload.expect("Payload should be present at this point");
+        let (payload, metadata) = parse_sections(data)?;
 
         let final_depot_id = metadata.as_ref().map(|m| m.depot_id()).unwrap_or(depot_id);
         let final_manifest_gid = metadata
@@ -215,3 +142,85 @@ impl DepotManifest {
         })
     }
 }
+
+/// The payload and, when present, the metadata of a manifest: a zip holding
+/// them, Steam's magic-framed sections, or a bare payload.
+pub(crate) fn parse_sections(
+    data: &[u8],
+) -> Result<(ContentManifestPayload, Option<ContentManifestMetadata>), ManifestError> {
+    let mut buffer = Vec::new();
+    let is_zip = data.len() > 2 && data[0] == 0x50 && data[1] == 0x4B;
+
+    let raw_data = if is_zip {
+        let cursor = Cursor::new(data);
+        match ZipArchive::new(cursor) {
+            Ok(mut archive) if !archive.is_empty() => {
+                if let Ok(mut file) = archive.by_index(0) {
+                    if file.read_to_end(&mut buffer).is_ok() {
+                        &buffer[..]
+                    } else {
+                        data
+                    }
+                } else {
+                    data
+                }
+            }
+            _ => data,
+        }
+    } else {
+        data
+    };
+
+    let mut bytes = Bytes::from(raw_data.to_vec());
+    let mut payload = None;
+    let mut metadata = None;
+
+    // Try parsing using the magic-wrapped sequence first
+    if raw_data.len() > 8
+        && u32::from_le_bytes(raw_data[0..4].try_into().unwrap()) == PROTOBUF_PAYLOAD_MAGIC
+    {
+        while bytes.remaining() >= 8 {
+            let magic = bytes.get_u32_le();
+            let len = bytes.get_u32_le() as usize;
+
+            if bytes.remaining() < len {
+                break;
+            }
+
+            let body = bytes.copy_to_bytes(len);
+            if magic == PROTOBUF_PAYLOAD_MAGIC {
+                payload = ContentManifestPayload::parse_from_bytes(&body).ok();
+            } else if magic == PROTOBUF_METADATA_MAGIC {
+                metadata = ContentManifestMetadata::parse_from_bytes(&body).ok();
+            }
+        }
+    }
+
+    if payload.is_none() {
+        // Fallback: a bare payload, after an 8- or 4-byte header or none
+        let offset = if raw_data.len() > 8 && raw_data[8] == 0x0A {
+            8
+        } else if raw_data.len() > 4 && raw_data[4] == 0x0A {
+            4
+        } else {
+            0
+        };
+
+        payload = Some(ContentManifestPayload::parse_from_bytes(
+            &raw_data[offset..],
+        )?);
+    }
+
+    let payload = payload.expect("parsed above when the framing had none");
+    Ok((payload, metadata))
+}
+
+/// An encrypted file name or link target: base64 of Steam's AES format.
+pub(crate) fn decrypt_name(text: &str, key: [u8; 32]) -> Result<String, ManifestError> {
+    let mut encrypted = base64_decode(text.as_bytes())?;
+    let plain = aes256::decrypt_cbc_with_iv_extraction(&mut encrypted[..], key)?;
+    Ok(str::from_utf8(&plain)?.to_string())
+}
+
+#[cfg(test)]
+mod tests;

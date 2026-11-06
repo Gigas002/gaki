@@ -1497,10 +1497,41 @@ I make the changes, and you review, commit, and push.
   `tests.rs` and `tests/`. Integration tests under each crate's `tests/`
   are unchanged. Test counts match before and after (424 / 532 / 585 at
   the three levels, all-features 585 before the move).
-- [ ] **7.7** Raise coverage (R33). Priorities: config/settings resolution,
+- [x] **7.7** Raise coverage (R33). Priorities: config/settings resolution,
   profile merging, proton discovery order, launch command building, and
   feature-gated modules. Add coverage upload to `test.yml` as the template
   does.
+  *Done.* Line coverage (all features, whole workspace) went from 33.65% to
+  36.10%: libgaki 40.1% → 44.3%, gaki-steam-cdn 25.2% → 30.0%; gaki-cli
+  and gaki-tui unchanged. The upload already existed: `test.yml`'s
+  `codecov` job runs `cargo llvm-cov` per package and uploads the lcov,
+  with gaki-steam-cdn in its matrix since 7.4. Settings (95%), config
+  (83–100%) and proton discovery (96%) were already covered, so the new
+  tests went to the gaps:
+  - Launch invariants A–D, the D3D12 path check, the WineD3D policy and
+    DLL-failure parsing (`launch/validators/invariants`, 11% → 98%).
+  - Proton and Wine command building: program, args, working dir and env
+    (`infra/runners`, `wine_tkg` 51% → 67%).
+  - Component resolution: runner choice, Scout for 32-bit natives, and
+    native launch with session logs (`resolve_components`, 14% → 70%).
+  - CDN manifests: zipped, framed and bare sections, a truncated section,
+    garbage, and filename decryption. Section parsing moved out of
+    `deserialize` into `parse_sections`, and name decryption into
+    `decrypt_name`, so they can be tested without a server (0% → 33%).
+  - Feature-gated parsers, fed fixture JSON and HTML: market inventory,
+    listings, buy orders, search, wallet and currency formatting
+    (`inventory`); store requirements, reviews and news (`store`);
+    profile avatar and text helpers (`social`); store query pages
+    (`store`). `fetch_reviews`, `fetch_news` and `fetch_requirements` now
+    hand the response to `parse_reviews`, `parse_news` and
+    `requirements_from`. Their modules became `<module>/mod.rs` and
+    `tests.rs`.
+  The rest of the uncovered code mostly needs a live CM or web session
+  (`SteamClient`, `ops`, the CLI commands, TUI screens), which §11.6
+  keeps out of tests. Measuring locally needs LLVM tools: without rustup's
+  `llvm-tools-preview`, set `LLVM_COV=/usr/bin/llvm-cov` and
+  `LLVM_PROFDATA=/usr/bin/llvm-profdata`. Tests: 457 / 565 / 633 at the
+  three levels.
 - [ ] **7.8** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
   clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
   `luxtorpeda`, `hltb`, and `locale`.

@@ -371,3 +371,6 @@ impl LaunchValidator for LaunchInvariantValidator {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

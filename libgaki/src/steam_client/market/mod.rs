@@ -472,3 +472,6 @@ fn currency_code(currency: u32) -> String {
     }
     .to_string()
 }
+
+#[cfg(test)]
+mod tests;

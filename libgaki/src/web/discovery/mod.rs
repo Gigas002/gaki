@@ -99,6 +99,11 @@ pub async fn fetch_reviews(
             format!("failed parsing reviews for app {app_id}: {e}"),
         )
     })?;
+    parse_reviews(&body, app_id, query.cursor.as_deref())
+}
+
+/// A page of reviews from an `appreviews` response; `cursor` is the one sent.
+fn parse_reviews(body: &Value, app_id: u32, cursor: Option<&str>) -> Result<ReviewPage> {
     if body.get("success").and_then(Value::as_i64) != Some(1) {
         return Err(TypedError::new(
             ErrorKind::NotFound,
@@ -147,7 +152,7 @@ pub async fn fetch_reviews(
         .get("cursor")
         .and_then(Value::as_str)
         .map(String::from)
-        .filter(|c| !c.is_empty() && query.cursor.as_deref() != Some(c.as_str()));
+        .filter(|c| !c.is_empty() && cursor != Some(c.as_str()));
     Ok(ReviewPage {
         summary,
         reviews,
@@ -194,6 +199,11 @@ pub async fn fetch_news(
             format!("failed parsing news for app {app_id}: {e}"),
         )
     })?;
+    parse_news(&body, app_id)
+}
+
+/// News items from a `GetNewsForApp` response.
+fn parse_news(body: &Value, app_id: u32) -> Result<Vec<NewsItem>> {
     let items = body
         .get("appnews")
         .and_then(|n| n.get("newsitems"))
@@ -217,3 +227,6 @@ pub async fn fetch_news(
         })
         .collect())
 }
+
+#[cfg(test)]
+mod tests;
