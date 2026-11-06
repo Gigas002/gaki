@@ -1349,12 +1349,28 @@ I make the changes, and you review, commit, and push.
   and shows a notice, or the failure once the thread reports it. They need no
   feature. The optional CLI `open` command was left out. The help's stale
   "p then h — toggle HowLongToBeat" entry (no key behind it) is gone.
-- [ ] **7.2** Split the README (R34) into `docs/CONFIG.md`, `docs/GAKI-CLI.md`,
+- [x] **7.2** Split the README (R34) into `docs/CONFIG.md`, `docs/GAKI-CLI.md`,
   `docs/GAKI-TUI.md`, `docs/FEATURES.md`, and `docs/FAQ.md`. `FAQ.md` covers
   prerequisites: Steam must be installed, Proton must be installed
   system-wide or official (Q4). Trim the README to an overview, install
   instructions, and links, and keep the credits and acknowledgements to
   upstream.
+  *Done.* New `docs/GAKI-CLI.md` (commands by area, `--json`, QR login,
+  progress, errors, the daemon, logs), `docs/CONFIG.md` (directories,
+  precedence, every `config.toml` key, profiles, `games.toml`, wrappers, Steam
+  integration, the session and daemon, installs), `docs/GAKI-TUI.md` (from
+  `gaki-tui/README.md`, which is now a short pointer for crates.io) and
+  `docs/FAQ.md` (prerequisites first). The README keeps the disclaimer, a
+  short overview, install, the doc and crate tables, the acknowledgments and
+  credits, and the license. Most of the old README described Aurelia and was
+  stale: Windows and macOS, `umu`/`luxtorpeda`, `steam-runtime`, GE and
+  CachyOS downloads, `--lang`, `config language`/`country`, `--steam-mode`,
+  `config game --proton`, "no Steam client needed", and the GUI build
+  dependencies (only `libdbus-1-dev` is needed). All of that is gone, along with the
+  comparison table and the RAM figures, which nothing here measures, and the
+  related-projects list. Every `gaki-cli` example in the new docs was checked
+  against the binary's command tree and flags (`capabilities`), and every
+  relative link and anchor resolves.
 - [ ] **7.3** Update all dependencies to their latest versions (R31) through
   `[workspace.dependencies]`. Watch the coupled pins: `steam-vent`,
   `steam-vent-proto`, `-proto-common`, `protobuf`, `rand`, and `directories`

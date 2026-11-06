@@ -1,10 +1,10 @@
-# gaki: a command-line Steam client for Linux and Windows
+# gaki: a command-line Steam client for Linux
 
 **A fast, lightweight, headless Steam launcher and library manager written in Rust. Install, update and play your Steam games entirely from the terminal.**
 
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
-[![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#project-status)
+[![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#what-it-does)
 
 <br clear="left" />
 
@@ -17,21 +17,18 @@
 >
 > Use gaki entirely **at your own risk**. The authors accept no liability for damage to your Steam installation, lost data, or banned or suspended accounts.
 
-gaki is a pure command-line Steam launcher and library manager. No CEF, no WebViews,
-no GUI. It talks to Steam's real network protocols through
-[`steam-vent`](https://codeberg.org/steam-vent/steam-vent), so you can log in, manage your
-library, install and update games, sync Steam Cloud saves, manage Steam Workshop content,
-see your friends and chat with them, and launch titles (natively or through Proton or Wine)
-entirely from a terminal or a script.
+gaki is a command-line Steam client and launcher for Linux. No CEF, no
+WebViews, no GUI. It talks to Steam's real network protocols through
+[`steam-vent`](https://codeberg.org/steam-vent/steam-vent), so you can log in,
+manage your library, install and update games, sync Steam Cloud saves, manage
+Workshop content, chat with friends, and launch titles natively or through
+Proton, from a terminal or a script. It works alongside the official Steam
+client, which must be installed.
 
-Because it never needs a desktop session, it runs where the official Steam client can't:
-over SSH, on a headless Linux server, in a container, on a low-memory box, or as one step
-inside a shell script. Every command speaks `--json`, so it is equally at home as a backend
-for another launcher.
-
-It is the modern successor to **OpenSteamClient**, rebuilt in Rust for a smaller footprint,
-memory safety, and a scriptable, headless-friendly workflow. It is also a full-fledged
-alternative to **SteamCMD**, one that can *launch* the games it installs.
+Because it never needs a desktop session, it runs where the Steam client can't:
+over SSH, on a headless box, in a container, or as one step in a shell script.
+Every command speaks `--json`, so it also works as a backend for another
+launcher. `gaki-tui` puts a terminal UI over the same library.
 
 ```bash
 gaki-cli login
@@ -42,114 +39,35 @@ gaki-cli play 1245620
 
 ---
 
-## Contents
+## What it does
 
-- [Why gaki?](#why-gaki)
-- [How it compares](#how-it-compares)
-- [Project status](#project-status)
-- [Install](#install)
-- [Build from source](#build-from-source)
-- [Crates](#crates)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Documentation](#documentation)
-- [FAQ](#faq)
-- [Acknowledgments](#acknowledgments)
-- [License](#license)
+- **Library:** owned and Family-Shared games, local installs, search and
+  filters, collections synced with Steam, achievements, DLC.
+- **Installs:** parallel downloads from the least-loaded content servers,
+  updates, verification, moves between libraries, and an install backlog that
+  pauses, resumes and survives restarts. Downgrade to an older manifest and pin
+  it there.
+- **Launching:** native Linux builds, or Windows builds through Proton.
+  [Profiles](docs/CONFIG.md#profiles) hold the runner, a shared prefix, the
+  environment and wrappers, and games point at a profile. Steam integration
+  (`auto`, `host`, `none`) bridges to the host Steam client for Steamworks and
+  DRM.
+- **Steam Cloud** save sync, and the **Workshop**: browse, subscribe,
+  install, rate, comment.
+- **Friends and chat**, the **Store** (search, prices, deals, news, reviews,
+  wishlists), and a read-only **inventory and Community Market**.
+- **Slim builds:** every capability is a Cargo feature
+  ([FEATURES.md](docs/FEATURES.md)).
 
----
-
-## Why gaki?
-
-- **No web technology.** No Electron, CEF, or embedded browser. Idle memory stays under
-  ~50 MB instead of the official Steam app's hundreds.
-- **Fast and scriptable.** A pure Rust CLI: instant startup, easy to automate, and every
-  command speaks `--json` for machine-readable output.
-- **Linux first.** 64-bit clean, with first-class Proton and Wine management, and it runs on
-  Windows too. No X11 or Wayland session required for library and download work, so it works
-  over SSH and on headless servers.
-- **Deep Steam integration.** PICS metadata, the content CDN, Steam Cloud, app ownership
-  tickets, depot browsing, DLC management, and Steam Workshop, all built on open, documented
-  protocols.
-- **Open source.** GPL-3.0-or-later licensed, with no dependency on opaque 32-bit legacy Steam binaries.
-
-### How it compares
-
-| Feature | Official Steam | OpenSteamClient | SteamCMD | **gaki** |
-|---|---|---|---|---|
-| **Architecture** | Electron + C++ | C++ with Qt | C++ (proprietary) | Pure Rust |
-| **Idle RAM** | ~400-800 MB | ~100-200 MB | ~50 MB (per run) | < 50 MB |
-| **Interface** | Desktop GUI | Desktop GUI | CLI (scriptable) | CLI (scriptable) |
-| **Scope** | Everything | Library + launch | Install, update, Workshop | Library, install, launch, Cloud, Workshop, DLC, friends, chat |
-| **Download engine** | CDN + P2P LAN | Standard CDN | Standard CDN | Multi-threaded CDN |
-| **Authentication** | Full | Core | Full (+ anonymous) | Full (tokens, mobile app, Guard) |
-| **Steam integration** | Native | Partial | Content only | Deep (PICS, CDN, Cloud, tickets) |
-| **Platforms** | Windows, Linux, macOS | Windows, Linux | Windows, Linux, macOS | Linux (first), Windows |
-| **Open source** | No | Yes | No | Yes (GPL-3.0-or-later) |
-
-**vs. SteamCMD.** [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) is Valve's
-official command-line tool and the closest analog to gaki, but it is **content-only**: it
-downloads and updates app and Workshop files (often anonymously, for dedicated servers) and
-little else. gaki is a full launcher and library manager. On top of installing and
-updating, it lists and searches your library, **launches** games (natively or via
-Proton or Wine), syncs Steam Cloud saves, manages DLC and Workshop subscriptions, reads
-achievements, and does friends & chat, with every command scriptable via `--json`. SteamCMD is
-proprietary and ships only as a prebuilt binary. gaki is open source (GPL-3.0-or-later).
-
----
-
-## Project status
-
-gaki is in **experimental beta**. The core is highly functional: authentication,
-library management, installs and updates, integrity verification, DLC handling, Steam Cloud
-sync, and Proton or Wine launching all work today.
-
-| Area | Status | What works |
-|---|---|---|
-| **Authentication** | ✅ | Password, Steam Guard (email and device codes), Mobile App confirmation, refresh-token session restore |
-| **Library** | ✅ | Fetch owned games, scan local installs, search & filter, Family Sharing |
-| **Install & updates** | ✅ | 4-phase download pipeline (manifest → security → chunks) that downloads files in parallel from a pool of the least-loaded CDN servers, retries failed chunks on another server and times out stalled requests, plus updates, uninstall, integrity verification, and moving installs between library folders, with Steam's `appmanifest` and `libraryfolders.vdf` kept in sync. Installs run in the background daemon, can be listed, paused, resumed, cancelled, and kept across restarts in an install backlog that resumes from the files already on disk (`install list`, `install pause`, `install resume`, `install stop`, `install forget`, optional automatic resume with `config install-resume auto`) |
-| **Version pinning and downgrade** | ✅ | Install & pin a specific depot manifest (`downgrade`, `manifests`, `pin`, `unpin`), holding a game at an older build |
-| **Localized metadata** | ✅ | Store text (`info`) and achievement names and descriptions follow a `--lang` flag or the `config language` default, used by the Heroic Steam integration |
-| **DLC** | ✅ | Install, enable or disable, and per-DLC ownership and install status |
-| **Steam Cloud** | ✅ | Enumerate, download, upload save data |
-| **Proton and Wine** | ✅ | Runtime discovery, a download manager (official Valve Proton, GE builds, and **Proton-CachyOS** with AVX2 or `x86_64_v3` microarch selection), automatic **modern unified-layout** discovery (Proton 11+, GE, CachyOS, WOW64-aware) with strict bitness filtering, per-game version pinning, and launch integration. Depot-aware executable selection (native vs Proton), running-game tracking, and graceful or forced stop (`running`, `stop --force`). Launch records survive crashes and reboots: each pairs the PID with the process start time, so a stale record with a recycled PID is cleared, never signalled |
-| **Self-contained Windows Steam runtime** | ✅ | Install or repair a master Wine Steam prefix (`steam-runtime install`, `repair`, `stop`, `uninstall`, `status`) to satisfy Steamworks and DRM handshakes without a host Steam client. `play --steam` falls back to it automatically when no host Steam is installed (`config steam-runtime-policy auto\|on\|off`). **Linux only**: Proton/Wine runners are Linux binaries, so on Windows gaki uses the installed Steam client instead |
-| **Optional launch plugins** | ✅ | Linux, opt-in, never bundled: **luxtorpeda** native engines, and **umu-launcher** (Proton via `umu-run`). Both are downloaded on demand and routed per-game |
-| **Steam integration (opt-in)** | ✅ | Launch with real Steam integration (`play --steam`): the host Steam client bridged in, started silently if needed, or the in-Wine Steam runtime when no host Steam exists, for Steamworks and DRM. Auto-enabled on Family-Shared games |
-| **Depot browser** | ✅ | List depots, inspect manifest trees, download single files |
-| **Workshop** | ✅ | Browse and search, install and uninstall, subscribe, collections, rate, and read or post comments |
-| **Friends & chat** | ✅ | Friends roster with live persona status and current game, user profiles and wishlists over the Steam connection (by SteamID64, profile URL or friend name), send or cancel friend requests, plus direct messaging (send, history, and an interactive live session). Presence is configurable, defaulting to invisible |
-| **Inventory & market** | ✅ Read-only | View your inventory, look up item prices, search the Community Market, and see your wallet and listings. Buying & selling are planned |
-| **Collections and categorization** | ✅ | Create, rename and delete library collections, add and remove games, a `list` COLLECTIONS column and `--collection` filter, and on-demand pull, push and sync with Steam's cloud collections |
+gaki is in **experimental beta**.
 
 ---
 
 ## Install
 
-gaki isn't packaged or published yet. [Build it from source](#build-from-source).
-
----
-
-## Build from source
-
-### Prerequisites
-
-You'll need a [Rust toolchain](https://rustup.rs/) (edition 2024).
-
-On Linux, install the system dependencies first (Ubuntu 24.04 example):
-
-```bash
-sudo apt-get update
-sudo apt-get install build-essential pkg-config libssl-dev libx11-dev libxi-dev \
-  libxrandr-dev libxinerama-dev libxcursor-dev libxkbcommon-dev libasound2-dev \
-  libudev-dev libwayland-dev libgtk-3-dev libpulse-dev libdbus-1-dev \
-  libegl1-mesa-dev libgles2-mesa-dev liblzma-dev
-```
-
-Windows and macOS need only the Rust toolchain.
-
-### Build
+gaki isn't packaged or published yet. Build it from source with a
+[Rust toolchain](https://rustup.rs/) (edition 2024). The keyring needs D-Bus
+headers (Ubuntu: `sudo apt-get install pkg-config libdbus-1-dev`).
 
 ```bash
 git clone https://github.com/Gigas002/gaki.git
@@ -157,13 +75,28 @@ cd gaki
 cargo build --release
 ```
 
-This builds both binaries: `target/release/gaki-cli` and `target/release/gaki-tui`.
+That builds `target/release/gaki-cli` and `target/release/gaki-tui` with the
+default features. [FEATURES.md](docs/FEATURES.md) shows how to build more, or
+less.
+
+---
+
+## Documentation
+
+| Document | Contents |
+| --- | --- |
+| [docs/GAKI-CLI.md](docs/GAKI-CLI.md) | Every `gaki-cli` command, `--json` scripting, the session daemon, logs |
+| [docs/GAKI-TUI.md](docs/GAKI-TUI.md) | The terminal UI: signing in, keys, the Actions menu, its settings |
+| [docs/CONFIG.md](docs/CONFIG.md) | `config.toml`, profiles, `games.toml`, where files live, the session |
+| [docs/FEATURES.md](docs/FEATURES.md) | The Cargo features and what each one builds |
+| [docs/FAQ.md](docs/FAQ.md) | Prerequisites and common questions |
+| [examples/](examples) | Commented example configuration |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows |
+| [docs/PLAN.md](docs/PLAN.md) | The fork plan: what changed from Aurelia, step by step |
 
 ---
 
 ## Crates
-
-The workspace has three crates, none of them on crates.io yet:
 
 | Crate | What it is |
 | --- | --- |
@@ -171,405 +104,12 @@ The workspace has three crates, none of them on crates.io yet:
 | `gaki-cli` | The `gaki-cli` command, a thin layer over `libgaki` |
 | `gaki-tui` | The `gaki-tui` terminal UI, a thin layer over `libgaki` |
 
-Two dependencies are forks published by Aurelia's author:
-[`aurelia-steam-cdn`](https://crates.io/crates/aurelia-steam-cdn) (depot downloads, from
-[steam-cdn](https://github.com/OccamyLab/steam-cdn)) and
-[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat) (friend chat,
-from [steam-vent-chat](https://codeberg.org/steam-vent/chat)).
-
-To use the library from another crate in this workspace:
-
-```rust
-use libgaki::core::utils::is_safe_dir_name;
-
-assert!(!is_safe_dir_name("../x"));
-```
-
-The library is pre-1.0, so its API may change.
-
----
-
-## Usage
-
-gaki is driven entirely from the command line. Run `gaki-cli --help` for the full list
-of subcommands, or `gaki-cli <command> --help` for a specific one.
-
-```bash
-# Account
-gaki-cli login                        # authenticate (prompts for credentials and Steam Guard)
-gaki-cli login --qr --timeout 120     # scan a QR code with the Steam Mobile app; give up after 120 s
-gaki-cli logout                       # revoke the token at Steam, clear the stored session
-gaki-cli account                      # show account details
-
-# Library
-gaki-cli list                         # list your library
-gaki-cli list --installed             # only installed games
-gaki-cli list --search elden          # filter by name
-gaki-cli list --online                # add an ONLINE column (needs-connection heuristic)
-gaki-cli info 690830                  # game details (description, release, reviews, tags, rating, DLC)
-gaki-cli info 690830 --extended       # + requirements, Metacritic, genres, categories
-gaki-cli info 690830 --lang german    # localize store text (falls back to config, then English)
-gaki-cli info 690830 --country DE     # quote the price for a region (falls back to config, locale, US)
-gaki-cli price 690830 --compare US,DE,JP   # compare a game's price and discount end across regions
-gaki-cli search "no man's sky"        # find app ids by title (store search over the Steam connection)
-gaki-cli deals                        # discounted top sellers in your region (--scope top-sellers|specials)
-gaki-cli similar 275850               # games Steam considers similar
-gaki-cli players 730                  # current in-game player count
-gaki-cli events                       # store-wide sales and events currently running
-gaki-cli news 275850                  # recent announcements
-gaki-cli reviews 275850 -t negative   # user reviews, paged via --cursor
-gaki-cli dlc 690830                   # list a game's DLC with ownership and install status
-gaki-cli drm 690830                   # verify DRM/ownership tickets headlessly (no Steam client)
-gaki-cli achievements 620             # your achievements for a game (unlock state + rarity)
-gaki-cli achievements 620 --lang german  # localize achievement names and descriptions
-gaki-cli image 1245620                # fetch cover art to the cache (prints the path)
-gaki-cli image 1245620 -o cover.jpg   # save artwork to a specific file
-gaki-cli image 1245620 --list --probe # every store asset URL (art, screenshots, trailers), HEAD-checked
-
-# Install & maintain
-gaki-cli install 1245620              # download & install a game by app id
-gaki-cli install 1245620 --library D:\SteamLibrary  # install onto a specific drive or library
-gaki-cli libraries                    # list Steam library folders (one per drive) + free space
-gaki-cli install list                 # running installs and the backlog (paused, stopped, interrupted)
-gaki-cli install pause 1245620        # pause a running install; keep its partial files
-gaki-cli install resume 1245620       # resume a paused/interrupted install
-gaki-cli install resume --all         # resume every backlog entry, one at a time
-gaki-cli install stop 1245620         # cancel a running install; keep it in the backlog
-gaki-cli install forget 1245620       # remove an entry without deleting partial files
-gaki-cli install forget 1245620 --delete-files
-                                      # remove the entry and safe partial files
-gaki-cli update 1245620               # download the latest manifest
-gaki-cli verify 1245620               # verify installed files
-gaki-cli uninstall 1245620            # remove a game (--delete-prefix wipes its prefix)
-gaki-cli move 1245620 D:\SteamLibrary # move an install to another library (updates Steam data)
-gaki-cli relink 1245620 D:\SteamLibrary  # re-point Steam at already-moved files (no copy)
-gaki-cli import 1245620 D:\SteamLibrary  # register existing on-disk files with Steam
-gaki-cli available 1245620            # is it installed and present on disk?
-gaki-cli duplicates                   # games installed in several libraries at once
-                                     # (a duplicate makes a game re-report updates forever.
-                                     #  prints the copies to delete, removes nothing itself)
-
-# Downgrade & version pinning
-gaki-cli manifests 1245620            # each depot's current manifest id per branch
-gaki-cli downgrade 1245620 --depot 1245621 --manifest 8593343465227540543  # install an older build & pin it
-gaki-cli pin 1245620                  # lock the current install (block gaki updates)
-gaki-cli unpin 1245620                # release the pin
-# Older manifest ids aren't exposed by Steam. Find them on SteamDB:
-#   https://steamdb.info/depot/<depot_id>/manifests/
-
-# DLC
-gaki-cli enable 2001                  # enable an installed DLC for its base game
-gaki-cli disable 2001                 # disable a DLC
-
-# Branches & depots
-gaki-cli branches 1245620             # list beta branches
-gaki-cli set-branch 1245620 beta      # switch branch
-gaki-cli depots 1245620               # list depots
-gaki-cli launch-options 1245620       # list Steam launch configs (exe, args, platform)
-
-# Launch
-gaki-cli play 1245620                 # launch a game and wait for it to exit
-gaki-cli play 1245620 --proton experimental   # Linux: force a specific Proton or Wine runner
-gaki-cli play 1245620 --steam         # run with Steam online features (Family Sharing, DRM)
-gaki-cli launch-targets 1245620       # installed builds + Steam modes, and the `play` flags for each
-gaki-cli play 1245620 --platform linux        # Linux: run the native build (or `windows` via Proton)
-gaki-cli play 1245620 --steam-mode host       # one launch: `runtime` (in-Wine), `host` or `none`
-gaki-cli play 1245620 -v              # also log progress/debug output (-vv/-vvv: Steam networking)
-gaki-cli running                      # list games gaki is currently running
-gaki-cli stop 1245620                 # stop a running game (--force to kill a hung one)
-
-# Steam Cloud
-gaki-cli cloud sync 1245620           # sync saves (down then up)
-gaki-cli cloud list 1245620           # list a game's Cloud files
-
-# Steam Workshop
-gaki-cli workshop browse 1245620            # discover items (search, sort, paginate)
-gaki-cli workshop info 1234567890           # item or collection metadata
-gaki-cli workshop install 1234567890        # download an item (collections expand to members)
-gaki-cli workshop subscribe 1234567890 --install  # subscribe, then download
-gaki-cli workshop status 1245620            # installed vs subscribed (+ update detection)
-gaki-cli workshop rate 1234567890 up        # thumbs-up (or: down) an item
-gaki-cli workshop comments 1234567890       # read an item's comments
-gaki-cli workshop comment 1234567890 "Nice mod!"  # post a comment
-
-# Friends & chat
-gaki-cli friends                              # list friends (name, status, current game)
-gaki-cli friends search "AI Jungle Wulf"      # show a user: SteamID64, /profiles/ URL, friend name or `me`
-gaki-cli friends add 76561197960287930        # send a friend request (same identifiers)
-gaki-cli user me                              # your profile as Steam sees it (no web requests)
-gaki-cli wishlist                             # your wishlist with prices; `wishlist "<friend>"` for a friend's
-gaki-cli wishlist add 1245620                 # add / remove items (`wishlist remove 1245620`)
-gaki-cli friends remove 76561197960287930     # remove a friend or cancel a request
-gaki-cli chat send 76561198042323314 "hi!"    # send a direct message to a friend
-gaki-cli chat history 76561198042323314       # show recent messages with a friend
-gaki-cli chat open 76561198042323314          # interactive live chat (type to send, Ctrl-D quits)
-
-# Inventory & market
-gaki-cli inventory 753 --context 6            # your Steam cards, gems and backgrounds
-gaki-cli market price 440 "Mann Co. Supply Crate Key"   # item price (no login needed)
-gaki-cli market search "Sticker" --app-id 730 # search the Community Market
-gaki-cli market listings                      # your active listings & buy orders
-gaki-cli wallet                               # Steam Wallet balance
-
-# Configuration
-gaki-cli config show                  # print launcher configuration
-gaki-cli config protons               # list detected Proton and Wine runtimes
-gaki-cli config presence online       # appear online for chat (default: invisible)
-gaki-cli config language german       # default language for info and achievements text
-gaki-cli config country DE            # default store region for prices (unset: system locale, else US)
-gaki-cli config game 1245620 --proton GE-Proton9-20  # pin a Proton version for one game
-gaki-cli config install-resume auto   # let the daemon resume interrupted installs when it starts
-
-# Proton and Wine runtimes (download manager)
-gaki-cli proton list                  # installable runtimes (Valve + GE + CachyOS) and what's installed
-gaki-cli proton install GE-Proton9-20 # download a GE build (or "Proton 9.0" via Steam)
-gaki-cli proton install Proton-CachyOS # CachyOS build (auto-picks x86_64_v3 or AVX2 when supported)
-gaki-cli proton default GE-Proton9-20 # set the global default (used when a game has none set)
-gaki-cli proton uninstall GE-Proton9-19  # delete an installed GE build
-
-# Windows Steam runtime (self-contained Steamworks and DRM handshake, no host Steam client)
-gaki-cli config steam-runtime-runner GE-Proton9-20  # select the Wine or Proton runner (required first)
-gaki-cli steam-runtime status          # resolved master prefix, layout, steam.exe presence
-gaki-cli steam-runtime install         # install Steam into the master Wine prefix (sign in here)
-gaki-cli steam-runtime install --reinstall  # delete the prefix first, then install fresh
-                                           # (for a corrupted install, no .bak is kept)
-gaki-cli steam-runtime login           # re-open the in-Wine Steam to sign in again
-gaki-cli steam-runtime repair          # back up the prefix (keep one) and reinstall
-gaki-cli steam-runtime stop            # shut down the in-Wine Steam, keeping the prefix
-gaki-cli steam-runtime uninstall       # remove the master prefix entirely (incl. any .bak)
-gaki-cli config steam-runtime-policy on   # make `play --steam` always use the in-Wine runtime
-                                         # (default `auto`: host Steam if present, else in-Wine)
-
-# Collections (library categories): edit locally offline, sync to Steam on demand
-gaki-cli collections list                     # all collections + game counts
-gaki-cli collections create "RPGs"            # new (static) collection
-gaki-cli collections add "RPGs" 570 730       # add games by app id
-gaki-cli collections remove "RPGs" 730        # drop a game
-gaki-cli collections show "RPGs"              # list a collection's games
-gaki-cli list --collection "RPGs"             # filter the library to one collection
-gaki-cli collections pull                     # fetch Steam's collections and merge them in
-gaki-cli collections push --yes               # upload local collections to your Steam account
-gaki-cli collections sync --yes               # pull then push (reconcile both sides)
-
-# umu-launcher plugin (Linux only, optional: Proton via umu-run, downloaded on demand)
-gaki-cli umu enable                    # turn the plugin on (off by default)
-gaki-cli umu install                   # download umu-run on demand (not bundled)
-gaki-cli umu path ~/umu                # use an existing install instead (skips the download)
-gaki-cli umu status                    # show enabled state + installed version
-gaki-cli config game 1245620 --umu     # route one game through umu (Proton via umu-run)
-gaki-cli play 1245620 --umu            # one-off launch via umu
-gaki-cli umu uninstall                 # remove the downloaded payload
-
-# Luxtorpeda native-engine plugin (Linux only, optional)
-gaki-cli luxtorpeda enable             # turn the plugin on (off by default)
-gaki-cli luxtorpeda install            # download the client on demand (not bundled)
-gaki-cli luxtorpeda path ~/luxtorpeda  # use an existing install instead (skips the download)
-gaki-cli luxtorpeda status             # show enabled state + installed version
-gaki-cli config game 2270 --native-engine   # route one game through a native engine
-gaki-cli play 2270 --native-engine     # one-off launch via luxtorpeda
-gaki-cli luxtorpeda uninstall          # remove the downloaded payload
-
-# Per-game wrappers (inside the profile's), e.g. your own script
-gaki-cli config game 2270 --wrapper mangohud --wrapper ~/my/wrap.sh
-gaki-cli config game 2270 --no-wrappers
-```
-
-> [!NOTE]
-> **Luxtorpeda** is an optional plugin that runs supported games on native Linux engines
-> (GZDoom, OpenMW, …) instead of Proton or Wine. It is **never bundled**. gaki downloads it
-> on the fly into `~/.config/gaki/plugins/luxtorpeda` only when you enable the feature and
-> opt a game in, so the binary stays lean. Linux only. Games run outside Steam's runtime
-> container, so if an engine can't find system libraries, prefer Proton for that title.
-
-<!-- -->
-
-> [!NOTE]
-> **umu-launcher** is an optional plugin that runs Windows games through Proton **outside**
-> Steam (applying the Steam Linux Runtime and per-game protonfixes), wrapping the launch with
-> `umu-run` instead of replacing the runtime. Like luxtorpeda it is **never bundled**.
-> gaki downloads it on the fly into `~/.config/gaki/plugins/umu` only when you enable the
-> feature and opt a game in, so the binary stays lean. Linux only. It **wraps Proton** rather
-> than replacing it, so `--umu` combines with `--proton` to pick the Proton build it runs.
-
-<!-- -->
-
-> [!NOTE]
-> **Wrappers** (`wrappers` in a profile or a `games.toml` entry) wrap the fully-resolved
-> launch command, the profile's outside the game's. Each gets the rest of the command as its
-> arguments (`"$@"`), and gaki exports `GAKI_*` env vars, so your own script ending in
-> `exec "$@"` works as a wrapper as well as `gamemoderun`, `mangohud` or `gamescope -f --`.
-
-Add `--json` to any command for machine-readable output (errors included). It's a global
-flag, so `gaki-cli --json <command>` and `gaki-cli <command> --json` are equivalent.
-
-Drivers can feature-detect with `gaki-cli --json capabilities`: one line listing the version,
-the JSON `schema` number, every command with its flags, arguments and subcommands, all `event`
-names, every error `type` with its exit code and hint, and behaviour `features` that flags
-don't reveal. Add a command path (`gaki-cli capabilities config game`) for one command's
-arguments, subcommands and every flag with its short form, value, allowed values and help.
-It runs offline and never starts the daemon. Every `{"event":"result",...}` line
-also carries `"schema"`, which goes up only when an existing field changes meaning or is
-removed; added fields don't bump it.
-
-`login --qr --json` streams `qr_challenge` and `qr_scanned` events on stderr and ends with
-exactly one `{"event":"result",...}` line on stdout. On success a one-line `{"logged_in":true,...}`
-object comes just before it. stdin is the driver's control channel: send a `cancel` line to
-stop, and keep stdin open while waiting, because EOF ends the login. Outcomes:
-
-| `type` | Meaning | Exit code |
-|---|---|---|
-| `approved` | Signed in (`ok: true`, with `account` and `steam_id`) | 0 |
-| `login_denied` | Declined in the app, or the session was dropped by Steam | 80 |
-| `login_expired` | The code was scanned but not approved before it expired | 81 |
-| `timeout` | No approval within `--timeout` (default 600 s) | 82 |
-| `cancelled` | The driver sent `cancel` | 83 |
-| `input_closed` | stdin reached EOF | 84 |
-
-Other failures carry the usual error `type` (for example `network_timeout`) and exit code.
-
-`install`, `update` and `verify` stream `progress` events on stderr. `bytes_downloaded`
-includes `reused_bytes`, the data found intact on disk (a resume or verify), while
-`speed_bps` and `eta_seconds` count network bytes only, averaged over 5 seconds. Install
-results, backlog changes and QR logins end with a `{"event":"result",...}` line on stdout.
-
-Two error types apply to every command. `disk_full` (exit 85): no space or quota left, including
-`install`'s free-space check before it starts. `offline` (exit 86): no network route or DNS,
-or Steam is unreachable and gaki is using its cached library. A stopped install
-(`install stop`) ends as `cancelled` (83). `gaki-cli capabilities` lists every type with its code.
-
-Logs go to stderr. By default only warnings and errors are shown. `-v` adds gaki's
-progress and debug logs, and `-vv`/`-vvv` unmute the Steam networking stack, which helps when
-a command seems stuck. Commands run through the session daemon show the same logs at your
-`-v` level, and a verbose `play` also shows the daemon's own activity, prefixed `[daemon]`.
-`--log <FILTER>` (e.g. `--log debug,steam_vent=info`) overrides the level. A launched game's
-own output is saved per launch under `~/.config/gaki/logs/` (Proton's stderr in
-`wine_<appid>.log`).
-
-On Windows, games run natively and the Linux-only parts are switched off: `proton install`,
-`steam-runtime install|repair|login`, and `umu`/`luxtorpeda install` refuse with an
-explanation, and `play` rejects `--proton`, `--platform linux`, `--steam-mode runtime`,
-`--umu` and `--native-engine`. Use `play --steam` with your installed Steam client instead.
-
-📖 `gaki-cli --help` and `gaki-cli <command> --help` list every command and option.
-
----
-
-## Configuration
-
-gaki stores its configuration and local data under `~/.config/gaki`
-(`%USERPROFILE%\.config\gaki` on Windows). Pass **`--config-dir <PATH>`** to relocate it.
-That is useful for an embedding driver (e.g. Heroic) that needs gaki's state isolated from
-a standalone install. A session daemon serves one config directory, so pair it with
-`--socket <PATH>` (a separate daemon) or `--no-daemon`. `--no-spawn` uses a running daemon
-but never starts one.
-
-Settings are changed with `config` commands, never environment variables: for example
-`config set secret_store memory` on a machine without a keyring service, or
-`config info-cache-ttl <SECONDS>`.
-
-- **Library path.** gaki auto-detects your existing Steam installation. Inspect the
-  resolved configuration with `gaki-cli config show`.
-- **Session.** The Steam refresh token (and a browser web token, if you added one) is kept
-  in the OS keyring (Secret Service), one item per token, so later invocations log in
-  automatically; gaki never writes a token to a file. The rest of the session (account
-  and persona name, SteamID) is in `~/.local/state/gaki/account.toml`. Without a keyring,
-  `config set secret_store memory` keeps the tokens in the running daemon only, so a
-  daemon restart needs a new login. A `session.json` from an older gaki is no longer
-  read; log in once and it is deleted.
-- **Session daemon.** Its socket is `$XDG_RUNTIME_DIR/gaki/daemon.sock`, in a directory
-  only you can open, and it accepts connections from your user only. Without
-  `XDG_RUNTIME_DIR` no daemon runs and every command logs on by itself. After 30 minutes
-  with nothing to do the daemon drops its session and exits; the next command starts a new
-  one. Change that with `config set daemon_idle_timeout <SECONDS>` (`0` keeps it running).
-  With `secret_store = "memory"` an idle exit forgets the tokens too.
-- **Fresh sign-in for account data.** `config set reauth_sensitive true` makes the
-  inventory, wallet and market listings ask for your password (or a QR code) every time,
-  in `gaki-cli` and `gaki-tui` alike, so a stolen or copied session can't read them.
-  Prices and market search are unaffected. A sign-in counts for one view, within five
-  minutes. `--json` can't prompt, so those commands fail there with `auth_required`.
-- **Download engine.** Installs, updates, verifications and Workshop downloads share one
-  engine. It picks the least-loaded content servers, spreads chunk requests over a pool of
-  them, retries a failed chunk on another server, and keeps 16 chunk requests in flight per
-  depot.
-- **Install backlog.** Unfinished installs are kept in `install_backlog.toml` until they
-  finish or you `install forget` them.
-
----
-
-## Documentation
-
-| Document | Contents |
-|---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout, crate roles and the rules the code follows |
-| [docs/PLAN.md](docs/PLAN.md) | The fork plan: what changes from Aurelia, step by step |
-| [gaki-tui/README.md](gaki-tui/README.md) | The terminal UI |
-
----
-
-## FAQ
-
-### Is there a Steam client that works without a GUI?
-
-Yes. That is exactly what gaki is. It is a pure CLI Steam client: no Electron, no CEF, no
-embedded browser, no desktop session required. You can log in, install games, update them,
-sync Cloud saves and launch titles from a terminal or a shell script.
-
-### Can I install and play Steam games over SSH or on a headless server?
-
-Yes. Library management, downloads, updates, verification, Cloud sync and Workshop all work
-headlessly over SSH. Launching a game still needs somewhere for it to render (a display,
-a virtual X server, or a remote-play setup), but everything up to the launch does not.
-
-### How is gaki different from SteamCMD?
-
-[SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD) is Valve's official CLI tool,
-but it is content-only: it downloads and updates app and Workshop files and little else.
-gaki is a full launcher and library manager. It lists and searches your library, launches
-games natively or through Proton and Wine, syncs Steam Cloud saves, manages DLC and Workshop
-subscriptions, reads achievements, and does friends & chat. SteamCMD is proprietary and ships
-as a prebuilt binary. gaki is open source under GPL-3.0-or-later.
-
-### Is gaki an OpenSteamClient alternative?
-
-It is its spiritual successor. OpenSteamClient is a C++ and Qt desktop GUI. gaki rebuilds
-the same idea in Rust as a scriptable CLI, without the 32-bit legacy Steam binaries, at a
-fraction of the memory footprint.
-
-### Does it run Windows games on Linux?
-
-Yes, through Proton and Wine. gaki discovers installed runtimes, downloads new ones
-(official Valve Proton, GE-Proton, and Proton-CachyOS with AVX2 or `x86_64_v3` selection),
-pins a Proton version per game, and can route launches through
-[umu-launcher](https://github.com/Open-Wine-Components/umu-launcher) or native engines via
-[luxtorpeda](https://github.com/luxtorpeda-dev/luxtorpeda).
-
-### Do I need the official Steam client installed?
-
-No. gaki talks to Steam's real network protocols directly. For titles that insist on a
-Steamworks or DRM handshake, it can either bridge to a host Steam client if you have one, or
-install a self-contained Windows Steam runtime inside its own Wine prefix
-(`gaki-cli steam-runtime install`).
-
-### How much RAM does it use?
-
-Under ~50 MB idle, against roughly 400 to 800 MB for the official Steam desktop app.
-
-### Which platforms are supported?
-
-Linux is the primary target (x86_64 and arm64), Windows is supported, and macOS binaries are
-built for each release. See [Install](#install).
-
-### Can I use it to script my Steam library?
-
-Yes. Every command accepts `--json` for machine-readable output, including errors, so
-gaki works as a backend for other launchers and for automation. `--config-dir`
-relocates its state so an embedding driver can keep it isolated.
-
-### Is it safe to use? Can I get VAC banned?
-
-gaki is unofficial and unaffiliated with Valve, it modifies Steam's files directly, and
-third-party tools that interact with Steam carry a risk of action against your account.
-Read the disclaimer at the top of this README before using it. Use at your own risk.
+None is on crates.io yet, and `libgaki`'s API may change before 1.0. Two
+dependencies are forks published by Aurelia's author:
+[`aurelia-steam-cdn`](https://crates.io/crates/aurelia-steam-cdn) (depot
+downloads, from [steam-cdn](https://github.com/OccamyLab/steam-cdn)) and
+[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat)
+(friend chat, from [steam-vent-chat](https://codeberg.org/steam-vent/chat)).
 
 ---
 
@@ -597,22 +137,6 @@ pipeline.
 - [steam-cdn](https://github.com/OccamyLab/steam-cdn): content-delivery and depot download engine (forked & modified as [aurelia-steam-cdn](https://github.com/Drackrath/aurelia-steam-cdn))
 - [SteamKit2](https://github.com/SteamRE/SteamKit): Steam .NET research code
 - [SteamHelper-rs](https://github.com/saskenuba/SteamHelper-rs): SteamKit Rust port
-
----
-
-## Related projects
-
-- [SteamCMD](https://developer.valvesoftware.com/wiki/SteamCMD): Valve's official,
-  content-only command-line tool
-- [OpenSteamClient](https://github.com/OpenSteamClient/OpenSteamClient): open-source C++ and
-  Qt Steam client
-- [Aurelia](https://github.com/Drackrath/Aurelia): the Rust CLI Steam client gaki is forked from
-- [steam-vent](https://codeberg.org/steam-vent/steam-vent): the Steam network protocol
-  implementation gaki is built on
-
-*Topics: steam client cli, headless steam, steam launcher linux, steamcmd alternative,
-open source steam client, terminal steam, install steam games from command line,
-proton launcher cli, steam library manager, rust steam client.*
 
 ---
 
