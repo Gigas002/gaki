@@ -1398,6 +1398,68 @@ I make the changes, and you review, commit, and push.
 - [ ] **7.6** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
   clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
   `luxtorpeda`, `hltb`, and `locale`.
+- [ ] **7.7** Library export and import as TOML. `gaki-cli library export
+  library.toml` writes the library (by default the installed games, `--all`
+  for every owned one) as `[[game]]` entries with `app_id`, `name`, the
+  installed `platform` and the branch. `gaki-cli install library.toml`
+  installs every entry that isn't installed yet, one after another through the
+  install backlog, so it can be paused, resumed and survives a restart.
+  `--library` picks the target as for a single install. Entries that are
+  already installed, or not owned, are skipped and reported. The format gets
+  an example in `examples/` and a parse test. To decide when we start:
+  `install` takes an app id or a `games.toml` alias, so a file argument is
+  told apart by its `.toml` suffix or a `/`, or gets its own flag
+  (`install --from library.toml`); and whether `library` becomes a command
+  group or the export hangs off `list`. Rerun the §8 gates afterwards.
+
+### Phase 8 — feature parity and leftovers
+
+Found by the audit after 7.2: what `libgaki` can do but no binary exposes, and
+what `gaki-cli` does but `gaki-tui` doesn't. **Before each step, ask the user
+whether to do it and how; don't start one unasked.** Each TUI step gates its
+views and keys on the matching feature, adds them to the help, the Actions
+menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
+
+- [ ] **8.1** Fix the TUI's Updates tab. The library loads with
+  `ListOptions::default()`, so `check_updates` is false, every game keeps
+  `update_available = false`, the Updates tab stays empty and the `▲` badge
+  never shows. Run the update check in the background after the list loads
+  (it fetches a manifest per installed game) and patch the games when it
+  lands.
+- [ ] **8.2** Depot browser. `SteamClient::fetch_depots`,
+  `fetch_manifest_files` and `download_single_file` (the `depot` feature) have
+  no `ops` wrapper and no surface. Add `ops::depot`, a CLI (e.g. `depots files
+  <app> <depot>`, `depots download <app> <depot> <path>`), and a TUI file view
+  from the depots overlay.
+- [ ] **8.3** Remove dead code: `ops::library::cached_game_name` has no
+  callers. Sweep for other unused `pub` items in `libgaki` while there.
+- [ ] **8.4** TUI store views (`store`): search, price (with region compare),
+  deals, news, reviews, events, player count, similar games, and the wishlist
+  with add/remove.
+- [ ] **8.5** TUI install backlog view: list running and backlog installs,
+  including interrupted ones from earlier runs or from `gaki-cli`, and
+  resume, resume all, stop and forget them.
+- [ ] **8.6** TUI Workshop parity: download (`workshop install`, collections
+  expanding), uninstall, `status` with update detection, and posting a
+  comment.
+- [ ] **8.7** TUI collection rename. The worker already has
+  `steam::collection_rename`; only a key and a prompt are missing.
+- [ ] **8.8** TUI Cloud conflict resolution. A sync with diverged saves only
+  tells you to run `gaki-cli cloud sync --resolve`; offer "keep cloud" and
+  "keep local" in the Cloud overlay.
+- [ ] **8.9** TUI settings parity. Settings edits only presence and proxy.
+  Add the other `config.toml` keys (`default_profile`, `default_platform`,
+  `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,
+  `daemon_idle_timeout`, `info_cache_ttl`, `secret_store`, ...), a profiles
+  view (`profiles list/show`, the games using each), and `config check`.
+- [ ] **8.10** TUI odds and ends that only the CLI has: `drm` check,
+  `duplicates`, `available`, saving artwork (`image -o`), user profiles
+  (`user`), the extended `info` fields, and daemon management
+  (`daemon list/stop`, `kill`).
+- [ ] **8.11** Market buying and selling, which nothing implements: inventory
+  and market are read-only. Decide first whether gaki should move money at
+  all; if so it goes behind `market` and `reauth_sensitive`, with a
+  confirmation on every order.
 
 ---
 
