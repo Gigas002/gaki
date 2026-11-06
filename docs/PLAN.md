@@ -1350,6 +1350,9 @@ I make the changes, and you review, commit, and push.
   and shows a notice, or the failure once the thread reports it. They need no
   feature. The optional CLI `open` command was left out. The help's stale
   "p then h — toggle HowLongToBeat" entry (no key behind it) is gone.
+  Added later (after 7.6): `E` opens the game's Steam store page
+  (`Link::Steam`, from `steam_urls::store_url`), first in the menu's "Links"
+  group and in the help.
 - [x] **7.2** Split the README (R34) into `docs/CONFIG.md`, `docs/GAKI-CLI.md`,
   `docs/GAKI-TUI.md`, `docs/FEATURES.md`, and `docs/FAQ.md`. `FAQ.md` covers
   prerequisites: Steam must be installed, Proton must be installed
@@ -1566,6 +1569,22 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   and market are read-only. Decide first whether gaki should move money at
   all; if so it goes behind `market` and `reauth_sensitive`, with a
   confirmation on every order.
+- [ ] **8.12** Configurable key bindings in gaki-tui. Today every binding is
+  hard-coded (mostly `gaki-tui/src/app/keys/browse.rs`, plus each overlay's
+  handler), and the help, status-bar hints and Actions-menu key column are
+  fixed strings. Bindings go in their **own file**,
+  `$XDG_CONFIG_HOME/gaki/tui/keybinds.toml`, never in `config.toml` (the
+  user's requirement). Sketch: one table per context (the library, each
+  overlay), mapping action names to keys; anything left out keeps its
+  default, so an empty or missing file changes nothing. Load once at
+  startup, and refuse to start (with the offending line) on an unknown
+  action, an unparseable key or two actions on one key in the same context.
+  The help, hints and Actions menu read the live map. Ship a commented
+  `examples/keybinds.toml` with every default, and document it in
+  `docs/GAKI-TUI.md`. Open questions for the start of the step: the key
+  syntax (`"E"`, `"ctrl+r"`, `"PageDown"`), whether one action may have
+  several keys, and which bindings stay fixed (`q`, `?` and `Esc` are
+  candidates, so a bad file can't lock anyone out).
 
 ---
 

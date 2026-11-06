@@ -62,7 +62,7 @@ background, so the list stays responsive while they fill in.
 | `C` / `W` / `a`       | Cloud saves, Workshop, achievements                      |
 | `M` / `K` / `N`       | Move, relink, import an install                          |
 | `O`                   | Collections                                              |
-| `B` / `T`             | Open the game's ProtonDB page, or search the Proton issue tracker for it |
+| `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it |
 | `I` / `w`             | Inventory, wallet                                        |
 | `m` / `S`             | Market listings, market search                           |
 | `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes) |

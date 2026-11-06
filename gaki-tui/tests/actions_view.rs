@@ -361,17 +361,25 @@ fn settings_overlay_renders_proxy() {
 }
 
 #[test]
-fn every_game_links_to_protondb_and_the_proton_tracker() {
+fn every_game_links_to_steam_protondb_and_the_proton_tracker() {
     isolate_config();
     for installed in [true, false] {
         let browser = Browser::new(vec![game(1, "Alpha", installed)]);
         let rows = browser.action_candidates();
-        for (action, key) in [(Action::ProtonDb, "B"), (Action::ProtonIssues, "T")] {
+        for (action, key) in [
+            (Action::SteamPage, "E"),
+            (Action::ProtonDb, "B"),
+            (Action::ProtonIssues, "T"),
+        ] {
             let row = rows.iter().find(|r| r.action == action).expect("link row");
             assert_eq!(row.category, "Links");
             assert_eq!(row.key, key);
         }
     }
+    assert_eq!(
+        Link::Steam.url(945360),
+        "https://store.steampowered.com/app/945360"
+    );
     assert_eq!(
         Link::ProtonDb.url(945360),
         "https://www.protondb.com/app/945360"

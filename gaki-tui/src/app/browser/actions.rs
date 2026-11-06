@@ -47,6 +47,7 @@ pub enum Action {
     Import,
     #[cfg(feature = "collections")]
     Collections,
+    SteamPage,
     ProtonDb,
     ProtonIssues,
     Favourite,
@@ -219,6 +220,12 @@ impl Browser {
         });
 
         const LINKS: &str = "Links";
+        rows.push(ActionRow {
+            action: Action::SteamPage,
+            category: LINKS,
+            label: "Steam store page",
+            key: "E",
+        });
         rows.push(ActionRow {
             action: Action::ProtonDb,
             category: LINKS,

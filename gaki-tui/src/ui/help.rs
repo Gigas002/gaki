@@ -123,6 +123,7 @@ fn entries() -> Vec<Entry> {
         #[cfg(feature = "cloud")]
         Entry::Binding("C", "cloud saves (s/d/u)"),
         Entry::Binding("L", "launch options"),
+        Entry::Binding("E", "Steam store page"),
         Entry::Binding("B", "ProtonDB page"),
         Entry::Binding("T", "Proton issues (GitHub)"),
         Entry::Binding("r", "refresh library"),

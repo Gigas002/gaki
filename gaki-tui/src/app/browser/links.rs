@@ -10,6 +10,8 @@ use crate::utils::browser;
 /// A page about one game.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Link {
+    /// Its Steam store page.
+    Steam,
     /// Its ProtonDB page.
     ProtonDb,
     /// A search of Valve's Proton issue tracker for its app id.
@@ -20,6 +22,7 @@ impl Link {
     /// What the notice calls the page.
     pub fn label(self) -> &'static str {
         match self {
+            Link::Steam => "the Steam page",
             Link::ProtonDb => "ProtonDB",
             Link::ProtonIssues => "Proton issues",
         }
@@ -29,6 +32,7 @@ impl Link {
     pub fn url(self, app_id: i32) -> String {
         let app_id = app_id as u32;
         match self {
+            Link::Steam => steam_urls::store_url(app_id),
             Link::ProtonDb => steam_urls::protondb_url(app_id),
             Link::ProtonIssues => steam_urls::proton_issues_url(app_id),
         }

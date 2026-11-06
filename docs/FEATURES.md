@@ -80,7 +80,7 @@ A TUI without a library has nothing to show, so `gaki-tui` always builds
 
 | Feature       | Views and keys                                                                     |
 | ------------- | ---------------------------------------------------------------------------------- |
-| *(always)*    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p`, favourite `f`, hide `H`, refresh `r`, ProtonDB page `B`, Proton issues `T` |
+| *(always)*    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p`, favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T` |
 | `install`     | install `d` (with the library picker), pause/resume `Space`, cancel `c`, uninstall `x`, move `M`, relink `K`, import `N`, verify `v`, update `U`, Proton install/uninstall (`P` then `i`/`u`), the "install now?" prompt |
 | `versioning`  | versions and pinning `V`, beta branches `b`                                        |
 | `cloud`       | cloud saves `C`                                                                    |
