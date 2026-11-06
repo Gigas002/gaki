@@ -40,6 +40,14 @@ filter and sort, your account and the version.
 Selecting a game loads its store details, its ProtonDB tier and its art in the
 background, so the list stays responsive while they fill in.
 
+After the library loads (and after each `r` reload), the installed games are
+checked for updates in the background, the same check as `gaki-cli update`
+without a game, so pinned games are skipped. It fetches a manifest per
+installed game, so it can take a while: the status bar shows
+`▲ N updates (checking…)` until it lands, then the `Updates` tab and the `▲`
+badges fill in. A failed check (offline, say) keeps the earlier flags and says
+so in the status bar. Set `check_updates = false` to turn it off.
+
 ### Keys
 
 | Key                   | Action                                                   |
@@ -105,6 +113,7 @@ everything about the session, installs and launches. Its own settings are in
 | `hidden_games`   | the games `H` hid                                             |
 | `allowed_games`  | the app types listed: any of `Game`, `DLC`, `Driver`, `Application`, `Config`, `Demo`, `Tool`, `Unknown`. The default is `Game` and `DLC` |
 | `highlight`      | the highlight color                                           |
+| `check_updates`  | check the installed games for updates after the library loads (`true`) |
 
 The cached library (`games.toml`) and cover art (`icons/`) are in
 `$XDG_CACHE_HOME/gaki/tui/`, and the log is

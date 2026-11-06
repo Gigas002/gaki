@@ -836,6 +836,18 @@ async fn web_session() -> anyhow::Result<libgaki::web::web_session::WebSession> 
     libgaki::ops::session::web_session(&client).await
 }
 
+/// Check the installed games for updates: the app ids with one available.
+/// Pinned games are left out, as `gaki-cli update` does. Slow: it fetches a
+/// manifest per installed game.
+#[cfg(feature = "install")]
+pub fn fetch_updates() -> Result<Vec<u32>, TuiError> {
+    in_process(async {
+        let mut client = worker::global().session().ensure().await?;
+        let check = libgaki::ops::install::check_updates(&mut client).await?;
+        Ok(check.updates.iter().map(|g| g.app_id).collect())
+    })
+}
+
 /// Fetch the full library.
 pub fn fetch_library() -> Result<Vec<LibraryGame>, TuiError> {
     use libgaki::core::steam_urls;

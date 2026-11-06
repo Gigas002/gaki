@@ -94,3 +94,48 @@ fn install_control_action_roundtrips() {
     c.set(InstallAction::Stopped);
     assert_eq!(c.get(), InstallAction::Stopped);
 }
+
+#[test]
+fn an_update_check_flags_only_installed_games() {
+    let mut items = vec![game(1), game(2), game(3)];
+    items[0].installed = true;
+    items[1].installed = true;
+    items[1].update_available = true;
+    apply_updates(&mut items, &[1, 3]);
+    assert!(items[0].update_available, "found an update");
+    assert!(!items[1].update_available, "no longer has one");
+    assert!(
+        !items[2].update_available,
+        "not installed, so never flagged"
+    );
+}
+
+#[test]
+fn a_finished_update_check_is_adopted_once() {
+    let mut browser = Browser::new(vec![game(1), game(2)]);
+    browser.items[0].installed = true;
+    let slot: UpdateSlot = Arc::new(Mutex::new(None));
+    browser.update_check = Some(Arc::clone(&slot));
+    assert!(browser.checking_updates());
+
+    browser.poll_update_check();
+    assert!(browser.checking_updates(), "still running");
+    assert!(!browser.items[0].update_available);
+
+    *slot.lock().unwrap() = Some(Ok(vec![1]));
+    browser.poll_update_check();
+    assert!(!browser.checking_updates());
+    assert!(browser.items[0].update_available);
+}
+
+#[test]
+fn a_failed_update_check_keeps_the_flags_and_says_so() {
+    let mut browser = Browser::new(vec![game(1)]);
+    browser.items[0].installed = true;
+    browser.items[0].update_available = true;
+    browser.update_check = Some(Arc::new(Mutex::new(Some(Err("offline".to_string())))));
+    browser.poll_update_check();
+    assert!(!browser.checking_updates());
+    assert!(browser.items[0].update_available);
+    assert!(browser.notice.as_deref().unwrap().contains("offline"));
+}

@@ -1,5 +1,6 @@
 //! The TUI's own settings file: the default user, hidden and favourite
-//! games, the shown game types, and the highlight colour, in
+//! games, the shown game types, the highlight colour, and the background
+//! update check, in
 //! `gaki/tui/config.toml` under the config dir.
 
 use crate::utils::error::TuiError;
@@ -31,6 +32,9 @@ pub struct Config {
     pub favorite_games: Vec<i32>,
     pub allowed_games: Vec<GameType>,
     pub highlight: Color,
+    /// Check the installed games for updates in the background after the
+    /// library loads.
+    pub check_updates: bool,
 }
 
 impl Default for Config {
@@ -41,6 +45,7 @@ impl Default for Config {
             favorite_games: vec![],
             allowed_games: vec![GameType::Game, GameType::DLC],
             highlight: theme::ACCENT,
+            check_updates: true,
         }
     }
 }

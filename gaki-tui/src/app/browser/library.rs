@@ -85,6 +85,8 @@ pub struct Counts {
     pub installed: usize,
     pub updates: usize,
     pub downloading: usize,
+    /// A background update check is running.
+    pub checking_updates: bool,
 }
 
 /// What a game's status badge should look like.
@@ -301,6 +303,10 @@ impl Browser {
             installed,
             updates,
             downloading,
+            #[cfg(feature = "install")]
+            checking_updates: self.checking_updates(),
+            #[cfg(not(feature = "install"))]
+            checking_updates: false,
         }
     }
 

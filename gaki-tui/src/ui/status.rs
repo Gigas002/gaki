@@ -99,10 +99,12 @@ pub fn status_bar(browser: &Browser, account: Option<&str>) -> Paragraph<'static
     ));
 
     line1.push(sep());
-    line1.push(Span::styled(
-        format!("▲ {} updates", c.updates),
-        Style::default().fg(theme::WARN),
-    ));
+    let updates = if c.checking_updates {
+        format!("▲ {} updates (checking…)", c.updates)
+    } else {
+        format!("▲ {} updates", c.updates)
+    };
+    line1.push(Span::styled(updates, Style::default().fg(theme::WARN)));
 
     if c.downloading > 0 {
         line1.push(sep());

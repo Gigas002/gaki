@@ -1,7 +1,7 @@
 //! Installs from the library: the location picker, start/pause/cancel, and
 //! adopting finished installs and single-game refreshes.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 use super::Browser;
@@ -165,6 +165,55 @@ impl Browser {
         });
     }
 
+    /// Check the installed games for updates off-thread, unless a check is
+    /// already running. [`Browser::poll_update_check`] adopts the result.
+    pub fn request_update_check(&mut self) {
+        if self.update_check.is_some() {
+            return;
+        }
+        let slot: UpdateSlot = Arc::new(Mutex::new(None));
+        self.update_check = Some(Arc::clone(&slot));
+        thread::spawn(move || {
+            let result = steam::fetch_updates().map_err(|e| e.to_string());
+            if let Ok(mut guard) = slot.lock() {
+                *guard = Some(result);
+            }
+        });
+    }
+
+    /// Whether a background update check is running.
+    pub fn checking_updates(&self) -> bool {
+        self.update_check.is_some()
+    }
+
+    /// Adopt a finished update check: flag the installed games it found and
+    /// clear the rest. A failed check leaves the flags alone and says so in
+    /// the status bar. Cheap and non-blocking while the check runs.
+    pub fn poll_update_check(&mut self) {
+        let Some(slot) = &self.update_check else {
+            return;
+        };
+        let finished = match slot.lock() {
+            Ok(mut guard) => guard.take(),
+            Err(_) => Some(Err("the update check crashed".to_string())),
+        };
+        let Some(result) = finished else {
+            return;
+        };
+        self.update_check = None;
+        match result {
+            Ok(ids) => {
+                apply_updates(&mut self.items, &ids);
+                // The Updates tab may have shrunk under the selection.
+                self.clamp_selection();
+            }
+            Err(e) => {
+                tracing::warn!("update check failed: {e}");
+                self.notice = Some(format!("Couldn't check for updates: {e}"));
+            }
+        }
+    }
+
     /// Adopt any freshly-fetched single-game entries: patch the in-memory game's
     /// install flags and drop its transient install status so the badge derives
     /// from the refreshed state. Cheap and non-blocking when idle.
@@ -223,6 +272,17 @@ impl Browser {
                 self.request_game_refresh(id);
             }
         }
+    }
+}
+
+/// Where a background update check leaves its result: the app ids with an
+/// update, or the error.
+pub(crate) type UpdateSlot = Arc<Mutex<Option<Result<Vec<u32>, String>>>>;
+
+/// Flag the installed games in `ids` as having an update and clear the rest.
+pub(crate) fn apply_updates(items: &mut [Game], ids: &[u32]) {
+    for game in items.iter_mut().filter(|g| g.installed) {
+        game.update_available = ids.iter().any(|&id| id as i32 == game.id);
     }
 }
 

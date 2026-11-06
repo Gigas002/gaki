@@ -376,6 +376,11 @@ pub struct Browser {
     /// patching just that game's `installed`/update flags — no full reload.
     #[cfg(feature = "install")]
     game_refresh_slot: Arc<Mutex<Vec<steam::LibraryGame>>>,
+    /// The running background update check, if any. Its worker fills the slot
+    /// with the app ids that have an update, or the error;
+    /// [`Browser::poll_update_check`] adopts it.
+    #[cfg(feature = "install")]
+    update_check: Option<install::UpdateSlot>,
     /// A transient one-line notice (e.g. an action that failed) shown in the
     /// status bar until the next keypress. Keeps a failed backend call from
     /// having to crash the whole TUI to report itself.
@@ -605,6 +610,8 @@ impl Browser {
             install_picker_index: 0,
             #[cfg(feature = "install")]
             game_refresh_slot: Arc::new(Mutex::new(Vec::new())),
+            #[cfg(feature = "install")]
+            update_check: None,
             notice: None,
             link_error: Arc::new(Mutex::new(None)),
             show_actions: false,

@@ -120,14 +120,16 @@ pub fn set_session_store(store: Box<dyn SecretStore>) -> bool {
 }
 
 /// The process's secret store: the one set with [`set_session_store`], else
-/// [`Memory`] when `GAKI_SECRET_STORE=memory` (and in unit tests), else the
-/// [`Keyring`].
+/// [`Memory`] when `GAKI_SECRET_STORE=memory`, `secret_store = "memory"` in
+/// `config.toml` (or in unit tests), else the [`Keyring`].
 pub fn session_store() -> &'static dyn SecretStore {
     STORE
         .get_or_init(|| {
             let memory = cfg!(test)
                 || std::env::var("GAKI_SECRET_STORE")
-                    .is_ok_and(|v| v.eq_ignore_ascii_case("memory"));
+                    .is_ok_and(|v| v.eq_ignore_ascii_case("memory"))
+                || crate::core::config::read_config_toml_lenient().secret_store
+                    == crate::config::SecretStoreKind::Memory;
             if memory {
                 Box::new(Memory::default())
             } else {

@@ -21,6 +21,12 @@ fn missing_keys_take_the_defaults() {
     let config = Config::parse("favorite_games = [400]\n").unwrap();
     assert_eq!(config.favorite_games, [400]);
     assert_eq!(config.highlight, theme::ACCENT);
+    assert!(config.check_updates, "updates are checked by default");
+    assert!(
+        !Config::parse("check_updates = false\n")
+            .unwrap()
+            .check_updates
+    );
     assert!(Config::parse("").is_ok(), "an empty file is the defaults");
     assert!(Config::parse("favorite_games = 3").is_err());
 }

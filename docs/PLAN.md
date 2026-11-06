@@ -1633,12 +1633,30 @@ whether to do it and how; don't start one unasked.** Each TUI step gates its
 views and keys on the matching feature, adds them to the help, the Actions
 menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 
-- [ ] **8.1** Fix the TUI's Updates tab. The library loads with
+- [x] **8.1** Fix the TUI's Updates tab. The library loads with
   `ListOptions::default()`, so `check_updates` is false, every game keeps
   `update_available = false`, the Updates tab stays empty and the `▲` badge
   never shows. Run the update check in the background after the list loads
   (it fetches a manifest per installed game) and patch the games when it
   lands.
+  *Done.*
+  - **The check.** `steam::fetch_updates` runs `ops::install::check_updates`,
+    the same check as `gaki-cli update`, so pinned games are skipped.
+    `Browser::request_update_check` runs it on a thread after the library
+    loads (cached or fetched) and after each `r` reload; a second request
+    while one runs is ignored.
+  - **Adopting it.** `poll_update_check` runs on every tick. It flags the
+    installed games the check found, clears the rest, and clamps the
+    selection, because the Updates tab can shrink under it. A failed check
+    keeps the old flags and shows the error in the status bar.
+  - **Surface.** The status bar reads `▲ N updates (checking…)` while the
+    check runs. A new `check_updates` key in `tui/config.toml` (default
+    `true`) turns it off. Both are documented in `docs/GAKI-TUI.md` and
+    `docs/FEATURES.md`.
+  - **Also fixed (CI).** The `secret_store` setting was never applied, so
+    every binary used the keyring. `auth::store::session_store()` now reads
+    it from `config.toml`, which fixes the two `session_store` integration
+    tests on keyring-less CI runners.
 - [ ] **8.2** Depot browser. `SteamClient::fetch_depots`,
   `fetch_manifest_files` and `download_single_file` (the `depot` feature) have
   no `ops` wrapper and no surface. Add `ops::depot`, a CLI (e.g. `depots files

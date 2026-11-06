@@ -133,6 +133,7 @@ impl Library {
         {
             browser.poll_install_completions();
             browser.poll_game_refresh();
+            browser.poll_update_check();
         }
 
         // A just-finished Proton install flips a runtime to [installed]; pick
@@ -163,6 +164,10 @@ impl Library {
                     if *cached {
                         // Used the cached library; allow future reloads.
                         *cached = false;
+                        #[cfg(feature = "install")]
+                        if config.check_updates {
+                            browser.request_update_check();
+                        }
                         app.mode = Mode::Browse;
                     } else {
                         client.load_games()?;
@@ -176,6 +181,10 @@ impl Library {
                     if let Ok(games) = client.games() {
                         config.save()?;
                         browser.set_items(games);
+                        #[cfg(feature = "install")]
+                        if config.check_updates {
+                            browser.request_update_check();
+                        }
                         *clear_screen = true;
                         app.mode = Mode::Browse;
                     }
