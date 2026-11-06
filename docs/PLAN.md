@@ -46,6 +46,13 @@ Request items are referenced as **R<n>** (the numbered "Agent request" list) and
 - Localized store or metadata. gaki keeps Steam's default (English) behavior.
 - HowLongToBeat integration, including a link hotkey (see 7.1).
 - Packaging scripts in the repo (AUR push, Nix flake, .deb metadata).
+- **Anything that moves real money or items with money value. Never, not
+  "later".** No buying, selling or cancelling on the Community Market, no buy
+  orders, no trade offers, no store purchases, gifting or wallet top-ups,
+  no item crafting or consuming. Inventory, wallet, prices, search and your
+  own listings stay **read-only**. Don't propose it, don't stub it, don't add
+  a feature flag for it. (User decision, 2026-11-07; 8.12 was dropped for
+  this.)
 
 ---
 
@@ -256,18 +263,18 @@ a refresh token, which is scoped and revocable. The safer equivalent:
 
 - `session_store = "memory"`: never persist anything. You authenticate once
   per process lifetime: one TUI session, or one daemon lifetime for the CLI.
-- `reauth_sensitive = true`: actions that move money or items require a fresh
-  login before they run (market buy/sell/cancel, and any future
-  trade or wallet action). Login, presence and library reads don't.
-  Those actions are already behind the off-by-default `market` and
-  `inventory` features.
+- `reauth_sensitive = true`: reading the inventory, wallet and market
+  listings requires a fresh login first. Login, presence and library reads
+  don't. Those reads are behind the off-by-default `market` and `inventory`
+  features. gaki never moves money or items (see Non-goals), so there are
+  no buy, sell or trade actions to gate.
 
 ### Target model
 
 | Setting (`config.toml`) | Default | Effect |
 | --- | --- | --- |
 | `session_store` | `keyring` | `keyring`: the refresh token and web token are separate Secret Service items. No file holds a secret. `memory`: nothing is persisted. |
-| `reauth_sensitive` | `false` | A fresh login before reading the inventory, wallet or market listings (and any future market, wallet or trade action). |
+| `reauth_sensitive` | `false` | A fresh login before reading the inventory, wallet or market listings. |
 | `daemon_idle_timeout` | `1800` (seconds) | The daemon drops its session and exits after this much idle time. |
 
 If the keyring is unreachable, gaki **refuses to persist** and falls back to
@@ -1250,9 +1257,9 @@ I make the changes, and you review, commit, and push.
   go through `App::open_sensitive`: the sign-in page names the view, `Esc`
   goes back, and the view opens once the library is back. Open: each
   fresh login, like every `login`, mints a new refresh token and leaves the
-  previous one valid at Steam until it expires (not revoked). Any future
-  buy/sell/trade op must take a `SensitiveGrant`. The FAQ write-up stays
-  with 7.2.
+  previous one valid at Steam until it expires (not revoked). The FAQ
+  write-up stays with 7.2. (Superseded 2026-11-07: there will be no
+  buy/sell/trade op, see Non-goals.)
 
 ### Phase 6 — feature gates (R24)
 
@@ -1676,25 +1683,33 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 - [ ] **8.6** TUI Workshop parity: download (`workshop install`, collections
   expanding), uninstall, `status` with update detection, and posting a
   comment.
-- [ ] **8.7** TUI collection rename. The worker already has
+- [ ] **8.7** Open a game's **SteamDB** page (`https://steamdb.info/app/<id>/`)
+  from the library, next to the Steam store (`E`) and ProtonDB (`B`) links.
+  Add `steam_urls::steamdb_url` (and `steamdb_depot_url`, then use it for
+  the depot manifest hints the CLI and TUI print today), a TUI key, an
+  Actions-menu row, the help line, and a `steamdb_url` field next to
+  `store_url` in `list --json` and `info --json`. Always on, like the other
+  links. Opening it is just a link the user follows: gaki never scrapes
+  SteamDB. Pick the key at the start of the step (it has to be free in the
+  library and the Actions menu).
+- [ ] **8.8** TUI collection rename. The worker already has
   `steam::collection_rename`; only a key and a prompt are missing.
-- [ ] **8.8** TUI Cloud conflict resolution. A sync with diverged saves only
+- [ ] **8.9** TUI Cloud conflict resolution. A sync with diverged saves only
   tells you to run `gaki-cli cloud sync --resolve`; offer "keep cloud" and
   "keep local" in the Cloud overlay.
-- [ ] **8.9** TUI settings parity. Settings edits only presence and proxy.
+- [ ] **8.10** TUI settings parity. Settings edits only presence and proxy.
   Add the other `config.toml` keys (`default_profile`, `default_platform`,
   `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,
   `daemon_idle_timeout`, `info_cache_ttl`, `secret_store`, ...), a profiles
   view (`profiles list/show`, the games using each), and `config check`.
-- [ ] **8.10** TUI odds and ends that only the CLI has: `drm` check,
+- [ ] **8.11** TUI odds and ends that only the CLI has: `drm` check,
   `duplicates`, `available`, saving artwork (`image -o`), user profiles
   (`user`), the extended `info` fields, and daemon management
   (`daemon list/stop`, `kill`).
-- [ ] **8.11** Market buying and selling, which nothing implements: inventory
-  and market are read-only. Decide first whether gaki should move money at
-  all; if so it goes behind `market` and `reauth_sensitive`, with a
-  confirmation on every order.
-- [ ] **8.12** Configurable key bindings in gaki-tui. Today every binding is
+- **8.12** ~~Market buying and selling.~~ **Dropped, never to be done.**
+  gaki doesn't move real money or items (see Non-goals). Inventory and
+  market stay read-only.
+- [ ] **8.13** Configurable key bindings in gaki-tui. Today every binding is
   hard-coded (mostly `gaki-tui/src/app/keys/browse.rs`, plus each overlay's
   handler), and the help, status-bar hints and Actions-menu key column are
   fixed strings. Bindings go in their **own file**,
@@ -1710,6 +1725,68 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   syntax (`"E"`, `"ctrl+r"`, `"PageDown"`), whether one action may have
   several keys, and which bindings stay fixed (`q`, `?` and `Esc` are
   candidates, so a bad file can't lock anyone out).
+- [ ] **8.14** Final audit, after 8.1–8.13. Write the findings to
+  `docs/AUDIT.md`, fix what's small within this step, and add a step for
+  anything bigger. Three parts:
+  - **Security.** Secrets and the session: keyring and memory store, the
+    daemon socket and its permissions, refresh-token lifetime and
+    revocation, `reauth_sensitive`, logs never holding a token. Untrusted
+    input: Steam and web responses, manifests and depot files (the
+    signatures aren't verified yet), archive extraction and path traversal
+    (`lzma-rs`, still unmaintained), downloaded Proton builds, the paths in
+    `library import` files, config and profile files. Process spawning:
+    `proton run`, wrappers, `env`, the browser opener. `cargo deny`
+    advisories, plus `unsafe` and panics on input that comes from outside.
+  - **Performance.** Startup time of the CLI, daemon and TUI. The TUI
+    never blocking its UI thread (art, details, the update check). Install
+    throughput and memory against the official client on the same game.
+    Library load and the cache. Request counts against Steam's rate limits:
+    logins, manifests, store and web calls.
+  - **Supported features.** A matrix: what the official Steam client does,
+    what `libgaki` implements, and what `gaki-cli` and `gaki-tui` each
+    expose. Note the reason for every gap: not done yet, a non-goal (money,
+    see Non-goals), not possible, or needs official Steam running (R21).
+    Check that `docs/FEATURES.md` and the help match the matrix.
+  Rerun the §8 gates afterwards.
+
+### Phase 9 — Steam rules audit
+
+gaki talks to Steam as an unofficial client, so check it against Valve's
+rules before any public release. **This is a technical review, not legal
+advice;** say so wherever the result is published. Before starting, ask the
+user whether to do this phase and how.
+
+- [ ] **9.1** Collect the rules that apply, saving a link and the date
+  checked for each: the Steam Subscriber Agreement, the Steam Online Conduct
+  rules, the Steam Web API Terms of Use, the Steam trademark and brand
+  guidelines, the Steamworks and partner terms, and the Community Market
+  and trading terms (gaki only reads those, see Non-goals). Note which apply
+  to gaki itself, which to its users, and which to neither.
+- [ ] **9.2** Go through every feature against those rules: logging in as a
+  non-official client (steam-vent, the CM protocol, QR and Steam Guard), the
+  daemon holding a session, depot and manifest downloads, installs outside
+  the official client, Steam Cloud sync, presence and chat, store, price
+  and market scraping and its request rate, the web API keys and the web
+  session, ProtonDB, SteamGridDB and the other third-party services, art
+  caching, and the names and logos gaki uses. For each one: **OK**, **gray
+  area**, or **breaks a rule**, quoting the clause.
+- [ ] **9.3** For each gray area or broken rule, find a way to keep the
+  feature without breaking the rule (an official endpoint instead of
+  scraping, a lower request rate or a cache, needing the official client
+  running, doing it only when the user asks, attribution, an off-by-default
+  feature gate). If no compliant way exists, decide with the user: drop the
+  feature, or keep it behind a clear warning and a gate that's off by
+  default. Each change becomes its own step (9.x).
+- [ ] **9.4** Document the result for users. Add a **"Steam rules and
+  risks"** section to `README.md` and a full page at `docs/STEAM-RULES.md`:
+  what gaki does that the official client doesn't, which rules it touches,
+  what could happen to an account (from nothing to a ban) and how likely
+  that is, which features are off by default for this reason and why, the
+  "never moves money" policy, the existing "not affiliated with Valve"
+  notice, and the date of the review. Link it from `docs/FAQ.md`, from the
+  help of every gated command, and from the TUI help.
+- [ ] **9.5** Make the rules audit part of the release checklist: rerun
+  9.1–9.4 when a rule changes or a feature that talks to Steam is added.
 
 ---
 

@@ -55,7 +55,9 @@ gaki-cli play 1245620
 - **Steam Cloud** save sync, and the **Workshop**: browse, subscribe,
   install, rate, comment.
 - **Friends and chat**, the **Store** (search, prices, deals, news, reviews,
-  wishlists), and a read-only **inventory and Community Market**.
+  wishlists), and a read-only **inventory and Community Market**. gaki
+  never moves real money or items: no buying, selling, trading or store
+  purchases, now or later.
 - **Slim builds:** every capability is a Cargo feature
   ([FEATURES.md](docs/FEATURES.md)).
 

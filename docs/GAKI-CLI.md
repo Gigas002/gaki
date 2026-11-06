@@ -205,7 +205,8 @@ gaki-cli chat open 76561198042323314          # live chat (type to send, Ctrl-D 
 
 ### Inventory and market
 
-Read-only: you can look, not buy or sell.
+Read-only, by design: you can look, but never buy, sell or trade. gaki will
+never move real money or items.
 
 ```bash
 gaki-cli inventory 753 --context 6            # your Steam cards, gems and backgrounds
