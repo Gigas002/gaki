@@ -109,3 +109,45 @@ fn a_stopped_install_lands_aborted_and_a_failure_interrupted() {
         BacklogState::Interrupted
     );
 }
+
+#[test]
+fn an_import_queues_new_entries_and_keeps_existing_ones() {
+    use crate::config::Platform;
+    use crate::library::transfer::LibraryEntry;
+
+    let entry = |app_id, platform| LibraryEntry {
+        app_id,
+        name: format!("game {app_id}"),
+        platform,
+        branch: None,
+    };
+    let mut list = Vec::new();
+    queue_in(&mut list, &[entry(10, Some(Platform::Linux))], "/old", 1);
+    list[0].state = BacklogState::Paused;
+    list[0].downloaded_bytes = 500;
+
+    queue_in(&mut list, &[entry(10, None), entry(20, None)], "/games", 2);
+    assert_eq!(list.len(), 2);
+    let (kept, new) = (&list[0], &list[1]);
+    assert_eq!(
+        kept.state,
+        BacklogState::Paused,
+        "a backlog entry is left alone"
+    );
+    assert_eq!(
+        (kept.downloaded_bytes, kept.library.as_str()),
+        (500, "/old")
+    );
+    assert_eq!(kept.platform, "linux");
+    assert_eq!(new.state, BacklogState::Queued);
+    assert_eq!(
+        (new.name.as_str(), new.library.as_str()),
+        ("game 20", "/games")
+    );
+    assert_eq!(new.platform, "", "no platform: picked when it installs");
+    assert_eq!((new.added_at, new.auto_attempts), (2, 0));
+    assert!(
+        backlog::auto_resumable(&list).is_empty(),
+        "queued entries wait for a resume"
+    );
+}

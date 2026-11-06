@@ -537,17 +537,70 @@ pub fn resume_request(app_id: u32, auto: bool) -> Result<Option<(InstallRequest,
     };
     let request = InstallRequest {
         app_id,
-        platform: Some(if entry.platform == "linux" {
-            DepotPlatform::Linux
-        } else {
-            DepotPlatform::Windows
-        }),
+        // A queued import may have no platform yet: pick it as `install` does.
+        platform: match entry.platform.as_str() {
+            "linux" => Some(DepotPlatform::Linux),
+            "windows" => Some(DepotPlatform::Windows),
+            _ => None,
+        },
         restart_steam: entry.restart_steam,
-        library: Some(entry.library.clone()),
+        library: Some(entry.library.clone()).filter(|l| !l.is_empty()),
         on_disk: entry.downloaded_bytes,
         auto_attempts,
     };
     Ok(Some((request, entry)))
+}
+
+/// Queue a library file's entries in the install backlog, so `install
+/// resume` (or a restart) can carry on where an import stopped. `library` is
+/// the Steam library to install into, `None` for the configured one. Returns
+/// the app ids in file order.
+pub async fn queue_import(
+    entries: &[crate::library::transfer::LibraryEntry],
+    library: Option<String>,
+) -> Result<Vec<u32>> {
+    let library = match library {
+        Some(library) => library,
+        None => load_launcher_config().await?.steam_library_path,
+    };
+    let now = backlog::now();
+    backlog::update(|list| queue_in(list, entries, &library, now))?;
+    Ok(entries.iter().map(|e| e.app_id).collect())
+}
+
+/// Add `entries` to `list` as queued. One already in the backlog keeps its
+/// state and partial files.
+pub(crate) fn queue_in(
+    list: &mut Vec<BacklogEntry>,
+    entries: &[crate::library::transfer::LibraryEntry],
+    library: &str,
+    now: u64,
+) {
+    for entry in entries {
+        if list.iter().any(|e| e.app_id == entry.app_id) {
+            continue;
+        }
+        list.push(BacklogEntry {
+            app_id: entry.app_id,
+            name: entry.name.clone(),
+            state: BacklogState::Queued,
+            platform: entry
+                .platform
+                .map(|p| p.as_str().to_string())
+                .unwrap_or_default(),
+            library: library.to_string(),
+            install_dir: None,
+            is_dlc: false,
+            restart_steam: false,
+            downloaded_bytes: 0,
+            total_bytes: 0,
+            reason: Some("queued by library import".into()),
+            error_type: None,
+            auto_attempts: 0,
+            added_at: now,
+            updated_at: now,
+        });
+    }
 }
 
 /// Drop `app_id` from the backlog; with `delete_files`, also delete its

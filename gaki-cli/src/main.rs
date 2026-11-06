@@ -389,7 +389,7 @@ async fn run(cli: Cli) -> Result<()> {
                     args.platform,
                     args.restart_steam,
                     args.dry_run,
-                    args.library,
+                    args.library.map(crate::output::user_dir),
                     json,
                 )
                 .await
@@ -397,6 +397,23 @@ async fn run(cli: Cli) -> Result<()> {
         },
         #[cfg(feature = "library")]
         Command::Libraries => cmd_libraries(json).await,
+        #[cfg(feature = "library")]
+        Command::Library { command } => match command {
+            LibraryCommand::Export { path, all } => {
+                let path = path.map(|p| crate::output::user_path(&p));
+                cmd_library_export(path, all, json).await
+            }
+            #[cfg(feature = "install")]
+            LibraryCommand::Import {
+                path,
+                library,
+                dry_run,
+            } => {
+                let path = crate::output::user_path(&path);
+                let library = library.map(crate::output::user_dir);
+                cmd_library_import(path, library, dry_run, json).await
+            }
+        },
         #[cfg(feature = "install")]
         Command::Uninstall {
             app_id,
@@ -407,20 +424,39 @@ async fn run(cli: Cli) -> Result<()> {
             app_id,
             library,
             restart_steam,
-        } => cmd_move(app_id, library, restart_steam, json).await,
+        } => {
+            cmd_move(
+                app_id,
+                crate::output::user_path(&library),
+                restart_steam,
+                json,
+            )
+            .await
+        }
         #[cfg(feature = "install")]
         Command::Relink {
             app_id,
             library,
             restart_steam,
-        } => cmd_relink(app_id, library, restart_steam, json).await,
+        } => {
+            cmd_relink(
+                app_id,
+                crate::output::user_path(&library),
+                restart_steam,
+                json,
+            )
+            .await
+        }
         #[cfg(feature = "install")]
         Command::Import {
             app_id,
             library,
             platform,
             restart_steam,
-        } => cmd_import(app_id, library, platform, restart_steam, json).await,
+        } => {
+            let library = crate::output::user_path(&library);
+            cmd_import(app_id, library, platform, restart_steam, json).await
+        }
         #[cfg(feature = "install")]
         Command::Available { app_id } => cmd_available(app_id, json).await,
         #[cfg(feature = "library")]
@@ -548,6 +584,7 @@ async fn run(cli: Cli) -> Result<()> {
             if list {
                 cmd_image_list(app_id, probe, json).await
             } else {
+                let output = output.map(|p| crate::output::user_path(&p));
                 cmd_image(app_id, output, force, json).await
             }
         }
@@ -584,7 +621,10 @@ async fn run(cli: Cli) -> Result<()> {
                 down,
                 path,
                 resolve,
-            } => cmd_cloud_sync(app_id, up, down, path, resolve, json).await,
+            } => {
+                let path = path.map(|p| crate::output::user_path(&p));
+                cmd_cloud_sync(app_id, up, down, path, resolve, json).await
+            }
             CloudCommand::List { app_id } => cmd_cloud_list(app_id, json).await,
         },
         #[cfg(feature = "workshop")]

@@ -231,7 +231,7 @@ async fn auto_resume_installs() {
     let (out_tx, _) = tokio::sync::mpsc::unbounded_channel();
     let (_, in_rx) = tokio::sync::mpsc::unbounded_channel();
     let resume = crate::commands::resume_entries(&ids, true, true);
-    if let Err(e) = crate::output::scoped(OutputCtx::new(out_tx, in_rx), resume).await {
+    if let Err(e) = crate::output::scoped(OutputCtx::new(out_tx, in_rx, None), resume).await {
         tracing::warn!("daemon: auto-resume: {e:#}");
     }
 }
@@ -243,9 +243,9 @@ mod tests;
 /// background stdout/stderr pump.
 use proto::SharedWriter;
 
-/// Read the opening frame and parse the argv header. The first frame on a connection
+/// Read the opening frame and parse the header. The first frame on a connection
 /// must be the [`proto::C_HEADER`] frame carrying the request's argv.
-async fn read_header<R>(reader: &mut R) -> Result<Vec<String>>
+async fn read_header<R>(reader: &mut R) -> Result<Header>
 where
     R: AsyncRead + Unpin,
 {
@@ -253,8 +253,7 @@ where
         .await?
         .context("client closed before sending a request header")?;
     anyhow::ensure!(channel == proto::C_HEADER, "expected a header frame first");
-    let header: Header = serde_json::from_slice(&payload).context("malformed request header")?;
-    Ok(header.argv)
+    serde_json::from_slice(&payload).context("malformed request header")
 }
 
 /// Spawn the pump that forwards captured stdout/stderr chunks to the socket. Ends
@@ -369,7 +368,7 @@ where
 
     let (mut reader, writer) = proto::split_shared(stream);
 
-    let argv = read_header(&mut reader).await?;
+    let Header { argv, cwd } = read_header(&mut reader).await?;
 
     // Captured stdout/stderr → socket.
     let (out_tx, out_rx) = mpsc::unbounded_channel::<OutChunk>();
@@ -389,7 +388,7 @@ where
 
     // Run the command with IO routed to this connection. Dropping `ctx` when the
     // scope ends closes `out_tx`, which ends `writer_task`.
-    let ctx = OutputCtx::new(out_tx, in_rx);
+    let ctx = OutputCtx::new(out_tx, in_rx, cwd);
     let command = crate::output::scoped(
         ctx,
         libgaki::infra::logging::relay::scoped(relay, crate::run_argv(argv.clone())),

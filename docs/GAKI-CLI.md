@@ -45,6 +45,27 @@ gaki-cli launch-options 1245620       # Steam launch configs (exe, args, platfor
 gaki-cli libraries                    # Steam library folders and their free space
 ```
 
+### Moving a library to another machine
+
+```bash
+gaki-cli library export library.toml          # the installed games, as [[game]] entries
+gaki-cli library export library.toml --all    # every game in the library
+gaki-cli library export                       # print it instead
+gaki-cli library import library.toml --dry-run  # what would be installed and skipped
+gaki-cli library import library.toml          # install what isn't installed yet
+gaki-cli library import library.toml --library /mnt/games/SteamLibrary
+```
+
+An entry holds the `app_id`, the `name`, the installed `platform` and a beta
+`branch`; only `app_id` is required
+([`examples/library.toml`](../examples/library.toml)). `import` skips games
+that are installed or not in this account's library. It queues the rest in
+the install backlog and installs them one at a time, so `install pause` and
+`install stop` work on each. If the import stops, `install resume --all`
+installs the remaining games. Installs use the default branch. When an entry
+was on a beta branch, `import` prints the `set-branch` and `update` commands
+that switch it.
+
 ### Store
 
 ```bash

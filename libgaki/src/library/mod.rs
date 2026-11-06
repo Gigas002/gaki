@@ -8,6 +8,7 @@ pub mod depot_browser;
 pub mod local_library;
 pub mod platform;
 pub mod relocate;
+pub mod transfer;
 
 use crate::core::config::load_launcher_config;
 use crate::core::models::{GameLibrary, LibraryGame, OwnedGame};

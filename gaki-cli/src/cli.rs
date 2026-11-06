@@ -256,6 +256,12 @@ pub(crate) enum Command {
     /// drive/location). Use `--json` for tooling.
     #[cfg(feature = "library")]
     Libraries,
+    /// Export the library to a TOML file, or install the games listed in one.
+    #[cfg(feature = "library")]
+    Library {
+        #[command(subcommand)]
+        command: LibraryCommand,
+    },
     /// List installed games with an update available, or update one by app id.
     #[cfg(feature = "install")]
     Update {
@@ -704,6 +710,36 @@ pub(crate) enum ProtonCommand {
     Uninstall { version: String },
     /// Set the global default Proton/Wine version (used when a game has none set).
     Default { version: String },
+}
+
+#[cfg(feature = "library")]
+#[derive(Subcommand)]
+pub(crate) enum LibraryCommand {
+    /// Write the installed games as `[[game]]` entries (app id, name, the
+    /// installed platform and the beta branch). Omit the file to print it.
+    Export {
+        /// File to write. It is replaced if it exists.
+        path: Option<PathBuf>,
+        /// Every game in the library, not only the installed ones.
+        #[arg(short, long)]
+        all: bool,
+    },
+    /// Install every game in a library file that isn't installed yet, one after
+    /// another through the install backlog: `install pause`/`stop` apply, and
+    /// `install resume --all` carries on after an interruption. Games already
+    /// installed, or not in this account's library, are skipped.
+    #[cfg(feature = "install")]
+    Import {
+        /// Library file, as written by `library export`.
+        path: PathBuf,
+        /// Steam library folder to install into, as listed by `gaki-cli
+        /// libraries`. Defaults to the configured `steam_library_path`.
+        #[arg(short = 'l', long)]
+        library: Option<String>,
+        /// Only report what would be installed and skipped.
+        #[arg(short = 'd', long)]
+        dry_run: bool,
+    },
 }
 
 #[cfg(feature = "collections")]

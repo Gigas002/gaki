@@ -42,3 +42,12 @@ fn stale_failure_self_heals_after_the_backoff() {
         .expect("instant underflow");
     assert!(!slot(false, MTIME, Some(past)).is_current(MTIME));
 }
+
+#[test]
+fn a_header_without_a_directory_still_parses() {
+    let old: Header = serde_json::from_str(r#"{"argv":["gaki-cli","list"]}"#).unwrap();
+    assert_eq!(old.argv, ["gaki-cli", "list"]);
+    assert_eq!(old.cwd, None);
+    let new: Header = serde_json::from_str(r#"{"argv":[],"cwd":"/home/me"}"#).unwrap();
+    assert_eq!(new.cwd.as_deref(), Some(std::path::Path::new("/home/me")));
+}

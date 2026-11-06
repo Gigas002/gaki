@@ -37,18 +37,27 @@ pub struct OutChunk {
 pub struct OutputCtx {
     out: mpsc::UnboundedSender<OutChunk>,
     stdin: Arc<Mutex<DaemonStdin>>,
+    /// The client's working directory.
+    #[cfg_attr(
+        not(feature = "library"),
+        expect(dead_code, reason = "only `library` commands take path arguments")
+    )]
+    cwd: Option<std::path::PathBuf>,
 }
 
 #[cfg(feature = "authentication")]
 impl OutputCtx {
-    /// Build a context that sends captured output to `out` and reads stdin lines
-    /// from `stdin_rx` (fed with the client's stdin bytes).
+    /// Build a context that sends captured output to `out`, reads stdin lines
+    /// from `stdin_rx` (fed with the client's stdin bytes), and resolves relative
+    /// paths against `cwd`, the client's working directory.
     pub fn new(
         out: mpsc::UnboundedSender<OutChunk>,
         stdin_rx: mpsc::UnboundedReceiver<Vec<u8>>,
+        cwd: Option<std::path::PathBuf>,
     ) -> Self {
         Self {
             out,
+            cwd,
             stdin: Arc::new(Mutex::new(DaemonStdin {
                 rx: stdin_rx,
                 buf: Vec::new(),
@@ -61,6 +70,28 @@ impl OutputCtx {
 #[cfg(feature = "authentication")]
 tokio::task_local! {
     static CTX: OutputCtx;
+}
+
+/// A path argument, made absolute against the directory the command was run
+/// from: the client's when the daemon runs it, which has its own.
+#[cfg(feature = "library")]
+pub fn user_path(path: &std::path::Path) -> std::path::PathBuf {
+    if path.is_absolute() {
+        return path.to_path_buf();
+    }
+    #[cfg(feature = "authentication")]
+    if let Ok(Some(cwd)) = CTX.try_with(|ctx| ctx.cwd.clone()) {
+        return cwd.join(path);
+    }
+    std::env::current_dir().map_or_else(|_| path.to_path_buf(), |cwd| cwd.join(path))
+}
+
+/// [`user_path`] for a directory given as text.
+#[cfg(feature = "install")]
+pub fn user_dir(dir: String) -> String {
+    user_path(std::path::Path::new(&dir))
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Run `fut` with `ctx` installed as the current output/input context. Any
@@ -217,3 +248,6 @@ macro_rules! cli_eprint {
         $crate::output::write($crate::output::Stream::Stderr, &format!("{}", format_args!($($arg)*)))
     };
 }
+
+#[cfg(test)]
+mod tests;

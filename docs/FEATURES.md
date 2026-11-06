@@ -12,8 +12,8 @@ have.
 | ---------------- | :-----: | ---------------- | ---------------------------------------------------------------------------- |
 | *(core)*         | always  | —                | config and profiles, local library scan (ACF), Proton discovery, launch-pipeline stages and runners |
 | `authentication` | on      | —                | login (password, Steam Guard, QR), session store and crypto, keyring, the CM connection |
-| `library`        | on      | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, DLC toggles, launching |
-| `install`        | on      | `library`        | install, update, verify, uninstall, move/relink/import, backlog, official Proton downloads |
+| `library`        | on      | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, DLC toggles, launching, library export |
+| `install`        | on      | `library`        | install, update, verify, uninstall, move/relink/import, backlog, library import, official Proton downloads |
 | `cloud`          | on      | `library`        | Steam Cloud save sync                                                        |
 | `collections`    | on      | `library`        | library collections (CloudConfigStore)                                       |
 | `versioning`     | off     | `install`        | branches, set-branch, downgrade, pin/unpin, manifests                        |

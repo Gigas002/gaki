@@ -181,7 +181,10 @@ where
     let (mut reader, writer) = proto::split_shared(stream);
 
     // Header first.
-    let header = serde_json::to_vec(&Header { argv })?;
+    let header = serde_json::to_vec(&Header {
+        argv,
+        cwd: std::env::current_dir().ok(),
+    })?;
     proto::send_frame(&writer, proto::C_HEADER, &header)
         .await
         .context("failed sending request to daemon")?;

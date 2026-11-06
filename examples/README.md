@@ -9,6 +9,9 @@ Example configuration for gaki. Copy what you need into `~/.config/gaki/`
 | [`games.toml`](games.toml) | per-game overrides, one `[[game]]` per game |
 | [`profiles/`](profiles) | one runner, prefix and environment per file; the file name must match `name` |
 
+[`library.toml`](library.toml) isn't configuration. `gaki-cli library export`
+writes this format, and `gaki-cli library import` reads it.
+
 Every file is optional. Settings apply in this order, later ones winning:
 built-in defaults, `config.toml`, the game's profile, its `games.toml` entry,
 command-line flags.

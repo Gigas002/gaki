@@ -39,10 +39,14 @@ use libgaki::steam_client::{Friend, Roster};
 pub use server::run_server;
 
 /// The request header the client sends first: the command's argv (including the
-/// program name at index 0, so the daemon can `Cli::try_parse_from` it directly).
+/// program name at index 0, so the daemon can `Cli::try_parse_from` it directly)
+/// and the directory it was run from, which relative path arguments resolve
+/// against.
 #[derive(Debug, Serialize, Deserialize)]
 struct Header {
     argv: Vec<String>,
+    #[serde(default)]
+    cwd: Option<std::path::PathBuf>,
 }
 
 /// Identity marker a running daemon writes next to its socket so a thin client can tell

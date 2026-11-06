@@ -4,7 +4,7 @@ use libgaki::core::steam_urls;
 
 use crate::commands::common::*;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use libgaki::ops::library::{self, ListOptions};
 
 pub(crate) async fn cmd_list(
@@ -217,4 +217,159 @@ pub(crate) async fn cmd_libraries(json: bool) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// `gaki-cli library export [path] [--all]`.
+pub(crate) async fn cmd_library_export(
+    path: Option<std::path::PathBuf>,
+    all: bool,
+    json: bool,
+) -> Result<()> {
+    use libgaki::library::transfer;
+
+    let mut client = restored_client().await?;
+    let games = library::load_library(&mut client).await;
+    let file = transfer::export(&games, all);
+    let Some(path) = path else {
+        if json {
+            print_json(&serde_json::json!({ "games": file.games }));
+        } else {
+            cli_print!("{}", transfer::to_toml(&file)?);
+        }
+        return Ok(());
+    };
+    std::fs::write(&path, transfer::to_toml(&file)?)
+        .with_context(|| format!("failed writing {}", path.display()))?;
+    if json {
+        print_json(&serde_json::json!({ "path": path, "games": file.games.len() }));
+    } else {
+        let n = file.games.len();
+        let games = if n == 1 { "game" } else { "games" };
+        cli_println!("Wrote {n} {games} to {}.", path.display());
+    }
+    Ok(())
+}
+
+/// `gaki-cli library import <path> [--library <dir>] [--dry-run]`.
+#[cfg(feature = "install")]
+pub(crate) async fn cmd_library_import(
+    path: std::path::PathBuf,
+    library_dir: Option<String>,
+    dry_run: bool,
+    json: bool,
+) -> Result<()> {
+    use libgaki::library::transfer::{self, LibraryEntry};
+
+    let file = transfer::read(&path)?;
+    // A dry run needs only the library, which the caches hold offline.
+    let mut client = if dry_run {
+        restored_client().await?
+    } else {
+        authed_client().await?
+    };
+    let games = library::load_library(&mut client).await;
+    drop(client);
+    let plan = transfer::plan(&file, &games);
+
+    let ids = |entries: &[LibraryEntry]| entries.iter().map(|e| e.app_id).collect::<Vec<_>>();
+    if dry_run {
+        if json {
+            print_json(&serde_json::json!({
+                "install": ids(&plan.install),
+                "installed": ids(&plan.installed),
+                "not_owned": ids(&plan.not_owned),
+            }));
+        } else {
+            for entry in &plan.install {
+                match &entry.branch {
+                    Some(branch) => {
+                        cli_println!("install    {} (was on branch '{branch}')", label(entry))
+                    }
+                    None => cli_println!("install    {}", label(entry)),
+                }
+            }
+            report_skipped(&plan.installed, &plan.not_owned);
+        }
+        return Ok(());
+    }
+
+    if json {
+        for (entries, reason) in [
+            (&plan.installed, "installed"),
+            (&plan.not_owned, "not_owned"),
+        ] {
+            for entry in entries {
+                print_result_line(serde_json::json!({
+                    "app_id": entry.app_id,
+                    "status": "skipped",
+                    "reason": reason,
+                }));
+            }
+        }
+    } else {
+        report_skipped(&plan.installed, &plan.not_owned);
+    }
+    if plan.install.is_empty() {
+        if !json {
+            cli_println!("Nothing to install.");
+        }
+        return Ok(());
+    }
+    let branched: Vec<&LibraryEntry> = plan.on_a_branch().collect();
+
+    let queued = libgaki::ops::install::queue_import(&plan.install, library_dir).await?;
+    if !json {
+        let n = queued.len();
+        let games = if n == 1 { "game" } else { "games" };
+        cli_println!(
+            "Queued {n} {games}; `gaki-cli install resume --all` continues if this stops."
+        );
+    }
+    let result = crate::commands::install::resume_entries(&queued, false, json).await;
+
+    if !json {
+        // Installs take the default branch.
+        for entry in branched {
+            let branch = entry.branch.as_deref().unwrap_or_default();
+            let id = entry.app_id;
+            if cfg!(feature = "versioning") {
+                cli_println!(
+                    "{} was on branch '{branch}': switch with `gaki-cli set-branch {id} \
+                     {branch}`, then `gaki-cli update {id}`.",
+                    label(entry)
+                );
+            } else {
+                cli_println!(
+                    "{} was on branch '{branch}', which this build can't switch to.",
+                    label(entry)
+                );
+            }
+        }
+    }
+    result
+}
+
+#[cfg(feature = "install")]
+fn label(entry: &libgaki::library::transfer::LibraryEntry) -> String {
+    if entry.name.is_empty() {
+        format!("app {}", entry.app_id)
+    } else {
+        format!("{} ({})", entry.name, entry.app_id)
+    }
+}
+
+#[cfg(feature = "install")]
+fn report_skipped(
+    installed: &[libgaki::library::transfer::LibraryEntry],
+    not_owned: &[libgaki::library::transfer::LibraryEntry],
+) {
+    for entry in installed {
+        cli_println!("skip       {} (installed)", label(entry));
+    }
+    for entry in not_owned {
+        cli_println!(
+            "skip       {} (not in this account's library)",
+            label(entry)
+        );
+    }
 }

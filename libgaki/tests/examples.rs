@@ -57,3 +57,17 @@ fn examples_resolve() {
     assert_eq!(other.profile, None);
     assert_eq!(other.platform, Some(Platform::Linux));
 }
+
+#[test]
+fn the_library_example_parses() {
+    use libgaki::config::Platform;
+    use libgaki::library::transfer;
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../examples/library.toml");
+    let file = transfer::read(&path).unwrap();
+    let ids: Vec<u32> = file.games.iter().map(|g| g.app_id).collect();
+    assert_eq!(ids, [1245620, 570, 620]);
+    assert_eq!(file.games[0].platform, Some(Platform::Windows));
+    assert_eq!(file.games[1].branch.as_deref(), Some("beta"));
+    assert_eq!(file.games[2].name, "");
+}

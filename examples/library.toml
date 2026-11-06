@@ -1,0 +1,18 @@
+# A library file: `gaki-cli library export` writes one, and
+# `gaki-cli library import library.toml` installs every game in it that
+# isn't installed yet. It isn't configuration and doesn't go in ~/.config/gaki.
+
+[[game]]
+app_id = 1245620
+name = "ELDEN RING"       # for reading; import doesn't need it
+platform = "windows"      # windows | linux; unset picks it as `install` would
+
+[[game]]
+app_id = 570
+name = "Dota 2"
+platform = "linux"
+branch = "beta"           # the beta branch it was on; installs take the default
+                          # branch, and import prints how to switch
+
+[[game]]
+app_id = 620              # only app_id is required

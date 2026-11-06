@@ -308,7 +308,11 @@ pub(crate) async fn resume_entries(ids: &[u32], auto: bool, json: bool) -> Resul
             } else {
                 entry.name.clone()
             };
-            cli_println!("Resuming {name} ({}) ...", entry.state.as_str());
+            if entry.state == libgaki::library::backlog::BacklogState::Queued {
+                cli_println!("Installing {name} ...");
+            } else {
+                cli_println!("Resuming {name} ({}) ...", entry.state.as_str());
+            }
         }
         if let Err(e) = run_install(request, json).await {
             if ids.len() == 1 {

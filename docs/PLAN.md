@@ -12,12 +12,13 @@ in one workspace, plus `gaki-steam-cdn`, the download engine adopted in 7.4:
 | `gaki-tui` | bin  | `gaki-tui` | Thin TUI over `libgaki` (imported from Aurelia-TUI)     |
 | `gaki-steam-cdn` | lib | — | Depot downloads for `libgaki` (adopted from `aurelia-steam-cdn`) |
 
-Sources: `docs/aurelia-questions.md` (the original upstream questions plus the request
-list), `../rust-template` (ARCHITECTURE.md, CI, lint/deny/typos configs),
-`../lootrs` (the profile/games config model), and `../Aurelia-TUI` (the TUI code).
+Sources: the original upstream questions and request list (once
+`docs/aurelia-questions.md`, now folded into this plan), `../rust-template`
+(ARCHITECTURE.md, CI, lint/deny/typos configs), `../lootrs` (the
+profile/games config model), and `../Aurelia-TUI` (the TUI code).
 
 Request items are referenced as **R<n>** (the numbered "Agent request" list) and
-**Q<n>** (the numbered questions at the top of `docs/aurelia-questions.md`).
+**Q<n>** (the numbered upstream questions; see the Q&A at the end).
 
 ---
 
@@ -1557,21 +1558,72 @@ I make the changes, and you review, commit, and push.
   profiles parse and `config check` rejects. `luxtorpeda`, `hltb` and
   `locale` remain only in PLAN. Gates: fmt, typos and `cargo deny check`
   are clean; clippy, tests (457 / 565 / 633) and docs pass at all three
-  levels. `docs/aurelia-questions.md`, which PLAN cites as a source, is
-  untracked in git.
-- [ ] **7.9** Library export and import as TOML. `gaki-cli library export
+  levels. `docs/aurelia-questions.md` was deleted: it was never tracked,
+  and its questions and answers already live in this plan.
+- [x] **7.9** Library export and import as TOML. `gaki-cli library export
   library.toml` writes the library (by default the installed games, `--all`
   for every owned one) as `[[game]]` entries with `app_id`, `name`, the
-  installed `platform` and the branch. `gaki-cli install library.toml`
+  installed `platform` and the branch. `gaki-cli library import library.toml`
   installs every entry that isn't installed yet, one after another through the
   install backlog, so it can be paused, resumed and survives a restart.
   `--library` picks the target as for a single install. Entries that are
   already installed, or not owned, are skipped and reported. The format gets
-  an example in `examples/` and a parse test. To decide when we start:
-  `install` takes an app id or a `games.toml` alias, so a file argument is
-  told apart by its `.toml` suffix or a `/`, or gets its own flag
-  (`install --from library.toml`); and whether `library` becomes a command
-  group or the export hangs off `list`. Rerun the §8 gates afterwards.
+  an example in `examples/` and a parse test. Decided: a `library` command
+  group with `export` and `import`, rather than a file argument to
+  `install`. Rerun the §8 gates afterwards.
+  *Done.*
+  - **libgaki `library::transfer`.** It holds the file model (`LibraryFile`
+    and `LibraryEntry`; only `app_id` is required, and `platform` uses
+    config's `windows`/`linux`), plus `export`, `to_toml`, `parse`, `read`
+    and `plan`.
+    - `export` sorts by name. Installed games carry their platform, with
+      none for a macOS install, which gaki doesn't do. A branch is written
+      only when it isn't `public`.
+    - `parse` rejects app id 0 and duplicates. `read` types its errors:
+      `not_found` for a missing file, `invalid_input` for a bad one.
+    - `plan` sorts the entries into install, installed and not owned, and
+      fills in a missing name from the library.
+  - **`ops::install::queue_import`.** It adds the entries to the backlog as
+    `queued`; an app already in the backlog keeps its state and partial
+    files. The CLI then runs them through `resume_entries`, the same path
+    as `install resume --all`, which prints "Installing" for a queued
+    entry. `resume_request` now leaves the platform to the usual choice
+    when the entry has none, and uses the configured library when the
+    entry's library is empty.
+  - **Restarts.** Auto-resume still takes only `interrupted` entries. If an
+    import dies, its current game resumes automatically, and `install
+    resume --all` installs the queued rest.
+  - **Branches.** Installs take the default branch, since `install` has no
+    branch option. Entries that were on a beta branch get a
+    `set-branch` + `update` hint after the import. A build without
+    `versioning` says it can't switch. `--dry-run` reports the plan,
+    branches included, and needs no login.
+  - **The `library` command group** (`library` feature, with `import`
+    under `install`). `export` without a path prints to stdout.
+    `library import` has `-l/--library` and `-d/--dry-run`. With `--json`,
+    each skipped entry is a `result` line (`status: skipped`, with
+    `reason` `installed` or `not_owned`), and each install keeps its
+    usual line, so no new event type was needed.
+  - **Found on the way:** commands forwarded to the daemon resolved
+    relative paths in the daemon's working directory. So `library export
+    lib.toml`, and the existing `import`/`move`/`relink` library paths,
+    `install --library`, `image -o` and `cloud sync --path`, all pointed at
+    the wrong place. The request header now carries the client's `cwd`;
+    `#[serde(default)]` keeps older clients working. `OutputCtx` holds it,
+    and `output::user_path`/`user_dir` make those arguments absolute in
+    `main.rs`'s dispatch. `output.rs` became `output/mod.rs` and
+    `tests.rs`.
+  - Docs: GAKI-CLI.md has a "Moving a library to another machine"
+    section; FEATURES.md lists export under `library` and import under
+    `install`; `examples/library.toml` is described in
+    `examples/README.md`, and `libgaki/tests/examples.rs` parses it.
+  - Checked by hand with the binary, through the daemon and with
+    `--no-daemon`: export to a relative path, dry-run import, and a
+    duplicate entry and a missing file as errors. A real import wasn't run,
+    because it downloads games.
+  - Note: the top-level `import` (register files already on disk) and
+    `library import` now share a word.
+  - Tests: 466 / 577 / 645 at the three levels.
 
 ### Phase 8 — feature parity and leftovers
 
@@ -1664,4 +1716,4 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 | plans2: `aws-lc-sys` with GPLv3 | Moot: 0.47 dropped the OpenSSL license (7.3) |
 | plans2: auth and session safety | D10, steps 5.9–5.13 |
 
-`docs/aurelia-questions.md` can be deleted once this plan is accepted.
+`docs/aurelia-questions.md` has been deleted (7.8); this section holds its content.
