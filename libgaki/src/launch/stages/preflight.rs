@@ -30,7 +30,7 @@ fn preflight_error(kind: LaunchErrorKind, details: &str) -> LaunchError {
 fn is_native_target(ctx: &PipelineContext) -> bool {
     matches!(
         ctx.launch_info.as_ref().map(|i| i.target),
-        Some(crate::steam_client::LaunchTarget::NativeLinux)
+        Some(crate::core::models::LaunchTarget::NativeLinux)
     )
 }
 

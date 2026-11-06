@@ -8,8 +8,7 @@ use crate::steam_client::{
 use anyhow::Result;
 use std::time::Duration;
 
-/// Price region used when none is given.
-pub const DEFAULT_COUNTRY: &str = "US";
+pub use crate::ops::info::DEFAULT_COUNTRY;
 
 /// Resolve the store country: `requested` (normalized) or [`DEFAULT_COUNTRY`].
 pub fn resolve_country(requested: Option<&str>) -> Result<String> {

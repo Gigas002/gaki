@@ -199,8 +199,8 @@ impl PipelineStage for ResolveComponentsStage {
         "ResolveComponents"
     }
     async fn execute(&self, ctx: &mut PipelineContext) -> std::result::Result<(), LaunchError> {
+        use crate::core::models::LaunchTarget;
         use crate::infra::runners::WineTkgRunner;
-        use crate::steam_client::LaunchTarget;
 
         if ctx.runner.is_none() {
             let Some(info) = &ctx.launch_info else {
@@ -221,8 +221,8 @@ impl PipelineStage for ResolveComponentsStage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::models::{LaunchInfo, LaunchTarget};
     use crate::core::models::{LibraryGame, UserAppConfig};
-    use crate::steam_client::{LaunchInfo, LaunchTarget};
 
     #[tokio::test]
     async fn native_runner_appends_user_launch_options() {

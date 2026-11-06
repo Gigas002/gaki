@@ -5,6 +5,26 @@
 use super::*;
 
 impl SteamClient {
+    /// Whether a game is installed and its files are present on disk
+    pub async fn is_game_available(&self, appid: u32) -> (bool, Option<String>) {
+        let Ok(manifest) = self.appmanifest_path(appid).await else {
+            return (false, None);
+        };
+        if !manifest.exists() {
+            return (false, None);
+        }
+        // A manifest written at install start
+        match std::fs::read_to_string(&manifest) {
+            Ok(raw) if !manifest_is_fully_installed(&raw) => return (false, None),
+            Ok(_) => {}
+            Err(_) => return (false, None),
+        }
+        match self.install_root_for_app(appid).await {
+            Ok(path) => (path.exists(), Some(path.to_string_lossy().into_owned())),
+            Err(_) => (false, None),
+        }
+    }
+
     pub(crate) async fn appmanifest_path(&self, appid: u32) -> Result<PathBuf> {
         let file = format!("appmanifest_{appid}.acf");
 
@@ -127,6 +147,7 @@ impl SteamClient {
 
     /// Fetch the current build id for a branch from PICS, for recording in the
     /// appmanifest so Steam treats the install as up to date. Falls back to `public`.
+    #[cfg(feature = "install")]
     pub(crate) async fn remote_buildid_static(
         connection: &Connection,
         appid: u32,
@@ -267,6 +288,7 @@ impl SteamClient {
         (display_name, installdir)
     }
 
+    #[cfg(feature = "install")]
     pub(crate) async fn resolve_install_game_name(&self, appid: u32) -> String {
         self.resolve_install_game_info(appid).await.0
     }

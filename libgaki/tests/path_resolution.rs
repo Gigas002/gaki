@@ -1,3 +1,6 @@
+//! Drives the legacy launch path, which needs the `library` feature.
+#![cfg(feature = "library")]
+
 use libgaki::core::config::LauncherConfig;
 use libgaki::core::models::LibraryGame;
 use libgaki::steam_client::{LaunchInfo, LaunchTarget, SteamClient, sanitize_install_dir};

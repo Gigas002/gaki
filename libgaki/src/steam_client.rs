@@ -1,26 +1,38 @@
 use crate::auth::{delete_session, load_session, save_session};
-use crate::core::config::{
-    library_cache_path, load_launcher_config, load_library_cache, save_library_cache,
-};
-use crate::core::models::{
-    DepotPlatform, DlcState, DownloadProgress, DownloadProgressState, LibraryGame,
-    ManifestSelection, OwnedGame, QrEvent, SessionState, SteamGuardReq,
-};
+use crate::core::config::library_cache_path;
+#[cfg(feature = "library")]
+use crate::core::config::{load_launcher_config, load_library_cache, save_library_cache};
+use crate::core::models::{DepotPlatform, QrEvent, SessionState, SteamGuardReq};
+#[cfg(feature = "library")]
+use crate::core::models::{DlcState, LibraryGame, OwnedGame};
+#[cfg(feature = "install")]
+use crate::core::models::{DownloadProgress, DownloadProgressState, ManifestSelection};
 use crate::core::utils::extract_quoted_values;
+#[cfg(feature = "cloud")]
 use crate::library::cloud_sync::{CloudClient, CloudPathResolver, UfsSaveSpec, default_cloud_root};
+#[cfg(feature = "depot")]
 use crate::library::depot_browser::{self, DepotInfo as BrowserDepotInfo, ManifestFileEntry};
 use crate::web::cm_list::get_cm_endpoints;
 use anyhow::{Context, Result, anyhow, bail};
+#[cfg(feature = "library")]
 use serde::Deserialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+#[cfg(feature = "library")]
+use std::collections::HashSet;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(feature = "library")]
+use std::path::PathBuf;
+#[cfg(feature = "library")]
 use std::process::Command;
+#[cfg(feature = "library")]
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use protobuf::{Message, MessageField};
+use protobuf::Message;
+#[cfg(feature = "library")]
+use protobuf::MessageField;
 use steam_vent::auth::{
     AuthConfirmationHandler, ConfirmationMethod, DeviceConfirmationHandler, FileGuardDataStore,
     UserProvidedAuthConfirmationHandler,
@@ -30,16 +42,20 @@ use steam_vent::{ConnectionError, ConnectionTrait, LoginError, ServerList};
 use steam_vent_proto::steammessages_clientserver::{
     CMsgClientGetAppOwnershipTicket, CMsgClientRequestEncryptedAppTicket,
 };
+#[cfg(feature = "library")]
 use steam_vent_proto::steammessages_clientserver_2::{
     CMsgClientGetDepotDecryptionKey, CMsgClientGetDepotDecryptionKeyResponse,
 };
+#[cfg(feature = "library")]
 use steam_vent_proto::steammessages_clientserver_appinfo::{
     CMsgClientPICSProductInfoRequest, CMsgClientPICSProductInfoResponse,
     cmsg_client_picsproduct_info_request,
 };
+#[cfg(feature = "library")]
 use steam_vent_proto::steammessages_clientserver_userstats::{
     CMsgClientGetUserStats, CMsgClientGetUserStatsResponse,
 };
+#[cfg(feature = "library")]
 use steam_vent_proto::steammessages_contentsystem_steamclient::{
     CContentServerDirectory_GetCDNAuthToken_Request,
     CContentServerDirectory_GetCDNAuthToken_Response,
@@ -50,17 +66,23 @@ use steam_vent_proto::steammessages_contentsystem_steamclient::{
 };
 use steam_vent_proto::steammessages_familygroups_steamclient::{
     CFamilyGroups_GetFamilyGroupForUser_Request, CFamilyGroups_GetFamilyGroupForUser_Response,
+};
+#[cfg(feature = "library")]
+use steam_vent_proto::steammessages_familygroups_steamclient::{
     CFamilyGroups_GetSharedLibraryApps_Request, CFamilyGroups_GetSharedLibraryApps_Response,
 };
+#[cfg(feature = "library")]
 use steam_vent_proto::steammessages_player_steamclient::{
     CPlayer_GetGameAchievements_Request, CPlayer_GetGameAchievements_Response,
     CPlayer_GetOwnedGames_Request, CPlayer_GetOwnedGames_Response,
 };
+#[cfg(feature = "library")]
 use steam_vent_proto::steammessages_storebrowse_steamclient::{
     CStoreBrowse_GetItems_Request, CStoreBrowse_GetItems_Response, EStoreAppType,
     StoreBrowseContext, StoreBrowseItemDataRequest, StoreItem, StoreItemID,
 };
 use tokio::io::{AsyncWriteExt, duplex, sink};
+#[cfg(feature = "install")]
 use tokio::sync::mpsc::Receiver;
 
 /// How long to wait for a single Steam CM connection/refresh-token logon before
@@ -152,29 +174,16 @@ enum LoginState {
     Offline,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LaunchTarget {
-    NativeLinux,
-    WindowsProton,
-}
+pub use crate::core::models::{LaunchInfo, LaunchTarget};
 
-#[derive(Debug, Clone)]
-pub struct LaunchInfo {
-    pub app_id: u32,
-    pub id: String,
-    pub description: String,
-    pub executable: String,
-    pub arguments: String,
-    pub workingdir: Option<String>,
-    pub target: LaunchTarget,
-}
-
+#[cfg(feature = "library")]
 #[derive(Debug, Clone)]
 pub struct RawLaunchOption {
     pub executable: String,
     pub arguments: String,
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Clone)]
 pub struct ExtendedAppInfo {
     pub name: Option<String>,
@@ -203,6 +212,7 @@ pub struct ExtendedAppInfo {
 /// intentionally absent — system requirements, Metacritic score, and
 /// name-resolved store tags/genres/categories (StoreBrowse returns only numeric
 /// ids for those, which would need a separate localized tag dictionary).
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreAppInfo {
     pub app_id: u32,
@@ -262,6 +272,7 @@ pub struct StoreAppInfo {
 }
 
 /// A store tag with its per-app weight.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreTag {
     pub id: u32,
@@ -270,6 +281,7 @@ pub struct StoreTag {
 }
 
 /// Age rating (e.g. PEGI, ESRB).
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreRating {
     pub system: String,
@@ -279,6 +291,7 @@ pub struct StoreRating {
 }
 
 /// An official link (youtube, discord, …).
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreLink {
     pub kind: String,
@@ -286,6 +299,7 @@ pub struct StoreLink {
 }
 
 /// A store trailer; video URL rarely present.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreTrailer {
     pub name: String,
@@ -295,6 +309,7 @@ pub struct StoreTrailer {
 }
 
 /// A package or bundle for an app.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StorePurchaseOption {
     /// `package` or `bundle`.
@@ -311,6 +326,7 @@ pub struct StorePurchaseOption {
     pub discount_end: Option<u64>,
 }
 
+#[cfg(feature = "library")]
 fn purchase_option_summary(
     p: &steam_vent_proto::steammessages_storebrowse_steamclient::store_item::PurchaseOption,
 ) -> StorePurchaseOption {
@@ -344,6 +360,7 @@ fn purchase_option_summary(
 /// Artwork URLs for a store app. Built from the StoreBrowse `assets` block when
 /// present, falling back to Steam's conventional per-appid CDN paths so a caller
 /// (e.g. Heroic) always has usable URLs instead of guessing them itself.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreAppAssets {
     /// Wide store header / capsule (`header.jpg`).
@@ -359,6 +376,7 @@ pub struct StoreAppAssets {
     pub logo: Option<String>,
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DepotInfo {
     pub id: u64,
@@ -373,6 +391,7 @@ pub struct DepotInfo {
 /// Steam only exposes the *current* id per branch — historical (older) ids are
 /// not enumerable here and must be looked up on SteamDB. Emitted by
 /// [`SteamClient::list_depot_manifests`] (the `gaki-cli manifests` command).
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DepotManifestInfo {
     pub depot_id: u32,
@@ -385,6 +404,7 @@ pub struct DepotManifestInfo {
 /// A pre-install size estimate for a game on a given platform, derived purely
 /// from PICS appinfo (no manifest/CDN fetch). `download_size` is the compressed
 /// bytes transferred; `disk_size` is the installed (uncompressed) footprint.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default)]
 pub struct InstallSizeEstimate {
     pub download_size: u64,
@@ -396,6 +416,7 @@ pub struct InstallSizeEstimate {
 /// definition (name/description/icons/global rarity) with the logged-in user's
 /// unlock state. Shaped to match how launchers (Heroic/Legendary) report
 /// achievements.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default)]
 pub struct GameAchievement {
     /// Stable API/internal name (e.g. `ACH_WIN_ONE_GAME`).
@@ -420,6 +441,7 @@ pub struct GameAchievement {
 
 /// One entry from a game's PICS `config/launch` table — a way Steam knows to
 /// start the game (an executable, its arguments, and platform constraints).
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Default)]
 pub struct LaunchOptionInfo {
     /// The launch entry's key (`"0"`, `"1"`, …); `"0"` is the default.
@@ -467,6 +489,7 @@ pub enum EncryptedTicketOutcome {
 }
 
 /// A game available to the account through Steam Family Sharing.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone)]
 pub struct SharedApp {
     pub app_id: u32,
@@ -487,46 +510,86 @@ pub struct SteamClient {
     restore_error: Option<Arc<anyhow::Error>>,
 }
 
-// SteamClient methods are implemented across these submodules.
-mod chat;
-pub use chat::{ChatMessage, SentMessage};
+// SteamClient methods are implemented across these submodules, each behind
+// the feature it serves.
 mod client;
-mod friends;
-mod install;
-mod market;
-pub use install::InstallOptions;
-mod content;
-mod launch;
-mod library;
-mod manage;
-pub use launch::{LaunchTargetChoice, launch_targets, select_launch_entry};
-mod cloudconfig;
-mod collections;
-mod manifests;
-mod process;
-mod storequery;
-mod tags;
-pub mod tags_table;
-mod workshop;
-mod workshop_manifest;
-pub use storequery::{DealsScope, QueryPage};
-mod events;
-pub use events::StoreEvent;
-mod players;
-mod wishlist;
-pub use wishlist::WishlistEntry;
 pub mod ident;
-mod profile;
-pub use profile::UserProfile;
-mod categories;
-pub mod genres_table;
+mod persona;
+mod process;
 
+#[cfg(feature = "library")]
+mod categories;
+#[cfg(feature = "library")]
+mod content;
+#[cfg(feature = "library")]
+pub mod genres_table;
+#[cfg(feature = "library")]
+mod launch;
+#[cfg(feature = "library")]
+mod library;
+#[cfg(feature = "library")]
+mod manifests;
+#[cfg(feature = "library")]
+mod tags;
+#[cfg(feature = "library")]
+pub mod tags_table;
+#[cfg(feature = "library")]
+pub use launch::{LaunchTargetChoice, launch_targets, select_launch_entry};
+
+#[cfg(feature = "install")]
+mod install;
+#[cfg(feature = "install")]
+mod manage;
+#[cfg(feature = "install")]
+pub use install::InstallOptions;
+
+#[cfg(feature = "collections")]
+mod cloudconfig;
+#[cfg(feature = "collections")]
+mod collections;
+#[cfg(feature = "collections")]
 pub use collections::RemoteNamespace;
+
+#[cfg(feature = "workshop")]
+mod workshop;
+#[cfg(feature = "workshop")]
+mod workshop_manifest;
+
+#[cfg(feature = "social")]
+mod chat;
+#[cfg(feature = "social")]
+mod friends;
+#[cfg(feature = "social")]
+mod profile;
+#[cfg(feature = "social")]
+pub use chat::{ChatMessage, SentMessage};
+#[cfg(feature = "social")]
 pub use friends::{AddedFriend, Friend, Roster};
+#[cfg(feature = "social")]
+pub use profile::UserProfile;
+
+#[cfg(feature = "inventory")]
+mod market;
+#[cfg(feature = "inventory")]
 pub use market::{
     InventoryItem, MarketPrice, MarketSearchResult, MyMarketState, WalletBalance, inventory_via,
     market_price, market_search, my_listings_via, wallet_via,
 };
+
+#[cfg(feature = "store")]
+mod events;
+#[cfg(feature = "store")]
+mod players;
+#[cfg(feature = "store")]
+mod storequery;
+#[cfg(feature = "store")]
+mod wishlist;
+#[cfg(feature = "store")]
+pub use events::StoreEvent;
+#[cfg(feature = "store")]
+pub use storequery::{DealsScope, QueryPage};
+#[cfg(feature = "store")]
+pub use wishlist::WishlistEntry;
 
 /// Terminate the process tree rooted at `pid`. With `force`, kill immediately;
 /// otherwise ask it to exit first (SIGTERM) and only SIGKILL the stragglers after
@@ -620,6 +683,7 @@ impl AppInfoEnvelope {
 
 /// Collect the DLC appids whose content is recorded as installed in an appmanifest.
 /// Steam tags each DLC depot under `InstalledDepots` with a `"dlcappid" "<id>"` line.
+#[cfg(feature = "library")]
 fn parse_installed_dlc_appids(content: &str) -> HashSet<u32> {
     static RE: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r#""dlcappid"\s*"(\d+)""#).unwrap());
@@ -630,6 +694,7 @@ fn parse_installed_dlc_appids(content: &str) -> HashSet<u32> {
 
 /// Collect the DLC appids listed in an appmanifest's `DisabledDLC` value(s).
 /// The value is a comma-separated list of appids; multiple blocks may each carry one.
+#[cfg(feature = "library")]
 fn parse_disabled_dlc_appids(content: &str) -> HashSet<u32> {
     static RE: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r#""DisabledDLC"\s*"([^"]*)""#).unwrap());
@@ -646,6 +711,7 @@ fn parse_disabled_dlc_appids(content: &str) -> HashSet<u32> {
 /// Add or remove a DLC appid from every `DisabledDLC` list in an appmanifest's text.
 /// When `disabled` is true and no `DisabledDLC` key exists, one is inserted into the
 /// `UserConfig` and `MountedConfig` blocks.
+#[cfg(feature = "library")]
 fn apply_dlc_disabled(content: &str, dlc_appid: u32, disabled: bool) -> String {
     static RE: std::sync::LazyLock<regex::Regex> =
         std::sync::LazyLock::new(|| regex::Regex::new(r#""DisabledDLC"(\s*)"([^"]*)""#).unwrap());
@@ -686,6 +752,7 @@ fn apply_dlc_disabled(content: &str, dlc_appid: u32, disabled: bool) -> String {
 
 /// Collect the non-empty display names from a list of `CreatorHomeLink`s
 /// (developers / publishers / franchises in a `StoreItem.basic_info`).
+#[cfg(feature = "library")]
 fn creator_names(
     creators: &[steam_vent_proto::steammessages_storebrowse_steamclient::store_item::basic_info::CreatorHomeLink],
 ) -> Vec<String> {
@@ -699,6 +766,7 @@ fn creator_names(
 /// Map a `StoreBrowse` `StoreItem` protobuf into our display-oriented
 /// [`StoreAppInfo`]. Defensive throughout: every nested message is optional, so
 /// missing data yields empty fields rather than failing.
+#[cfg(feature = "library")]
 fn store_item_to_app_info(item: &StoreItem, country: &str) -> StoreAppInfo {
     let basic = item.basic_info.as_ref();
 
@@ -823,6 +891,7 @@ fn store_item_to_app_info(item: &StoreItem, country: &str) -> StoreAppInfo {
 }
 
 /// Tags sorted by weight, names unresolved.
+#[cfg(feature = "library")]
 fn store_tags(item: &StoreItem) -> Vec<StoreTag> {
     let mut tags: Vec<StoreTag> = item
         .tags
@@ -838,6 +907,7 @@ fn store_tags(item: &StoreItem) -> Vec<StoreTag> {
     tags
 }
 
+#[cfg(feature = "library")]
 fn store_rating(item: &StoreItem) -> Option<StoreRating> {
     let r = item.game_rating.as_ref()?;
     if r.rating().is_empty() && r.type_().is_empty() {
@@ -862,6 +932,7 @@ fn store_rating(item: &StoreItem) -> Option<StoreRating> {
     })
 }
 
+#[cfg(feature = "library")]
 fn store_links(item: &StoreItem) -> Vec<StoreLink> {
     use steam_vent_proto::steammessages_storebrowse_steamclient::EStoreLinkType as L;
     item.links
@@ -885,6 +956,7 @@ fn store_links(item: &StoreItem) -> Vec<StoreLink> {
 }
 
 /// Expand `${FILENAME}` in a StoreBrowse URL template.
+#[cfg(feature = "library")]
 fn asset_url(fmt: &str, filename: &str) -> Option<String> {
     if fmt.is_empty() || filename.is_empty() {
         return None;
@@ -897,6 +969,7 @@ fn asset_url(fmt: &str, filename: &str) -> Option<String> {
     })
 }
 
+#[cfg(feature = "library")]
 fn store_screenshots(item: &StoreItem) -> Vec<String> {
     let fmt = item
         .assets
@@ -915,6 +988,7 @@ fn store_screenshots(item: &StoreItem) -> Vec<String> {
 }
 
 /// Screenshot filenames may already be full paths.
+#[cfg(feature = "library")]
 fn screenshot_url(fmt: &str, filename: &str) -> Option<String> {
     if filename.starts_with("steam/") {
         return Some(format!(
@@ -924,6 +998,7 @@ fn screenshot_url(fmt: &str, filename: &str) -> Option<String> {
     asset_url(fmt, filename)
 }
 
+#[cfg(feature = "library")]
 fn store_trailers(item: &StoreItem) -> Vec<StoreTrailer> {
     let Some(trailers) = item.trailers.as_ref() else {
         return Vec::new();
@@ -961,6 +1036,7 @@ fn store_trailers(item: &StoreItem) -> Vec<StoreTrailer> {
 /// `assets` block (`asset_url_format` with the asset filename substituted for
 /// `${FILENAME}`) when available, otherwise from Steam's conventional per-appid
 /// CDN paths so the caller always gets a usable URL.
+#[cfg(feature = "library")]
 fn store_assets(item: &StoreItem) -> StoreAppAssets {
     let appid = item.appid();
     let assets = item.assets.as_ref();
@@ -1003,6 +1079,7 @@ fn store_assets(item: &StoreItem) -> StoreAppAssets {
 }
 
 /// Human-readable label for a `StoreBrowse` app type.
+#[cfg(feature = "library")]
 fn store_app_type_label(t: EStoreAppType) -> String {
     match t {
         EStoreAppType::k_EStoreAppType_Game => "Game",
@@ -1083,6 +1160,7 @@ pub fn category_online_required(categories: &HashMap<String, String>) -> bool {
 /// `libraryfolders.vdf` (or just add it when `from_lib == to_lib`, e.g. for an
 /// import). Logs and continues on any problem — Steam reconciles the index from
 /// the appmanifests on its next launch.
+#[cfg(feature = "install")]
 async fn update_libraryfolders_for(from_lib: &Path, to_lib: &Path, appid: u32, install_dir: &Path) {
     let roots = crate::library::all_library_roots().await;
     let Some(vdf_path) = crate::library::relocate::find_libraryfolders_vdf(&roots) else {
@@ -1108,6 +1186,7 @@ async fn update_libraryfolders_for(from_lib: &Path, to_lib: &Path, appid: u32, i
 
 /// Build the full Steam Community CDN URL for an achievement icon hash. Returns
 /// it unchanged if it's already a URL, and empty for an empty hash.
+#[cfg(feature = "library")]
 fn achievement_icon_url(appid: u32, icon: &str) -> String {
     if icon.is_empty() {
         String::new()
@@ -1126,6 +1205,7 @@ fn achievement_icon_url(appid: u32, icon: &str) -> String {
 ///
 /// Schema shape: `<appid> { stats { <statid> { type "4" bits { <bit> { name
 /// "ACH_…" … } } } } }` — `type == 4` marks an achievement bitfield stat.
+#[cfg(feature = "library")]
 fn parse_achievement_schema(schema: &[u8]) -> HashMap<String, (u32, u32)> {
     if schema.is_empty() {
         return HashMap::new();
@@ -1145,6 +1225,7 @@ fn parse_achievement_schema(schema: &[u8]) -> HashMap<String, (u32, u32)> {
 
 /// Inner schema parse. Parses the blob directly as binary KeyValues (no
 /// appinfo-style offset scanning, which could feed the parser misaligned data).
+#[cfg(feature = "library")]
 fn parse_achievement_schema_inner(schema: &[u8]) -> HashMap<String, (u32, u32)> {
     let mut map = HashMap::new();
     let Ok(vdf) = steam_vdf_parser::parse_binary(schema) else {
@@ -1194,6 +1275,7 @@ fn parse_achievement_schema_inner(schema: &[u8]) -> HashMap<String, (u32, u32)> 
 }
 
 /// Platform-matched non-DLC depot rows.
+#[cfg(feature = "library")]
 pub(crate) fn platform_depot_rows<'a, 'text>(
     depots: &'a steam_vdf_parser::Obj<'text>,
     platform: DepotPlatform,
@@ -1279,15 +1361,18 @@ fn map_confirmation(method: &ConfirmationMethod) -> ConfirmationPrompt {
     }
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Deserialize)]
 struct ProductInfoEnvelopeWrapper(pub HashMap<String, ProductInfoEnvelope>);
 
+#[cfg(feature = "library")]
 impl ProductInfoEnvelopeWrapper {
     pub fn into_inner(self) -> Option<ProductInfoEnvelope> {
         self.0.into_values().next()
     }
 }
 
+#[cfg(feature = "library")]
 fn parse_product_info_envelope(vdf: &str) -> Result<ProductInfoEnvelope> {
     if let Ok(parsed) = keyvalues_serde::from_str::<ProductInfoEnvelope>(vdf) {
         return Ok(parsed);
@@ -1299,6 +1384,7 @@ fn parse_product_info_envelope(vdf: &str) -> Result<ProductInfoEnvelope> {
         .context("product info envelope was empty")
 }
 
+#[cfg(feature = "library")]
 fn parse_launch_info_from_vdf(appid: u32, raw_vdf: &str) -> Result<Vec<LaunchInfo>> {
     let parsed: ProductInfoEnvelope =
         parse_product_info_envelope(raw_vdf).context("failed to parse product info VDF")?;
@@ -1430,6 +1516,7 @@ pub(crate) fn pics_app_section<'a, 'text>(
 /// Returns whether the user has signalled an abort for the in-progress
 /// download/verify. A poisoned lock is treated as "not aborted" so a transient
 /// lock failure can't spuriously cancel the operation.
+#[cfg(feature = "install")]
 pub(crate) fn download_aborted(
     state: &Arc<std::sync::RwLock<crate::core::models::DownloadState>>,
 ) -> bool {
@@ -1440,6 +1527,7 @@ pub(crate) fn download_aborted(
 }
 
 /// Send a terminal `Failed` progress message.
+#[cfg(feature = "install")]
 pub(crate) async fn emit_failed(
     tx: &tokio::sync::mpsc::Sender<DownloadProgress>,
     msg: impl Into<String>,
@@ -1448,6 +1536,7 @@ pub(crate) async fn emit_failed(
 }
 
 /// Send `Failed`, keeping the error's kind.
+#[cfg(feature = "install")]
 pub(crate) async fn emit_failed_err(
     tx: &tokio::sync::mpsc::Sender<DownloadProgress>,
     context: &str,
@@ -1457,6 +1546,7 @@ pub(crate) async fn emit_failed_err(
 }
 
 /// Send `Failed` as a user stop.
+#[cfg(feature = "install")]
 pub(crate) async fn emit_cancelled(tx: &tokio::sync::mpsc::Sender<DownloadProgress>) {
     let err = anyhow!(crate::core::error::TypedError::new(
         crate::core::error::ErrorKind::Cancelled,
@@ -1468,6 +1558,7 @@ pub(crate) async fn emit_cancelled(tx: &tokio::sync::mpsc::Sender<DownloadProgre
 }
 
 /// Options for [`run_depot_loop`].
+#[cfg(feature = "install")]
 pub(crate) struct DepotLoopOpts {
     /// Re-verify existing chunks instead of downloading.
     pub verify_mode: bool,
@@ -1479,6 +1570,7 @@ pub(crate) struct DepotLoopOpts {
 
 /// Depot fetch loop; `None` reports failure.
 /// Content-server hosts; `None` after reporting failure.
+#[cfg(feature = "install")]
 pub(crate) async fn fetch_content_hosts(
     client: &SteamClient,
     connection: &Connection,
@@ -1499,6 +1591,7 @@ pub(crate) async fn fetch_content_hosts(
     clippy::too_many_arguments,
     reason = "download loop context; becomes a struct in the libgaki move (2.3)"
 )]
+#[cfg(feature = "install")]
 pub(crate) async fn run_depot_loop(
     client: &SteamClient,
     connection: &Connection,
@@ -1629,6 +1722,7 @@ pub(crate) async fn run_depot_loop(
 }
 
 /// Send the initial `Queued` progress message.
+#[cfg(feature = "install")]
 pub(crate) async fn emit_queued(
     tx: &tokio::sync::mpsc::Sender<DownloadProgress>,
     msg: impl Into<String>,
@@ -1637,6 +1731,7 @@ pub(crate) async fn emit_queued(
 }
 
 /// Send a terminal `Completed` progress message.
+#[cfg(feature = "install")]
 pub(crate) async fn emit_completed(
     tx: &tokio::sync::mpsc::Sender<DownloadProgress>,
     msg: impl Into<String>,
@@ -1645,6 +1740,7 @@ pub(crate) async fn emit_completed(
 }
 
 /// Forward byte counters every 250ms.
+#[cfg(feature = "install")]
 pub(crate) fn spawn_progress_reporter(
     tx: tokio::sync::mpsc::Sender<DownloadProgress>,
     state: Arc<std::sync::RwLock<crate::core::models::DownloadState>>,
@@ -1706,6 +1802,7 @@ pub(crate) fn spawn_progress_reporter(
 }
 
 /// The `depots` object, descending wrappers.
+#[cfg(feature = "library")]
 pub(crate) fn pics_depots_value<'a, 'text>(
     vdf: &'a steam_vdf_parser::Vdf<'text>,
 ) -> Option<&'a steam_vdf_parser::Value<'text>> {
@@ -1714,6 +1811,7 @@ pub(crate) fn pics_depots_value<'a, 'text>(
 
 /// Steam Auto-Cloud save-file rules from an app's `ufs/savefiles` PICS section.
 /// Each entry names a root token, sub-path, filename glob, and recursion flag.
+#[cfg(feature = "cloud")]
 pub(crate) fn ufs_save_specs_from_section(section: &steam_vdf_parser::Value) -> Vec<UfsSaveSpec> {
     let mut specs = Vec::new();
     if let Some(savefiles) = section.get_obj(&["ufs", "savefiles"]) {
@@ -1737,6 +1835,7 @@ pub(crate) fn ufs_save_specs_from_section(section: &steam_vdf_parser::Value) -> 
 /// DLC app ids declared by an app's PICS section, read from the canonical
 /// `extended/listofdlc` field (a comma-separated string of app ids). Order is
 /// preserved and duplicates dropped.
+#[cfg(feature = "library")]
 pub(crate) fn dlc_ids_from_section(section: &steam_vdf_parser::Value) -> Vec<u32> {
     let mut dlcs: Vec<u32> = Vec::new();
     if let Some(list) = section.get_str(&["extended", "listofdlc"]) {
@@ -1932,6 +2031,7 @@ fn extract_manifest_id_robust(value: &steam_vdf_parser::Value, branch: &str) -> 
     None
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Deserialize)]
 struct ProductInfoEnvelope {
     #[serde(default)]
@@ -1940,18 +2040,21 @@ struct ProductInfoEnvelope {
     config: Option<ProductInfoConfig>,
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Deserialize)]
 struct ProductInfoAppInfo {
     #[serde(default)]
     config: Option<ProductInfoConfig>,
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Deserialize)]
 struct ProductInfoConfig {
     #[serde(default)]
     launch: HashMap<String, ProductLaunchEntry>,
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Deserialize)]
 struct ProductLaunchEntry {
     #[serde(default)]
@@ -1966,38 +2069,43 @@ struct ProductLaunchEntry {
     pub config: Option<ProductLaunchConfigInner>,
 }
 
+#[cfg(feature = "library")]
 #[derive(Debug, Deserialize)]
 struct ProductLaunchConfigInner {
     #[serde(default)]
     oslist: Option<String>,
 }
 
+#[cfg(feature = "library")]
 fn parse_installdir_from_acf(raw: &str) -> Option<String> {
     crate::core::acf::parse_app_manifest(raw).install_dir
 }
 
 /// Read the `name` value from an appmanifest, if present and non-empty.
+#[cfg(feature = "install")]
 pub(crate) fn parse_name_from_acf(raw: &str) -> Option<String> {
     crate::core::acf::parse_app_manifest(raw).display_name()
 }
 
 /// Read `LastOwner` (SteamID64) from an appmanifest; `None` when absent or `0`.
-#[cfg(test)]
+#[cfg(all(test, feature = "library"))]
 pub(crate) fn parse_last_owner_from_acf(raw: &str) -> Option<u64> {
     crate::core::acf::parse_app_manifest(raw).last_owner
 }
 
 /// Download StateFlags
+#[cfg(feature = "library")]
 pub(crate) fn manifest_is_fully_installed(raw: &str) -> bool {
     crate::core::acf::parse_app_manifest(raw).fully_installed()
 }
 
 /// Fetch `StateUpdateRequired` flag
-#[cfg(test)]
+#[cfg(all(test, feature = "library"))]
 pub(crate) fn manifest_update_pending(raw: &str) -> bool {
     crate::core::acf::parse_app_manifest(raw).update_pending()
 }
 
+#[cfg(feature = "library")]
 fn parse_installed_depots_from_acf(raw: &str) -> HashMap<u64, u64> {
     let mut manifests = HashMap::new();
     let mut in_installed_depots = false;
@@ -2038,10 +2146,12 @@ fn parse_installed_depots_from_acf(raw: &str) -> HashMap<u64, u64> {
     manifests
 }
 
+#[cfg(feature = "library")]
 fn parse_active_branch_from_acf(raw: &str) -> String {
     crate::core::acf::parse_app_manifest(raw).active_branch
 }
 
+#[cfg(feature = "versioning")]
 fn rewrite_app_branch(raw: &str, branch: &str) -> String {
     let mut out = Vec::new();
     let mut in_user_config = false;
@@ -2092,15 +2202,17 @@ fn rewrite_app_branch(raw: &str, branch: &str) -> String {
     out.join("\n")
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "library"))]
 #[path = "steam_client_tests.rs"]
 mod tests;
 
+#[cfg(feature = "library")]
 fn split_args(args: &str) -> Vec<String> {
     args.split_whitespace().map(ToString::to_string).collect()
 }
 
 /// One-app PICS `ProductInfo` buffer request.
+#[cfg(feature = "library")]
 pub(crate) async fn pics_app_buffer(
     connection: &Connection,
     appid: u32,
@@ -2138,52 +2250,18 @@ impl SteamClient {
     }
 
     /// Cloned connection for spawned tasks.
+    #[cfg(any(feature = "install", feature = "cloud", feature = "social"))]
     pub(crate) fn require_connection_owned(&self) -> Result<Connection> {
         self.require_connection().cloned()
     }
 
     /// [`pics_app_buffer`] against this client's live connection.
+    #[cfg(feature = "library")]
     pub(crate) async fn pics_buffer(
         &self,
         appid: u32,
         job_context: &'static str,
     ) -> Result<Vec<u8>> {
         pics_app_buffer(self.require_connection()?, appid, job_context).await
-    }
-
-    pub fn find_mangohud_lib() -> Option<PathBuf> {
-        // Common install locations across distros
-        let candidates = [
-            "/usr/lib/mangohud/libMangoHud.so",
-            "/usr/lib/mangohud/libMangoHud_dlsym.so",
-            "/usr/lib/x86_64-linux-gnu/mangohud/libMangoHud.so",
-            "/usr/lib64/mangohud/libMangoHud.so",
-            "/usr/local/lib/mangohud/libMangoHud.so",
-            "/usr/local/lib/x86_64-linux-gnu/mangohud/libMangoHud.so",
-        ];
-
-        for path in candidates {
-            let p = PathBuf::from(path);
-            if p.exists() {
-                return Some(p);
-            }
-        }
-
-        // Try ldconfig as fallback
-        if let Ok(output) = std::process::Command::new("ldconfig").args(["-p"]).output() {
-            let text = String::from_utf8_lossy(&output.stdout);
-            for line in text.lines() {
-                if line.contains("libMangoHud")
-                    && let Some(path) = line.split("=>").nth(1)
-                {
-                    let p = PathBuf::from(path.trim());
-                    if p.exists() {
-                        return Some(p);
-                    }
-                }
-            }
-        }
-
-        None
     }
 }

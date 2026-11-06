@@ -424,6 +424,7 @@ pub async fn update_proxy(change: ProxyChange) -> Result<ProxyConfig> {
     let mut config = global()?;
     if let Some(url) = change.url {
         let value = url.trim();
+        #[cfg(feature = "authentication")]
         if !value.is_empty() {
             crate::core::net::validate_proxy_url(value)?;
         }

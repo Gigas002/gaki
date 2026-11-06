@@ -4,7 +4,6 @@
 //! them while it runs loses the change.
 
 use crate::core::error::{ErrorKind, TypedError};
-use crate::steam_client::SteamClient;
 use anyhow::Result;
 
 /// Make sure Steam is not running before an edit.
@@ -13,7 +12,7 @@ use anyhow::Result;
 /// first, e.g. to show a message) and `true` is returned so the caller can
 /// [`restart_after_edit`]; without it, the edit is refused.
 pub fn stop_for_edit(restart_steam: bool, on_stop: impl FnOnce()) -> Result<bool> {
-    if !SteamClient::steam_is_running() {
+    if !crate::core::utils::is_steam_running() {
         return Ok(false);
     }
     if !restart_steam {
@@ -24,18 +23,18 @@ pub fn stop_for_edit(restart_steam: bool, on_stop: impl FnOnce()) -> Result<bool
         .into());
     }
     on_stop();
-    SteamClient::shutdown_steam()?;
+    crate::core::utils::shutdown_steam(std::time::Duration::from_secs(30))?;
     Ok(true)
 }
 
 /// Stop Steam if `want` and it is running, calling `on_stop` first. Returns
 /// whether it was stopped. Unlike [`stop_for_edit`], a running Steam is fine.
 pub fn stop_if_running(want: bool, on_stop: impl FnOnce()) -> Result<bool> {
-    if !(want && SteamClient::steam_is_running()) {
+    if !(want && crate::core::utils::is_steam_running()) {
         return Ok(false);
     }
     on_stop();
-    SteamClient::shutdown_steam()?;
+    crate::core::utils::shutdown_steam(std::time::Duration::from_secs(30))?;
     Ok(true)
 }
 
@@ -43,7 +42,7 @@ pub fn stop_if_running(want: bool, on_stop: impl FnOnce()) -> Result<bool> {
 pub fn restart_after_edit(stopped: bool, on_start: impl FnOnce()) -> Result<()> {
     if stopped {
         on_start();
-        SteamClient::start_steam()?;
+        crate::core::utils::start_steam_detached()?;
     }
     Ok(())
 }

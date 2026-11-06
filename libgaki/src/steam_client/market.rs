@@ -12,10 +12,6 @@ use super::*;
 use crate::web::web_session::{ECON_IMAGE_BASE, WebSession};
 use serde_json::Value;
 use std::sync::LazyLock;
-use steam_vent_proto::steammessages_auth_steamclient::{
-    CAuthentication_AccessToken_GenerateForApp_Request,
-    CAuthentication_AccessToken_GenerateForApp_Response,
-};
 
 /// One item in an account inventory.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -104,37 +100,6 @@ pub struct WalletBalance {
     pub country: String,
     /// Human-readable balance (e.g. "12.34 EUR").
     pub formatted: String,
-}
-
-impl SteamClient {
-    /// **Phase 0:** mint a Steam web session from the current CM session.
-    ///
-    /// Exchanges the session's refresh token (held by the live connection as its
-    /// "access token") for a fresh, web-scoped access token via
-    /// `Authentication.GenerateAccessTokenForApp`, then builds the cookie set. This
-    /// reuses the one shared connection — no extra logon.
-    pub async fn web_session(&self) -> Result<WebSession> {
-        let connection = self.require_connection()?;
-        let steam_id = u64::from(connection.steam_id());
-        let refresh_token = connection
-            .access_token()
-            .context("no Steam token available for a web session; run `gaki-cli login`")?
-            .to_string();
-
-        let mut req = CAuthentication_AccessToken_GenerateForApp_Request::new();
-        req.set_refresh_token(refresh_token);
-        req.set_steamid(steam_id);
-
-        let resp: CAuthentication_AccessToken_GenerateForApp_Response = connection
-            .service_method(req)
-            .await
-            .map_err(|e| anyhow!("failed to mint a web access token: {e}"))?;
-        let token = resp.access_token();
-        if token.is_empty() {
-            bail!("Steam returned an empty web access token");
-        }
-        WebSession::new(steam_id, token, connection.ip_country_code().as_deref())
-    }
 }
 
 // The web-surface fetchers take any [`WebSession`] — minted off the CM session

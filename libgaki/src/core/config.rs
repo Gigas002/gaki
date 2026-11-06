@@ -48,7 +48,7 @@ pub struct LauncherConfig {
     pub chat_presence: ChatPresence,
     pub enable_cloud_sync: bool,
     /// Network proxy for all HTTP(S) communication. Applied process-wide at
-    /// startup; see [`crate::core::net`].
+    /// startup; see `core::net` (`authentication` feature).
     pub proxy: ProxyConfig,
     /// Whether the daemon resumes interrupted installs on start.
     pub install_resume: crate::library::backlog::InstallResume,
@@ -248,7 +248,7 @@ pub(crate) fn read_config_toml_lenient() -> crate::config::Config {
 
 /// Synchronously read just the proxy settings. Used at process startup —
 /// before the async runtime and worker threads exist — to install the proxy
-/// environment variables (see [`crate::core::net::install_proxy_env`]).
+/// environment variables (see `core::net::install_proxy_env`, `authentication` feature).
 /// Returns the default (direct connection) on a missing or unreadable config.
 pub fn load_proxy_config_blocking() -> ProxyConfig {
     let config = read_config_toml_lenient();
@@ -446,6 +446,7 @@ pub fn daemon_idle_timeout() -> Option<std::time::Duration> {
 /// A cached `gaki-cli info` result: the StoreBrowse metadata plus resolved DLC
 /// `(app_id, name)` pairs, stamped with the unix time it was fetched so a reader
 /// can honour a TTL.
+#[cfg(feature = "library")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CachedAppInfo {
     pub fetched_at: u64,
@@ -456,6 +457,7 @@ pub struct CachedAppInfo {
 
 /// `(app_id, name)` pairs as `[[dlc]]` tables: TOML arrays can't hold the
 /// missing names.
+#[cfg(feature = "library")]
 mod dlc_names {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -489,6 +491,7 @@ mod dlc_names {
     }
 }
 
+#[cfg(feature = "library")]
 fn info_cache_dir() -> Result<PathBuf> {
     Ok(data_dir()?.join("info_cache"))
 }
@@ -496,6 +499,7 @@ fn info_cache_dir() -> Result<PathBuf> {
 /// Per-app cache file, one per `(app id, country)` so concurrent invocations
 /// for different apps never clobber each other. The country is sanitized to
 /// keep it safe as a filename component.
+#[cfg(feature = "library")]
 fn info_cache_path(app_id: u32, country: &str) -> Result<PathBuf> {
     let cc: String = country
         .chars()
@@ -510,11 +514,13 @@ fn info_cache_path(app_id: u32, country: &str) -> Result<PathBuf> {
     Ok(info_cache_dir()?.join(format!("{app_id}.{cc}.toml")))
 }
 
+#[cfg(feature = "library")]
 use crate::core::utils::now_unix;
 
 /// Load a cached `info` record for `app_id` if one exists and is still within
 /// `ttl`. Returns `None` on a miss, a stale entry, or any read/parse error, so the
 /// caller falls through to a fresh fetch. A zero `ttl` always misses.
+#[cfg(feature = "library")]
 pub async fn load_info_cache(
     app_id: u32,
     country: &str,
@@ -530,6 +536,7 @@ pub async fn load_info_cache(
 }
 
 /// Persist an `info` record for `app_id`, stamped with the current time.
+#[cfg(feature = "library")]
 pub async fn save_info_cache(
     app_id: u32,
     country: &str,

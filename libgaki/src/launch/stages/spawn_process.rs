@@ -68,46 +68,57 @@ impl PipelineStage for SpawnProcessStage {
                 );
                 ctx.child = Some(child);
             }
+        } else if cfg!(not(feature = "library")) {
+            return Err(LaunchError::new(
+                LaunchErrorKind::Validation,
+                "no runner resolved",
+            ));
         } else {
-            // Legacy fallback when no runner resolved.
-            let app = ctx
-                .app
-                .as_ref()
-                .ok_or_else(|| LaunchError::new(LaunchErrorKind::Validation, "app missing"))?;
-            let launch_info = ctx.launch_info.as_ref().ok_or_else(|| {
-                LaunchError::new(LaunchErrorKind::Validation, "launch_info missing")
-            })?;
-            let launcher_config = ctx.launcher_config.as_ref().ok_or_else(|| {
-                LaunchError::new(LaunchErrorKind::Validation, "launcher_config missing")
-            })?;
-
-            // ResolveComponentsStage normally always sets one.
-            let client = crate::steam_client::SteamClient::new().map_err(|e| {
-                LaunchError::new(
-                    LaunchErrorKind::Environment,
-                    "failed to initialize steam client",
-                )
-                .with_source(e)
-            })?;
-            let child = client
-                .internal_legacy_launch_adhoc(
-                    app,
-                    launch_info,
-                    ctx.proton_path.as_deref(),
-                    launcher_config,
-                    ctx.user_config.as_ref(),
-                )
-                .await
-                .map_err(|e| {
-                    if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
-                        let dup_info = crate::launch::pipeline::detect_duplicate_instance(ctx);
-                        crate::launch::pipeline::map_io_error(io_err, Some(&dup_info))
-                    } else {
-                        LaunchError::new(LaunchErrorKind::Process, "failed to spawn adhoc process")
-                            .with_source(e)
-                    }
+            #[cfg(feature = "library")]
+            {
+                // Legacy fallback when no runner resolved.
+                let app = ctx
+                    .app
+                    .as_ref()
+                    .ok_or_else(|| LaunchError::new(LaunchErrorKind::Validation, "app missing"))?;
+                let launch_info = ctx.launch_info.as_ref().ok_or_else(|| {
+                    LaunchError::new(LaunchErrorKind::Validation, "launch_info missing")
                 })?;
-            ctx.child = Some(child);
+                let launcher_config = ctx.launcher_config.as_ref().ok_or_else(|| {
+                    LaunchError::new(LaunchErrorKind::Validation, "launcher_config missing")
+                })?;
+
+                // ResolveComponentsStage normally always sets one.
+                let client = crate::steam_client::SteamClient::new().map_err(|e| {
+                    LaunchError::new(
+                        LaunchErrorKind::Environment,
+                        "failed to initialize steam client",
+                    )
+                    .with_source(e)
+                })?;
+                let child = client
+                    .internal_legacy_launch_adhoc(
+                        app,
+                        launch_info,
+                        ctx.proton_path.as_deref(),
+                        launcher_config,
+                        ctx.user_config.as_ref(),
+                    )
+                    .await
+                    .map_err(|e| {
+                        if let Some(io_err) = e.downcast_ref::<std::io::Error>() {
+                            let dup_info = crate::launch::pipeline::detect_duplicate_instance(ctx);
+                            crate::launch::pipeline::map_io_error(io_err, Some(&dup_info))
+                        } else {
+                            LaunchError::new(
+                                LaunchErrorKind::Process,
+                                "failed to spawn adhoc process",
+                            )
+                            .with_source(e)
+                        }
+                    })?;
+                ctx.child = Some(child);
+            }
         }
         Ok(())
     }

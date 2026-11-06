@@ -3,7 +3,9 @@
 
 use crate::auth::load_session;
 use crate::core::error::{ErrorKind, TypedError, classify};
-use crate::steam_client::{Friend, SteamClient};
+#[cfg(feature = "social")]
+use crate::steam_client::Friend;
+use crate::steam_client::SteamClient;
 use crate::web::web_session::WebSession;
 use anyhow::{Context, Result};
 use std::time::Duration;
@@ -111,6 +113,7 @@ pub async fn web_session(client: &SteamClient) -> Result<WebSession> {
 ///
 /// Names are matched against `roster` when given (a cached friends list);
 /// otherwise the friends list is fetched from Steam.
+#[cfg(feature = "social")]
 pub async fn resolve_user_ident(
     client: &SteamClient,
     input: &str,

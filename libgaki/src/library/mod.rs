@@ -1,6 +1,9 @@
 pub mod backlog;
+#[cfg(feature = "cloud")]
 pub mod cloud_sync;
+#[cfg(feature = "collections")]
 pub mod collections;
+#[cfg(feature = "depot")]
 pub mod depot_browser;
 pub mod local_library;
 pub mod platform;

@@ -119,11 +119,11 @@ These are defined in `libgaki`. `gaki-cli` and `gaki-tui` re-export each one
 
 | Feature          | Default | Requires         | Covers (current code)                                          |
 | ---------------- | :-----: | ---------------- | -------------------------------------------------------------- |
-| *(core)*         | always  | —                | config/profiles, local library scan (ACF), proton discovery, launch pipeline |
+| *(core)*         | always  | —                | config/profiles, local library scan (ACF), proton discovery, the launch pipeline's stages and runners (decided in 6.1: starting a launch needs `library`) |
 | `authentication` | on      | —                | login (password, Steam Guard, QR), session store and crypto, keyring |
-| `library`        | on      | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses         |
+| `library`        | on      | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, launching (PICS launch options) |
 | `install`        | on      | `library`        | install, update, verify, uninstall, move/relink/import, DLC, backlog, downloading official Proton |
-| `cloud`          | on      | `authentication` | Steam Cloud sync                                               |
+| `cloud`          | on      | `library`        | Steam Cloud sync (save paths come from PICS)                   |
 | `collections`    | on      | `library`        | library collections (CloudConfigStore)                         |
 | `versioning`     | off     | `install`        | branches, set-branch, downgrade, pin/unpin, manifests          |
 | `depot`          | off     | `install`        | depot browser, depot listing                                   |
@@ -131,7 +131,7 @@ These are defined in `libgaki`. `gaki-cli` and `gaki-tui` re-export each one
 | `social`         | off     | `authentication` | friends, chat, presence (pulls in `steam-vent-chat`)           |
 | `inventory`      | off     | `authentication` | inventory, wallet                                              |
 | `market`         | off     | `inventory`      | Community Market                                               |
-| `store`          | off     | `authentication` | search, price, deals, news, reviews, events, wishlist, similar, players (D8) |
+| `store`          | off     | `library`        | search, price, deals, news, reviews, events, wishlist, similar, players (D8); reuses the StoreBrowse records |
 
 Optional dependencies (`steam-vent-chat`, `steam-cdn`, `qrcode`, `keyring`,
 archive crates, and others) become `optional = true` and are enabled only by the
@@ -1251,8 +1251,40 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 6 — feature gates (R24)
 
-- [ ] **6.1** Declare the features in `libgaki` and gate modules at their
+- [x] **6.1** Declare the features in `libgaki` and gate modules at their
   boundaries. Make heavy dependencies optional.
+  *Done.* `libgaki/Cargo.toml` declares the matrix above, with defaults
+  `authentication`, `library`, `install`, `cloud` and `collections`.
+  `--no-default-features` builds without steam-vent, its protos, protobuf,
+  reqwest, keyring, secrecy, steam-cdn, steam-vent-chat, zip and the rest.
+  `build.rs` generates each proto only for its feature (`cloudconfigstore`
+  → `collections`, `storequery`/`wishlist` → `store`). **Your call:** launching
+  stays behind `library`, because launch options come from a live PICS request.
+  Offline launching from `appcache/appinfo.vdf` would be a later step. So the
+  minimal build has config, profiles, Proton discovery, the local library
+  scan and the pipeline (`LaunchInfo`/`LaunchTarget` moved to `core::models`,
+  `find_mangohud_lib` to `core::utils`). Two dependency edges differ from
+  the first draft: `cloud` and `store` need `library` (Cloud save paths come
+  from PICS; store records are the library's StoreBrowse types).
+  Gates sit on `auth`, `web`, `steam_client` and `core::net` (all
+  `authentication`), on the `ops`, `library` and `steam_client` submodules,
+  and on the helpers they share inside `steam_client.rs`. Moves made to get
+  there: the own-persona announce/request (login needs the display name)
+  went from `friends.rs` to a new `steam_client/persona.rs`;
+  `SteamClient::web_session` went from `market.rs` to `client.rs`;
+  `is_game_available` went from `manage.rs` to `manifests.rs`; and
+  `DEFAULT_COUNTRY` went to `ops::info` (re-exported by `ops::store`).
+  `play`'s Cloud pull/push became a `cloud`-gated `LaunchCloud` helper.
+  `play` skips the pre-launch update without `install`. Filtering the library
+  by collection without `collections` is an `InvalidInput` error.
+  `ops::session::resolve_user_ident` needs `social` (names match friends).
+  `branches`/`set_branch` need `versioning`. The depot browser methods need
+  `depot`. The legacy no-runner launch fallback (unreachable, since
+  `ResolveComponents` always sets a runner) needs `library`, and its tests
+  follow it. Until 6.2, `gaki-cli` and `gaki-tui` enable every libgaki
+  feature they use, so the workspace builds. Checked: clippy and docs for
+  libgaki with each feature alone, none, default and all; the §8 gates for
+  the workspace.
 - [ ] **6.2** Forward the features from `gaki-cli` and `gaki-tui`, and gate their
   commands, views, keybindings, and help text.
 - [ ] **6.3** Get the three-level matrix (`--no-default-features`, default,

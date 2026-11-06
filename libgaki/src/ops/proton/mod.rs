@@ -6,10 +6,13 @@ use crate::compat::proton::{
     official_protons,
 };
 use crate::core::error::{ErrorKind, TypedError};
+#[cfg(feature = "install")]
 use crate::core::models::{DepotPlatform, DownloadProgress, DownloadState};
+#[cfg(feature = "install")]
 use crate::steam_client::{InstallOptions, SteamClient};
 use anyhow::{Context, Result};
 use std::path::Path;
+#[cfg(feature = "install")]
 use std::sync::{Arc, RwLock};
 
 /// Installed runtimes, installable official builds, and the global default.
@@ -56,6 +59,7 @@ pub fn find(name: &str) -> Result<ProtonPackage> {
 
 /// Start installing `package` through Steam; drive the returned progress
 /// stream to completion, then call [`set_default`] to make it the default.
+#[cfg(feature = "install")]
 pub async fn start_install(
     client: &SteamClient,
     package: &ProtonPackage,
@@ -85,6 +89,7 @@ pub async fn set_default(name: &str) -> Result<bool> {
 
 /// Uninstall `package` through Steam. Returns whether it was the global
 /// default (which now points at something that's gone).
+#[cfg(feature = "install")]
 pub async fn uninstall(client: &SteamClient, package: &ProtonPackage) -> Result<bool> {
     client
         .uninstall_game(package.app_id, false)

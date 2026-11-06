@@ -253,6 +253,7 @@ impl SteamClient {
     /// describe where the game's saves live on disk so Cloud sync can discover and
     /// upload brand-new local saves (not just files already in the cloud). Returns
     /// an empty list for apps with no UFS config.
+    #[cfg(feature = "cloud")]
     pub async fn fetch_ufs_save_specs(&self, appid: u32) -> Result<Vec<UfsSaveSpec>> {
         let buffer = self
             .pics_buffer(

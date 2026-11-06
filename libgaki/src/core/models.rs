@@ -1,3 +1,4 @@
+#[cfg(feature = "authentication")]
 use secrecy::SecretString;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -83,6 +84,7 @@ pub type UserConfigStore = HashMap<u32, UserAppConfig>;
 /// The signed-in account and its tokens. The tokens are [`SecretString`]s:
 /// redacted in `Debug`, zeroed when dropped, and never serialized (they are
 /// stored only through [`crate::auth::store`]).
+#[cfg(feature = "authentication")]
 #[derive(Debug, Clone, Default)]
 pub struct SessionState {
     pub account_name: Option<String>,
@@ -140,7 +142,7 @@ pub struct LibraryGame {
     /// from its PICS store categories (online multiplayer with no single-player
     /// support). `None` means it hasn't been determined yet — this is only
     /// populated on demand (e.g. `gaki-cli list --online`) because it requires a
-    /// per-app PICS fetch. See [`crate::steam_client::category_online_required`].
+    /// per-app PICS fetch. See `steam_client::category_online_required` (`library` feature).
     #[serde(default)]
     pub online_required: Option<bool>,
     /// Platform whose depot is installed locally (`"windows"`, `"linux"` or
@@ -404,7 +406,7 @@ pub struct CommonNode {
     /// Store category flags, keyed `category_<id>` with value `"1"`. Steam has no
     /// dedicated "online required" field, so we infer it from these (online
     /// multiplayer categories combined with the absence of single-player). See
-    /// [`crate::steam_client::category_online_required`].
+    /// `steam_client::category_online_required` (`library` feature).
     #[serde(default)]
     pub category: HashMap<String, String>,
 }
@@ -510,4 +512,23 @@ pub struct WorkshopQueryPage {
     /// Total matching items across all pages (as reported by Steam).
     pub total: u32,
     pub next_cursor: String,
+}
+
+/// Which build a launch entry runs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LaunchTarget {
+    NativeLinux,
+    WindowsProton,
+}
+
+/// One launch entry from an app's PICS `config/launch` section.
+#[derive(Debug, Clone)]
+pub struct LaunchInfo {
+    pub app_id: u32,
+    pub id: String,
+    pub description: String,
+    pub executable: String,
+    pub arguments: String,
+    pub workingdir: Option<String>,
+    pub target: LaunchTarget,
 }

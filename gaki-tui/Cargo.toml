@@ -15,7 +15,8 @@ name = "gaki-tui"
 path = "src/main.rs"
 
 [dependencies]
-libgaki.workspace = true
+# Until 6.2 forwards features one-to-one, the binaries enable every capability they use.
+libgaki = { workspace = true, features = ["cloud", "collections", "depot", "install", "market", "social", "store", "versioning", "workshop"] }
 anyhow.workspace = true
 clap.workspace = true
 fuzzy-matcher = "0.3.7"

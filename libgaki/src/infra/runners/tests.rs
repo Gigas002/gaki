@@ -1,7 +1,7 @@
 use crate::core::config::LauncherConfig;
 use crate::core::models::LibraryGame;
+use crate::core::models::{LaunchInfo, LaunchTarget};
 use crate::infra::runners::{CommandSpec, LaunchContext, Runner, WineTkgRunner};
-use crate::steam_client::{LaunchInfo, LaunchTarget};
 use std::collections::HashMap;
 use std::path::PathBuf;
 

@@ -6,42 +6,83 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+# Capabilities (docs/PLAN.md "Feature matrix"). Core (config, profiles, Proton
+# discovery, the local library scan and the launch pipeline) is always built.
+[features]
+default = ["authentication", "library", "install", "cloud", "collections"]
+# Steam login, the session store and the CM connection every online feature uses.
+authentication = [
+    "dep:keyring",
+    "dep:keyvalues-serde",
+    "dep:protobuf",
+    "dep:protobuf-codegen",
+    "dep:reqwest",
+    "dep:secrecy",
+    "dep:steam-vdf-parser",
+    "dep:steam-vent",
+    "dep:steam-vent-proto",
+    "dep:steam-vent-proto-common",
+    "dep:tokio-stream",
+]
+# Owned apps, appinfo/PICS, tags, achievements, licenses, launching.
+library = ["authentication"]
+# Install, update, verify, uninstall, move/relink/import, DLC, backlog, official Proton.
+install = ["library", "dep:steam-cdn"]
+# Steam Cloud save sync (save paths come from PICS appinfo, hence `library`).
+cloud = ["library", "dep:filetime", "dep:sha1", "dep:zip"]
+# Library collections (CloudConfigStore).
+collections = ["library"]
+# Branches, downgrades, manifest pins.
+versioning = ["install"]
+# Depot browser and listings.
+depot = ["install", "dep:hex", "dep:sha1"]
+# Workshop subscribe/download.
+workshop = ["install"]
+# Friends, chat, presence.
+social = ["authentication", "dep:steam-vent-chat", "dep:steamid-ng"]
+# Inventory and wallet.
+inventory = ["authentication"]
+# Community Market.
+market = ["inventory"]
+# Store search, prices, deals, news, reviews, events, wishlist (store records reuse the library's StoreBrowse types).
+store = ["library"]
+
 [dependencies]
 anyhow.workspace = true
 async-trait.workspace = true
-filetime.workspace = true
-hex.workspace = true
-keyring.workspace = true
-keyvalues-serde.workspace = true
+filetime = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
+keyring = { workspace = true, optional = true }
+keyvalues-serde = { workspace = true, optional = true }
 libc.workspace = true
-protobuf.workspace = true
+protobuf = { workspace = true, optional = true }
 rand.workspace = true
 regex.workspace = true
-reqwest.workspace = true
-secrecy.workspace = true
+reqwest = { workspace = true, optional = true }
+secrecy = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
-sha1.workspace = true
-steam-cdn.workspace = true
-steam-vdf-parser.workspace = true
-steam-vent.workspace = true
-steam-vent-chat.workspace = true
-steam-vent-proto.workspace = true
-steam-vent-proto-common.workspace = true
-steamid-ng.workspace = true
+sha1 = { workspace = true, optional = true }
+steam-cdn = { workspace = true, optional = true }
+steam-vdf-parser = { workspace = true, optional = true }
+steam-vent = { workspace = true, optional = true }
+steam-vent-chat = { workspace = true, optional = true }
+steam-vent-proto = { workspace = true, optional = true }
+steam-vent-proto-common = { workspace = true, optional = true }
+steamid-ng = { workspace = true, optional = true }
 sysinfo.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
-tokio-stream.workspace = true
+tokio-stream = { workspace = true, optional = true }
 toml.workspace = true
 toml_edit.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 walkdir.workspace = true
-zip.workspace = true
+zip = { workspace = true, optional = true }
 
 [build-dependencies]
-protobuf-codegen.workspace = true
+protobuf-codegen = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile.workspace = true

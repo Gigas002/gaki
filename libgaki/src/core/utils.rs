@@ -1451,3 +1451,40 @@ mod safe_dir_name_tests;
 #[cfg(test)]
 #[path = "utils_steam_logon_tests.rs"]
 mod steam_logon_tests;
+
+/// The MangoHud library on this system, if installed.
+pub fn find_mangohud_lib() -> Option<PathBuf> {
+    // Common install locations across distros
+    let candidates = [
+        "/usr/lib/mangohud/libMangoHud.so",
+        "/usr/lib/mangohud/libMangoHud_dlsym.so",
+        "/usr/lib/x86_64-linux-gnu/mangohud/libMangoHud.so",
+        "/usr/lib64/mangohud/libMangoHud.so",
+        "/usr/local/lib/mangohud/libMangoHud.so",
+        "/usr/local/lib/x86_64-linux-gnu/mangohud/libMangoHud.so",
+    ];
+
+    for path in candidates {
+        let p = PathBuf::from(path);
+        if p.exists() {
+            return Some(p);
+        }
+    }
+
+    // Try ldconfig as fallback
+    if let Ok(output) = std::process::Command::new("ldconfig").args(["-p"]).output() {
+        let text = String::from_utf8_lossy(&output.stdout);
+        for line in text.lines() {
+            if line.contains("libMangoHud")
+                && let Some(path) = line.split("=>").nth(1)
+            {
+                let p = PathBuf::from(path.trim());
+                if p.exists() {
+                    return Some(p);
+                }
+            }
+        }
+    }
+
+    None
+}

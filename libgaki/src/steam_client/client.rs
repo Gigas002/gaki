@@ -4,6 +4,11 @@
 //! and free helpers live in the parent module (in scope via `use super::*`).
 use super::*;
 use crate::core::error::{ErrorKind, TypedError};
+use crate::web::web_session::WebSession;
+use steam_vent_proto::steammessages_auth_steamclient::{
+    CAuthentication_AccessToken_GenerateForApp_Request,
+    CAuthentication_AccessToken_GenerateForApp_Response,
+};
 use steam_vent_proto::steammessages_clientserver_friends::CMsgClientPersonaState;
 use tokio_stream::StreamExt;
 
@@ -78,6 +83,7 @@ impl SteamClient {
     }
 
     /// Build a Steam Cloud client over the current connection (for save sync).
+    #[cfg(feature = "cloud")]
     pub fn cloud_client(&self) -> Result<crate::library::cloud_sync::CloudClient> {
         let connection = self.require_connection_owned()?;
         Ok(crate::library::cloud_sync::CloudClient::new(connection))
@@ -682,4 +688,35 @@ pub(crate) fn extract_encrypted_ticket(
         .write_to_bytes()
         .context("failed serializing encrypted app ticket")?;
     Ok(EncryptedTicketOutcome::Issued(bytes))
+}
+
+impl SteamClient {
+    /// Mint a Steam web session from the current CM session.
+    ///
+    /// Exchanges the session's refresh token (held by the live connection as its
+    /// "access token") for a fresh, web-scoped access token via
+    /// `Authentication.GenerateAccessTokenForApp`, then builds the cookie set. This
+    /// reuses the one shared connection — no extra logon.
+    pub async fn web_session(&self) -> Result<WebSession> {
+        let connection = self.require_connection()?;
+        let steam_id = u64::from(connection.steam_id());
+        let refresh_token = connection
+            .access_token()
+            .context("no Steam token available for a web session; run `gaki-cli login`")?
+            .to_string();
+
+        let mut req = CAuthentication_AccessToken_GenerateForApp_Request::new();
+        req.set_refresh_token(refresh_token);
+        req.set_steamid(steam_id);
+
+        let resp: CAuthentication_AccessToken_GenerateForApp_Response = connection
+            .service_method(req)
+            .await
+            .map_err(|e| anyhow!("failed to mint a web access token: {e}"))?;
+        let token = resp.access_token();
+        if token.is_empty() {
+            bail!("Steam returned an empty web access token");
+        }
+        WebSession::new(steam_id, token, connection.ip_country_code().as_deref())
+    }
 }

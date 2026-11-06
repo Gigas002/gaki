@@ -2,7 +2,6 @@ use libgaki::core::models::LibraryGame;
 use libgaki::launch::pipeline::{LaunchErrorKind, LaunchPipeline, PipelineContext};
 use libgaki::launch::stages::resolve_game::ResolveGameStage;
 use libgaki::launch::stages::resolve_profile::ResolveProfileStage;
-use libgaki::launch::stages::spawn_process::SpawnProcessStage;
 use std::collections::HashMap;
 
 #[tokio::test]
@@ -51,8 +50,12 @@ async fn test_stage_validation_failure_launch_info() {
     assert_eq!(err.inner.kind, LaunchErrorKind::Validation);
 }
 
+// Exercises the legacy no-runner fallback, which needs `library`.
+#[cfg(feature = "library")]
 #[tokio::test]
 async fn test_stage_execution_failure_adhoc() {
+    use libgaki::launch::stages::spawn_process::SpawnProcessStage;
+
     let mut pipeline = LaunchPipeline::new();
     pipeline.add_stage(Box::new(SpawnProcessStage));
 
@@ -72,14 +75,14 @@ async fn test_stage_execution_failure_adhoc() {
         online_required: None,
         platform: None,
     });
-    ctx.launch_info = Some(libgaki::steam_client::LaunchInfo {
+    ctx.launch_info = Some(libgaki::core::models::LaunchInfo {
         app_id: 123,
         id: "0".to_string(),
         description: "Test".to_string(),
         executable: "not_found.sh".to_string(),
         arguments: "".to_string(),
         workingdir: None,
-        target: libgaki::steam_client::LaunchTarget::NativeLinux,
+        target: libgaki::core::models::LaunchTarget::NativeLinux,
     });
     ctx.launcher_config = Some(libgaki::core::config::LauncherConfig::default());
 

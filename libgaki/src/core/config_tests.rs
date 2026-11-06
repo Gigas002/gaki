@@ -22,6 +22,7 @@ fn launcher_config_takes_the_toml_settings() {
     assert_eq!(config.proxy.url.as_deref(), Some("socks5://127.0.0.1:1080"));
 }
 
+#[cfg(feature = "library")]
 #[test]
 fn info_cache_keeps_dlc_without_a_name() {
     let record = CachedAppInfo {

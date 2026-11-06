@@ -3,6 +3,7 @@
 use std::fmt;
 use std::time::Duration;
 
+#[cfg(feature = "authentication")]
 use steam_vent::{EResult, LoginError, NetworkError};
 
 /// Machine-readable kind (`"type"` in JSON errors).
@@ -156,6 +157,7 @@ pub fn classify(err: &anyhow::Error) -> Classified {
                 retry_after: t.retry_after,
             };
         }
+        #[cfg(feature = "authentication")]
         if let Some(n) = cause.downcast_ref::<NetworkError>()
             && let Some(kind) = network_kind(n)
         {
@@ -164,6 +166,7 @@ pub fn classify(err: &anyhow::Error) -> Classified {
                 retry_after: None,
             };
         }
+        #[cfg(feature = "authentication")]
         if let Some(l) = cause.downcast_ref::<LoginError>()
             && let Some(kind) = login_kind(l)
         {
@@ -172,6 +175,7 @@ pub fn classify(err: &anyhow::Error) -> Classified {
                 retry_after: None,
             };
         }
+        #[cfg(feature = "authentication")]
         if let Some(r) = cause.downcast_ref::<reqwest::Error>()
             && (r.is_timeout() || r.is_connect())
         {
@@ -206,6 +210,7 @@ pub fn io_kind(err: &std::io::Error) -> Option<ErrorKind> {
 }
 
 /// Offline when DNS or routing failed.
+#[cfg(feature = "authentication")]
 fn reqwest_kind(err: &reqwest::Error) -> ErrorKind {
     let mut source = std::error::Error::source(err);
     while let Some(cause) = source {
@@ -247,6 +252,7 @@ pub fn message_kind(text: &str) -> Option<ErrorKind> {
 }
 
 /// Kind for a Steam `EResult`, if any.
+#[cfg(feature = "authentication")]
 pub fn eresult_kind(result: EResult) -> Option<ErrorKind> {
     Some(match result {
         EResult::RateLimitExceeded
@@ -263,6 +269,7 @@ pub fn eresult_kind(result: EResult) -> Option<ErrorKind> {
     })
 }
 
+#[cfg(feature = "authentication")]
 fn network_kind(err: &NetworkError) -> Option<ErrorKind> {
     match err {
         NetworkError::ApiError(result) => eresult_kind(*result),
@@ -271,6 +278,7 @@ fn network_kind(err: &NetworkError) -> Option<ErrorKind> {
     }
 }
 
+#[cfg(feature = "authentication")]
 fn login_kind(err: &LoginError) -> Option<ErrorKind> {
     match err {
         LoginError::RateLimited => Some(ErrorKind::RateLimited),

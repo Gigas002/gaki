@@ -4,11 +4,14 @@
 use crate::core::config::load_library_cache;
 use crate::core::error::{ErrorKind, TypedError};
 use crate::core::models::LibraryGame;
+#[cfg(feature = "collections")]
 use crate::library::collections::CollectionsStore;
 use crate::library::{build_game_library, scan_installed_app_info};
 use crate::steam_client::{AccountData, SharedApp, SteamClient};
 use anyhow::Result;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+#[cfg(feature = "collections")]
+use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Build the merged owned + installed library.
@@ -139,6 +142,7 @@ impl Listing {
 pub async fn list(client: &mut SteamClient, options: &ListOptions) -> Result<Listing> {
     let mut games = load_library(client).await;
     // Only static collections have a membership list to resolve offline.
+    #[cfg(feature = "collections")]
     let store = CollectionsStore::load().ok();
 
     if client.is_authenticated() {
@@ -159,11 +163,20 @@ pub async fn list(client: &mut SteamClient, options: &ListOptions) -> Result<Lis
         games.retain(|g| g.name.to_ascii_lowercase().contains(&needle));
     }
     if let Some(name) = options.collection.as_deref() {
-        let store = store.as_ref().ok_or_else(|| {
-            TypedError::new(ErrorKind::NotFound, "no collections found; pull them first")
-        })?;
-        let members = static_members(store, name)?;
-        games.retain(|g| members.contains(&g.app_id));
+        #[cfg(feature = "collections")]
+        {
+            let store = store.as_ref().ok_or_else(|| {
+                TypedError::new(ErrorKind::NotFound, "no collections found; pull them first")
+            })?;
+            let members = static_members(store, name)?;
+            games.retain(|g| members.contains(&g.app_id));
+        }
+        #[cfg(not(feature = "collections"))]
+        return Err(TypedError::new(
+            ErrorKind::InvalidInput,
+            format!("can't filter by collection '{name}': built without the `collections` feature"),
+        )
+        .into());
     }
     games.sort_by_key(|g| g.name.to_ascii_lowercase());
 
@@ -209,13 +222,17 @@ pub async fn list(client: &mut SteamClient, options: &ListOptions) -> Result<Lis
         }
     }
 
+    #[cfg(feature = "collections")]
     let collections = store
         .map(|s| memberships(&s, games.iter().map(|g| g.app_id)))
         .unwrap_or_default();
+    #[cfg(not(feature = "collections"))]
+    let collections = HashMap::new();
     Ok(Listing { games, collections })
 }
 
 /// Members of a static collection, minus removals.
+#[cfg(feature = "collections")]
 fn static_members(store: &CollectionsStore, name: &str) -> Result<HashSet<u32>> {
     let col = store.resolve(name)?;
     if col.is_dynamic() {
@@ -239,6 +256,7 @@ fn static_members(store: &CollectionsStore, name: &str) -> Result<HashSet<u32>> 
 }
 
 /// Static-collection names for each of `app_ids` that belongs to one.
+#[cfg(feature = "collections")]
 fn memberships(
     store: &CollectionsStore,
     app_ids: impl Iterator<Item = u32>,

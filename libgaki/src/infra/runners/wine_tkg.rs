@@ -1,6 +1,5 @@
 use crate::infra::runners::{CommandSpec, LaunchContext, Runner};
 use crate::launch::pipeline::{LaunchError, LaunchErrorKind};
-use crate::steam_client::SteamClient;
 use anyhow::anyhow;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -96,6 +95,7 @@ impl Runner for WineTkgRunner {
         );
 
         // Add user identity context if available
+        #[cfg(feature = "authentication")]
         if let Ok(session) = crate::auth::load_session().await {
             if let Some(steam_id) = session.steam_id {
                 env.insert("SteamUser".to_string(), steam_id.to_string());
@@ -507,7 +507,7 @@ impl Runner for WineTkgRunner {
             .unwrap_or(false);
 
         if wants_mangohud {
-            match SteamClient::find_mangohud_lib() {
+            match crate::core::utils::find_mangohud_lib() {
                 Some(lib) => {
                     let existing = std::env::var("LD_PRELOAD").unwrap_or_default();
                     let new_preload = if existing.is_empty() {

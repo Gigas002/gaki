@@ -1,7 +1,9 @@
 use super::*;
 use crate::core::error::ErrorKind;
+#[cfg(feature = "social")]
 use crate::steam_client::Friend;
 
+#[cfg(feature = "social")]
 fn friend(id: u64, name: &str) -> Friend {
     Friend {
         steam_id: id,
@@ -54,6 +56,7 @@ fn other_text_is_a_name() {
     );
 }
 
+#[cfg(feature = "social")]
 #[test]
 fn name_matching_prefers_exact_then_prefix() {
     let friends = vec![friend(1, "Alex"), friend(2, "Alexander"), friend(3, "Bob")];

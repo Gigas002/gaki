@@ -9,6 +9,9 @@ use anyhow::{Context, Result, bail};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+/// Price region used when none is given.
+pub const DEFAULT_COUNTRY: &str = "US";
+
 /// `(dlc app id, store name)` pairs sorted by id; `None` when the store has no
 /// name for it.
 pub type DlcNames = Vec<(u32, Option<String>)>;
@@ -256,7 +259,7 @@ pub async fn dlc_list(client: &SteamClient, app_id: u32) -> Result<Vec<DlcEntry>
         .await
         .map(|e| e.dlcs)
         .unwrap_or_default();
-    let mut store = dlc_store_info(client, &dlc_ids, crate::ops::store::DEFAULT_COUNTRY).await;
+    let mut store = dlc_store_info(client, &dlc_ids, DEFAULT_COUNTRY).await;
     let names = names_from_records(&dlc_ids, &store);
     let states = client
         .dlc_states(app_id, &dlc_ids)
@@ -288,6 +291,7 @@ pub async fn set_dlc(client: &SteamClient, dlc_id: u32, enable: bool) -> Result<
 }
 
 /// The branches (betas) Steam reports for an app.
+#[cfg(feature = "versioning")]
 pub async fn branches(client: &SteamClient, app_id: u32) -> Result<Vec<String>> {
     client
         .fetch_branches(app_id)
@@ -296,6 +300,7 @@ pub async fn branches(client: &SteamClient, app_id: u32) -> Result<Vec<String>> 
 }
 
 /// Switch an app to `branch`; the next update applies it.
+#[cfg(feature = "versioning")]
 pub async fn set_branch(client: &SteamClient, app_id: u32, branch: &str) -> Result<()> {
     client
         .update_app_branch(app_id, branch)
@@ -355,7 +360,7 @@ pub struct DrmReport {
 /// Request the ownership and encrypted app tickets for an app.
 pub async fn drm_check(client: &SteamClient, app_id: u32) -> DrmReport {
     let name = client
-        .fetch_store_apps(&[app_id], crate::ops::store::DEFAULT_COUNTRY)
+        .fetch_store_apps(&[app_id], DEFAULT_COUNTRY)
         .await
         .ok()
         .and_then(|apps| apps.into_iter().find(|a| a.app_id == app_id))

@@ -6,6 +6,7 @@ use crate::config::{Platform, SteamIntegration};
 use crate::core::config::load_launcher_config;
 use crate::core::error::{ErrorKind, TypedError};
 use crate::core::models::{DepotPlatform, DownloadProgress, LibraryGame};
+#[cfg(feature = "install")]
 use crate::ops::install::InstallGuard;
 use crate::settings::{LaunchSettings, Overrides};
 use crate::steam_client::{LaunchTargetChoice, SteamClient};
@@ -121,7 +122,7 @@ pub enum LaunchEvent<'a> {
 /// build. `drive` consumes the update's progress.
 pub async fn play<Fut: Future<Output = Result<bool>>>(
     client: &mut SteamClient,
-    mut game: LibraryGame,
+    #[cfg_attr(not(feature = "install"), allow(unused_mut))] mut game: LibraryGame,
     request: &PlayRequest,
     on_event: &(dyn Fn(LaunchEvent<'_>) + Send + Sync),
     drive: impl FnOnce(Receiver<DownloadProgress>) -> Fut,
@@ -147,10 +148,15 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
     // Before the update, so a config mistake fails fast.
     let settings = crate::settings::resolve_user(app_id, &overrides)?;
 
-    let update_required = game.is_family_shared;
-    if !request.no_update || update_required {
-        pre_launch_update(client, &mut game, update_required, on_event, drive).await?;
+    #[cfg(feature = "install")]
+    {
+        let update_required = game.is_family_shared;
+        if !request.no_update || update_required {
+            pre_launch_update(client, &mut game, update_required, on_event, drive).await?;
+        }
     }
+    #[cfg(not(feature = "install"))]
+    let _ = (drive, request.no_update);
 
     // Warn-only: a DRM-free game runs fine without a ticket.
     if settings.steam != SteamIntegration::Host
@@ -188,6 +194,7 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
 }
 
 /// Check for and install an update. Failures are logged, unless `required`.
+#[cfg(feature = "install")]
 async fn pre_launch_update<Fut: Future<Output = Result<bool>>>(
     client: &SteamClient,
     game: &mut LibraryGame,

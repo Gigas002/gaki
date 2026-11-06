@@ -1,7 +1,7 @@
 //! Proton runtime discovery and the official-Proton catalogue.
 //!
 //! gaki only *installs* official Valve Proton, which ships as free Steam apps and
-//! goes through the normal content pipeline ([`crate::steam_client`]) into
+//! goes through the normal content pipeline (`steam_client`, with the `install` feature) into
 //! `steamapps/common`. Custom builds (GE, CachyOS, ...) are not downloaded; when
 //! present they are discovered from the `compatibilitytools.d` directories.
 //!

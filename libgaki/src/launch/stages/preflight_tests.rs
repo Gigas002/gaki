@@ -141,7 +141,7 @@ async fn test_preflight_bogus_relative_runner_fails() {
 #[tokio::test]
 async fn test_preflight_native_game_self_heals_exec_bit() {
     use crate::core::models::LibraryGame;
-    use crate::steam_client::{LaunchInfo, LaunchTarget};
+    use crate::core::models::{LaunchInfo, LaunchTarget};
     use std::os::unix::fs::PermissionsExt;
 
     let tmp = tempdir().unwrap();
@@ -193,7 +193,7 @@ async fn test_preflight_native_game_self_heals_exec_bit() {
 #[tokio::test]
 async fn test_preflight_native_ignores_path_like_argument() {
     use crate::core::models::LibraryGame;
-    use crate::steam_client::{LaunchInfo, LaunchTarget};
+    use crate::core::models::{LaunchInfo, LaunchTarget};
 
     let tmp = tempdir().unwrap();
     let exe = tmp.path().join("game.bin");

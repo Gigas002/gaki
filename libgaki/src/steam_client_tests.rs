@@ -279,6 +279,7 @@ fn dlc_ids_empty_when_no_listofdlc() {
     assert!(dlc_ids_from_section(section).is_empty());
 }
 
+#[cfg(feature = "cloud")]
 #[test]
 fn parses_ufs_savefile_rules() {
     let raw = r#""2784470"
@@ -314,6 +315,7 @@ fn parses_ufs_savefile_rules() {
     assert!(!specs[1].recursive); // absent recursive defaults to false
 }
 
+#[cfg(feature = "install")]
 #[test]
 fn acf_name_and_last_owner_parse() {
     let raw = "\"AppState\"\n{\n\t\"appid\"\t\t\"960090\"\n\t\"name\"\t\t\"Bloons TD 6\"\n\t\"LastOwner\"\t\t\"76561198000000001\"\n}\n";
@@ -323,6 +325,7 @@ fn acf_name_and_last_owner_parse() {
     assert_eq!(parse_name_from_acf("\"name\"\t\"\""), None);
 }
 
+#[cfg(feature = "install")]
 #[test]
 fn write_appmanifest_preserves_owner_and_branch() {
     let dir = tempfile::tempdir().unwrap();
@@ -736,6 +739,7 @@ fn failed_progress_keeps_error_kind() {
     );
 }
 
+#[cfg(feature = "install")]
 #[test]
 fn cdn_errors_map_to_kinds() {
     use crate::core::error::ErrorKind;
@@ -750,6 +754,7 @@ fn cdn_errors_map_to_kinds() {
     assert_eq!(cdn_error_kind(&status), None);
 }
 
+#[cfg(feature = "install")]
 #[test]
 fn cdn_server_parses_host_and_port() {
     let s = install::cdn_server_for("cache1.steamcontent.com", 7, Some("t".into()));

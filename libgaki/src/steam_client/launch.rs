@@ -311,75 +311,13 @@ impl SteamClient {
         };
         let wine_prefix = settings.wine_prefix(&library_root);
 
-        let cloud_enabled =
-            settings.cloud_sync && launcher_config.enable_cloud_sync && !self.is_offline();
-        let mut cloud_client = None;
-        let mut cloud_resolver = None;
-        let mut cloud_specs: Vec<crate::library::cloud_sync::UfsSaveSpec> = Vec::new();
-
-        if cloud_enabled {
-            let client = CloudClient::new(self.require_connection_owned()?);
-            let remote_root = default_cloud_root(client.steam_id(), app.app_id)?.join("remote");
-            // `%Win*%` cloud roots point inside the game's Proton prefix; without it
-            // every Auto-Cloud save of a Windows game would be silently skipped.
-            let resolver =
-                CloudPathResolver::new(remote_root, app.install_path.as_ref().map(PathBuf::from))
-                    .with_wine_prefix(Some(wine_prefix.clone()));
-            tracing::info!(appid = app.app_id, "Syncing Cloud...");
-            // Conflict-safe: a divergent save is left untouched (never clobbered),
-            // so the user can resolve it via `cloud sync` / the Heroic chooser. The
-            // game launches with whatever is currently on disk.
-            match client.sync_down(app.app_id, &resolver).await {
-                Ok(outcome) => {
-                    if outcome.has_conflicts() {
-                        tracing::warn!(
-                            appid = app.app_id,
-                            "{} Cloud save(s) diverged from local — left untouched; resolve with `gaki-cli cloud sync`",
-                            outcome.conflicts.len()
-                        );
-                    }
-                    // Never let this pass unremarked: the game is about to start
-                    // with saves missing that the user believes were synced.
-                    if outcome.has_skips() {
-                        tracing::warn!(
-                            appid = app.app_id,
-                            "{} Cloud save(s) could not be placed on disk (unmapped root token(s): {}) — the game may start without them; see `gaki-cli cloud sync {}`",
-                            outcome.skipped.len(),
-                            outcome
-                                .skipped_tokens()
-                                .iter()
-                                .map(|t| format!("%{t}%"))
-                                .collect::<Vec<_>>()
-                                .join(", "),
-                            app.app_id
-                        );
-                    }
-                    // The worst case for the player: enough files arrived that the
-                    // game starts, but not the ones holding their progress.
-                    if outcome.has_failures() {
-                        tracing::error!(
-                            appid = app.app_id,
-                            "{} Cloud save(s) FAILED to download — the save set on disk is incomplete and the game may show no progress. Run `gaki-cli cloud sync {} --down` before playing. First error: {}",
-                            outcome.failed.len(),
-                            app.app_id,
-                            outcome.failed.first().map_or("", |f| f.error.as_str())
-                        );
-                    }
-                }
-                Err(e) => tracing::error!(
-                    appid = app.app_id,
-                    "Cloud sync-down failed, launching anyway — saves may be missing or incomplete: {e:#}"
-                ),
-            }
-            // UFS rules let sync_up discover brand-new local saves; best-effort.
-            let specs = self
-                .fetch_ufs_save_specs(app.app_id)
-                .await
-                .unwrap_or_default();
-            cloud_client = Some(client);
-            cloud_resolver = Some(resolver);
-            cloud_specs = specs;
-        }
+        #[cfg(feature = "cloud")]
+        let cloud =
+            if settings.cloud_sync && launcher_config.enable_cloud_sync && !self.is_offline() {
+                Some(self.launch_cloud_sync_down(app, &wine_prefix).await?)
+            } else {
+                None
+            };
 
         let mut child = self
             .spawn_game_process(
@@ -425,31 +363,15 @@ impl SteamClient {
         crate::compat::running::clear(app.app_id);
         wait_result?;
 
-        if cloud_enabled
-            && let (Some(client), Some(resolver)) = (cloud_client.as_ref(), cloud_resolver.as_ref())
-        {
-            // The game has already run and exited, so a cloud-upload failure must not
-            // be surfaced as a launch failure. Log it and continue (this mirrors the
-            // best-effort sync_down before launch).
-            match client.sync_up(app.app_id, resolver, &cloud_specs).await {
-                Ok(outcome) if outcome.has_conflicts() => tracing::warn!(
-                    appid = app.app_id,
-                    "{} Cloud save(s) diverged on upload — left untouched; resolve with `gaki-cli cloud sync`",
-                    outcome.conflicts.len()
-                ),
-                Ok(_) => tracing::info!(appid = app.app_id, "Upload Complete"),
-                Err(e) => {
-                    tracing::warn!(
-                        appid = app.app_id,
-                        "Cloud upload failed (continuing): {e:#}"
-                    )
-                }
-            }
+        #[cfg(feature = "cloud")]
+        if let Some(cloud) = &cloud {
+            cloud.sync_up(app.app_id).await;
         }
 
         Ok(launch_info)
     }
 
+    #[cfg(feature = "install")]
     pub async fn update_game(
         &self,
         appid: u32,
@@ -459,6 +381,7 @@ impl SteamClient {
             .await
     }
 
+    #[cfg(feature = "install")]
     pub async fn verify_game(
         &self,
         appid: u32,
@@ -468,6 +391,7 @@ impl SteamClient {
             .await
     }
 
+    #[cfg(feature = "install")]
     pub(crate) async fn start_manifest_download(
         &self,
         appid: u32,
@@ -650,5 +574,114 @@ impl SteamClient {
         });
 
         Ok(rx)
+    }
+}
+
+/// Cloud state held across a launch: saves are pulled before the game starts
+/// and pushed after it exits.
+#[cfg(feature = "cloud")]
+struct LaunchCloud {
+    client: CloudClient,
+    resolver: CloudPathResolver,
+    specs: Vec<UfsSaveSpec>,
+}
+
+#[cfg(feature = "cloud")]
+impl SteamClient {
+    /// Pull the game's Cloud saves before launch. Best-effort: problems are
+    /// logged and the game launches with whatever is on disk.
+    async fn launch_cloud_sync_down(
+        &mut self,
+        app: &LibraryGame,
+        wine_prefix: &Path,
+    ) -> Result<LaunchCloud> {
+        let client = CloudClient::new(self.require_connection_owned()?);
+        let remote_root = default_cloud_root(client.steam_id(), app.app_id)?.join("remote");
+        // `%Win*%` cloud roots point inside the game's Proton prefix; without it
+        // every Auto-Cloud save of a Windows game would be silently skipped.
+        let resolver =
+            CloudPathResolver::new(remote_root, app.install_path.as_ref().map(PathBuf::from))
+                .with_wine_prefix(Some(wine_prefix.to_path_buf()));
+        tracing::info!(appid = app.app_id, "Syncing Cloud...");
+        // Conflict-safe: a divergent save is left untouched (never clobbered),
+        // so the user can resolve it via `cloud sync` / the Heroic chooser. The
+        // game launches with whatever is currently on disk.
+        match client.sync_down(app.app_id, &resolver).await {
+            Ok(outcome) => {
+                if outcome.has_conflicts() {
+                    tracing::warn!(
+                        appid = app.app_id,
+                        "{} Cloud save(s) diverged from local — left untouched; resolve with `gaki-cli cloud sync`",
+                        outcome.conflicts.len()
+                    );
+                }
+                // Never let this pass unremarked: the game is about to start
+                // with saves missing that the user believes were synced.
+                if outcome.has_skips() {
+                    tracing::warn!(
+                        appid = app.app_id,
+                        "{} Cloud save(s) could not be placed on disk (unmapped root token(s): {}) — the game may start without them; see `gaki-cli cloud sync {}`",
+                        outcome.skipped.len(),
+                        outcome
+                            .skipped_tokens()
+                            .iter()
+                            .map(|t| format!("%{t}%"))
+                            .collect::<Vec<_>>()
+                            .join(", "),
+                        app.app_id
+                    );
+                }
+                // The worst case for the player: enough files arrived that the
+                // game starts, but not the ones holding their progress.
+                if outcome.has_failures() {
+                    tracing::error!(
+                        appid = app.app_id,
+                        "{} Cloud save(s) FAILED to download — the save set on disk is incomplete and the game may show no progress. Run `gaki-cli cloud sync {} --down` before playing. First error: {}",
+                        outcome.failed.len(),
+                        app.app_id,
+                        outcome.failed.first().map_or("", |f| f.error.as_str())
+                    );
+                }
+            }
+            Err(e) => tracing::error!(
+                appid = app.app_id,
+                "Cloud sync-down failed, launching anyway — saves may be missing or incomplete: {e:#}"
+            ),
+        }
+        // UFS rules let sync_up discover brand-new local saves; best-effort.
+        let specs = self
+            .fetch_ufs_save_specs(app.app_id)
+            .await
+            .unwrap_or_default();
+        Ok(LaunchCloud {
+            client,
+            resolver,
+            specs,
+        })
+    }
+}
+
+#[cfg(feature = "cloud")]
+impl LaunchCloud {
+    /// Push saves after the game exits. Best-effort, like the pull.
+    async fn sync_up(&self, app_id: u32) {
+        // The game has already run and exited, so a cloud-upload failure must not
+        // be surfaced as a launch failure. Log it and continue (this mirrors the
+        // best-effort sync_down before launch).
+        match self
+            .client
+            .sync_up(app_id, &self.resolver, &self.specs)
+            .await
+        {
+            Ok(outcome) if outcome.has_conflicts() => tracing::warn!(
+                appid = app_id,
+                "{} Cloud save(s) diverged on upload — left untouched; resolve with `gaki-cli cloud sync`",
+                outcome.conflicts.len()
+            ),
+            Ok(_) => tracing::info!(appid = app_id, "Upload Complete"),
+            Err(e) => {
+                tracing::warn!(appid = app_id, "Cloud upload failed (continuing): {e:#}")
+            }
+        }
     }
 }

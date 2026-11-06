@@ -12,18 +12,21 @@ fn typed_error_survives_context_layers() {
     assert_eq!(c.retry_after, Some(Duration::from_secs(30)));
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn login_rate_limit_is_rate_limited() {
     let err = anyhow::Error::new(LoginError::RateLimited).context("refresh token login failed");
     assert_eq!(classify(&err).kind, ErrorKind::RateLimited);
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn invalid_credentials_is_auth_required() {
     let err = anyhow::Error::new(LoginError::InvalidCredentials);
     assert_eq!(classify(&err).kind, ErrorKind::AuthRequired);
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn api_eresult_maps_through_network_error() {
     let err = anyhow::Error::new(NetworkError::ApiError(EResult::RateLimitExceeded));
@@ -109,6 +112,7 @@ fn unreachable_network_is_offline() {
     assert_eq!(ErrorKind::Offline.exit_code(), 86);
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn io_inside_steam_vent_is_classified() {
     let io = std::io::Error::from(std::io::ErrorKind::NetworkUnreachable);

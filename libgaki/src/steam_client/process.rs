@@ -141,6 +141,7 @@ impl SteamClient {
 
     /// Launch a Windows game's executable directly, with no Proton/Wine layer.
     /// Resolve install dir, executable, args, workingdir.
+    #[cfg(feature = "library")]
     async fn resolve_exec_plan(
         &self,
         app: &LibraryGame,
@@ -175,6 +176,7 @@ impl SteamClient {
         Ok((install_dir, executable, args, game_working_dir))
     }
 
+    #[cfg(feature = "library")]
     pub(crate) async fn spawn_game_process(
         &self,
         app: &LibraryGame,
@@ -212,6 +214,7 @@ impl SteamClient {
 
     /// Internal legacy ad-hoc launch path.
     /// TODO: Remove once NativeRunner is implemented. (Ref: issue #1)
+    #[cfg(feature = "library")]
     pub async fn internal_legacy_launch_adhoc(
         &self,
         app: &LibraryGame,

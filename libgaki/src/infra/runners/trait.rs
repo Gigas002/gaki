@@ -1,6 +1,6 @@
 use crate::core::config::LauncherConfig;
+use crate::core::models::LaunchInfo;
 use crate::core::models::{LibraryGame, UserAppConfig};
-use crate::steam_client::LaunchInfo;
 use std::collections::HashMap;
 use std::path::PathBuf;
 

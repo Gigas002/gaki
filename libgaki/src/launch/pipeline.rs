@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use std::fmt;
 
 use crate::core::config::LauncherConfig;
+use crate::core::models::LaunchInfo;
 use crate::core::models::{LibraryGame, UserAppConfig};
 use crate::infra::logging::{EventLogger, LaunchSession};
 use crate::infra::runners::{CommandSpec, Runner};
-use crate::steam_client::LaunchInfo;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]

@@ -454,11 +454,13 @@ impl SteamClient {
         Ok(response.depot_encryption_key().to_vec())
     }
 
+    #[cfg(feature = "depot")]
     pub async fn fetch_depots(&self, appid: u32) -> Result<Vec<BrowserDepotInfo>> {
         let connection = self.require_connection()?;
         depot_browser::fetch_depots(connection, appid).await
     }
 
+    #[cfg(feature = "depot")]
     pub async fn fetch_manifest_files(
         &self,
         appid: u32,
@@ -469,6 +471,7 @@ impl SteamClient {
         depot_browser::fetch_manifest_files(connection, appid, depot_id, manifest_ref).await
     }
 
+    #[cfg(feature = "depot")]
     pub fn download_single_file(
         &self,
         appid: u32,

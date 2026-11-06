@@ -60,6 +60,7 @@ pub struct InstallOptions {
 }
 
 impl SteamClient {
+    #[cfg(feature = "versioning")]
     pub async fn fetch_branches(&self, appid: u32) -> Result<Vec<String>> {
         // PICS returns the appinfo as *binary* VDF; parse that first and only fall
         // back to text (mirroring `get_available_platforms`). Parsing the binary
@@ -548,6 +549,7 @@ impl SteamClient {
     /// It delegates to [`download_depot_to_with_hosts`] which accepts pre-fetched hosts
     /// — use that internal variant when you want a single host-fetch across many depots
     /// (as `install_game` does).
+    #[cfg(feature = "workshop")]
     pub(crate) async fn download_depot_to(
         &self,
         app_id: u32,
