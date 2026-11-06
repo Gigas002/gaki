@@ -1,5 +1,6 @@
 //! `gaki-cli login` must warn about an already-active session. The warning
 //! reads `account.toml` only, never the keyring.
+#![cfg(feature = "authentication")]
 
 use std::fs;
 use std::path::Path;

@@ -94,6 +94,7 @@ impl Browser {
 
     /// Fetch the Steam Wallet balance and open the overlay.
     /// Blocking; returns the backend error if the call fails.
+    #[cfg(feature = "inventory")]
     pub fn open_wallet(&mut self) -> Result<(), TuiError> {
         self.wallet_info = Some(steam::wallet()?);
         self.show_wallet = true;

@@ -53,6 +53,7 @@ pub(crate) async fn cmd_wallet(json: bool) -> Result<()> {
 }
 
 /// `gaki-cli market price <appid> <name>`: look up an item's price (no login needed).
+#[cfg(feature = "market")]
 pub(crate) async fn cmd_market_price(
     app_id: u32,
     name: String,
@@ -80,6 +81,7 @@ pub(crate) async fn cmd_market_price(
 }
 
 /// `gaki-cli market search [query]`: search the Community Market (no login needed).
+#[cfg(feature = "market")]
 pub(crate) async fn cmd_market_search(
     query: Option<String>,
     app_id: Option<u32>,
@@ -110,6 +112,7 @@ pub(crate) async fn cmd_market_search(
 }
 
 /// `gaki-cli market listings`: the account's active listings and open buy orders.
+#[cfg(feature = "market")]
 pub(crate) async fn cmd_market_listings(json: bool) -> Result<()> {
     let (web, grant) = sensitive_access(json).await?;
     let state = market::listings(&web, grant).await?;

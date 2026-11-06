@@ -1,5 +1,6 @@
 //! `reauth_sensitive`: the inventory, wallet and market listings ask for a
 //! fresh login first, before anything reaches Steam.
+#![cfg(feature = "market")]
 
 use std::fs;
 use std::path::Path;

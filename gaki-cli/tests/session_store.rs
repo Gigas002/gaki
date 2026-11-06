@@ -1,6 +1,7 @@
 //! The stored session's error surfacing: `account.toml` plus the secret
 //! store. Every config dir sets `secret_store = "memory"`, so no test touches
 //! the real keyring and each process starts with no secrets.
+#![cfg(feature = "authentication")]
 
 use std::fs;
 use std::path::Path;
@@ -50,6 +51,7 @@ fn with_lost_token() -> TempDir {
     tmp
 }
 
+#[cfg(feature = "library")]
 #[test]
 fn a_lost_token_asks_for_a_login() {
     let tmp = with_lost_token();
@@ -66,6 +68,7 @@ fn a_lost_token_asks_for_a_login() {
     );
 }
 
+#[cfg(feature = "library")]
 #[test]
 fn an_old_session_json_asks_for_a_login() {
     let tmp = config_dir();
@@ -109,6 +112,7 @@ fn logout_without_a_session_has_nothing_to_revoke() {
     assert_eq!(json["token"]["revocation"], "no_token", "{json}");
 }
 
+#[cfg(feature = "library")]
 mod daemon_e2e {
     use super::*;
     use std::time::{Duration, Instant};

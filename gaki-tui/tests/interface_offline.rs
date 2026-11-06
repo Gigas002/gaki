@@ -38,8 +38,10 @@ fn logged_out_session_is_reported_not_fetched() {
 
     game_data_needs_a_session();
     social_needs_a_session();
+    #[cfg(feature = "collections")]
     collections_round_trip();
     cancelled_qr_login_stops_quietly();
+    #[cfg(feature = "versioning")]
     pinning_reads_local_state();
     settings_round_trip();
     game_settings_round_trip();
@@ -132,13 +134,16 @@ fn proton_default_is_saved() {
 /// Steam-backed game data asks for a login instead of failing obscurely.
 fn game_data_needs_a_session() {
     let id = 945360;
-    let calls: [(&str, Result<(), gaki_tui::utils::error::TuiError>); 7] = [
+    let calls: Vec<(&str, Result<(), gaki_tui::utils::error::TuiError>)> = vec![
         ("achievements", steam::achievements(id).map(drop)),
         ("dlc", steam::dlc(id).map(drop)),
         ("depots", steam::depots(id).map(drop)),
         ("launch options", steam::launch_options(id).map(drop)),
+        #[cfg(feature = "versioning")]
         ("branches", steam::branches(id).map(drop)),
+        #[cfg(feature = "versioning")]
         ("set branch", steam::set_branch(id, "beta")),
+        #[cfg(feature = "versioning")]
         ("manifests", steam::manifests(id, None).map(drop)),
     ];
     for (what, result) in calls {
@@ -151,6 +156,7 @@ fn game_data_needs_a_session() {
 }
 
 /// Pin state comes from local files, so it works logged out.
+#[cfg(feature = "versioning")]
 fn pinning_reads_local_state() {
     let id = 945360;
     let state = steam::available(id).unwrap();
@@ -163,10 +169,14 @@ fn pinning_reads_local_state() {
 }
 
 /// Friends, chat and Workshop ask for a login; the web-surface calls
-/// (wallet, inventory, market listings) fail without one too.
+/// (wallet, inventory, market listings) fail without one too. Only the
+/// calls this build has are checked.
 fn social_needs_a_session() {
     type Outcome = Result<(), gaki_tui::utils::error::TuiError>;
-    let needs_login: [(&str, Outcome); 11] = [
+    #[allow(unused_mut)]
+    let mut needs_login: Vec<(&str, Outcome)> = Vec::new();
+    #[cfg(feature = "social")]
+    needs_login.extend([
         ("friends", steam::friends().map(drop)),
         ("friends search", steam::friends_search("gaben").map(drop)),
         ("friends add", steam::friends_add("gaben")),
@@ -176,6 +186,9 @@ fn social_needs_a_session() {
             steam::chat_history(76561197960287930, 5).map(drop),
         ),
         ("chat send", steam::chat_send(76561197960287930, "hi")),
+    ]);
+    #[cfg(feature = "workshop")]
+    needs_login.extend([
         ("workshop list", steam::workshop_list(945360).map(drop)),
         (
             "workshop browse",
@@ -187,7 +200,7 @@ fn social_needs_a_session() {
             "workshop comments",
             steam::workshop_comments(1, 5).map(drop),
         ),
-    ];
+    ]);
     for (what, result) in needs_login {
         let err = result.expect_err(what);
         assert!(
@@ -195,11 +208,15 @@ fn social_needs_a_session() {
             "{what}: unexpected error: {err}"
         );
     }
-    let web: [(&str, Outcome); 3] = [
+    #[allow(unused_mut)]
+    let mut web: Vec<(&str, Outcome)> = Vec::new();
+    #[cfg(feature = "inventory")]
+    web.extend([
         ("wallet", steam::wallet().map(drop)),
         ("inventory", steam::inventory(440).map(drop)),
-        ("market listings", steam::market_listings().map(drop)),
-    ];
+    ]);
+    #[cfg(feature = "market")]
+    web.push(("market listings", steam::market_listings().map(drop)));
     for (what, result) in web {
         assert!(result.is_err(), "{what} needs a session");
     }
@@ -207,6 +224,7 @@ fn social_needs_a_session() {
 
 /// Collections are edited in the local store offline; only the Steam sync
 /// needs a login.
+#[cfg(feature = "collections")]
 fn collections_round_trip() {
     steam::collection_create("Shooters").unwrap();
     steam::collection_add("Shooters", &[440, 730]).unwrap();

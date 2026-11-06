@@ -45,7 +45,7 @@ pub fn draw(frame: &mut Frame, app: &App, client: &Client) {
     match &app.mode {
         Mode::Failed => frame.render_widget(no_session(), placement[0]),
         Mode::Login => frame.render_widget(
-            login_landing(client.get_last_error(), app.reauth.map(|v| v.label())),
+            login_landing(client.get_last_error(), reauth_label(app)),
             placement[0],
         ),
         Mode::LoginQr => frame.render_widget(qr(client.get_qr(), placement[0]), placement[0]),
@@ -148,6 +148,17 @@ pub fn loading() -> Paragraph<'static> {
         Alignment::Left,
     )
 }
+/// What the pending sensitive view is called, when a fresh login is for one.
+fn reauth_label(app: &App) -> Option<&'static str> {
+    #[cfg(feature = "inventory")]
+    return app.reauth.map(|v| v.label());
+    #[cfg(not(feature = "inventory"))]
+    {
+        let _ = app;
+        None
+    }
+}
+
 /// Landing page shown when no Steam session is available. Offers classic
 /// (username/password) login and a QR login.
 pub fn login_landing(error: Option<String>, reauth_for: Option<&str>) -> Paragraph<'static> {

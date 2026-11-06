@@ -7,6 +7,7 @@
 //!
 //! The `*_screenshot` tests dump the rendered buffer as text; run them with
 //! `cargo test --test friends_chat -- --nocapture` to eyeball the layout.
+#![cfg(feature = "social")]
 
 use gaki_tui::app::browser::{Browser, View};
 use gaki_tui::app::game::Game;

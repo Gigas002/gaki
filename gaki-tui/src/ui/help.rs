@@ -1,4 +1,4 @@
-//! The help overlay (modal popup) listing every key binding.
+//! The help overlay (modal popup) listing every key binding this build has.
 
 use ratatui::layout::Alignment;
 use ratatui::style::{Modifier, Style};
@@ -59,52 +59,86 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("Shift+drag", "select text"),
         Entry::Blank,
         Entry::Header("Filtering"),
+        #[cfg(feature = "social")]
         Entry::Binding("Tab / S-Tab", "cycle tabs (+Friends)"),
+        #[cfg(feature = "social")]
         Entry::Binding("1 \u{2013} 5", "jump to a tab (5=Friends)"),
+        #[cfg(not(feature = "social"))]
+        Entry::Binding("Tab / S-Tab", "cycle tabs"),
+        #[cfg(not(feature = "social"))]
+        Entry::Binding("1 \u{2013} 4", "jump to a tab"),
         Entry::Binding("/", "focus text filter"),
         Entry::Binding("Esc", "clear filter"),
         Entry::Binding("s", "cycle sort"),
         Entry::Blank,
         Entry::Header("Actions"),
         Entry::Binding("Enter", "Actions menu (all)"),
+        #[cfg(feature = "versioning")]
         Entry::Binding("V", "versions & pinning"),
+        #[cfg(feature = "collections")]
         Entry::Binding("O", "collections"),
         Entry::Binding("a", "achievements"),
+        #[cfg(feature = "inventory")]
         Entry::Binding("I", "inventory"),
+        #[cfg(feature = "market")]
         Entry::Binding("m", "market listings"),
+        #[cfg(feature = "market")]
         Entry::Binding("S", "search community market"),
+        #[cfg(feature = "market")]
         Entry::Binding("  Enter / Tab", "  run / price highlighted"),
         Entry::Binding("i", "expand / collapse desc"),
+        #[cfg(feature = "install")]
         Entry::Binding("d", "install (pick library)"),
+        #[cfg(feature = "install")]
         Entry::Binding("Space", "pause / resume install"),
+        #[cfg(feature = "install")]
         Entry::Binding("c", "cancel install"),
+        #[cfg(feature = "install")]
         Entry::Binding("x", "uninstall game"),
+        #[cfg(feature = "install")]
         Entry::Binding("M", "move install"),
+        #[cfg(feature = "install")]
         Entry::Binding("K", "relink install"),
+        #[cfg(feature = "install")]
         Entry::Binding("N", "import install"),
+        #[cfg(feature = "install")]
         Entry::Binding("v", "verify files"),
+        #[cfg(feature = "install")]
         Entry::Binding("U", "update game"),
         Entry::Binding("D", "manage DLC"),
+        #[cfg(feature = "versioning")]
         Entry::Binding("b", "beta branches"),
         Entry::Binding("o", "depots"),
+        #[cfg(feature = "install")]
         Entry::Binding("P", "proton (d/i/u)"),
+        #[cfg(not(feature = "install"))]
+        Entry::Binding("P", "proton (d)"),
         Entry::Binding("R", "running games"),
+        #[cfg(feature = "workshop")]
         Entry::Binding("W", "workshop items"),
+        #[cfg(feature = "workshop")]
         Entry::Binding("W then b", "browse workshop"),
         Entry::Binding("f", "toggle favourite"),
         Entry::Binding("H", "hide game"),
+        #[cfg(feature = "cloud")]
         Entry::Binding("C", "cloud saves (s/d/u)"),
         Entry::Binding("L", "launch options"),
         Entry::Binding("r", "refresh library"),
         Entry::Binding("A", "account"),
         Entry::Binding("p", "settings"),
         Entry::Binding("p then h", "toggle HowLongToBeat"),
+        #[cfg(feature = "social")]
         Entry::Binding("F / 5", "open Friends tab"),
+        #[cfg(feature = "social")]
         Entry::Binding("c / Enter", "chat (Friends tab)"),
+        #[cfg(feature = "social")]
         Entry::Binding("t", "chat in new window"),
+        #[cfg(feature = "social")]
         Entry::Binding("a", "add friend (Friends)"),
+        #[cfg(feature = "social")]
         Entry::Binding("x", "remove friend (Friends)"),
         Entry::Binding("A then o", "log out"),
+        #[cfg(feature = "inventory")]
         Entry::Binding("w", "wallet balance"),
         Entry::Binding("l", "sign in again"),
         Entry::Blank,

@@ -1,7 +1,9 @@
 //! Game actions shared by the Actions menu, the library's accelerators and
 //! the prompts, so each one behaves the same from every place it's reached.
 
-use crate::app::browser::{Browser, InstallPhase};
+use crate::app::browser::Browser;
+#[cfg(feature = "install")]
+use crate::app::browser::InstallPhase;
 use crate::app::client::Client;
 use crate::app::game::Game;
 use crate::app::{App, AppResult, Mode};
@@ -9,6 +11,7 @@ use crate::config::Config;
 
 /// Install `game`. The location picker opens first; when no libraries can
 /// be listed, it installs into the default one.
+#[cfg(feature = "install")]
 pub(super) fn install(browser: &mut Browser, client: &Client, game: &Game) -> AppResult {
     if !browser.open_install_picker(game.id) {
         let control = browser.begin_install(game.id, None);
@@ -19,6 +22,7 @@ pub(super) fn install(browser: &mut Browser, client: &Client, game: &Game) -> Ap
 
 /// Pause an in-flight install, or resume a paused one into the library it
 /// started in. The download stays on disk, so it picks up where it stopped.
+#[cfg(feature = "install")]
 pub(super) fn pause_or_resume(browser: &mut Browser, client: &Client, game: &Game) -> AppResult {
     match browser.install_phase(game) {
         InstallPhase::Active => browser.pause_install(game.id),
@@ -33,6 +37,7 @@ pub(super) fn pause_or_resume(browser: &mut Browser, client: &Client, game: &Gam
 }
 
 /// Cancel an in-flight or paused install.
+#[cfg(feature = "install")]
 pub(super) fn cancel_install(browser: &mut Browser, game: &Game) {
     if browser.install_phase(game) != InstallPhase::Idle {
         browser.stop_install(game.id);

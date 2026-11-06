@@ -33,3 +33,32 @@ fn single_unknown_app_is_not_found() {
     let err = no_store_info(7);
     assert_eq!(crate::core::error::classify(&err).kind, ErrorKind::NotFound);
 }
+
+#[test]
+fn defaults_to_us() {
+    assert_eq!(resolve_country(None).unwrap(), "US");
+}
+
+#[test]
+fn normalizes_a_given_code() {
+    assert_eq!(resolve_country(Some("uk")).unwrap(), "GB");
+}
+
+#[test]
+fn rejects_garbage_as_invalid_input() {
+    let err = resolve_country(Some("usa")).unwrap_err();
+    assert_eq!(
+        crate::core::error::classify(&err).kind,
+        ErrorKind::InvalidInput
+    );
+}
+
+#[test]
+fn assets_list_artwork_then_media() {
+    let mut info = StoreAppInfo::default();
+    info.assets.header = Some("h".into());
+    info.assets.logo = Some("l".into());
+    info.screenshots = vec!["s1".into()];
+    let kinds: Vec<&str> = assets(&info).iter().map(|a| a.kind).collect();
+    assert_eq!(kinds, vec!["header", "logo", "screenshot"]);
+}

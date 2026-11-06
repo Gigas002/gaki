@@ -40,6 +40,34 @@ pub(crate) const FEATURES: &[&str] = &[
     "result.schema",
 ];
 
+/// The Cargo features this binary was built with; each gates its commands.
+pub(crate) const BUILD_FEATURES: &[&str] = &[
+    #[cfg(feature = "authentication")]
+    "authentication",
+    #[cfg(feature = "library")]
+    "library",
+    #[cfg(feature = "install")]
+    "install",
+    #[cfg(feature = "cloud")]
+    "cloud",
+    #[cfg(feature = "collections")]
+    "collections",
+    #[cfg(feature = "versioning")]
+    "versioning",
+    #[cfg(feature = "depot")]
+    "depot",
+    #[cfg(feature = "workshop")]
+    "workshop",
+    #[cfg(feature = "social")]
+    "social",
+    #[cfg(feature = "inventory")]
+    "inventory",
+    #[cfg(feature = "market")]
+    "market",
+    #[cfg(feature = "store")]
+    "store",
+];
+
 pub(crate) fn cmd_capabilities(path: &[String], json: bool) -> Result<()> {
     if !path.is_empty() {
         let detail = command_detail(path)?;
@@ -276,6 +304,7 @@ const LIST_FIELDS: &[(&str, &str)] = &[
     ("Arch", "arch"),
     ("GlobalFlags", "global_flags"),
     ("Features", "features"),
+    ("Build", "build_features"),
     ("Events", "events"),
     ("Commands", "commands"),
 ];
@@ -387,6 +416,7 @@ pub(crate) fn capabilities() -> Value {
         "events": EVENTS,
         "errors": errors,
         "features": FEATURES,
+        "build_features": BUILD_FEATURES,
     })
 }
 

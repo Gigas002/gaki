@@ -8,21 +8,7 @@ use crate::steam_client::{
 use anyhow::Result;
 use std::time::Duration;
 
-pub use crate::ops::info::DEFAULT_COUNTRY;
-
-/// Resolve the store country: `requested` (normalized) or [`DEFAULT_COUNTRY`].
-pub fn resolve_country(requested: Option<&str>) -> Result<String> {
-    let Some(raw) = requested else {
-        return Ok(DEFAULT_COUNTRY.to_string());
-    };
-    crate::core::utils::normalize_country(raw).ok_or_else(|| {
-        TypedError::new(
-            ErrorKind::InvalidInput,
-            format!("invalid country code `{raw}`; use a two-letter ISO code like US or DE"),
-        )
-        .into()
-    })
-}
+pub use crate::ops::info::{DEFAULT_COUNTRY, resolve_country};
 
 /// Parse `--compare`-style region lists (`["US,DE", "jp"]`) into normalized,
 /// de-duplicated country codes.
@@ -264,97 +250,6 @@ pub async fn reviews(
     crate::web::discovery::fetch_reviews(&http, app_id, query).await
 }
 
-/// A store record with its media, from the info cache when it has them.
-pub async fn record_with_media(
-    app_id: u32,
-    connect: impl AsyncFnOnce() -> Result<SteamClient>,
-) -> Result<StoreAppInfo> {
-    use crate::core::config::{info_cache_ttl, load_info_cache};
-    if let Some(cached) = load_info_cache(app_id, DEFAULT_COUNTRY, info_cache_ttl()).await
-        // Older cache entries were written without media.
-        && (!cached.details.screenshots.is_empty() || !cached.details.tags.is_empty())
-    {
-        return Ok(cached.details);
-    }
-    let client = connect().await?;
-    client
-        .fetch_store_apps(&[app_id], DEFAULT_COUNTRY)
-        .await?
-        .into_iter()
-        .find(|a| a.app_id == app_id)
-        .ok_or_else(|| no_store_info(app_id))
-}
-
-/// One asset URL of an app, optionally probed.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct Asset {
-    /// `header`, `capsule`, `hero`, `background`, `logo`, `screenshot`,
-    /// `trailer_thumb` or `trailer`.
-    pub kind: &'static str,
-    pub url: String,
-    /// HTTP status of a HEAD request; `None` when not probed or unreachable.
-    pub status: Option<u16>,
-}
-
-/// Every asset URL of a store record.
-pub fn assets(info: &StoreAppInfo) -> Vec<Asset> {
-    let mut entries: Vec<(&'static str, String)> = Vec::new();
-    let a = &info.assets;
-    for (kind, url) in [
-        ("header", &a.header),
-        ("capsule", &a.capsule),
-        ("hero", &a.hero),
-        ("background", &a.background),
-        ("logo", &a.logo),
-    ] {
-        if let Some(u) = url {
-            entries.push((kind, u.clone()));
-        }
-    }
-    entries.extend(info.screenshots.iter().map(|u| ("screenshot", u.clone())));
-    for t in &info.trailers {
-        if let Some(u) = &t.thumbnail {
-            entries.push(("trailer_thumb", u.clone()));
-        }
-        if let Some(u) = &t.url {
-            entries.push(("trailer", u.clone()));
-        }
-    }
-    entries
-        .into_iter()
-        .map(|(kind, url)| Asset {
-            kind,
-            url,
-            status: None,
-        })
-        .collect()
-}
-
-/// HEAD each asset URL, eight at a time, filling in `status`.
-pub async fn probe_assets(assets: &mut [Asset]) {
-    let Ok(client) = crate::core::net::http_client(Duration::from_secs(15)) else {
-        return;
-    };
-    let indices: Vec<usize> = (0..assets.len()).collect();
-    for chunk in indices.chunks(8) {
-        let mut set = tokio::task::JoinSet::new();
-        for &i in chunk {
-            let client = client.clone();
-            let url = assets[i].url.clone();
-            set.spawn(async move {
-                let status = crate::core::net::send_with_retry(&client, client.head(&url))
-                    .await
-                    .ok()
-                    .map(|r| r.status().as_u16());
-                (i, status)
-            });
-        }
-        while let Some(Ok((i, status))) = set.join_next().await {
-            assets[i].status = status;
-        }
-    }
-}
-
 /// A page of a wishlist.
 #[derive(Debug, Clone)]
 pub struct Wishlist {
@@ -433,11 +328,6 @@ pub async fn wishlist_add(client: &SteamClient, app_id: u32) -> Result<u32> {
 /// Remove an app from the wishlist; returns the new item count.
 pub async fn wishlist_remove(client: &SteamClient, app_id: u32) -> Result<u32> {
     client.wishlist_remove(app_id).await
-}
-
-/// The store tag vocabulary, `(id, name)` sorted by id.
-pub async fn tags(client: &SteamClient) -> Result<Vec<(u32, String)>> {
-    client.fetch_tag_list().await
 }
 
 #[cfg(test)]

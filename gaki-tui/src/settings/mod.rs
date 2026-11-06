@@ -21,6 +21,7 @@ pub enum Start {
     /// The library browser.
     Library,
     /// A full-screen chat with one friend.
+    #[cfg(feature = "social")]
     Chat { steamid: u64, name: String },
 }
 
@@ -43,6 +44,7 @@ impl Settings {
 
     /// The CLI layer over the defaults. Pure, so tests needn't touch disk.
     pub fn merge(cli: CliOptions, log_file: PathBuf, proxy: ProxyConfig) -> Self {
+        #[cfg(feature = "social")]
         let start = match cli.chat {
             Some(steamid) => Start::Chat {
                 steamid,
@@ -50,6 +52,8 @@ impl Settings {
             },
             None => Start::Library,
         };
+        #[cfg(not(feature = "social"))]
+        let start = Start::Library;
         let log_level = cli.log_level.map_or(LevelFilter::INFO, level_filter);
         Self {
             start,

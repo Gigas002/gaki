@@ -15,11 +15,12 @@ fn sep() -> Span<'static> {
 }
 
 /// The footer's key hints (line 2), as `(key, description)` pairs.
-const HINTS: [(&str, &str); 9] = [
+const HINTS: &[(&str, &str)] = &[
     ("[/]", " filter  "),
     ("[Tab]", " view  "),
     ("[s]", " sort  "),
     ("[Enter]", " actions  "),
+    #[cfg(feature = "install")]
     ("[d]", " install  "),
     ("[f]", " fav  "),
     ("[r]", " refresh  "),

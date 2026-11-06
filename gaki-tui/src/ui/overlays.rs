@@ -6,6 +6,7 @@ use ratatui::widgets::Clear;
 
 use crate::app::browser::Browser;
 use crate::ui;
+#[cfg(feature = "install")]
 use crate::utils::stateful::Named;
 
 /// Draw every open overlay over the library.
@@ -19,6 +20,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
 
     // Chat view floats above everything (the in-app conversation
     // overlay; a chat can also be popped into its own terminal).
+    #[cfg(feature = "social")]
     if browser.show_chat {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
@@ -26,6 +28,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Inventory overlay floats above everything.
+    #[cfg(feature = "inventory")]
     if browser.show_inventory {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
@@ -33,6 +36,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Market listings overlay floats above everything.
+    #[cfg(feature = "market")]
     if browser.show_market {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
@@ -40,6 +44,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Community Market search overlay floats above everything.
+    #[cfg(feature = "market")]
     if browser.show_market_search {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
@@ -50,6 +55,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Workshop overlay floats above everything.
+    #[cfg(feature = "workshop")]
     if browser.show_workshop {
         let area = ui::centered_rect(72, 80, frame.area());
         frame.render_widget(Clear, area);
@@ -64,6 +70,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Steam Cloud overlay floats above everything.
+    #[cfg(feature = "cloud")]
     if browser.show_cloud {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
@@ -92,6 +99,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Wallet overlay floats above everything.
+    #[cfg(feature = "inventory")]
     if browser.show_wallet {
         let area = ui::centered_rect(40, 30, frame.area());
         frame.render_widget(Clear, area);
@@ -106,6 +114,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Versions & pinning overlay floats above everything.
+    #[cfg(feature = "versioning")]
     if browser.show_versions {
         let area = ui::centered_rect(72, 78, frame.area());
         frame.render_widget(Clear, area);
@@ -120,6 +129,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Collections overlay floats above everything.
+    #[cfg(feature = "collections")]
     if browser.show_collections {
         let area = ui::centered_rect(58, 62, frame.area());
         frame.render_widget(Clear, area);
@@ -134,6 +144,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // "Not installed — install now?" prompt floats above the library.
+    #[cfg(feature = "install")]
     if browser.confirm_install
         && let Some(game) = browser.selected()
     {
@@ -143,6 +154,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Install-location picker floats above the library.
+    #[cfg(feature = "install")]
     if browser.show_install_picker {
         let area = ui::centered_rect(64, 40, frame.area());
         frame.render_widget(Clear, area);
@@ -150,6 +162,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Uninstall confirmation prompt floats above the library.
+    #[cfg(feature = "install")]
     if browser.confirm_uninstall
         && let Some(game) = browser.selected()
     {
@@ -166,6 +179,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Branches overlay floats above everything.
+    #[cfg(feature = "versioning")]
     if browser.show_branches {
         let area = ui::centered_rect(60, 60, frame.area());
         frame.render_widget(Clear, area);
@@ -180,6 +194,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Move (relocate install) prompt floats above everything.
+    #[cfg(feature = "install")]
     if browser.show_move {
         let area = ui::centered_rect(60, 25, frame.area());
         frame.render_widget(Clear, area);
@@ -187,6 +202,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Relink (relink install) prompt floats above everything.
+    #[cfg(feature = "install")]
     if browser.show_relink {
         let area = ui::centered_rect(60, 25, frame.area());
         frame.render_widget(Clear, area);
@@ -194,6 +210,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Import (register existing install) prompt floats above everything.
+    #[cfg(feature = "install")]
     if browser.show_import {
         let area = ui::centered_rect(60, 25, frame.area());
         frame.render_widget(Clear, area);
@@ -207,6 +224,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
         frame.render_widget(ui::proton::proton(browser), area);
 
         // Destructive uninstall confirmation floats above the overlay.
+        #[cfg(feature = "install")]
         if browser.confirm_proton_uninstall
             && let Some(p) = browser.selected_proton()
         {
@@ -225,6 +243,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Add-friend (search/add) prompt floats above everything.
+    #[cfg(feature = "social")]
     if browser.show_friend_add {
         let area = ui::centered_rect(60, 30, frame.area());
         frame.render_widget(Clear, area);
@@ -232,6 +251,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     }
 
     // Remove-friend confirmation prompt floats above the friends panel.
+    #[cfg(feature = "social")]
     if browser.confirm_friend_remove
         && let Some(friend) = browser.selected_friend()
     {

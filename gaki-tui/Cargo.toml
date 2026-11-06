@@ -14,9 +14,23 @@ categories = ["command-line-utilities"]
 name = "gaki-tui"
 path = "src/main.rs"
 
+[features]
+default = ["install", "cloud", "collections"]
+install = ["libgaki/install"]
+cloud = ["libgaki/cloud"]
+collections = ["libgaki/collections"]
+versioning = ["install", "libgaki/versioning"]
+depot = ["install", "libgaki/depot"]
+workshop = ["install", "libgaki/workshop"]
+social = ["libgaki/social"]
+inventory = ["libgaki/inventory"]
+market = ["inventory", "libgaki/market"]
+store = ["libgaki/store"]
+
 [dependencies]
-# Until 6.2 forwards features one-to-one, the binaries enable every capability they use.
-libgaki = { workspace = true, features = ["cloud", "collections", "depot", "install", "market", "social", "store", "versioning", "workshop"] }
+# A TUI always browses a library, so login and the library are its floor; the
+# rest are forwarded from libgaki one-to-one (see docs/PLAN.md, feature matrix).
+libgaki = { workspace = true, default-features = false, features = ["library"] }
 anyhow.workspace = true
 clap.workspace = true
 fuzzy-matcher = "0.3.7"

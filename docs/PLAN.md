@@ -115,7 +115,9 @@ gaki/
 ## Feature matrix (R24)
 
 These are defined in `libgaki`. `gaki-cli` and `gaki-tui` re-export each one
-(`library = ["libgaki/library"]`) and gate their commands and views on it.
+(`library = ["authentication", "libgaki/library"]`) and gate their commands and
+views on it. `gaki-tui` always builds `authentication` and `library` (a TUI
+without a library has nothing to show), so it re-exports the other ten.
 
 | Feature          | Default | Requires         | Covers (current code)                                          |
 | ---------------- | :-----: | ---------------- | -------------------------------------------------------------- |
@@ -1285,8 +1287,31 @@ I make the changes, and you review, commit, and push.
   feature they use, so the workspace builds. Checked: clippy and docs for
   libgaki with each feature alone, none, default and all; the §8 gates for
   the workspace.
-- [ ] **6.2** Forward the features from `gaki-cli` and `gaki-tui`, and gate their
+- [x] **6.2** Forward the features from `gaki-cli` and `gaki-tui`, and gate their
   commands, views, keybindings, and help text.
+  *Done.* The workspace `libgaki` dependency is `default-features = false`.
+  `gaki-cli` forwards all twelve features with the same defaults;
+  `authentication` brings `qrcode`/`rpassword` and `social` brings
+  `steam-vent-chat`/`tokio-stream`. Every command variant, its args and its
+  handler are gated (`Capabilities`, `Config`, `Profiles` and `proton
+  list/default` are always built). The daemon (`daemon`, `kill`, request
+  forwarding, `output`'s routing) needs `authentication`; `--no-daemon`,
+  `--no-spawn` and `--socket` stay accepted but hidden without it. Moves:
+  `image`/`appinfo`/`tags` from `commands/store.rs` to `commands/info.rs`, and
+  their libgaki side (`record_with_media`, `assets`, `probe_assets`, `tags`,
+  `resolve_country`) from `ops::store` to `ops::info`; `kill`/`daemon stop`/
+  `daemon list` from `launch.rs` to a new `commands/daemon.rs`. A new
+  `ops::session::resolve_user_id` takes a SteamID or `me` (a name needs
+  `social`), so `store` builds without `social`. `capabilities` reports the
+  build's features as `build_features`. `gaki-tui` always builds
+  `authentication` + `library` and forwards the other ten (defaults `install`,
+  `cloud`, `collections`). Its worker calls, `Browser` view modules and private
+  state, `Action` rows, `SensitiveView`s, the Friends tab, `--chat`, overlay
+  key handlers and draws, the help entries, and the status/Proton key hints
+  are gated per feature. The overlay key chain became early-return blocks so
+  each can carry a cfg. Play on a game that isn't installed says so without
+  `install`. Tests are gated with what they exercise. Checked: clippy for
+  each crate with each feature alone, plus the §8 gates.
 - [ ] **6.3** Get the three-level matrix (`--no-default-features`, default,
   `--all-features`) green for clippy and tests, and document it in
   `docs/FEATURES.md`.

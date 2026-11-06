@@ -20,6 +20,7 @@ fn defaults_open_the_library_at_info() {
     assert_eq!(settings.log_file, PathBuf::from("/state/gaki-tui.log"));
 }
 
+#[cfg(feature = "social")]
 #[test]
 fn chat_starts_the_chat_view() {
     let settings = merge(&["--chat", "42", "--name", "Gabe"]);
@@ -32,6 +33,7 @@ fn chat_starts_the_chat_view() {
     );
 }
 
+#[cfg(feature = "social")]
 #[test]
 fn chat_without_a_name_uses_an_empty_one() {
     let settings = merge(&["--chat", "42"]);

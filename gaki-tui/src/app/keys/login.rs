@@ -19,6 +19,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
                 return Ok(Flow::Quit);
             }
             // Skip the fresh sign-in a sensitive view asked for.
+            #[cfg(feature = "inventory")]
             KeyCode::Esc if app.reauth.take().is_some() => {
                 app.mode = Mode::Browse;
             }

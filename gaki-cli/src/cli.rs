@@ -60,20 +60,35 @@ pub(crate) struct Cli {
     #[arg(long, global = true, value_name = "PATH")]
     pub(crate) config_dir: Option<std::path::PathBuf>,
     /// Run the command in this process, never through the session daemon.
-    #[arg(long, global = true)]
+    /// Accepted (and hidden) in builds without one, so scripts can always pass it.
+    #[arg(long, global = true, hide = cfg!(not(feature = "authentication")))]
+    #[cfg_attr(not(feature = "authentication"), allow(dead_code))]
     pub(crate) no_daemon: bool,
     /// Use a running session daemon, but never start one (for drivers that
     /// manage the daemon themselves, or whose spawn chains wait on children).
-    #[arg(long, global = true, conflicts_with = "no_daemon")]
+    #[arg(
+        long,
+        global = true,
+        conflicts_with = "no_daemon",
+        hide = cfg!(not(feature = "authentication"))
+    )]
+    #[cfg_attr(not(feature = "authentication"), allow(dead_code))]
     pub(crate) no_spawn: bool,
     /// Session daemon socket path, to run or reach an isolated daemon.
-    #[arg(long, global = true, value_name = "PATH")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "PATH",
+        hide = cfg!(not(feature = "authentication"))
+    )]
+    #[cfg_attr(not(feature = "authentication"), allow(dead_code))]
     pub(crate) socket: Option<String>,
 }
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
     /// Authenticate with Steam and persist the session.
+    #[cfg(feature = "authentication")]
     Login(LoginArgs),
     /// Describe this build for drivers: commands, flags, JSON events, error types
     /// and exit codes, and the `--json` schema version. Offline. Without `--json` it
@@ -84,6 +99,7 @@ pub(crate) enum Command {
         path: Vec<String>,
     },
     /// List games in your library.
+    #[cfg(feature = "library")]
     List {
         /// Only show installed games.
         #[arg(short, long)]
@@ -108,6 +124,7 @@ pub(crate) enum Command {
         check_updates: bool,
     },
     /// Show detailed information about a game.
+    #[cfg(feature = "library")]
     Info {
         /// One or more app ids. Multiple ids are fetched over a *single* Steam
         /// logon (one batched StoreBrowse call) — far cheaper than running `info`
@@ -130,6 +147,7 @@ pub(crate) enum Command {
         country: Option<String>,
     },
     /// Show a game's price, optionally across regions.
+    #[cfg(feature = "store")]
     Price {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -141,6 +159,7 @@ pub(crate) enum Command {
         country: Option<String>,
     },
     /// Search the store by title.
+    #[cfg(feature = "store")]
     Search {
         term: String,
         /// Maximum results.
@@ -151,6 +170,7 @@ pub(crate) enum Command {
         country: Option<String>,
     },
     /// Discounted and top-selling games in a region.
+    #[cfg(feature = "store")]
     Deals {
         /// Which slice of the store to list.
         #[arg(short = 's', long, value_enum, default_value_t = DealsScopeArg::DiscountedTopSellers)]
@@ -169,17 +189,20 @@ pub(crate) enum Command {
         country: Option<String>,
     },
     /// Current player count for an app.
+    #[cfg(feature = "store")]
     Players {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Store-wide sales and events currently running.
+    #[cfg(feature = "store")]
     Events {
         /// Country code the events apply to.
         #[arg(short = 'c', long, alias = "cc")]
         country: Option<String>,
     },
     /// Recent news (storefront web; no CM equivalent).
+    #[cfg(feature = "store")]
     News {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -191,11 +214,14 @@ pub(crate) enum Command {
         max_length: u32,
     },
     /// User reviews, paged (storefront web, no CM equivalent).
+    #[cfg(feature = "store")]
     Reviews(ReviewsArgs),
     /// Profile by SteamID64, /profiles/ URL, friend name, `me`.
+    #[cfg(feature = "social")]
     User { user: String },
     /// Your wishlist, or a friend's.
     #[command(args_conflicts_with_subcommands = true)]
+    #[cfg(feature = "store")]
     Wishlist {
         /// Whose wishlist; defaults to yours.
         user: Option<String>,
@@ -212,6 +238,7 @@ pub(crate) enum Command {
         command: Option<WishlistCommand>,
     },
     /// Games similar to a given app.
+    #[cfg(feature = "store")]
     Similar {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -223,11 +250,14 @@ pub(crate) enum Command {
         country: Option<String>,
     },
     /// Download and install a game.
+    #[cfg(feature = "install")]
     Install(InstallArgs),
     /// List the Steam library folders games can be installed into (one per
     /// drive/location). Use `--json` for tooling.
+    #[cfg(feature = "library")]
     Libraries,
     /// List installed games with an update available, or update one by app id.
+    #[cfg(feature = "install")]
     Update {
         /// Game to update. Omit to list every installed game that needs an update.
         #[arg(value_parser = app_ref)]
@@ -237,6 +267,7 @@ pub(crate) enum Command {
         force: bool,
     },
     /// Launch a game and wait for it to exit.
+    #[cfg(feature = "library")]
     Play {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -261,6 +292,7 @@ pub(crate) enum Command {
     /// List the ways an installed game can be launched: each installed build
     /// (native Linux / Windows) and, for Windows, each available Steam mode, with
     /// the `play` flags selecting it and which one plain `play` would pick.
+    #[cfg(feature = "library")]
     LaunchTargets {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -269,6 +301,7 @@ pub(crate) enum Command {
         steam: bool,
     },
     /// Stop a running game previously launched with `gaki-cli play`.
+    #[cfg(feature = "library")]
     Stop {
         /// App id to stop. Omit to list the games gaki is tracking as running.
         #[arg(value_parser = app_ref)]
@@ -279,8 +312,10 @@ pub(crate) enum Command {
         force: bool,
     },
     /// List the games gaki is currently running.
+    #[cfg(feature = "library")]
     Running,
     /// Uninstall a game.
+    #[cfg(feature = "install")]
     Uninstall {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -289,6 +324,7 @@ pub(crate) enum Command {
         delete_prefix: bool,
     },
     /// Verify the integrity of an installed game.
+    #[cfg(feature = "install")]
     Verify {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -298,25 +334,31 @@ pub(crate) enum Command {
     /// A duplicate leaves two appmanifests disagreeing about what is installed,
     /// which makes the game report an available update on every check. Prints the
     /// redundant copies and the commands to remove them; deletes nothing itself.
+    #[cfg(feature = "install")]
     Duplicates,
     /// Report whether a game is installed and its files are present on disk.
+    #[cfg(feature = "install")]
     Available {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Verify a game's DRM tickets headlessly.
+    #[cfg(feature = "library")]
     Drm {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Show account details for the logged-in user.
+    #[cfg(feature = "library")]
     Account,
     /// List a game's DLC.
+    #[cfg(feature = "library")]
     Dlc {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Enable an installed DLC for its base game.
+    #[cfg(feature = "library")]
     Enable {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -326,6 +368,7 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// Disable a DLC for its base game.
+    #[cfg(feature = "library")]
     Disable {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -334,11 +377,13 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// Show the logged-in user's achievements for a game.
+    #[cfg(feature = "library")]
     Achievements {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Download a game's cover/header artwork to the local image cache.
+    #[cfg(feature = "library")]
     Image {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -357,18 +402,21 @@ pub(crate) enum Command {
     },
     /// Dump raw PICS appinfo sections (maintainer tool).
     #[command(hide = true)]
+    #[cfg(feature = "library")]
     Appinfo {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Dump the store tag vocabulary (maintainer tool).
     #[command(hide = true)]
+    #[cfg(feature = "library")]
     Tags {
         /// Print Rust source for `tags_table.rs`.
         #[arg(short = 'd', long)]
         dump: bool,
     },
     /// Move an installed game to a different Steam library folder
+    #[cfg(feature = "install")]
     Move {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -382,6 +430,7 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// Relink an install to a different Steam library.
+    #[cfg(feature = "install")]
     Relink {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -392,6 +441,7 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// Register an existing on-disk install with Steam.
+    #[cfg(feature = "install")]
     Import {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -405,23 +455,27 @@ pub(crate) enum Command {
         restart_steam: bool,
     },
     /// List available beta branches for a game.
+    #[cfg(feature = "versioning")]
     Branches {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Switch a game to a different branch.
+    #[cfg(feature = "versioning")]
     SetBranch {
         #[arg(value_parser = app_ref)]
         app_id: u32,
         branch: String,
     },
     /// List depots for a game.
+    #[cfg(feature = "library")]
     Depots {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// List each depot's current manifest id per branch (version discovery for
     /// `downgrade`). Steam only exposes current ids — older ones live on SteamDB.
+    #[cfg(feature = "versioning")]
     Manifests {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -430,28 +484,34 @@ pub(crate) enum Command {
         depot: Option<u32>,
     },
     /// Install a specific (usually older) depot manifest and pin it — a downgrade.
+    #[cfg(feature = "versioning")]
     Downgrade(DowngradeArgs),
     /// Pin a game to its currently-installed manifests, locking gaki's updates.
+    #[cfg(feature = "versioning")]
     Pin {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Remove a game's version pin (unlock gaki's updates).
+    #[cfg(feature = "versioning")]
     Unpin {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// List a game's launch options.
+    #[cfg(feature = "library")]
     LaunchOptions {
         #[arg(value_parser = app_ref)]
         app_id: u32,
     },
     /// Manage Steam Cloud saves for a game.
+    #[cfg(feature = "cloud")]
     Cloud {
         #[command(subcommand)]
         command: CloudCommand,
     },
     /// Manage Steam Workshop items for a game.
+    #[cfg(feature = "workshop")]
     Workshop {
         #[command(subcommand)]
         command: WorkshopCommand,
@@ -467,21 +527,25 @@ pub(crate) enum Command {
         command: ProfilesCommand,
     },
     /// Manage Steam library collections (categories/groups).
+    #[cfg(feature = "collections")]
     Collections {
         #[command(subcommand)]
         command: CollectionsCommand,
     },
     /// List friends, search for a SteamID, or add/remove friends.
+    #[cfg(feature = "social")]
     Friends {
         #[command(subcommand)]
         command: Option<FriendsCommand>,
     },
     /// Send and read direct chat messages.
+    #[cfg(feature = "social")]
     Chat {
         #[command(subcommand)]
         command: ChatCommand,
     },
     /// View your Steam inventory for a game.
+    #[cfg(feature = "inventory")]
     Inventory {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -490,8 +554,10 @@ pub(crate) enum Command {
         context: u32,
     },
     /// Show your Steam Wallet balance.
+    #[cfg(feature = "inventory")]
     Wallet,
     /// Steam Community Market: prices, search, and your listings.
+    #[cfg(feature = "market")]
     Market {
         #[command(subcommand)]
         command: MarketCommand,
@@ -502,16 +568,20 @@ pub(crate) enum Command {
         command: ConfigCommand,
     },
     /// Clear the stored session.
+    #[cfg(feature = "authentication")]
     Logout,
     /// Run the background session daemon serving other commands over a local socket.
+    #[cfg(feature = "authentication")]
     Daemon {
         #[command(subcommand)]
         command: Option<DaemonCommand>,
     },
     /// Kill all running gaki-cli processes, including the session daemon.
+    #[cfg(feature = "authentication")]
     Kill,
 }
 
+#[cfg(feature = "authentication")]
 #[derive(Subcommand)]
 pub(crate) enum DaemonCommand {
     /// Stop running gaki-cli daemon(s). With a PID, stop only that daemon.
@@ -624,16 +694,19 @@ pub(crate) enum ProtonCommand {
         installed: bool,
     },
     /// Install an official Proton build through Steam (names from `proton list`).
+    #[cfg(feature = "install")]
     Install {
         /// Runtime name, e.g. `Proton 9.0` or `Proton Experimental`.
         version: String,
     },
     /// Uninstall an official Proton build through Steam.
+    #[cfg(feature = "install")]
     Uninstall { version: String },
     /// Set the global default Proton/Wine version (used when a game has none set).
     Default { version: String },
 }
 
+#[cfg(feature = "collections")]
 #[derive(Subcommand)]
 pub(crate) enum CollectionsCommand {
     /// List all collections and their game counts (offline).
@@ -676,6 +749,7 @@ pub(crate) enum CollectionsCommand {
     },
 }
 
+#[cfg(feature = "social")]
 #[derive(Subcommand)]
 pub(crate) enum FriendsCommand {
     /// List your friends (the default when no subcommand is given).
@@ -688,6 +762,7 @@ pub(crate) enum FriendsCommand {
     Remove { steamid: u64 },
 }
 
+#[cfg(feature = "market")]
 #[derive(Subcommand)]
 pub(crate) enum MarketCommand {
     /// Item price (community web; no CM equivalent).
@@ -715,6 +790,7 @@ pub(crate) enum MarketCommand {
     Listings,
 }
 
+#[cfg(feature = "social")]
 #[derive(Subcommand)]
 pub(crate) enum ChatCommand {
     /// Send a direct message to a friend (by SteamID64).
@@ -737,6 +813,7 @@ pub(crate) enum ChatCommand {
     Open { steamid: u64 },
 }
 
+#[cfg(feature = "cloud")]
 #[derive(Subcommand)]
 pub(crate) enum CloudCommand {
     /// Sync a game's Steam Cloud saves with the local save directory. With
@@ -765,6 +842,7 @@ pub(crate) enum CloudCommand {
     },
 }
 
+#[cfg(feature = "workshop")]
 #[derive(Subcommand)]
 pub(crate) enum WorkshopCommand {
     /// Browse/search a game's Workshop to discover items to subscribe to or install.
@@ -868,6 +946,7 @@ pub(crate) enum WorkshopCommand {
 /// `gaki-cli install`: either install an app (positional `app_id`) or manage
 /// in-flight installs (`list` / `stop`). The positional and the subcommands
 /// coexist via clap's args-conflict-with-subcommands pattern.
+#[cfg(feature = "install")]
 #[derive(clap::Args)]
 #[command(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
 pub(crate) struct InstallArgs {
@@ -895,6 +974,7 @@ pub(crate) struct InstallArgs {
     pub(crate) library: Option<String>,
 }
 
+#[cfg(feature = "install")]
 #[derive(clap::Subcommand)]
 pub(crate) enum InstallAction {
     /// List running installs and the backlog (paused, aborted, interrupted).
@@ -933,6 +1013,7 @@ pub(crate) enum InstallAction {
 /// `gaki-cli downgrade`: install specific depot manifests (an older version) and
 /// pin them. `--depot`/`--manifest` are parallel repeatable lists paired by
 /// position; `--manifest <depot>:<manifest>` is an alternative combined form.
+#[cfg(feature = "versioning")]
 #[derive(clap::Args)]
 pub(crate) struct DowngradeArgs {
     /// App id to downgrade.
@@ -963,6 +1044,7 @@ pub(crate) struct DowngradeArgs {
 }
 
 /// `gaki-cli login` flags.
+#[cfg(feature = "authentication")]
 #[derive(clap::Args)]
 pub(crate) struct LoginArgs {
     /// Steam account name (prompted if omitted).
@@ -1004,6 +1086,7 @@ pub(crate) struct LoginArgs {
 }
 
 /// `gaki-cli reviews` flags.
+#[cfg(feature = "store")]
 #[derive(clap::Args)]
 pub(crate) struct ReviewsArgs {
     #[arg(value_parser = app_ref)]
@@ -1064,6 +1147,7 @@ impl From<ChatPresenceArg> for libgaki::core::config::ChatPresence {
     }
 }
 
+#[cfg(feature = "cloud")]
 /// Which side wins when `cloud sync` finds a diverged save.
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum CloudResolve {
@@ -1073,6 +1157,7 @@ pub(crate) enum CloudResolve {
     Local,
 }
 
+#[cfg(feature = "cloud")]
 impl From<CloudResolve> for libgaki::library::cloud_sync::ConflictPolicy {
     fn from(value: CloudResolve) -> Self {
         match value {
@@ -1082,6 +1167,7 @@ impl From<CloudResolve> for libgaki::library::cloud_sync::ConflictPolicy {
     }
 }
 
+#[cfg(feature = "workshop")]
 /// Sort order for `workshop browse`, mapped to an `EPublishedFileQueryType`.
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum WorkshopSort {
@@ -1099,6 +1185,7 @@ pub(crate) enum WorkshopSort {
     Text,
 }
 
+#[cfg(feature = "workshop")]
 impl From<WorkshopSort> for libgaki::ops::workshop::Sort {
     fn from(value: WorkshopSort) -> Self {
         use libgaki::ops::workshop::Sort;
@@ -1113,6 +1200,7 @@ impl From<WorkshopSort> for libgaki::ops::workshop::Sort {
     }
 }
 
+#[cfg(feature = "workshop")]
 /// Thumbs-up/down for `workshop rate`.
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum VoteArg {
@@ -1141,6 +1229,7 @@ pub(crate) enum ProfilesCommand {
     },
 }
 
+#[cfg(feature = "store")]
 /// `wishlist add|remove`.
 #[derive(Subcommand)]
 pub(crate) enum WishlistCommand {

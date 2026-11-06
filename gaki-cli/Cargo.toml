@@ -6,23 +6,38 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 
+# libgaki's capabilities, forwarded one-to-one (docs/PLAN.md "Feature matrix").
+# Each gates its commands and their help text.
+[features]
+default = ["authentication", "library", "install", "cloud", "collections"]
+# `login`, `logout`, the session daemon, `kill`.
+authentication = ["libgaki/authentication", "dep:qrcode", "dep:rpassword"]
+library = ["authentication", "libgaki/library"]
+install = ["library", "libgaki/install"]
+cloud = ["library", "libgaki/cloud"]
+collections = ["library", "libgaki/collections"]
+versioning = ["install", "libgaki/versioning"]
+depot = ["install", "libgaki/depot"]
+workshop = ["install", "libgaki/workshop"]
+social = ["authentication", "libgaki/social", "dep:steam-vent-chat", "dep:tokio-stream"]
+inventory = ["authentication", "libgaki/inventory"]
+market = ["inventory", "libgaki/market"]
+store = ["library", "libgaki/store"]
+
 [dependencies]
-# Until 6.2 forwards features one-to-one, the binaries enable every capability they use.
-libgaki = { workspace = true, features = ["cloud", "collections", "depot", "install", "market", "social", "store", "versioning", "workshop"] }
+libgaki = { workspace = true, default-features = false }
 anyhow.workspace = true
 clap.workspace = true
 libc.workspace = true
-qrcode.workspace = true
-reqwest.workspace = true
-rpassword.workspace = true
+qrcode = { workspace = true, optional = true }
+rpassword = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
-steam-vent-chat.workspace = true
+steam-vent-chat = { workspace = true, optional = true }
 sysinfo.workspace = true
 tokio.workspace = true
-tokio-stream.workspace = true
+tokio-stream = { workspace = true, optional = true }
 tracing.workspace = true
-walkdir.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

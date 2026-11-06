@@ -77,6 +77,7 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
 
 /// `proton install`: install an official Proton build through Steam and make it
 /// the global default.
+#[cfg(feature = "install")]
 pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()> {
     let pkg = libgaki::ops::proton::find(&version)?;
     if !json {
@@ -102,6 +103,7 @@ pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()
 }
 
 /// `proton uninstall`: uninstall an official Proton build through Steam.
+#[cfg(feature = "install")]
 pub(crate) async fn cmd_proton_uninstall(version: String, json: bool) -> Result<()> {
     let pkg = libgaki::ops::proton::find(&version)?;
     let client = authed_client().await?;

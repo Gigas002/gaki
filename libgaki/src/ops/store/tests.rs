@@ -1,25 +1,6 @@
 use super::*;
 
 #[test]
-fn defaults_to_us() {
-    assert_eq!(resolve_country(None).unwrap(), "US");
-}
-
-#[test]
-fn normalizes_a_given_code() {
-    assert_eq!(resolve_country(Some("uk")).unwrap(), "GB");
-}
-
-#[test]
-fn rejects_garbage_as_invalid_input() {
-    let err = resolve_country(Some("usa")).unwrap_err();
-    assert_eq!(
-        crate::core::error::classify(&err).kind,
-        ErrorKind::InvalidInput
-    );
-}
-
-#[test]
 fn regions_are_split_normalized_and_deduplicated() {
     let lists = vec!["us, de".to_string(), "UK".to_string(), "US".to_string()];
     assert_eq!(parse_regions(&lists).unwrap(), vec!["US", "DE", "GB"]);
@@ -62,14 +43,4 @@ fn quotes_mark_region_locked_apps_unavailable() {
         ..Default::default()
     };
     assert!(PriceQuote::from_info(&free).available);
-}
-
-#[test]
-fn assets_list_artwork_then_media() {
-    let mut info = StoreAppInfo::default();
-    info.assets.header = Some("h".into());
-    info.assets.logo = Some("l".into());
-    info.screenshots = vec!["s1".into()];
-    let kinds: Vec<&str> = assets(&info).iter().map(|a| a.kind).collect();
-    assert_eq!(kinds, vec!["header", "logo", "screenshot"]);
 }

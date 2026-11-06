@@ -1,6 +1,8 @@
 //! The per-game Actions menu (command palette).
 
-use super::{Browser, InstallPhase};
+use super::Browser;
+#[cfg(feature = "install")]
+use super::InstallPhase;
 
 /// A single entry in the per-game Actions menu. Selecting one runs the same
 /// code path as its base-keymap accelerator (`app::keys::actions` and
@@ -9,26 +11,41 @@ use super::{Browser, InstallPhase};
 pub enum Action {
     Play,
     PlayAs,
+    #[cfg(feature = "install")]
     Install,
+    #[cfg(feature = "install")]
     PauseResume,
+    #[cfg(feature = "install")]
     CancelInstall,
+    #[cfg(feature = "install")]
     Update,
+    #[cfg(feature = "install")]
     Verify,
+    #[cfg(feature = "install")]
     Uninstall,
+    #[cfg(feature = "versioning")]
     Versions,
+    #[cfg(feature = "versioning")]
     Branches,
     GameSettings,
     Proton,
     LaunchOptions,
     Dlc,
+    #[cfg(feature = "workshop")]
     Workshop,
+    #[cfg(feature = "cloud")]
     Cloud,
     Achievements,
     Depots,
+    #[cfg(feature = "inventory")]
     Inventory,
+    #[cfg(feature = "install")]
     Move,
+    #[cfg(feature = "install")]
     Relink,
+    #[cfg(feature = "install")]
     Import,
+    #[cfg(feature = "collections")]
     Collections,
     Favourite,
     Hide,
@@ -55,16 +72,21 @@ impl Browser {
             return rows;
         };
         let installed = game.installed;
+        #[cfg(feature = "install")]
         let installing = self.install_phase(&game) != InstallPhase::Idle;
+        #[cfg(not(feature = "install"))]
+        let installing = false;
 
         const PLAY: &str = "Play & Install";
         if installing {
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::PauseResume,
                 category: PLAY,
                 label: "Pause / resume install",
                 key: "Space",
             });
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::CancelInstall,
                 category: PLAY,
@@ -85,18 +107,21 @@ impl Browser {
                 label: "Play as… (launch target)",
                 key: "",
             });
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Update,
                 category: PLAY,
                 label: "Update",
                 key: "U",
             });
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Verify,
                 category: PLAY,
                 label: "Verify files",
                 key: "v",
             });
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Uninstall,
                 category: PLAY,
@@ -104,6 +129,7 @@ impl Browser {
                 key: "x",
             });
         } else if !installing {
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Install,
                 category: PLAY,
@@ -112,13 +138,16 @@ impl Browser {
             });
         }
 
+        #[cfg(feature = "versioning")]
         const VERS: &str = "Versions";
+        #[cfg(feature = "versioning")]
         rows.push(ActionRow {
             action: Action::Versions,
             category: VERS,
             label: "Versions & pinning",
             key: "V",
         });
+        #[cfg(feature = "versioning")]
         rows.push(ActionRow {
             action: Action::Branches,
             category: VERS,
@@ -153,12 +182,14 @@ impl Browser {
             label: "DLC",
             key: "D",
         });
+        #[cfg(feature = "workshop")]
         rows.push(ActionRow {
             action: Action::Workshop,
             category: CONTENT,
             label: "Workshop",
             key: "W",
         });
+        #[cfg(feature = "cloud")]
         rows.push(ActionRow {
             action: Action::Cloud,
             category: CONTENT,
@@ -177,6 +208,7 @@ impl Browser {
             label: "Depots",
             key: "o",
         });
+        #[cfg(feature = "inventory")]
         rows.push(ActionRow {
             action: Action::Inventory,
             category: CONTENT,
@@ -186,12 +218,14 @@ impl Browser {
 
         const LIB: &str = "Library";
         if installed {
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Move,
                 category: LIB,
                 label: "Move install",
                 key: "M",
             });
+            #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Relink,
                 category: LIB,
@@ -199,12 +233,14 @@ impl Browser {
                 key: "K",
             });
         }
+        #[cfg(feature = "install")]
         rows.push(ActionRow {
             action: Action::Import,
             category: LIB,
             label: "Import install",
             key: "N",
         });
+        #[cfg(feature = "collections")]
         rows.push(ActionRow {
             action: Action::Collections,
             category: LIB,

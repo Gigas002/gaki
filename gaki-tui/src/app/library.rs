@@ -43,6 +43,7 @@ pub fn run() -> AppResult {
     let mut lib = Library::start()?;
     let events = Events::new();
     loop {
+        #[cfg(any(feature = "social", feature = "workshop", feature = "install"))]
         lib.poll_workers();
         let marquee_tick = lib.marquee.tick(lib.browser.selected_index());
         terminal.draw(|frame| {
@@ -68,6 +69,7 @@ pub fn run() -> AppResult {
             terminal::clear(&mut terminal)?;
         }
         // Adopt a market search or price result published off-thread.
+        #[cfg(feature = "market")]
         lib.browser.poll_market();
         lib.follow_selection();
     }
@@ -108,26 +110,33 @@ impl Library {
 
     /// Adopt whatever the background workers finished since the last frame.
     /// Never blocks.
+    #[cfg(any(feature = "social", feature = "workshop", feature = "install"))]
     fn poll_workers(&mut self) {
         let browser = &mut self.browser;
         // Adopt any async friend-management results (resolved search previews and
         // roster refreshes after an add/remove) before drawing this frame.
+        #[cfg(feature = "social")]
         browser.poll_friends_ops();
 
         // Drain any finished off-thread Workshop browse/search/subscribe worker
         // before rendering, so its result lands on the next frame. Runs on every
         // event (including ticks) and never blocks the UI thread.
+        #[cfg(feature = "workshop")]
         browser.poll_workshop();
 
         // Reconcile a game's install state once its install finishes, and adopt
         // any targeted single-game refresh that landed — so `installed` (which
         // gates uninstall) tracks reality without a full-screen reload.
-        browser.poll_install_completions();
-        browser.poll_game_refresh();
+        #[cfg(feature = "install")]
+        {
+            browser.poll_install_completions();
+            browser.poll_game_refresh();
+        }
 
         // A just-finished Proton install flips a runtime to [installed]; pick
         // that up by refreshing the list once, then drop the status line. Done
         // before draw since the render closure only borrows `browser` immutably.
+        #[cfg(feature = "install")]
         if browser.show_proton && browser.proton_status_line().as_deref() == Some("Installed!") {
             browser.refresh_proton();
             browser.clear_proton_status();
@@ -212,6 +221,7 @@ impl Library {
         if let State::Terminated(err) = client.get_state()? {
             app.mode = Mode::Terminated(err);
         }
+        #[cfg(feature = "inventory")]
         app.resume_sensitive(browser);
         Ok(())
     }

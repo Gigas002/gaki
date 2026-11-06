@@ -77,6 +77,7 @@ fn classic_login_rejects_bad_credentials() {
     }
 }
 
+#[cfg(feature = "social")]
 #[test]
 #[ignore]
 fn friends_search_resolves_a_known_account() {
@@ -99,6 +100,7 @@ fn info_parses_developers_and_publishers() {
     assert!(!info.name.is_empty());
 }
 
+#[cfg(feature = "market")]
 #[test]
 #[ignore]
 fn market_search_then_price_round_trips() {

@@ -8,31 +8,44 @@
 mod account;
 mod achievements;
 mod actions;
+#[cfg(feature = "versioning")]
 mod branches;
+#[cfg(feature = "social")]
 mod chat;
+#[cfg(feature = "cloud")]
 mod cloud;
+#[cfg(feature = "collections")]
 mod collections;
 mod depots;
 mod dlc;
+#[cfg(feature = "social")]
 mod friends;
 mod game_config;
 mod help;
+#[cfg(feature = "install")]
 mod install;
+#[cfg(feature = "inventory")]
 mod inventory;
 mod launch;
 mod launch_targets;
 mod library;
+#[cfg(feature = "market")]
 mod market;
 mod proton;
+#[cfg(feature = "install")]
 mod relocate;
 mod running;
+#[cfg(feature = "versioning")]
 mod versions;
+#[cfg(feature = "workshop")]
 mod workshop;
 
 pub use actions::{Action, ActionRow};
+#[cfg(feature = "install")]
 pub use install::InstallPhase;
 pub use library::{Badge, Counts, Filter, Sort, View, badge};
 
+#[cfg(feature = "install")]
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -43,6 +56,7 @@ use crate::app::game::status::GameStatus;
 use crate::app::steam::{self, Account, LauncherSettings};
 
 /// A one-shot result slot a worker thread fills and the UI loop drains.
+#[cfg(feature = "workshop")]
 type Slot<T> = Arc<Mutex<Option<T>>>;
 
 /// The browse state.
@@ -118,23 +132,28 @@ pub struct Browser {
     /// `friend_search_result` on the next poll (off-UI-thread handoff). Tagged
     /// with the search generation it was launched for so a stale (already-edited)
     /// worker's result can be dropped instead of adopted.
+    #[cfg(feature = "social")]
     friend_search_pending: Arc<Mutex<Option<(u64, steam::FriendLookup)>>>,
     /// Monotonic generation for the add-friend query. Bumped on every query edit
     /// and on overlay open/close; a search worker captures it at spawn and the
     /// poll only adopts a result whose tag still matches (closing the TOCTOU
     /// where a late worker could revive a preview for the edited query).
+    #[cfg(feature = "social")]
     friend_search_gen: u64,
     /// Whether the remove-friend confirmation prompt is open for the selection.
     pub confirm_friend_remove: bool,
     /// Set true by a friend add/remove worker on success so the next poll
     /// re-fetches the friends roster off the UI thread.
+    #[cfg(feature = "social")]
     friends_refresh_pending: Arc<Mutex<bool>>,
     /// A freshly fetched roster published by the refresh worker, adopted into
     /// `friends` on the next poll (off-UI-thread handoff).
+    #[cfg(feature = "social")]
     friends_roster_pending: Arc<Mutex<Option<Vec<steam::Friend>>>>,
     /// Whether the roster has been fetched at least once. Distinguishes a
     /// genuinely empty friends list from a not-yet-loaded one, so the lazy load
     /// on first entering the Friends tab fires exactly once.
+    #[cfg(feature = "social")]
     friends_loaded: bool,
     /// True while the initial (lazy) roster fetch is in flight, so the Friends
     /// panel can show "Loading friends…" instead of an empty/"no friends" state.
@@ -170,6 +189,7 @@ pub struct Browser {
     /// Scroll offset (top row) within the Workshop overlay.
     pub workshop_scroll: usize,
     /// The app id the Workshop overlay is showing (used for browse/subscribe).
+    #[cfg(feature = "workshop")]
     workshop_app_id: i32,
     /// Whether the overlay is in browse/search mode (vs. the subscribed list).
     pub workshop_browse: bool,
@@ -185,26 +205,31 @@ pub struct Browser {
     pub workshop_status: String,
     /// Generation tag for browse requests: a worker's result is applied only if
     /// its tag still matches, so a slow earlier search never clobbers a newer one.
+    #[cfg(feature = "workshop")]
     workshop_gen: u64,
     /// Slot a browse worker posts its `(generation, result)` into; polled each
     /// loop iteration by `poll_workshop`.
+    #[cfg(feature = "workshop")]
     workshop_slot: Slot<(u64, Result<Vec<steam::WorkshopItem>, String>)>,
     /// True while a subscribe/unsubscribe request is in flight.
     pub workshop_acting: bool,
     /// Slot a subscribe/unsubscribe worker posts its outcome into:
     /// `(item_id, want_subscribed, Result<(), error>)`. Polled by `poll_workshop`.
+    #[cfg(feature = "workshop")]
     workshop_action_slot: Slot<(u64, bool, Result<(), String>)>,
     /// Slot a subscribe/unsubscribe worker posts a re-fetched subscribed list
     /// into on success: `(generation, items)`. Drained (non-blocking) by
     /// `poll_workshop` and installed only if the generation still matches, so a
     /// stale refresh can never clobber newer overlay state. This keeps the
     /// post-action `workshop list` shell-out entirely off the render thread.
+    #[cfg(feature = "workshop")]
     workshop_refresh_slot: Slot<(u64, Vec<steam::WorkshopItem>)>,
     /// True while a rate (thumbs up/down) request is in flight.
     pub workshop_rating: bool,
     /// Slot a rate worker posts its outcome into: `(generation, Result<(), error>)`.
     /// Drained by `poll_workshop`; a stale-generation result (the overlay closed
     /// or moved on) is dropped rather than shown.
+    #[cfg(feature = "workshop")]
     workshop_rate_slot: Slot<(u64, Result<(), String>)>,
     /// Whether the comments sub-pane is open (over the browse results).
     pub workshop_comments_open: bool,
@@ -217,10 +242,12 @@ pub struct Browser {
     /// A transient status line for the comments sub-pane (errors / empty).
     pub workshop_comments_status: String,
     /// The id of the item the comments sub-pane was opened for (shown in title).
+    #[cfg(feature = "workshop")]
     workshop_comments_id: u64,
     /// Slot a comments worker posts its `(generation, result)` into; drained by
     /// `poll_workshop` and applied only if the generation still matches, so a
     /// slow fetch for a since-closed/superseded sub-pane is discarded.
+    #[cfg(feature = "workshop")]
     workshop_comments_slot: Slot<(u64, Result<Vec<steam::WorkshopComment>, String>)>,
     /// Whether the uninstall confirmation prompt is open for the selection.
     pub confirm_uninstall: bool,
@@ -239,6 +266,7 @@ pub struct Browser {
     /// The highlighted row within the branches overlay.
     pub branch_index: usize,
     /// The app id the branches overlay is showing (used when switching branch).
+    #[cfg(feature = "versioning")]
     branch_app_id: i32,
     /// Whether the depots overlay is open.
     pub show_depots: bool,
@@ -310,17 +338,22 @@ pub struct Browser {
     /// in [`Browser::poll_market`] so a slow OLDER search can't clobber a NEWER
     /// one's results when Enter is hit in rapid succession (mirrors
     /// `friend_search_gen`).
+    #[cfg(feature = "market")]
     market_search_gen: u64,
     /// Shared cell the background search worker publishes its (gen-tagged) result
     /// into.
+    #[cfg(feature = "market")]
     market_search_cell: Arc<Mutex<(u64, steam::MarketSearchState)>>,
     /// Shared cell the background price worker publishes its result into.
+    #[cfg(feature = "market")]
     market_price_cell: Arc<Mutex<steam::MarketPriceState>>,
     /// Per-game install controls, keyed by app id. An entry is created when the
     /// UI starts an install and lets it pause/stop the in-flight download.
+    #[cfg(feature = "install")]
     install_controls: HashMap<i32, steam::InstallControl>,
     /// The library folder each in-flight install was started in, keyed by app
     /// id, so a paused install resumes into the *same* library (not the default).
+    #[cfg(feature = "install")]
     install_library_choice: HashMap<i32, Option<String>>,
     /// Whether the "game not installed — install now?" prompt is open (shown
     /// when the user tries to launch a game the listing marks not installed).
@@ -340,6 +373,7 @@ pub struct Browser {
     /// an install completes or is cancelled). A worker fetches the fresh `list`
     /// entry and drops it here; [`Browser::poll_game_refresh`] adopts it,
     /// patching just that game's `installed`/update flags — no full reload.
+    #[cfg(feature = "install")]
     game_refresh_slot: Arc<Mutex<Vec<steam::LibraryGame>>>,
     /// A transient one-line notice (e.g. an action that failed) shown in the
     /// status bar until the next keypress. Keeps a failed backend call from
@@ -369,6 +403,7 @@ pub struct Browser {
     /// The highlighted depot row within the versions overlay.
     pub versions_index: usize,
     /// The app id the versions overlay is showing.
+    #[cfg(feature = "versioning")]
     versions_app_id: i32,
     /// A transient status line for the versions overlay (pin/unpin/downgrade).
     pub versions_status: String,
@@ -402,6 +437,7 @@ pub struct Browser {
     /// A transient status line for the collections overlay.
     pub collections_status: String,
     /// The game the overlay adds to / removes from the highlighted collection.
+    #[cfg(feature = "collections")]
     collections_app_id: i32,
     /// The inline text-entry buffer for creating a collection (None = not
     /// prompting).
@@ -451,11 +487,16 @@ impl Browser {
             friend_add_query: String::new(),
             friend_add_status: Arc::new(Mutex::new(String::new())),
             friend_search_result: None,
+            #[cfg(feature = "social")]
             friend_search_pending: Arc::new(Mutex::new(None)),
+            #[cfg(feature = "social")]
             friend_search_gen: 0,
             confirm_friend_remove: false,
+            #[cfg(feature = "social")]
             friends_refresh_pending: Arc::new(Mutex::new(false)),
+            #[cfg(feature = "social")]
             friends_roster_pending: Arc::new(Mutex::new(None)),
+            #[cfg(feature = "social")]
             friends_loaded: false,
             friends_loading: false,
             show_chat: false,
@@ -473,6 +514,7 @@ impl Browser {
             show_workshop: false,
             workshop: Vec::new(),
             workshop_scroll: 0,
+            #[cfg(feature = "workshop")]
             workshop_app_id: 0,
             workshop_browse: false,
             workshop_query: String::new(),
@@ -480,19 +522,26 @@ impl Browser {
             workshop_index: 0,
             workshop_searching: false,
             workshop_status: String::new(),
+            #[cfg(feature = "workshop")]
             workshop_gen: 0,
+            #[cfg(feature = "workshop")]
             workshop_slot: Arc::new(Mutex::new(None)),
             workshop_acting: false,
+            #[cfg(feature = "workshop")]
             workshop_action_slot: Arc::new(Mutex::new(None)),
+            #[cfg(feature = "workshop")]
             workshop_refresh_slot: Arc::new(Mutex::new(None)),
             workshop_rating: false,
+            #[cfg(feature = "workshop")]
             workshop_rate_slot: Arc::new(Mutex::new(None)),
             workshop_comments_open: false,
             workshop_comments_loading: false,
             workshop_comments: Vec::new(),
             workshop_comments_scroll: 0,
             workshop_comments_status: String::new(),
+            #[cfg(feature = "workshop")]
             workshop_comments_id: 0,
+            #[cfg(feature = "workshop")]
             workshop_comments_slot: Arc::new(Mutex::new(None)),
             confirm_uninstall: false,
             show_dlc: false,
@@ -502,6 +551,7 @@ impl Browser {
             show_branches: false,
             branches: Vec::new(),
             branch_index: 0,
+            #[cfg(feature = "versioning")]
             branch_app_id: 0,
             show_depots: false,
             depots: Vec::new(),
@@ -535,16 +585,22 @@ impl Browser {
             market_results_index: 0,
             market_results_scroll: 0,
             market_search_status: String::new(),
+            #[cfg(feature = "market")]
             market_search_gen: 0,
+            #[cfg(feature = "market")]
             market_search_cell: Arc::new(Mutex::new((0, steam::MarketSearchState::Idle))),
+            #[cfg(feature = "market")]
             market_price_cell: Arc::new(Mutex::new(steam::MarketPriceState::Idle)),
+            #[cfg(feature = "install")]
             install_controls: HashMap::new(),
+            #[cfg(feature = "install")]
             install_library_choice: HashMap::new(),
             confirm_install: false,
             show_install_picker: false,
             install_libraries: Vec::new(),
             install_estimate: None,
             install_picker_index: 0,
+            #[cfg(feature = "install")]
             game_refresh_slot: Arc::new(Mutex::new(Vec::new())),
             notice: None,
             show_actions: false,
@@ -555,6 +611,7 @@ impl Browser {
             versions_manifests: Vec::new(),
             versions_available: None,
             versions_index: 0,
+            #[cfg(feature = "versioning")]
             versions_app_id: 0,
             versions_status: String::new(),
             versions_input: None,
@@ -568,6 +625,7 @@ impl Browser {
             collections: Vec::new(),
             collections_index: 0,
             collections_status: String::new(),
+            #[cfg(feature = "collections")]
             collections_app_id: 0,
             collections_input: None,
             show_launch_targets: false,

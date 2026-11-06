@@ -1,16 +1,25 @@
 //! Cross-cutting command helpers shared across command modules.
 
+#[cfg(feature = "authentication")]
 use crate::daemon;
 
 use anyhow::{Context, Result, bail};
-use libgaki::core::error::{ErrorKind, TypedError, classify};
+#[cfg(any(feature = "install", feature = "inventory"))]
+use libgaki::core::error::classify;
+#[cfg(any(feature = "library", feature = "social", feature = "inventory"))]
+use libgaki::core::error::{ErrorKind, TypedError};
+#[cfg(feature = "library")]
 use libgaki::core::models::{DownloadProgress, DownloadProgressState, LibraryGame};
+#[cfg(any(feature = "library", feature = "social"))]
 use libgaki::ops::session::RestoreFailure;
+#[cfg(feature = "authentication")]
 use libgaki::steam_client::SteamClient;
 use std::io::Write;
 
 // Library operations used across the command modules.
+#[cfg(feature = "library")]
 pub(crate) use libgaki::ops::library::find_game;
+#[cfg(feature = "library")]
 pub(crate) use libgaki::ops::progress::{RateTracker, percent_of};
 
 /// Pretty-print JSON to stdout.
@@ -36,6 +45,7 @@ pub(crate) fn print_json_line(value: &serde_json::Value) {
 pub(crate) const JSON_SCHEMA: u32 = 1;
 
 /// Print a `result` event, schema-stamped.
+#[cfg(feature = "authentication")]
 pub(crate) fn print_result_line(mut value: serde_json::Value) {
     value["event"] = "result".into();
     value["schema"] = JSON_SCHEMA.into();
@@ -46,6 +56,7 @@ pub(crate) fn print_result_line(mut value: serde_json::Value) {
 /// **stderr**, keeping stdout reserved for the single terminal result object so
 /// a driver like Heroic can `JSON.parse` stdout without scanning for the last
 /// value.
+#[cfg(feature = "authentication")]
 pub(crate) fn eprint_json_line(value: &serde_json::Value) {
     match serde_json::to_string(value) {
         Ok(s) => cli_eprintln!("{s}"),
@@ -57,6 +68,7 @@ pub(crate) fn eprint_json_line(value: &serde_json::Value) {
 ///
 /// Inside the daemon this returns a cheap client backed by the **single shared
 /// connection** (no logon); only a standalone run actually re-authenticates here.
+#[cfg(feature = "authentication")]
 pub(crate) async fn restored_client() -> Result<SteamClient> {
     if daemon::in_daemon() {
         return Ok(daemon::shared_restored_client().await);
@@ -65,6 +77,7 @@ pub(crate) async fn restored_client() -> Result<SteamClient> {
 }
 
 /// Require an authenticated client, with a hint on how to log in.
+#[cfg(any(feature = "library", feature = "social"))]
 pub(crate) async fn authed_client() -> Result<SteamClient> {
     let client = restored_client().await?;
     // The daemon's restore failure explains why better than "not logged in".
@@ -91,6 +104,7 @@ pub(crate) async fn authed_client() -> Result<SteamClient> {
 /// A web session for the web-surface commands (inventory, wallet, market
 /// listings): minted off the CM session, or built from the stored browser web
 /// token (`login --web-token`).
+#[cfg(feature = "inventory")]
 pub(crate) async fn web_access() -> Result<libgaki::web::web_session::WebSession> {
     let client = restored_client().await?;
     libgaki::ops::session::web_session(&client)
@@ -110,6 +124,7 @@ pub(crate) async fn web_access() -> Result<libgaki::web::web_session::WebSession
 }
 
 /// User argument to SteamID64; the daemon answers names from its roster.
+#[cfg(feature = "social")]
 pub(crate) async fn resolve_user_ident(client: &SteamClient, input: &str) -> Result<u64> {
     let roster = if daemon::in_daemon() {
         Some(daemon::shared_roster().await)
@@ -117,6 +132,13 @@ pub(crate) async fn resolve_user_ident(client: &SteamClient, input: &str) -> Res
         None
     };
     libgaki::ops::session::resolve_user_ident(client, input, roster).await
+}
+
+/// Without `social` there's no friends list, so only a SteamID64, a profile
+/// URL or `me` resolves.
+#[cfg(all(feature = "store", not(feature = "social")))]
+pub(crate) async fn resolve_user_ident(client: &SteamClient, input: &str) -> Result<u64> {
+    libgaki::ops::session::resolve_user_id(client, input)
 }
 
 /// Confirm action; honors `--yes`/`--json`.
@@ -136,6 +158,7 @@ pub(crate) fn confirm_write(action: &str, prompt: &str, yes: bool, json: bool) -
 }
 
 /// Cloud-collections wrapper over [`confirm_write`].
+#[cfg(feature = "collections")]
 pub(crate) fn confirm_cloud_write(action: &str, count: usize, yes: bool, json: bool) -> Result<()> {
     confirm_write(
         action,
@@ -145,16 +168,20 @@ pub(crate) fn confirm_cloud_write(action: &str, count: usize, yes: bool, json: b
     )
 }
 
+#[cfg(feature = "social")]
 pub(crate) use libgaki::ops::social::persona_state_label;
 
+#[cfg(feature = "inventory")]
 pub(crate) fn yesno(b: bool) -> &'static str {
     if b { "yes" } else { "no" }
 }
 
+#[cfg(feature = "library")]
 pub(crate) use libgaki::core::utils::human_bytes;
 
 /// Refuse an edit while Steam runs, or stop it with `--restart-steam`.
 /// Returns whether Steam was stopped (pass it to [`steam_guard_restart`]).
+#[cfg(feature = "install")]
 pub(crate) fn steam_guard_stop(restart_steam: bool, json: bool) -> Result<bool> {
     libgaki::ops::steam::stop_for_edit(restart_steam, || {
         if !json {
@@ -174,6 +201,7 @@ pub(crate) fn steam_guard_stop(restart_steam: bool, json: bool) -> Result<bool> 
 }
 
 /// Stop Steam if wanted and running.
+#[cfg(feature = "library")]
 pub(crate) fn steam_guard_stop_optional(want: bool, json: bool) -> Result<bool> {
     libgaki::ops::steam::stop_if_running(want, || {
         if !json {
@@ -182,7 +210,8 @@ pub(crate) fn steam_guard_stop_optional(want: bool, json: bool) -> Result<bool> 
     })
 }
 
-/// Restart Steam if [`steam_guard_stop`] stopped it.
+/// Restart Steam if `steam_guard_stop` stopped it.
+#[cfg(feature = "library")]
 pub(crate) fn steam_guard_restart(managed: bool, json: bool) -> Result<()> {
     libgaki::ops::steam::restart_after_edit(managed, || {
         if !json {
@@ -192,6 +221,7 @@ pub(crate) fn steam_guard_restart(managed: bool, json: bool) -> Result<()> {
 }
 
 /// Non-default branch suffix, else empty.
+#[cfg(feature = "library")]
 pub(crate) fn branch_suffix(game: &LibraryGame) -> String {
     if game.active_branch != "public" {
         format!(" [{}]", game.active_branch)
@@ -201,6 +231,7 @@ pub(crate) fn branch_suffix(game: &LibraryGame) -> String {
 }
 
 /// Print the final result of a streaming operation (install/verify/update).
+#[cfg(feature = "install")]
 pub(crate) fn report_operation(app_id: u32, status: &str, json: bool) {
     if json {
         print_json(&serde_json::json!({ "app_id": app_id, "status": status }));
@@ -208,6 +239,7 @@ pub(crate) fn report_operation(app_id: u32, status: &str, json: bool) {
 }
 
 /// Format a Unix timestamp (seconds) as `YYYY-MM-DD HH:MM:SS` (UTC).
+#[cfg(feature = "authentication")]
 pub(crate) fn format_unix_timestamp(secs: u64) -> String {
     let tod = secs % 86_400;
     let (h, m, s) = (tod / 3600, (tod % 3600) / 60, tod % 60);
@@ -223,6 +255,7 @@ pub(crate) fn format_unix_timestamp(secs: u64) -> String {
 /// Consume a download/verify progress stream, rendering it to the terminal.
 /// In JSON mode each update is emitted as a compact NDJSON line (one object per
 /// line) on stdout; the caller still prints the final result object afterward.
+#[cfg(feature = "install")]
 pub(crate) async fn drive_progress(
     rx: tokio::sync::mpsc::Receiver<DownloadProgress>,
     json: bool,
@@ -230,7 +263,8 @@ pub(crate) async fn drive_progress(
     drive_progress_until(rx, json).await.map(|_| ())
 }
 
-/// Like [`drive_progress`]; `false` if never completed.
+/// Like `drive_progress`; `false` if never completed.
+#[cfg(feature = "library")]
 pub(crate) async fn drive_progress_until(
     mut rx: tokio::sync::mpsc::Receiver<DownloadProgress>,
     json: bool,
@@ -296,6 +330,7 @@ pub(crate) async fn drive_progress_until(
 /// Reports the whole-app progress (`percent`), the current depot's progress
 /// (`depot_percent`), and the transfer rate (`speed_bps`, bytes/sec) and
 /// `eta_seconds` (null when not yet estimable).
+#[cfg(feature = "library")]
 pub(crate) fn emit_progress_json(
     state: &str,
     p: &DownloadProgress,
@@ -343,6 +378,7 @@ pub(crate) fn emit_progress_json(
     }
 }
 
+#[cfg(feature = "library")]
 pub(crate) fn print_progress(
     phase: &str,
     p: &DownloadProgress,
@@ -371,6 +407,7 @@ pub(crate) fn print_progress(
 }
 
 /// Human-readable ` 12.34 MiB/s  ETA 00:01:23` suffix (empty when no rate yet).
+#[cfg(feature = "library")]
 pub(crate) fn format_rate(speed_bps: f64, eta_seconds: Option<u64>) -> String {
     if speed_bps <= 0.0 {
         return String::new();
@@ -383,6 +420,7 @@ pub(crate) fn format_rate(speed_bps: f64, eta_seconds: Option<u64>) -> String {
 }
 
 /// Format a seconds count as `HH:MM:SS`.
+#[cfg(feature = "library")]
 pub(crate) fn format_eta(secs: u64) -> String {
     let h = secs / 3600;
     let m = (secs % 3600) / 60;
@@ -391,6 +429,7 @@ pub(crate) fn format_eta(secs: u64) -> String {
 }
 
 /// Word-wrap text to a maximum line width, preserving existing line breaks.
+#[cfg(feature = "library")]
 pub(crate) fn wrap_text(text: &str, width: usize) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in text.split('\n') {
@@ -422,6 +461,6 @@ pub(crate) fn prompt_line(prompt: &str) -> Result<String> {
     Ok(input.trim().to_string())
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "install"))]
 #[path = "common_tests.rs"]
 mod tests;

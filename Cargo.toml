@@ -9,7 +9,7 @@ license = "GPL-3.0-or-later"
 repository = "https://github.com/Gigas002/gaki"
 
 [workspace.dependencies]
-libgaki = { path = "libgaki" }
+libgaki = { path = "libgaki", default-features = false }
 
 anyhow = "1"
 async-trait = "0.1"

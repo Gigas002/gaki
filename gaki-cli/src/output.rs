@@ -1,17 +1,20 @@
 //! CLI output/input routing.
 //!
-//! In normal (standalone) runs the `cli_*` macros and [`read_line`] go straight to
+//! In normal (standalone) runs the `cli_*` macros and `read_line` go straight to
 //! the process's real stdout/stderr/stdin — identical to `println!`/`eprintln!`.
 //!
-//! Inside the **daemon**, each forwarded command runs within an [`OutputCtx`] scope
-//! ([`scoped`]). There, output is captured into a channel (relayed over the socket to
+//! Inside the **daemon**, each forwarded command runs within an `OutputCtx` scope
+//! (`scoped`). There, output is captured into a channel (relayed over the socket to
 //! the requesting client) and stdin is sourced from the client instead of the
 //! daemon's own stdin. This lets one long-lived daemon process execute commands on
 //! behalf of many thin-client invocations while each still sees its own streams.
 
+#[cfg(feature = "authentication")]
 use std::future::Future;
+#[cfg(feature = "authentication")]
 use std::sync::Arc;
 
+#[cfg(feature = "authentication")]
 use tokio::sync::{Mutex, mpsc};
 
 /// Which output stream a chunk belongs to.
@@ -22,18 +25,21 @@ pub enum Stream {
 }
 
 /// A chunk of captured output, tagged with its stream.
+#[cfg(feature = "authentication")]
 pub struct OutChunk {
     pub stream: Stream,
     pub bytes: Vec<u8>,
 }
 
 /// Per-request IO context installed while the daemon runs a command.
+#[cfg(feature = "authentication")]
 #[derive(Clone)]
 pub struct OutputCtx {
     out: mpsc::UnboundedSender<OutChunk>,
     stdin: Arc<Mutex<DaemonStdin>>,
 }
 
+#[cfg(feature = "authentication")]
 impl OutputCtx {
     /// Build a context that sends captured output to `out` and reads stdin lines
     /// from `stdin_rx` (fed with the client's stdin bytes).
@@ -52,26 +58,34 @@ impl OutputCtx {
     }
 }
 
+#[cfg(feature = "authentication")]
 tokio::task_local! {
     static CTX: OutputCtx;
 }
 
 /// Run `fut` with `ctx` installed as the current output/input context. Any
 /// `cli_*` output or [`read_line`] call made while `fut` runs is routed through it.
+#[cfg(feature = "authentication")]
 pub async fn scoped<F: Future>(ctx: OutputCtx, fut: F) -> F::Output {
     CTX.scope(ctx, fut).await
 }
 
 /// Write `s` to the given stream — to the captured channel if inside a daemon
-/// [`scoped`] context, otherwise to the real process stream.
+/// `scoped` context, otherwise to the real process stream.
 pub fn write(stream: Stream, s: &str) {
-    let routed = CTX.try_with(|ctx| {
-        let _ = ctx.out.send(OutChunk {
-            stream,
-            bytes: s.as_bytes().to_vec(),
-        });
-    });
-    if routed.is_err() {
+    #[cfg(feature = "authentication")]
+    let routed = CTX
+        .try_with(|ctx| {
+            let _ = ctx.out.send(OutChunk {
+                stream,
+                bytes: s.as_bytes().to_vec(),
+            });
+        })
+        .is_ok();
+    // Without `authentication` there is no daemon to route to.
+    #[cfg(not(feature = "authentication"))]
+    let routed = false;
+    if !routed {
         use std::io::Write as _;
         // In the daemon, this is its own output: pass it to any request watching it.
         let relay_stream = match stream {
@@ -93,6 +107,7 @@ pub fn write(stream: Stream, s: &str) {
 
 /// Read one line — from the client's forwarded stdin when inside a daemon context,
 /// otherwise from the real process stdin. The trailing newline is stripped.
+#[cfg(feature = "authentication")]
 pub async fn read_line() -> std::io::Result<String> {
     Ok(read_line_opt().await?.unwrap_or_default())
 }
@@ -101,6 +116,7 @@ pub async fn read_line() -> std::io::Result<String> {
 /// line (`Ok(Some(String::new()))`). Interactive loops use this to stop when the
 /// input stream closes (client disconnect / Ctrl-D / Ctrl-Z) instead of spinning
 /// on a stream of empty strings.
+#[cfg(feature = "authentication")]
 pub async fn read_line_opt() -> std::io::Result<Option<String>> {
     if let Ok(stdin) = CTX.try_with(|ctx| ctx.stdin.clone()) {
         let mut guard = stdin.lock().await;
@@ -115,6 +131,7 @@ pub async fn read_line_opt() -> std::io::Result<Option<String>> {
 /// One reader is shared by every call: a fresh `BufReader` per line would drop
 /// whatever it buffered past the first newline (e.g. a Guard code piped right
 /// after a `--password-stdin` line).
+#[cfg(feature = "authentication")]
 async fn read_real_stdin_line() -> std::io::Result<Option<String>> {
     use tokio::io::AsyncBufReadExt;
     static READER: std::sync::OnceLock<tokio::sync::Mutex<tokio::io::BufReader<tokio::io::Stdin>>> =
@@ -130,12 +147,14 @@ async fn read_real_stdin_line() -> std::io::Result<Option<String>> {
 }
 
 /// Buffers the client's forwarded stdin bytes and yields whole lines.
+#[cfg(feature = "authentication")]
 struct DaemonStdin {
     rx: mpsc::UnboundedReceiver<Vec<u8>>,
     buf: Vec<u8>,
     eof: bool,
 }
 
+#[cfg(feature = "authentication")]
 impl DaemonStdin {
     /// Yields the next whole line, returning `Ok(None)` once the client's stdin is
     /// closed and fully consumed so callers can detect EOF.

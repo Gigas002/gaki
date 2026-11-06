@@ -5,12 +5,16 @@
 use ratatui::crossterm::event::KeyCode;
 
 use super::shared;
+use crate::app::AppResult;
+#[cfg(feature = "inventory")]
+use crate::app::SensitiveView;
 use crate::app::browser::Action;
+use crate::app::browser::Browser;
 use crate::app::library::Library;
-use crate::app::{AppResult, SensitiveView};
 
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
     let Library {
+        #[cfg(feature = "inventory")]
         app,
         browser,
         client,
@@ -31,21 +35,29 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
                             if game.installed {
                                 client.run(&game)?;
                             } else {
-                                browser.confirm_install = true;
+                                offer_install(browser);
                             }
                         }
                         Action::PlayAs => browser.open_launch_targets(game.id),
+                        #[cfg(feature = "install")]
                         Action::Install => shared::install(browser, client, &game)?,
+                        #[cfg(feature = "install")]
                         Action::PauseResume => shared::pause_or_resume(browser, client, &game)?,
+                        #[cfg(feature = "install")]
                         Action::CancelInstall => shared::cancel_install(browser, &game),
+                        #[cfg(feature = "install")]
                         Action::Update => client.update(&game)?,
+                        #[cfg(feature = "install")]
                         Action::Verify => client.verify(&game)?,
+                        #[cfg(feature = "install")]
                         Action::Uninstall => {
                             if game.installed {
                                 browser.confirm_uninstall = true;
                             }
                         }
+                        #[cfg(feature = "versioning")]
                         Action::Versions => browser.open_versions(game.id),
+                        #[cfg(feature = "versioning")]
                         Action::Branches => {
                             let _ = browser.open_branches(game.id);
                         }
@@ -57,24 +69,31 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
                         Action::Dlc => {
                             let _ = browser.open_dlc(game.id);
                         }
+                        #[cfg(feature = "workshop")]
                         Action::Workshop => browser.open_workshop(game.id),
+                        #[cfg(feature = "cloud")]
                         Action::Cloud => browser.open_cloud(game.id),
                         Action::Achievements => browser.open_achievements(),
                         Action::Depots => browser.open_depots(game.id),
+                        #[cfg(feature = "inventory")]
                         Action::Inventory => {
                             app.open_sensitive(browser, SensitiveView::Inventory(game.id))
                         }
+                        #[cfg(feature = "install")]
                         Action::Move => {
                             if game.installed {
                                 browser.open_move(game.id);
                             }
                         }
+                        #[cfg(feature = "install")]
                         Action::Relink => {
                             if game.installed {
                                 browser.open_relink(game.id);
                             }
                         }
+                        #[cfg(feature = "install")]
                         Action::Import => browser.open_import(game.id),
+                        #[cfg(feature = "collections")]
                         Action::Collections => browser.open_collections(game.id),
                         Action::Favourite => shared::toggle_favourite(browser, config, &game)?,
                         Action::Hide => shared::hide(browser, config, &game)?,
@@ -86,4 +105,17 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
         _ => {}
     }
     Ok(())
+}
+
+/// Play on a game that isn't installed: ask to install it, or, in a build
+/// without installs, say why it can't start.
+fn offer_install(browser: &mut Browser) {
+    #[cfg(feature = "install")]
+    {
+        browser.confirm_install = true;
+    }
+    #[cfg(not(feature = "install"))]
+    {
+        browser.notice = Some("Not installed (this build has no installs).".to_string());
+    }
 }

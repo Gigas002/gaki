@@ -2,6 +2,7 @@
 
 mod artwork;
 pub mod browser;
+#[cfg(feature = "social")]
 pub mod chat;
 pub mod client;
 pub mod game;
@@ -30,24 +31,29 @@ pub struct App {
     pub highlight: Color,
     /// The view waiting for a fresh login (`reauth_sensitive`); it opens once
     /// the login finishes and the library is back.
+    #[cfg(feature = "inventory")]
     pub reauth: Option<SensitiveView>,
 }
 
 /// A view that reads sensitive account data: with `reauth_sensitive` on, it
 /// opens only after a fresh login.
+#[cfg(feature = "inventory")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SensitiveView {
     Wallet,
     /// The inventory for this app id.
     Inventory(i32),
+    #[cfg(feature = "market")]
     Listings,
 }
 
+#[cfg(feature = "inventory")]
 impl SensitiveView {
     pub fn label(self) -> &'static str {
         match self {
             SensitiveView::Wallet => "wallet",
             SensitiveView::Inventory(_) => "inventory",
+            #[cfg(feature = "market")]
             SensitiveView::Listings => "market listings",
         }
     }
@@ -60,6 +66,7 @@ impl SensitiveView {
                 }
             }
             SensitiveView::Inventory(app_id) => browser.open_inventory(app_id),
+            #[cfg(feature = "market")]
             SensitiveView::Listings => browser.open_market(),
         }
     }
@@ -98,12 +105,14 @@ impl App {
             password: String::new(),
             guard_code: String::new(),
             highlight,
+            #[cfg(feature = "inventory")]
             reauth: None,
         }
     }
 
     /// Open `view`, or, when it needs a fresh login first, go to the sign-in
     /// page and open it afterwards.
+    #[cfg(feature = "inventory")]
     pub fn open_sensitive(&mut self, browser: &mut browser::Browser, view: SensitiveView) {
         if libgaki::ops::auth::reauth_needed() {
             self.reauth = Some(view);
@@ -115,6 +124,7 @@ impl App {
 
     /// Back in the library: open the view a login was for, if there is one.
     /// Without a fresh login (the sign-in was skipped) it stays closed.
+    #[cfg(feature = "inventory")]
     pub fn resume_sensitive(&mut self, browser: &mut browser::Browser) {
         if self.mode != Mode::Browse {
             return;

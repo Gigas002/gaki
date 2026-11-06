@@ -3,20 +3,24 @@
 
 use ratatui::crossterm::event::KeyCode;
 
+#[cfg(feature = "install")]
 use super::shared;
 use crate::app::library::Library;
 use crate::app::steam;
 use crate::app::{AppResult, Mode};
 
-/// Handle `input` in the open overlay. Returns `false` when none is open.
+/// Handle `input` in the open overlay; overlays a build leaves out are
+/// skipped. Returns `false` when none is open.
 pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
     let Library {
         app,
         browser,
         client,
+        #[cfg(feature = "install")]
         cached,
         ..
     } = lib;
+    #[cfg(feature = "versioning")]
     if browser.show_versions {
         // Versions & pinning overlay. When prompting for a
         // downgrade manifest id, keys edit that input instead.
@@ -39,7 +43,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 _ => {}
             }
         }
-    } else if browser.show_launch_targets {
+        return Ok(true);
+    }
+    if browser.show_launch_targets {
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_launch_targets(),
             KeyCode::Down | KeyCode::Char('j') => browser.launch_targets_next(),
@@ -54,7 +60,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => {}
         }
-    } else if browser.show_game_config {
+        return Ok(true);
+    }
+    if browser.show_game_config {
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_game_config(),
             KeyCode::Down | KeyCode::Char('j') => browser.game_config_next(),
@@ -62,7 +70,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char('\n') | KeyCode::Enter => browser.game_config_activate(),
             _ => {}
         }
-    } else if browser.show_collections {
+        return Ok(true);
+    }
+    #[cfg(feature = "collections")]
+    if browser.show_collections {
         // Collections overlay. In create mode, keys edit the name.
         if browser.collections_input.is_some() {
             match input {
@@ -87,7 +98,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 _ => {}
             }
         }
-    } else if browser.show_cloud {
+        return Ok(true);
+    }
+    #[cfg(feature = "cloud")]
+    if browser.show_cloud {
         // Steam Cloud overlay: Esc/q close, s syncs both ways,
         // d downloads only, u uploads only; each re-fetches.
         match input {
@@ -109,7 +123,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => {}
         }
-    } else if browser.show_achievements {
+        return Ok(true);
+    }
+    if browser.show_achievements {
         // Achievements overlay: Esc/q close, j/k scroll.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_achievements(),
@@ -117,7 +133,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.ach_scroll_up(),
             _ => {}
         }
-    } else if browser.show_chat {
+        return Ok(true);
+    }
+    #[cfg(feature = "social")]
+    if browser.show_chat {
         // Chat view: Esc close, Enter send, typing composes.
         match input {
             KeyCode::Esc => browser.close_chat(),
@@ -126,7 +145,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.chat_push(c),
             _ => {}
         }
-    } else if browser.show_friend_add {
+        return Ok(true);
+    }
+    #[cfg(feature = "social")]
+    if browser.show_friend_add {
         // Add-friend prompt: type the reference, Enter to resolve
         // it via `friends search`, a to send the request via
         // `friends add` (kept open to show status), Esc to cancel.
@@ -138,7 +160,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.friend_add_push(c),
             _ => {}
         }
-    } else if browser.confirm_friend_remove {
+        return Ok(true);
+    }
+    #[cfg(feature = "social")]
+    if browser.confirm_friend_remove {
         // Remove-friend confirmation: y confirms, anything else cancels.
         match input {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
@@ -147,7 +172,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => browser.confirm_friend_remove = false,
         }
-    } else if browser.friends_focused() {
+        return Ok(true);
+    }
+    #[cfg(feature = "social")]
+    if browser.friends_focused() {
         // Friends panel focused: j/k move the highlight (the whole
         // list scrolls under it), c/Enter open the in-app chat, t
         // pops the chat into a new terminal window, a opens the
@@ -172,7 +200,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::BackTab => browser.cycle_filter(false),
             _ => {}
         }
-    } else if browser.show_inventory {
+        return Ok(true);
+    }
+    #[cfg(feature = "inventory")]
+    if browser.show_inventory {
         // Inventory overlay: Esc/q close, j/k scroll.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_inventory(),
@@ -180,7 +211,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.inv_scroll_up(),
             _ => {}
         }
-    } else if browser.show_launch {
+        return Ok(true);
+    }
+    if browser.show_launch {
         // Launch-options overlay: Esc/q close, j/k scroll.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_launch(),
@@ -188,7 +221,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.launch_scroll_up(),
             _ => {}
         }
-    } else if browser.show_market {
+        return Ok(true);
+    }
+    #[cfg(feature = "market")]
+    if browser.show_market {
         // Market listings overlay: Esc/q close, j/k scroll.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_market(),
@@ -196,7 +232,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.market_scroll_up(),
             _ => {}
         }
-    } else if browser.show_market_search {
+        return Ok(true);
+    }
+    #[cfg(feature = "market")]
+    if browser.show_market_search {
         // Market search overlay: typing edits the query, Enter
         // runs the search (off-thread), Up/Down move the result
         // highlight, Tab prices the highlighted result (off-thread),
@@ -215,7 +254,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.market_query_push(c),
             _ => {}
         }
-    } else if browser.show_workshop {
+        return Ok(true);
+    }
+    #[cfg(feature = "workshop")]
+    if browser.show_workshop {
         if browser.workshop_comments_open {
             // Comments sub-pane (over the browse results): Esc
             // returns to the results, Up/Down scroll. No text is
@@ -258,7 +300,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 _ => {}
             }
         }
-    } else if browser.confirm_install {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.confirm_install {
         // "Not installed — install now?" prompt: y opens the
         // install-location picker for the game, anything cancels.
         match input {
@@ -270,7 +315,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => browser.confirm_install = false,
         }
-    } else if browser.show_install_picker {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.show_install_picker {
         // Install-location picker: Up/Down choose a library,
         // Enter installs the selected game into it, Esc cancels.
         match input {
@@ -295,7 +343,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => {}
         }
-    } else if browser.confirm_uninstall {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.confirm_uninstall {
         // Uninstall confirmation prompt: y confirms, anything else cancels.
         match input {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
@@ -318,7 +369,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => browser.confirm_uninstall = false,
         }
-    } else if browser.show_dlc {
+        return Ok(true);
+    }
+    if browser.show_dlc {
         // DLC overlay: navigate and toggle the highlighted DLC.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_dlc(),
@@ -338,7 +391,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => {}
         }
-    } else if browser.show_branches {
+        return Ok(true);
+    }
+    #[cfg(feature = "versioning")]
+    if browser.show_branches {
         // Branches overlay: navigate and switch to the highlighted branch.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_branches(),
@@ -352,7 +408,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => {}
         }
-    } else if browser.show_running {
+        return Ok(true);
+    }
+    if browser.show_running {
         // Running overlay: navigate and stop the highlighted game.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_running(),
@@ -366,7 +424,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => {}
         }
-    } else if browser.show_proton && browser.confirm_proton_uninstall {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.show_proton && browser.confirm_proton_uninstall {
         // Proton uninstall confirmation: y confirms (remove the
         // custom runtime + refresh), anything else cancels.
         match input {
@@ -376,7 +437,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => browser.confirm_proton_uninstall = false,
         }
-    } else if browser.show_proton {
+        return Ok(true);
+    }
+    if browser.show_proton {
         // Proton overlay: navigate, set the highlighted runtime as
         // the global default, install it, or uninstall a custom one.
         match input {
@@ -395,6 +458,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                     }
                 }
             }
+            #[cfg(feature = "install")]
             KeyCode::Char('i') => {
                 // Queue a (long-running) download off the UI thread;
                 // progress streams into the proton status cell.
@@ -405,6 +469,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                             .proton_install(&p.name, browser.proton_status.clone());
                     }
             }
+            #[cfg(feature = "install")]
             KeyCode::Char('u')
                 // Only installed official runtimes are removable.
                 if browser.selected_proton_uninstallable() => {
@@ -412,7 +477,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 }
             _ => {}
         }
-    } else if browser.show_depots {
+        return Ok(true);
+    }
+    if browser.show_depots {
         // Depots overlay: Esc/q close, j/k scroll.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_depots(),
@@ -420,7 +487,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.depots_scroll_up(),
             _ => {}
         }
-    } else if browser.show_move {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.show_move {
         // Move prompt: type the destination library path, Enter
         // to relocate (kept open to show status), Esc to cancel.
         match input {
@@ -432,7 +502,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.move_push(c),
             _ => {}
         }
-    } else if browser.show_relink {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.show_relink {
         // Relink prompt: type the destination library path, Enter
         // to relink (kept open to show status), Esc to cancel.
         match input {
@@ -444,7 +517,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.relink_push(c),
             _ => {}
         }
-    } else if browser.show_import {
+        return Ok(true);
+    }
+    #[cfg(feature = "install")]
+    if browser.show_import {
         // Import prompt: type the library path holding the existing
         // files, Enter to register (kept open to show status), Esc
         // to cancel.
@@ -457,7 +533,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.import_push(c),
             _ => {}
         }
-    } else if browser.show_help {
+        return Ok(true);
+    }
+    if browser.show_help {
         // Help overlay: Esc/q/? close, j/k scroll.
         match input {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('?') => {
@@ -467,7 +545,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Up | KeyCode::Char('k') => browser.help_scroll_up(),
             _ => {}
         }
-    } else if browser.show_account {
+        return Ok(true);
+    }
+    if browser.show_account {
         // `o` logs out of Steam; any other key dismisses the overlay.
         match input {
             KeyCode::Char('o') => {
@@ -477,7 +557,9 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             _ => browser.show_account = false,
         }
-    } else if browser.show_config {
+        return Ok(true);
+    }
+    if browser.show_config {
         // Settings overlay. While editing the proxy URL, keys edit
         // that input; otherwise dismiss / toggle presence / edit or
         // clear the proxy.
@@ -508,10 +590,14 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 _ => {}
             }
         }
-    } else if browser.show_wallet {
+        return Ok(true);
+    }
+    if browser.show_wallet {
         // Any key dismisses the wallet overlay.
         browser.show_wallet = false;
-    } else if browser.filtering {
+        return Ok(true);
+    }
+    if browser.filtering {
         // Live text filter focused: typing edits the query.
         match input {
             KeyCode::Esc => {
@@ -525,8 +611,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             KeyCode::Char(c) => browser.push_query(c),
             _ => {}
         }
-    } else {
-        return Ok(false);
+        return Ok(true);
     }
-    Ok(true)
+    Ok(false)
 }

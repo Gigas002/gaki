@@ -1,5 +1,5 @@
 //! Everything drawn on screen. [`draw`] renders one frame of the library
-//! window, and [`chat::window`] one of the stand-alone chat window. The other
+//! window, and `chat::window` one of the stand-alone chat window. The other
 //! submodules are one element each: pure builders that render from the app
 //! state plus the shared [`crate::ui::theme`].
 
@@ -7,39 +7,56 @@ pub mod account;
 pub mod achievements;
 pub mod actions;
 pub mod artwork;
+#[cfg(feature = "versioning")]
 pub mod branches;
+#[cfg(feature = "social")]
 pub mod chat;
+#[cfg(feature = "cloud")]
 pub mod cloud;
+#[cfg(feature = "collections")]
 pub mod collections;
 pub mod config;
+#[cfg(any(feature = "install", feature = "social"))]
 pub mod confirm;
 pub mod depots;
 pub mod detail;
 pub mod dlc;
+#[cfg(feature = "social")]
 pub mod friend_add;
+#[cfg(feature = "social")]
 pub mod friends;
 pub mod game_config;
 pub mod help;
+#[cfg(feature = "install")]
 pub mod import;
+#[cfg(feature = "install")]
 pub mod install_picker;
+#[cfg(feature = "inventory")]
 pub mod inventory;
 pub mod launch;
 pub mod launch_targets;
 pub mod library;
 pub mod list;
 pub mod login;
+#[cfg(feature = "market")]
 pub mod market;
+#[cfg(feature = "market")]
 pub mod market_search;
+#[cfg(feature = "install")]
 pub mod move_game;
 pub mod overlays;
 pub mod proton;
+#[cfg(feature = "install")]
 pub mod relink;
 pub mod running;
 pub mod status;
 pub mod tabs;
 pub mod theme;
+#[cfg(feature = "versioning")]
 pub mod versions;
+#[cfg(feature = "inventory")]
 pub mod wallet;
+#[cfg(feature = "workshop")]
 pub mod workshop;
 
 use ratatui::Frame;

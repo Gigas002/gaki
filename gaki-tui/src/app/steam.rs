@@ -3,6 +3,7 @@
 //! ([`crate::app::worker`]) and mapping the result into the plain structs the
 //! views render.
 
+#[cfg(feature = "versioning")]
 use std::collections::BTreeMap;
 use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
@@ -337,7 +338,7 @@ pub struct Branch {
     pub name: String,
     pub description: String,
     /// Whether this is the branch the install is currently tracking. The current
-    /// branch list doesn't say, so it starts `false`; [`crate::app::browser::Browser::open_branches`]
+    /// branch list doesn't say, so it starts `false`; `Browser::open_branches`
     /// marks the active branch by name when one is known.
     pub active: bool,
 }
@@ -406,7 +407,7 @@ impl LaunchOption {
 }
 
 /// One row in the market overlay: a single active sell listing or open buy
-/// order; [`market_listings`] merges both into one list and tags each row's
+/// order; `market_listings` merges both into one list and tags each row's
 /// `kind`. `price` is in the currency's
 /// minor units (cents); `quantity` is only meaningful for buy orders.
 #[derive(Debug, Clone, Default)]
@@ -513,6 +514,7 @@ impl MarketPrice {
 /// Search the Community Market (no login needed) and publish the outcome,
 /// tagged with `search_gen`, into `cell`. Intended to run on a dedicated
 /// thread so the UI stays responsive.
+#[cfg(feature = "market")]
 pub fn market_search_async(
     query: String,
     search_gen: u64,
@@ -546,6 +548,7 @@ pub fn market_search_async(
 
 /// Look up an item's Community Market price in USD (no login needed) and
 /// publish the outcome into `cell`. Intended to run on a dedicated thread.
+#[cfg(feature = "market")]
 pub fn market_price_async(app_id: u32, name: String, cell: Arc<Mutex<MarketPriceState>>) {
     let result = in_process(libgaki::ops::market::price(app_id, &name, 1)).map(|p| MarketPrice {
         market_hash_name: p.market_hash_name,
@@ -809,6 +812,7 @@ pub fn logout() -> Result<(), TuiError> {
 }
 
 /// The Steam Wallet balance.
+#[cfg(feature = "inventory")]
 pub fn wallet() -> Result<Wallet, TuiError> {
     in_process(async {
         let grant = libgaki::ops::auth::sensitive_grant()?;
@@ -826,6 +830,7 @@ pub fn wallet() -> Result<Wallet, TuiError> {
 /// A web session for the web-surface calls (inventory, wallet, market
 /// listings): minted off the logged-in session, or built from a stored
 /// browser web token.
+#[cfg(feature = "inventory")]
 async fn web_session() -> anyhow::Result<libgaki::web::web_session::WebSession> {
     let client = worker::global().session().ensure().await?;
     libgaki::ops::session::web_session(&client).await
@@ -889,6 +894,7 @@ pub fn libraries() -> Result<Vec<LibraryFolder>, TuiError> {
 
 /// Estimate the on-disk install size of a game, in bytes. Returns 0 if the
 /// estimate is unavailable.
+#[cfg(feature = "install")]
 pub fn install_estimate(id: i32) -> Result<u64, TuiError> {
     in_process(async {
         let mut client = worker::global().session().authed().await?;
@@ -905,7 +911,7 @@ pub fn fetch_info(id: i32) -> Result<StoreInfo, TuiError> {
             app_ids: vec![id as u32],
             extended: false,
             no_cache: false,
-            country: libgaki::ops::store::resolve_country(None)?,
+            country: libgaki::ops::info::resolve_country(None)?,
         };
         let session = worker::global().session();
         let mut infos = app_info(&request, async || session.authed().await).await?;
@@ -926,6 +932,7 @@ pub fn fetch_info(id: i32) -> Result<StoreInfo, TuiError> {
 }
 
 /// List a game's Steam Cloud files, sorted by name.
+#[cfg(feature = "cloud")]
 pub fn cloud_list(app_id: i32) -> Result<Vec<CloudFile>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -942,6 +949,7 @@ pub fn cloud_list(app_id: i32) -> Result<Vec<CloudFile>, TuiError> {
 }
 
 /// Which way a Steam Cloud sync should move files.
+#[cfg(feature = "cloud")]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CloudDirection {
     /// Download then upload.
@@ -956,6 +964,7 @@ pub enum CloudDirection {
 /// blocking call that can be slow. Diverged saves are left alone (both copies
 /// kept); they, and files that failed or had no local path, come back as an
 /// error saying so, rather than as a plain success.
+#[cfg(feature = "cloud")]
 pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), TuiError> {
     use libgaki::library::cloud_sync::{ConflictPolicy, SyncDirection};
     let request = libgaki::ops::cloud::SyncRequest {
@@ -979,6 +988,7 @@ pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), TuiError
 }
 
 /// What went wrong in a sync, worst first, or `None` if nothing did.
+#[cfg(feature = "cloud")]
 fn sync_problem(
     app_id: i32,
     outcome: &libgaki::library::cloud_sync::SyncOutcome,
@@ -1029,6 +1039,7 @@ pub fn achievements(app_id: i32) -> Result<Vec<Achievement>, TuiError> {
 
 /// The logged-in user's friends, with status and current game. The roster
 /// fills in over a few seconds after connecting, so this may be partial.
+#[cfg(feature = "social")]
 pub fn friends() -> Result<Vec<Friend>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1049,6 +1060,7 @@ pub fn friends() -> Result<Vec<Friend>, TuiError> {
 
 /// Look up a Steam user by SteamID, profile URL, vanity name or friend name.
 /// Read-only.
+#[cfg(feature = "social")]
 pub fn friends_search(query: &str) -> Result<FriendLookup, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1063,6 +1075,7 @@ pub fn friends_search(query: &str) -> Result<FriendLookup, TuiError> {
 }
 
 /// Send a friend request to the user `query` resolves to.
+#[cfg(feature = "social")]
 pub fn friends_add(query: &str) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1073,6 +1086,7 @@ pub fn friends_add(query: &str) -> Result<(), TuiError> {
 }
 
 /// Remove a friend or cancel a pending request.
+#[cfg(feature = "social")]
 pub fn friends_remove(steamid: u64) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1081,6 +1095,7 @@ pub fn friends_remove(steamid: u64) -> Result<(), TuiError> {
 }
 
 /// The most recent `count` messages with a friend, oldest first.
+#[cfg(feature = "social")]
 pub fn chat_history(steamid: u64, count: u32) -> Result<Vec<ChatMessage>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1098,6 +1113,7 @@ pub fn chat_history(steamid: u64, count: u32) -> Result<Vec<ChatMessage>, TuiErr
 }
 
 /// Send a direct message to a friend.
+#[cfg(feature = "social")]
 pub fn chat_send(steamid: u64, message: &str) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1107,6 +1123,7 @@ pub fn chat_send(steamid: u64, message: &str) -> Result<(), TuiError> {
 }
 
 /// The account's inventory for a game (context 2, the game-items context).
+#[cfg(feature = "inventory")]
 pub fn inventory(app_id: i32) -> Result<Vec<InventoryItem>, TuiError> {
     in_process(async {
         let grant = libgaki::ops::auth::sensitive_grant()?;
@@ -1185,6 +1202,7 @@ pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOption>, TuiError> {
 }
 
 /// The Workshop items the user is subscribed to for a game.
+#[cfg(feature = "workshop")]
 pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItem>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1194,6 +1212,7 @@ pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItem>, TuiError> {
 }
 
 /// A Workshop item as the overlay shows it.
+#[cfg(feature = "workshop")]
 fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> WorkshopItem {
     WorkshopItem {
         id: Some(item.id),
@@ -1206,6 +1225,7 @@ fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> 
 
 /// Browse a game's Workshop, optionally filtered by `search`. Rows start as
 /// not subscribed; the overlay flips the flag on a successful subscribe.
+#[cfg(feature = "workshop")]
 pub fn workshop_browse(app_id: i32, search: &str) -> Result<Vec<WorkshopItem>, TuiError> {
     let search = Some(search.trim().to_string()).filter(|s| !s.is_empty());
     in_process(async {
@@ -1228,6 +1248,7 @@ pub fn workshop_browse(app_id: i32, search: &str) -> Result<Vec<WorkshopItem>, T
 }
 
 /// Subscribe to a Workshop item (a collection subscribes to its items too).
+#[cfg(feature = "workshop")]
 pub fn workshop_subscribe(item_id: u64) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1239,6 +1260,7 @@ pub fn workshop_subscribe(item_id: u64) -> Result<(), TuiError> {
 }
 
 /// Unsubscribe from a Workshop item (a collection unsubscribes its items too).
+#[cfg(feature = "workshop")]
 pub fn workshop_unsubscribe(item_id: u64) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1250,6 +1272,7 @@ pub fn workshop_unsubscribe(item_id: u64) -> Result<(), TuiError> {
 }
 
 /// Vote a Workshop item up or down.
+#[cfg(feature = "workshop")]
 pub fn workshop_rate(item_id: u64, up: bool) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1258,6 +1281,7 @@ pub fn workshop_rate(item_id: u64, up: bool) -> Result<(), TuiError> {
 }
 
 /// The first `count` comments on a Workshop item. Authors are SteamIDs.
+#[cfg(feature = "workshop")]
 pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopComment>, TuiError> {
     let count = i32::try_from(count).unwrap_or(i32::MAX);
     in_process(async {
@@ -1275,6 +1299,7 @@ pub fn workshop_comments(item_id: u64, count: u32) -> Result<Vec<WorkshopComment
 }
 
 /// The account's active market listings and open buy orders, as one list.
+#[cfg(feature = "market")]
 pub fn market_listings() -> Result<Vec<MarketListing>, TuiError> {
     let state = in_process(async {
         let grant = libgaki::ops::auth::sensitive_grant()?;
@@ -1312,6 +1337,7 @@ pub fn set_dlc(app_id: i32, enable: bool) -> Result<(), TuiError> {
 }
 
 /// A game's beta branches, by name.
+#[cfg(feature = "versioning")]
 pub fn branches(app_id: i32) -> Result<Vec<Branch>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1328,6 +1354,7 @@ pub fn branches(app_id: i32) -> Result<Vec<Branch>, TuiError> {
 
 /// Switch a game to a beta branch. The switch is staged: an [`update`] is
 /// needed afterwards for it to take effect.
+#[cfg(feature = "versioning")]
 pub fn set_branch(app_id: i32, branch: &str) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1375,6 +1402,7 @@ pub fn proton_default(version: &str) -> Result<(), TuiError> {
 /// Install an official Proton build through Steam and make it the default,
 /// streaming progress into the shared status cell. Blocks until done; intended
 /// to be run on a dedicated thread (mirrors [`install`]).
+#[cfg(feature = "install")]
 pub fn proton_install(name: String, status: Arc<Mutex<Option<GameStatus>>>) {
     set_status(&status, "processing...");
     let outcome = worker::global().block_on(async {
@@ -1391,6 +1419,7 @@ pub fn proton_install(name: String, status: Arc<Mutex<Option<GameStatus>>>) {
 }
 
 /// Uninstall an official Proton build through Steam.
+#[cfg(feature = "install")]
 pub fn proton_uninstall(name: &str) -> Result<(), TuiError> {
     in_process(async {
         let package = libgaki::ops::proton::find(name)?;
@@ -1536,7 +1565,7 @@ fn set_status(status: &Arc<Mutex<Option<GameStatus>>>, msg: &str) {
 }
 
 /// What the user has asked of an in-flight install. The install worker reads
-/// this once the download ends ([`install_stop`] aborts it) and finalises the
+/// this once the download ends (`install_stop` aborts it) and finalises the
 /// status accordingly instead of treating the abort as a failure.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InstallAction {
@@ -1549,7 +1578,7 @@ pub enum InstallAction {
 }
 
 /// A shared, cheaply-cloned handle to an install's [`InstallAction`]. The UI
-/// flips it (pause/stop) before issuing [`install_stop`]; the worker reads it
+/// flips it (pause/stop) before issuing `install_stop`; the worker reads it
 /// when the process ends.
 #[derive(Debug, Clone)]
 pub struct InstallControl {
@@ -1586,16 +1615,19 @@ impl Default for InstallControl {
 /// Stop a running install. The download loop aborts and the partial download
 /// stays on disk, so a later `install` resumes it. A no-op (Ok) if no such
 /// install is in flight.
+#[cfg(feature = "install")]
 pub fn install_stop(app_id: i32) -> Result<(), TuiError> {
     signal_install(app_id, false)
 }
 
 /// Pause a running install: it stops, and its backlog entry stays `paused`
 /// so it can be resumed. A no-op (Ok) if no such install is in flight.
+#[cfg(feature = "install")]
 pub fn install_pause(app_id: i32) -> Result<(), TuiError> {
     signal_install(app_id, true)
 }
 
+#[cfg(feature = "install")]
 fn signal_install(app_id: i32, pause: bool) -> Result<(), TuiError> {
     libgaki::ops::install::signal(app_id as u32, pause)
         .map(|_| ())
@@ -1604,6 +1636,7 @@ fn signal_install(app_id: i32, pause: bool) -> Result<(), TuiError> {
 
 /// Freeze the status cell at "paused" (carrying the last-seen percent, if any),
 /// preserving the install dir/size.
+#[cfg(feature = "install")]
 fn set_status_paused(status: &Arc<Mutex<Option<GameStatus>>>) {
     if let Ok(mut guard) = status.lock() {
         let pct = guard
@@ -1622,6 +1655,7 @@ fn set_status_paused(status: &Arc<Mutex<Option<GameStatus>>>) {
 /// set, the worker finalises as paused/cleared instead of reporting the abort
 /// as a failure. `library` (a library root from [`libraries`]) targets a
 /// specific drive/location; `None` uses the default.
+#[cfg(feature = "install")]
 pub fn install(
     id: i32,
     status: Arc<Mutex<Option<GameStatus>>>,
@@ -1670,9 +1704,12 @@ pub fn install(
 #[derive(Clone, Copy)]
 enum ProgressLabel {
     /// Downloading / verifying / moving, as the backend reports it.
+    #[cfg(feature = "install")]
     Install,
+    #[cfg(feature = "install")]
     Verify,
     Update,
+    #[cfg(feature = "versioning")]
     Downgrade,
 }
 
@@ -1700,22 +1737,28 @@ async fn drive_progress(
                 );
                 let percent = percent_of(p.bytes_downloaded, p.total_bytes);
                 let text = match (label, p.state) {
+                    #[cfg(feature = "install")]
                     (ProgressLabel::Verify, _) => format!("verifying {percent:.1}%"),
                     (ProgressLabel::Update, _) => {
                         format!("updating {percent:.1}%{}", eta_suffix(eta))
                     }
+                    #[cfg(feature = "versioning")]
                     (ProgressLabel::Downgrade, State::Verifying) => {
                         format!("verifying {percent:.1}%")
                     }
+                    #[cfg(feature = "versioning")]
                     (ProgressLabel::Downgrade, _) => {
                         format!("downgrading {percent:.1}%{}", eta_suffix(eta))
                     }
+                    #[cfg(feature = "install")]
                     (ProgressLabel::Install, State::Verifying) => {
                         format!("verifying {percent:.1}%{}", eta_suffix(eta))
                     }
+                    #[cfg(feature = "install")]
                     (ProgressLabel::Install, State::Moving) => {
                         format!("moving {percent:.1}%{}", eta_suffix(eta))
                     }
+                    #[cfg(feature = "install")]
                     (ProgressLabel::Install, _) => {
                         format!("downloading {percent:.1}%{}", eta_suffix(eta))
                     }
@@ -1744,6 +1787,7 @@ fn finish(status: &Arc<Mutex<Option<GameStatus>>>, outcome: anyhow::Result<()>, 
 }
 
 /// Uninstall a game. Its Wine prefix / compat data is left in place.
+#[cfg(feature = "install")]
 pub fn uninstall(app_id: i32) -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -1753,6 +1797,7 @@ pub fn uninstall(app_id: i32) -> Result<(), TuiError> {
 
 /// Refuse to edit Steam's files while it runs: it rewrites appmanifests and
 /// `libraryfolders.vdf` on exit.
+#[cfg(feature = "install")]
 fn require_steam_stopped() -> anyhow::Result<()> {
     libgaki::ops::steam::stop_for_edit(false, || {})
         .map(|_| ())
@@ -1770,6 +1815,7 @@ fn require_steam_stopped() -> anyhow::Result<()> {
 /// Relocate an installed game to another Steam library folder. Blocks until
 /// the files are moved (which can take a while). Steam must not be running.
 /// (`move` is a Rust keyword, hence `move_game`.)
+#[cfg(feature = "install")]
 pub fn move_game(app_id: i32, library: &str) -> Result<(), TuiError> {
     let library = std::path::PathBuf::from(library);
     in_process(async move {
@@ -1792,6 +1838,7 @@ pub fn move_game(app_id: i32, library: &str) -> Result<(), TuiError> {
 
 /// Point Steam at an install that was moved to another library folder by
 /// hand. Steam must not be running.
+#[cfg(feature = "install")]
 pub fn relink(app_id: i32, library: &str) -> Result<(), TuiError> {
     let library = std::path::PathBuf::from(library);
     in_process(async move {
@@ -1804,6 +1851,7 @@ pub fn relink(app_id: i32, library: &str) -> Result<(), TuiError> {
 
 /// Register an existing on-disk install of a game into a Steam library
 /// folder. Steam must not be running. (Named `import_game` for clarity.)
+#[cfg(feature = "install")]
 pub fn import_game(app_id: i32, library: &str) -> Result<(), TuiError> {
     let library = std::path::PathBuf::from(library);
     in_process(async move {
@@ -1817,6 +1865,7 @@ pub fn import_game(app_id: i32, library: &str) -> Result<(), TuiError> {
 /// Verify the integrity of a game's files, repairing what is wrong and
 /// streaming progress into the shared status cell. Blocks until verification
 /// finishes; intended to be run on a dedicated thread.
+#[cfg(feature = "install")]
 pub fn verify(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
     set_status(&status, "processing...");
     let outcome = worker::global().block_on(async {
@@ -1832,6 +1881,7 @@ pub fn verify(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
 /// Update a game to the latest version, streaming progress into the shared
 /// status cell. Blocks until the update finishes; intended to be run on a
 /// dedicated thread. A pinned game is refused.
+#[cfg(feature = "install")]
 pub fn update(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
     set_status(&status, "processing...");
     let outcome = worker::global().block_on(async {
@@ -1856,7 +1906,7 @@ pub fn play(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
 // ===========================================================================
 
 /// One depot's current manifest id on a branch, for version discovery ahead
-/// of a [`downgrade`].
+/// of a `downgrade`.
 #[derive(Debug, Clone, Default)]
 pub struct DepotManifestInfo {
     pub depot_id: u32,
@@ -2002,6 +2052,7 @@ pub fn launch_targets(app_id: i32) -> Result<Vec<LaunchTarget>, TuiError> {
 
 /// Each depot's current manifest id per branch; `depot` restricts it to one
 /// depot. Steam only exposes *current* ids — older ones live on SteamDB.
+#[cfg(feature = "versioning")]
 pub fn manifests(app_id: i32, depot: Option<u32>) -> Result<Vec<DepotManifestInfo>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -2021,6 +2072,7 @@ pub fn manifests(app_id: i32, depot: Option<u32>) -> Result<Vec<DepotManifestInf
 
 /// A game's install and version-pin state, from local files only (no Steam
 /// logon, so per-game polling is cheap).
+#[cfg(feature = "versioning")]
 pub fn available(app_id: i32) -> Result<PinState, TuiError> {
     let a = in_process(libgaki::ops::install::availability(app_id as u32))?;
     Ok(PinState {
@@ -2033,11 +2085,13 @@ pub fn available(app_id: i32) -> Result<PinState, TuiError> {
 }
 
 /// Depot → manifest, keyed by the depot id as text, in depot order.
+#[cfg(feature = "versioning")]
 fn manifest_map(map: &std::collections::HashMap<u32, u64>) -> BTreeMap<String, u64> {
     map.iter().map(|(d, m)| (d.to_string(), *m)).collect()
 }
 
 /// Pin a game to its currently-installed manifests, holding gaki's updates.
+#[cfg(feature = "versioning")]
 pub fn pin(app_id: i32) -> Result<PinResult, TuiError> {
     let manifests = in_process(libgaki::ops::install::pin(app_id as u32))?;
     Ok(PinResult {
@@ -2048,6 +2102,7 @@ pub fn pin(app_id: i32) -> Result<PinResult, TuiError> {
 }
 
 /// Remove a game's version pin. Returns whether it had been pinned.
+#[cfg(feature = "versioning")]
 pub fn unpin(app_id: i32) -> Result<bool, TuiError> {
     in_process(libgaki::ops::install::unpin(app_id as u32))
 }
@@ -2058,6 +2113,7 @@ pub fn unpin(app_id: i32) -> Result<bool, TuiError> {
 /// install; `branch` records the build's branch, `verify` runs an integrity
 /// pass afterward, and `no_pin` skips pinning. Blocks until it finishes;
 /// intended to be run on a dedicated thread.
+#[cfg(feature = "versioning")]
 pub fn downgrade(
     app_id: i32,
     overrides: &[(u32, u64)],
@@ -2086,11 +2142,13 @@ pub fn downgrade(
 }
 
 /// Map a local-store error to the TUI's error type.
+#[cfg(feature = "collections")]
 fn local<T>(result: anyhow::Result<T>) -> Result<T, TuiError> {
     result.map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
 /// A collection as the overlay shows it.
+#[cfg(feature = "collections")]
 fn collection_row(c: libgaki::ops::collections::Summary) -> Collection {
     use libgaki::ops::collections::Kind;
     Collection {
@@ -2104,6 +2162,7 @@ fn collection_row(c: libgaki::ops::collections::Summary) -> Collection {
 }
 
 /// App ids as the store keeps them; negative ids can't be Steam apps.
+#[cfg(feature = "collections")]
 fn app_ids(ids: &[i32]) -> Result<Vec<u32>, TuiError> {
     ids.iter()
         .map(|&id| u32::try_from(id).map_err(|_| TuiError::Problem(format!("bad app id {id}"))))
@@ -2111,42 +2170,50 @@ fn app_ids(ids: &[i32]) -> Result<Vec<u32>, TuiError> {
 }
 
 /// The local library collections (not deleted).
+#[cfg(feature = "collections")]
 pub fn collections_list() -> Result<Vec<Collection>, TuiError> {
     let (_, list) = local(libgaki::ops::collections::list())?;
     Ok(list.into_iter().map(collection_row).collect())
 }
 
 /// One collection by name or id, with its members (none for a dynamic one).
+#[cfg(feature = "collections")]
 pub fn collection_show(name: &str) -> Result<Collection, TuiError> {
     local(libgaki::ops::collections::show(name)).map(collection_row)
 }
 
 /// Create a new static collection.
+#[cfg(feature = "collections")]
 pub fn collection_create(name: &str) -> Result<(), TuiError> {
     local(libgaki::ops::collections::create(name)).map(drop)
 }
 
 /// Mark a collection for deletion; the next push removes it from Steam.
+#[cfg(feature = "collections")]
 pub fn collection_delete(name: &str) -> Result<(), TuiError> {
     local(libgaki::ops::collections::delete(name))
 }
 
 /// Rename a collection.
+#[cfg(feature = "collections")]
 pub fn collection_rename(name: &str, new_name: &str) -> Result<(), TuiError> {
     local(libgaki::ops::collections::rename(name, new_name))
 }
 
 /// Add games to a collection.
+#[cfg(feature = "collections")]
 pub fn collection_add(name: &str, ids: &[i32]) -> Result<(), TuiError> {
     local(libgaki::ops::collections::add(name, &app_ids(ids)?))
 }
 
 /// Remove games from a collection.
+#[cfg(feature = "collections")]
 pub fn collection_remove(name: &str, ids: &[i32]) -> Result<(), TuiError> {
     local(libgaki::ops::collections::remove(name, &app_ids(ids)?))
 }
 
 /// Download Steam's collections and merge them into the local store.
+#[cfg(feature = "collections")]
 pub fn collections_pull() -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -2157,6 +2224,7 @@ pub fn collections_pull() -> Result<(), TuiError> {
 
 /// Upload the local collections to Steam. This changes the Steam account;
 /// the overlay key is the confirmation.
+#[cfg(feature = "collections")]
 pub fn collection_push() -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -2166,6 +2234,7 @@ pub fn collection_push() -> Result<(), TuiError> {
 }
 
 /// Pull, then push. This changes the Steam account.
+#[cfg(feature = "collections")]
 pub fn collection_sync() -> Result<(), TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
@@ -2307,7 +2376,7 @@ pub fn play_with(id: i32, opts: PlayOpts, status: Arc<Mutex<Option<GameStatus>>>
     finish(&status, outcome, "ran (finished)");
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "versioning"))]
 mod progress_tests {
     use super::{ProgressLabel, drive_progress};
     use crate::app::game::status::GameStatus;
@@ -2396,6 +2465,7 @@ mod progress_tests {
     }
 }
 
+#[cfg(feature = "cloud")]
 #[cfg(test)]
 mod cloud_tests {
     use super::sync_problem;

@@ -26,6 +26,7 @@ fn main() -> ExitCode {
     }
 
     let result = match settings.start {
+        #[cfg(feature = "social")]
         Start::Chat { steamid, name } => app::chat::run(steamid, name),
         Start::Library => app::library::run(),
     };

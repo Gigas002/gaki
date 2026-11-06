@@ -153,6 +153,7 @@ async fn password_login_interactive(
 /// the stored account's password, or a QR code when the password is left
 /// empty. `--json` can't prompt, so it fails unless this process (the daemon,
 /// after a `login --json`) has an unused fresh login.
+#[cfg(feature = "inventory")]
 pub(crate) async fn sensitive_access(
     json: bool,
 ) -> Result<(

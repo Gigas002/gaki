@@ -1,5 +1,6 @@
 use super::*;
 
+#[cfg(feature = "library")]
 #[test]
 fn human_bytes_scales_units() {
     assert_eq!(human_bytes(0), "0 B");
@@ -9,6 +10,7 @@ fn human_bytes_scales_units() {
     assert_eq!(human_bytes(5 * 1024 * 1024 * 1024), "5.00 GiB");
 }
 
+#[cfg(feature = "library")]
 #[test]
 fn eta_formats_hms() {
     assert_eq!(format_eta(0), "00:00:00");
@@ -17,10 +19,12 @@ fn eta_formats_hms() {
 }
 
 /// Parse an argv into a `Cli` the way the binary does.
+#[cfg(feature = "authentication")]
 fn parse(args: &[&str]) -> Cli {
     Cli::try_parse_from(args).expect("args should parse")
 }
 
+#[cfg(feature = "install")]
 #[test]
 fn install_positional_and_subcommands_coexist() {
     // Positional install (Heroic depends on this form).
@@ -80,6 +84,7 @@ fn install_positional_and_subcommands_coexist() {
     }
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn interactive_login_runs_locally_not_forwarded() {
     // The regression: these were forwarded to the daemon, where rpassword ran
@@ -91,6 +96,7 @@ fn interactive_login_runs_locally_not_forwarded() {
     assert!(must_run_locally(&parse(&["gaki-cli", "login", "--pin"])));
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn daemon_oriented_and_json_login_still_forward() {
     // These need the daemon (or are non-tty), so they must NOT be pinned local.
@@ -110,6 +116,7 @@ fn daemon_oriented_and_json_login_still_forward() {
     ])));
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn qr_timeout_parses_and_requires_qr() {
     match parse(&["gaki-cli", "login", "--qr", "--timeout", "90"]).command {
@@ -124,6 +131,7 @@ fn qr_timeout_parses_and_requires_qr() {
     ])));
 }
 
+#[cfg(feature = "library")]
 #[test]
 fn ordinary_commands_forward_but_local_managers_do_not() {
     assert!(!must_run_locally(&parse(&["gaki-cli", "list"])));

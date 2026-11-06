@@ -50,6 +50,7 @@ impl Filter {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum View {
     Library,
+    #[cfg(feature = "social")]
     Friends,
 }
 
@@ -408,6 +409,7 @@ impl Browser {
     pub fn tab_index(&self) -> usize {
         match self.view {
             View::Library => self.filter.index(),
+            #[cfg(feature = "social")]
             View::Friends => Filter::TABS.len(),
         }
     }
@@ -418,18 +420,20 @@ impl Browser {
     /// back to All. The library filters re-clamp the selection as before.
     pub fn cycle_filter(&mut self, forward: bool) {
         // Slots: 0..TABS.len() are filters, TABS.len() is the Friends tab.
-        let slots = Filter::TABS.len() + 1;
+        // Without `social` there is no Friends tab.
+        let slots = Filter::TABS.len() + usize::from(cfg!(feature = "social"));
         let idx = self.tab_index();
         let next = if forward {
             (idx + 1) % slots
         } else {
             (idx + slots - 1) % slots
         };
+        #[cfg(feature = "social")]
         if next == Filter::TABS.len() {
             self.enter_friends();
-        } else {
-            self.set_filter(Filter::TABS[next]);
+            return;
         }
+        self.set_filter(Filter::TABS[next]);
     }
 
     pub fn cycle_sort(&mut self) {

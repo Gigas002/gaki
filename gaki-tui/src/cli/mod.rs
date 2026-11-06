@@ -12,10 +12,12 @@ mod tests;
 pub struct CliOptions {
     /// Open a full-screen chat with this friend instead of the library. The
     /// Friends panel's "open in new terminal" action (`t`) starts this.
+    #[cfg(feature = "social")]
     #[arg(long, value_name = "STEAMID")]
     pub chat: Option<u64>,
 
     /// The chat partner's display name, shown in the chat header.
+    #[cfg(feature = "social")]
     #[arg(long, value_name = "NAME", requires = "chat")]
     pub name: Option<String>,
 

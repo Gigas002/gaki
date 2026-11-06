@@ -58,6 +58,7 @@ fn report_has_the_contract_fields() {
     );
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn commands_carry_flags_args_and_subcommands() {
     let r = capabilities();
@@ -67,10 +68,39 @@ fn commands_carry_flags_args_and_subcommands() {
     assert!(flags.contains(&"--timeout".into()));
     // Hidden flags stay out.
     assert!(!flags.contains(&"--openid".into()));
-    assert_eq!(r["commands"]["play"]["args"], json!(["app_id"]));
-    assert!(r["commands"]["install"]["subcommands"]["stop"].is_object());
     // Globals aren't repeated per command.
     assert!(!flags.contains(&"--json".into()));
+}
+
+#[cfg(feature = "install")]
+#[test]
+fn commands_carry_args_and_subcommands() {
+    let r = capabilities();
+    assert_eq!(r["commands"]["play"]["args"], json!(["app_id"]));
+    assert!(r["commands"]["install"]["subcommands"]["stop"].is_object());
+}
+
+#[test]
+fn commands_and_build_features_match_the_build() {
+    let r = capabilities();
+    let build = r["build_features"].as_array().unwrap();
+    assert_eq!(build.len(), BUILD_FEATURES.len());
+    // Always built.
+    for name in ["capabilities", "config", "profiles", "proton"] {
+        assert!(r["commands"][name].is_object(), "{name}");
+    }
+    assert_eq!(
+        r["commands"]["login"].is_object(),
+        cfg!(feature = "authentication")
+    );
+    assert_eq!(
+        r["commands"]["friends"].is_object(),
+        cfg!(feature = "social")
+    );
+    assert_eq!(
+        r["commands"]["market"].is_object(),
+        cfg!(feature = "market")
+    );
 }
 
 #[test]
@@ -88,12 +118,17 @@ fn list_view_is_padded_and_braced() {
     let text = render_report(&capabilities(), 120);
     let name = text.lines().find(|l| l.starts_with("Name ")).unwrap();
     assert_eq!(name, "Name        : gaki-cli");
-    assert!(text.contains(
+    // The daemon flags are hidden in a build without a daemon.
+    let globals = if cfg!(feature = "authentication") {
         "GlobalFlags : {--json, --verbose, --log, --config-dir, --no-daemon, --no-spawn, --socket}"
-    ));
+    } else {
+        "GlobalFlags : {--json, --verbose, --log, --config-dir}"
+    };
+    assert!(text.contains(globals), "{text}");
     assert!(text.contains("Features    : {login.qr.result_line,"));
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn long_values_wrap_under_the_value() {
     let text = render_report(&capabilities(), 60);
@@ -145,6 +180,7 @@ fn detail_reaches_nested_commands() {
     assert_eq!(mode["values"], json!(["windows", "linux"]));
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn detail_flags_values_and_switches() {
     let d = command_detail(&path(&["login"])).unwrap();
@@ -184,6 +220,7 @@ fn unknown_path_is_not_found_with_choices() {
     assert!(err.to_string().contains("`config game` has no subcommands"));
 }
 
+#[cfg(feature = "authentication")]
 #[test]
 fn detail_view_has_flag_table() {
     let text = render_detail(&command_detail(&path(&["login"])).unwrap(), 100);

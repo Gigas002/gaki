@@ -108,6 +108,27 @@ pub async fn web_session(client: &SteamClient) -> Result<WebSession> {
     WebSession::new(steam_id, token, None)
 }
 
+/// Resolve a user argument that names no friend (SteamID64, profile URL or
+/// `me`) to a SteamID64. A name is an `InvalidInput` error: matching friend
+/// names needs the `social` feature (`resolve_user_ident`).
+pub fn resolve_user_id(client: &SteamClient, input: &str) -> Result<u64> {
+    use crate::steam_client::ident::{Ident, parse_ident};
+    match parse_ident(input)? {
+        Ident::SteamId(id) => Ok(id),
+        Ident::Me => client.steam_id().ok_or_else(|| {
+            TypedError::new(ErrorKind::AuthRequired, "`me` needs a logged-in session").into()
+        }),
+        Ident::Name(name) => Err(TypedError::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "can't look up `{name}` by friend name in a build without the `social` \
+                 feature; pass a SteamID64 or a profile URL"
+            ),
+        )
+        .into()),
+    }
+}
+
 /// Resolve a user argument (SteamID64, profile URL, `me`, or a friend's name)
 /// to a SteamID64.
 ///
@@ -120,21 +141,14 @@ pub async fn resolve_user_ident(
     roster: Option<Vec<Friend>>,
 ) -> Result<u64> {
     use crate::steam_client::ident::{Ident, match_friend_name, parse_ident};
-    match parse_ident(input)? {
-        Ident::SteamId(id) => Ok(id),
-        Ident::Me => client.steam_id().ok_or_else(|| {
-            TypedError::new(ErrorKind::AuthRequired, "`me` needs a logged-in session").into()
-        }),
-        Ident::Name(name) => {
-            let friends = match roster {
-                Some(friends) => friends,
-                None => {
-                    crate::ops::social::friends(client, crate::ops::social::FRIENDS_WAIT).await?
-                }
-            };
-            Ok(match_friend_name(&name, &friends)?.steam_id)
-        }
-    }
+    let Ident::Name(name) = parse_ident(input)? else {
+        return resolve_user_id(client, input);
+    };
+    let friends = match roster {
+        Some(friends) => friends,
+        None => crate::ops::social::friends(client, crate::ops::social::FRIENDS_WAIT).await?,
+    };
+    Ok(match_friend_name(&name, &friends)?.steam_id)
 }
 
 #[cfg(test)]

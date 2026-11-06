@@ -2,6 +2,7 @@
 //! helpers, the browse-state transitions, and the widget render. Nothing
 //! reaches Steam: the search/price worker cells are driven through the public
 //! state API so the test is hermetic.
+#![cfg(feature = "market")]
 
 use gaki_tui::app::browser::Browser;
 use gaki_tui::app::steam::{MarketPrice, MarketSearchResult};

@@ -20,9 +20,11 @@ mod transport;
 pub(crate) use libgaki::core::config::config_dir_override;
 pub(crate) use transport::set_endpoint as set_socket;
 
+#[cfg(feature = "social")]
 use std::sync::Arc;
 use std::sync::OnceLock;
 // The roster cache is shared with the (synchronous) friends watcher
+#[cfg(feature = "social")]
 use std::sync::RwLock as StdRwLock;
 use std::time::{Duration, Instant, SystemTime};
 
@@ -30,7 +32,9 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 
 use libgaki::core::error::ErrorKind;
-use libgaki::steam_client::{Friend, Roster, SteamClient};
+use libgaki::steam_client::SteamClient;
+#[cfg(feature = "social")]
+use libgaki::steam_client::{Friend, Roster};
 
 pub use server::run_server;
 
@@ -134,12 +138,14 @@ struct DaemonState {
     /// (see [`DaemonState::spawn_watcher`]) from Steam friend/persona broadcasts, and
     /// read by [`shared_roster`]. An `Arc` so the watcher task can own a handle to the
     /// same map that survives session teardown (the Arc outlives any one watcher).
+    #[cfg(feature = "social")]
     roster: Arc<StdRwLock<Roster>>,
     /// Handle to the single in-flight watcher task. Kept so we never spawn a duplicate
     /// watcher while one is still running, and so [`invalidate`](Self::invalidate) can
     /// abort it when the session is torn down. A std `Mutex` (not tokio) because it is
     /// only locked for the instant it takes to inspect/replace the handle, never across
     /// an `.await`.
+    #[cfg(feature = "social")]
     watcher: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
@@ -162,6 +168,8 @@ struct Slot {
 
 /// A classified restore failure.
 #[derive(Clone)]
+// Read back only by commands that use the shared session.
+#[cfg_attr(not(any(feature = "library", feature = "social")), allow(dead_code))]
 struct RestoreFailure {
     kind: ErrorKind,
     retry_after: Option<Duration>,
@@ -210,7 +218,9 @@ fn init_state() -> &'static DaemonState {
             last_failure: None,
             last_error: None,
         }),
+        #[cfg(feature = "social")]
         roster: Arc::new(StdRwLock::new(Roster::new())),
+        #[cfg(feature = "social")]
         watcher: std::sync::Mutex::new(None),
     })
 }
@@ -274,6 +284,7 @@ impl DaemonState {
                     // having to drive it. `spawn_watcher` is idempotent — if one is still
                     // running (e.g. this restore ran without a prior invalidate) it's a
                     // no-op. `s.client` was just set, so the unwrap cannot fail.
+                    #[cfg(feature = "social")]
                     self.spawn_watcher(s.client.as_ref().unwrap());
                 }
                 Ok(_) => {
@@ -311,6 +322,7 @@ impl DaemonState {
     /// running at a time: a stale-but-not-yet-cleaned handle (the task already finished,
     /// e.g. its connection dropped) is treated as "no watcher" so we replace it. Locked
     /// for just the inspect/replace; the spawn and `.await` happen on the task itself.
+    #[cfg(feature = "social")]
     fn spawn_watcher(&self, client: &SteamClient) {
         let mut guard = self.watcher.lock().unwrap();
         if guard.as_ref().is_some_and(|h| !h.is_finished()) {
@@ -343,12 +355,15 @@ impl DaemonState {
         // Abort the watcher bound to the now-dead connection and drop its handle so the
         // next `ensure_session` spawns a fresh one. (A held std lock, but no `.await`
         // occurs while it is held.)
-        if let Some(handle) = self.watcher.lock().unwrap().take() {
-            handle.abort();
+        #[cfg(feature = "social")]
+        {
+            if let Some(handle) = self.watcher.lock().unwrap().take() {
+                handle.abort();
+            }
+            // Clear stale friends data so a read between teardown and the next watcher's
+            // first broadcast doesn't return friends from the previous session.
+            self.roster.write().unwrap().clear();
         }
-        // Clear stale friends data so a read between teardown and the next watcher's
-        // first broadcast doesn't return friends from the previous session.
-        self.roster.write().unwrap().clear();
     }
 
     /// Periodically verify the shared connection is still alive and re-establish it if
@@ -391,6 +406,7 @@ impl DaemonState {
 }
 
 /// Why the daemon's last restore failed.
+#[cfg(any(feature = "library", feature = "social"))]
 pub async fn last_restore_error() -> Option<(ErrorKind, Option<Duration>, String)> {
     let state = DAEMON.get()?;
     let failure = state.slot.read().await.last_error.clone()?;
@@ -418,6 +434,7 @@ pub async fn shared_restored_client() -> SteamClient {
 /// friends list and persona states over the connection. A call made immediately after
 /// the daemon (re)establishes a session may therefore return an empty or partial list
 /// until those broadcasts arrive; a slightly later call returns the full roster.
+#[cfg(feature = "social")]
 pub async fn shared_roster() -> Vec<Friend> {
     let state = init_state();
     state.ensure_session().await;

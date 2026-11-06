@@ -65,9 +65,13 @@ pub fn proton(browser: &Browser) -> List<'static> {
     // Title carries the key hints, plus the live install/uninstall status (if
     // any) and an [u] uninstall hint when the highlighted runtime qualifies.
     let mut title = match browser.proton_status_line() {
-        Some(status) => format!("Proton runtimes — {} ([d] default · [i] install", status),
-        None => "Proton runtimes ([d] default · [i] install".to_string(),
+        Some(status) => format!("Proton runtimes — {} ([d] default", status),
+        None => "Proton runtimes ([d] default".to_string(),
     };
+    // Downloading or removing a runtime needs `install`.
+    #[cfg(feature = "install")]
+    title.push_str(" · [i] install");
+    #[cfg(feature = "install")]
     if browser.selected_proton_uninstallable() {
         title.push_str(" · [u] uninstall");
     }

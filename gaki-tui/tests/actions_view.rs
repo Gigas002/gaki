@@ -6,14 +6,18 @@
 
 use gaki_tui::app::browser::{Action, Browser};
 use gaki_tui::app::game::Game;
+#[cfg(feature = "collections")]
+use gaki_tui::app::steam::Collection;
+#[cfg(feature = "versioning")]
+use gaki_tui::app::steam::{DepotManifestInfo, PinState};
 use gaki_tui::app::steam::{
-    Collection, DepotManifestInfo, GameSettings, LaunchTarget, LauncherSettings, LibraryGame,
-    PinState, ProxySettings,
+    GameSettings, LaunchTarget, LauncherSettings, LibraryGame, ProxySettings,
 };
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
+#[cfg(feature = "versioning")]
 use std::collections::BTreeMap;
 
 fn isolate_config() {
@@ -56,6 +60,7 @@ fn render<F: FnOnce(&mut ratatui::Frame)>(w: u16, h: u16, draw: F) -> String {
         .collect()
 }
 
+#[cfg(all(feature = "versioning", feature = "collections"))]
 #[test]
 fn action_candidates_depend_on_install_state() {
     isolate_config();
@@ -127,13 +132,14 @@ fn actions_filter_narrows_and_selection_tracks() {
     assert!(full > 5, "menu lists many actions when unfiltered");
 
     // Typing narrows to the matching rows and resets the highlight.
-    for c in "collect".chars() {
+    // (Favourite is in every build.)
+    for c in "favour".chars() {
         browser.actions_filter_push(c);
     }
     let filtered = browser.filtered_actions();
-    assert_eq!(filtered.len(), 1, "only Collections matches 'collect'");
-    assert_eq!(filtered[0].action, Action::Collections);
-    assert_eq!(browser.selected_action(), Some(Action::Collections));
+    assert_eq!(filtered.len(), 1, "only Favourite matches 'favour'");
+    assert_eq!(filtered[0].action, Action::Favourite);
+    assert_eq!(browser.selected_action(), Some(Action::Favourite));
 
     browser.actions_filter_pop();
     assert!(
@@ -142,6 +148,7 @@ fn actions_filter_narrows_and_selection_tracks() {
     );
 }
 
+#[cfg(feature = "versioning")]
 #[test]
 fn actions_menu_renders_categories() {
     isolate_config();
@@ -159,6 +166,7 @@ fn actions_menu_renders_categories() {
     );
 }
 
+#[cfg(feature = "versioning")]
 #[test]
 fn versions_overlay_renders_pin_and_manifest() {
     isolate_config();
@@ -298,6 +306,7 @@ fn launch_targets_overlay_renders_targets() {
     assert!(browser.selected_launch_target().is_some());
 }
 
+#[cfg(feature = "collections")]
 #[test]
 fn collections_overlay_renders_list() {
     isolate_config();

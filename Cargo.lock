@@ -1381,7 +1381,6 @@ dependencies = [
  "libc",
  "libgaki",
  "qrcode",
- "reqwest",
  "rpassword",
  "serde",
  "serde_json",
@@ -1390,7 +1389,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
- "walkdir",
 ]
 
 [[package]]

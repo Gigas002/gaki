@@ -57,6 +57,7 @@ impl Browser {
 
     /// Uninstall the highlighted official runtime and refresh the list. A
     /// no-op unless the highlighted runtime is uninstallable.
+    #[cfg(feature = "install")]
     pub fn do_proton_uninstall(&mut self) -> Result<(), TuiError> {
         let name = match self.selected_proton() {
             Some(p) if p.uninstallable() => p.name.clone(),

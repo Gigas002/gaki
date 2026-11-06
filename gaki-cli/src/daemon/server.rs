@@ -59,11 +59,15 @@ fn idle_expired(busy: bool, idle_for: Duration, timeout: Option<Duration>) -> bo
 }
 
 fn busy() -> bool {
+    #[cfg(feature = "install")]
+    let installing = !libgaki::ops::install::active_installs()
+        .lock()
+        .unwrap()
+        .is_empty();
+    #[cfg(not(feature = "install"))]
+    let installing = false;
     INFLIGHT.load(Ordering::SeqCst) > 0
-        || !libgaki::ops::install::active_installs()
-            .lock()
-            .unwrap()
-            .is_empty()
+        || installing
         || !libgaki::compat::running::list_active().is_empty()
 }
 
@@ -174,6 +178,7 @@ pub async fn run_server() -> Result<()> {
     let state = super::init_state();
     tokio::spawn(async move {
         state.ensure_session().await;
+        #[cfg(feature = "install")]
         auto_resume_installs().await;
     });
     tokio::spawn(async move { state.liveness_loop().await });
@@ -197,6 +202,7 @@ pub async fn run_server() -> Result<()> {
 }
 
 /// Resume interrupted installs when configured.
+#[cfg(feature = "install")]
 async fn auto_resume_installs() {
     use libgaki::library::backlog;
     let auto = libgaki::core::config::load_launcher_config()
@@ -314,10 +320,15 @@ where
 /// Whether this request also receives the daemon's own output: a verbose `play`,
 /// where background session activity (reconnects, liveness) helps diagnose a launch.
 fn watches_daemon(argv: &[String]) -> bool {
-    use clap::Parser;
-
-    crate::cli::Cli::try_parse_from(argv)
-        .is_ok_and(|cli| cli.verbose > 0 && matches!(cli.command, crate::cli::Command::Play { .. }))
+    #[cfg(feature = "library")]
+    return clap::Parser::try_parse_from(argv).is_ok_and(|cli: crate::cli::Cli| {
+        cli.verbose > 0 && matches!(cli.command, crate::cli::Command::Play { .. })
+    });
+    #[cfg(not(feature = "library"))]
+    {
+        let _ = argv;
+        false
+    }
 }
 
 /// Build the request's output relay: the requester's `-v` count (parsed from its

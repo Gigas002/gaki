@@ -610,6 +610,7 @@ pub(crate) async fn cmd_check_updates(json: bool) -> Result<()> {
 /// `gaki-cli manifests <app_id>`: list each depot's current manifest id per branch
 /// (version discovery). Steam only exposes *current* ids; the printed SteamDB
 /// links are where historical/older ids can be found for a `downgrade`.
+#[cfg(feature = "versioning")]
 pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -> Result<()> {
     let client = authed_client().await?;
     let manifests = install::manifests(&client, app_id, depot).await?;
@@ -671,6 +672,7 @@ pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -
 
 /// `gaki-cli downgrade`: install specific (usually older) depot manifests and pin
 /// them, streaming progress via the same path as `install`.
+#[cfg(feature = "versioning")]
 pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()> {
     let overrides = install::parse_manifest_overrides(&args.depots, &args.manifests)?;
 
@@ -743,6 +745,7 @@ pub(crate) async fn cmd_downgrade(args: DowngradeArgs, json: bool) -> Result<()>
 
 /// `gaki-cli pin <app_id>`: lock gaki's update commands for a game, recording
 /// its currently-installed manifests.
+#[cfg(feature = "versioning")]
 pub(crate) async fn cmd_pin(app_id: u32, json: bool) -> Result<()> {
     let manifests = install::pin(app_id).await?;
 
@@ -762,6 +765,7 @@ pub(crate) async fn cmd_pin(app_id: u32, json: bool) -> Result<()> {
 }
 
 /// `gaki-cli unpin <app_id>`: release a game's version pin.
+#[cfg(feature = "versioning")]
 pub(crate) async fn cmd_unpin(app_id: u32, json: bool) -> Result<()> {
     let was_pinned = install::unpin(app_id).await?;
 

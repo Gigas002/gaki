@@ -45,6 +45,7 @@ pub enum Command {
     /// Install a game, streaming progress into the shared status cell. The
     /// control handle lets the UI pause/stop the in-flight download; the last
     /// field is the chosen library folder (drive/location), `None` for default.
+    #[cfg(feature = "install")]
     Install(
         i32,
         Arc<Mutex<Option<GameStatus>>>,
@@ -52,8 +53,10 @@ pub enum Command {
         Option<String>,
     ),
     /// Verify a game's integrity, streaming progress into the shared status cell.
+    #[cfg(feature = "install")]
     Verify(i32, Arc<Mutex<Option<GameStatus>>>),
     /// Update a game to the latest version, streaming progress into the shared status cell.
+    #[cfg(feature = "install")]
     Update(i32, Arc<Mutex<Option<GameStatus>>>),
     /// Launch a game and wait for it to exit.
     Run(i32, Arc<Mutex<Option<GameStatus>>>),
@@ -61,6 +64,7 @@ pub enum Command {
     RunWith(i32, steam::PlayOpts, Arc<Mutex<Option<GameStatus>>>),
     /// Download and install a Proton/Wine runtime by name, streaming progress
     /// into the shared status cell.
+    #[cfg(feature = "install")]
     ProtonInstall(String, Arc<Mutex<Option<GameStatus>>>),
     /// No-op kept for UI compatibility (launching brings up what it needs).
     StartClient,
@@ -85,9 +89,7 @@ fn handle_login(
                 health
                     .steam_id
                     .filter(|id| *id != 0)
-                    .and_then(|id| steam::friends_search(&id.to_string()).ok())
-                    .and_then(|f| f.persona_name)
-                    .filter(|n| !n.is_empty())
+                    .and_then(persona_name)
                     .unwrap_or(account)
             });
             (State::Loaded(0, -2), None, who)
@@ -105,6 +107,22 @@ fn handle_login(
     *account.lock()? = who;
     *state.lock()? = next;
     Ok(())
+}
+
+/// Our own persona name, through `friends search`; `None` without `social`.
+fn persona_name(steam_id: u64) -> Option<String> {
+    #[cfg(feature = "social")]
+    {
+        steam::friends_search(&steam_id.to_string())
+            .ok()
+            .and_then(|f| f.persona_name)
+            .filter(|n| !n.is_empty())
+    }
+    #[cfg(not(feature = "social"))]
+    {
+        let _ = steam_id;
+        None
+    }
 }
 
 /// The cached library (`games.toml`), under `[[games]]`. `games` is required,
@@ -222,12 +240,15 @@ fn execute(
                 tracing::info!(user = ?user, "restarting for user");
                 handle_login(&state, &last_error, &account)?;
             }
+            #[cfg(feature = "install")]
             Command::Install(id, status, control, library) => {
                 thread::spawn(move || steam::install(id, status, control, library));
             }
+            #[cfg(feature = "install")]
             Command::Verify(id, status) => {
                 thread::spawn(move || steam::verify(id, status));
             }
+            #[cfg(feature = "install")]
             Command::Update(id, status) => {
                 thread::spawn(move || steam::update(id, status));
             }
@@ -237,6 +258,7 @@ fn execute(
             Command::RunWith(id, opts, status) => {
                 thread::spawn(move || steam::play_with(id, opts, status));
             }
+            #[cfg(feature = "install")]
             Command::ProtonInstall(name, status) => {
                 thread::spawn(move || steam::proton_install(name, status));
             }
@@ -384,6 +406,7 @@ impl Client {
     /// Queues installation of the provided game. `control` lets the UI pause or
     /// stop the in-flight download (see [`crate::app::browser::Browser::begin_install`]); `library`
     /// is the chosen install location (a library root), `None` for default.
+    #[cfg(feature = "install")]
     pub fn install(
         &self,
         game: &Game,
@@ -401,6 +424,7 @@ impl Client {
     }
 
     /// Queues an integrity check of the provided game.
+    #[cfg(feature = "install")]
     pub fn verify(&self, game: &Game) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Verify(game.id, game.status_counter()))?;
@@ -408,6 +432,7 @@ impl Client {
     }
 
     /// Queues an update of the provided game.
+    #[cfg(feature = "install")]
     pub fn update(&self, game: &Game) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Update(game.id, game.status_counter()))?;
@@ -416,6 +441,7 @@ impl Client {
 
     /// Queues a Proton/Wine runtime install by name, streaming progress into the
     /// shared status cell.
+    #[cfg(feature = "install")]
     pub fn proton_install(
         &self,
         name: &str,

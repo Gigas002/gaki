@@ -48,6 +48,7 @@ pub fn library_tabs(browser: &Browser) -> Tabs<'static> {
 
 /// The Friends & Chat tab (right section), headlined "Friends, Chat". It
 /// highlights only while the Friends view is active.
+#[cfg(feature = "social")]
 pub fn friends_tabs(browser: &Browser) -> Tabs<'static> {
     let titles = vec![Line::from(Span::raw("Friends".to_string()))];
 

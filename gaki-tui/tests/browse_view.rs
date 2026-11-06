@@ -4,7 +4,9 @@
 
 use gaki_tui::app::browser::{Browser, Filter};
 use gaki_tui::app::game::Game;
-use gaki_tui::app::steam::{LibraryGame, ProtonRuntime, WorkshopComment, WorkshopItem};
+#[cfg(feature = "workshop")]
+use gaki_tui::app::steam::WorkshopItem;
+use gaki_tui::app::steam::{LibraryGame, ProtonRuntime, WorkshopComment};
 use gaki_tui::ui::{self, theme};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -92,6 +94,7 @@ fn browse_widgets_render_without_panicking() {
     terminal
         .draw(|f| {
             f.render_widget(ui::tabs::library_tabs(&browser), Rect::new(0, 0, 60, 3));
+            #[cfg(feature = "social")]
             f.render_widget(ui::tabs::friends_tabs(&browser), Rect::new(60, 0, 20, 3));
             let list = ui::list::list(&browser, 40, 0);
             f.render_stateful_widget(list, Rect::new(0, 3, 40, 18), &mut browser.state);
@@ -121,6 +124,7 @@ fn browse_widgets_render_without_panicking() {
     assert!(text.contains("Detail"), "detail panel renders");
 }
 
+#[cfg(feature = "install")]
 #[test]
 fn install_picker_lists_libraries_and_marks_choice() {
     isolate_config();
@@ -224,6 +228,7 @@ fn full_browse_frame_renders() {
                 .constraints([Constraint::Min(20), Constraint::Length(19)])
                 .split(chunks[0]);
             f.render_widget(ui::tabs::library_tabs(&browser), tab_areas[0]);
+            #[cfg(feature = "social")]
             f.render_widget(ui::tabs::friends_tabs(&browser), tab_areas[1]);
 
             let body = Layout::default()
@@ -264,6 +269,7 @@ fn full_browse_frame_renders() {
 /// The Steam Cloud overlay advertises the sync directions in its title so the
 /// directional keys (`d` down-only, `u` up-only) are discoverable next to the
 /// plain `s` sync.
+#[cfg(feature = "cloud")]
 #[test]
 fn cloud_overlay_shows_directional_hints() {
     isolate_config();
@@ -367,6 +373,7 @@ fn render_proton(browser: &Browser) -> String {
 /// Only an installed official runtime is uninstallable (Steam removes it;
 /// custom builds belong to the package manager). The overlay surfaces the [u]
 /// uninstall hint exactly then, and always offers [i] install.
+#[cfg(feature = "install")]
 #[test]
 fn proton_overlay_offers_install_and_guards_uninstall() {
     isolate_config();
@@ -403,6 +410,19 @@ fn proton_overlay_offers_install_and_guards_uninstall() {
     assert!(!browser.selected_proton_uninstallable());
 }
 
+/// Without `install` the overlay only sets the default.
+#[cfg(not(feature = "install"))]
+#[test]
+fn proton_overlay_without_installs_only_sets_the_default() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.protons = vec![proton("Proton 10.0", true, true)];
+    let text = render_proton(&browser);
+    assert!(text.contains("[d] default"), "{text}");
+    assert!(!text.contains("[i] install"), "{text}");
+    assert!(!text.contains("[u] uninstall"), "{text}");
+}
+
 /// An in-flight install streams a status line into the overlay title.
 #[test]
 fn proton_overlay_shows_install_status() {
@@ -419,6 +439,7 @@ fn proton_overlay_shows_install_status() {
     );
 }
 
+#[cfg(feature = "workshop")]
 fn workshop_item(id: u64, title: &str, subscribed: bool) -> WorkshopItem {
     WorkshopItem {
         id: Some(id),
@@ -431,6 +452,7 @@ fn workshop_item(id: u64, title: &str, subscribed: bool) -> WorkshopItem {
 /// Leaving browse mode and closing the overlay reset the browse state. (We set
 /// the flags directly rather than via `open_workshop`/`workshop_enter_browse`,
 /// which would reach Steam.)
+#[cfg(feature = "workshop")]
 #[test]
 fn workshop_browse_mode_toggles() {
     isolate_config();
@@ -449,6 +471,7 @@ fn workshop_browse_mode_toggles() {
 }
 
 /// Highlight navigation over the browse results is clamped at both ends.
+#[cfg(feature = "workshop")]
 #[test]
 fn workshop_result_navigation_clamps() {
     isolate_config();
@@ -477,6 +500,7 @@ fn workshop_result_navigation_clamps() {
 
 /// The browse pane renders the query, a result count, and the rows with their
 /// subscribed tags and the highlight marker.
+#[cfg(feature = "workshop")]
 #[test]
 fn workshop_browse_pane_renders() {
     isolate_config();
@@ -516,6 +540,7 @@ fn workshop_browse_pane_renders() {
 /// Opening the comments sub-pane and exiting browse both reset its state. We set
 /// the flags directly rather than via `workshop_open_comments` (which would
 /// reach Steam), to keep the test offline.
+#[cfg(feature = "workshop")]
 #[test]
 fn workshop_comments_state_resets() {
     isolate_config();
@@ -555,6 +580,7 @@ fn workshop_comments_state_resets() {
 
 /// The comments sub-pane renders the item id in the title, a comment count, and
 /// each comment's author header and body.
+#[cfg(feature = "workshop")]
 #[test]
 fn workshop_comments_pane_renders() {
     isolate_config();
@@ -648,7 +674,9 @@ fn version_badge_sits_in_bottom_right_corner() {
     assert!(rows[1].contains("[q] quit"), "key hints are not covered");
 
     // Too narrow for both on the bottom row: the badge moves up, hints stay whole.
-    let rows = render(110);
+    // 105 is that in every build (the hints are 104 wide with `install`, 91
+    // without).
+    let rows = render(105);
     assert!(rows[0].trim_end().ends_with(&badge));
     assert!(rows[1].contains("[q] quit"));
 }
