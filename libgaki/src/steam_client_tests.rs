@@ -744,13 +744,13 @@ fn failed_progress_keeps_error_kind() {
 fn cdn_errors_map_to_kinds() {
     use crate::core::error::ErrorKind;
     use install::cdn_error_kind;
-    let full = steam_cdn::Error::Io(std::io::Error::from(std::io::ErrorKind::StorageFull));
+    let full = gaki_steam_cdn::Error::Io(std::io::Error::from(std::io::ErrorKind::StorageFull));
     assert_eq!(cdn_error_kind(&full), Some(ErrorKind::DiskFull));
-    let dns = steam_cdn::Error::Request(
+    let dns = gaki_steam_cdn::Error::Request(
         "error sending request: client error (Connect): dns error: failed to lookup address".into(),
     );
     assert_eq!(cdn_error_kind(&dns), Some(ErrorKind::Offline));
-    let status = steam_cdn::Error::HttpStatus(reqwest::StatusCode::NOT_FOUND);
+    let status = gaki_steam_cdn::Error::HttpStatus(reqwest::StatusCode::NOT_FOUND);
     assert_eq!(cdn_error_kind(&status), None);
 }
 

@@ -28,7 +28,7 @@ authentication = [
 # Owned apps, appinfo/PICS, tags, achievements, licenses, launching.
 library = ["authentication"]
 # Install, update, verify, uninstall, move/relink/import, DLC, backlog, official Proton.
-install = ["library", "dep:steam-cdn"]
+install = ["library", "dep:gaki-steam-cdn"]
 # Steam Cloud save sync (save paths come from PICS appinfo, hence `library`).
 cloud = ["library", "dep:filetime", "dep:sha1", "dep:zip"]
 # Library collections (CloudConfigStore).
@@ -65,7 +65,7 @@ secrecy = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 sha1 = { workspace = true, optional = true }
-steam-cdn = { workspace = true, optional = true }
+gaki-steam-cdn = { workspace = true, optional = true }
 steam-vdf-parser = { workspace = true, optional = true }
 steam-vent = { workspace = true, optional = true }
 steam-vent-chat = { workspace = true, optional = true }

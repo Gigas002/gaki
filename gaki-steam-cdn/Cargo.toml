@@ -1,0 +1,30 @@
+[package]
+name = "gaki-steam-cdn"
+description = "Steam content-delivery client: depot manifests and chunk downloads (fork of steam-cdn)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+aes.workspace = true
+base64.workspace = true
+bytes.workspace = true
+cbc.workspace = true
+crc32fast.workspace = true
+futures.workspace = true
+itertools.workspace = true
+keyvalues-parser.workspace = true
+lzma-rs.workspace = true
+protobuf.workspace = true
+reqwest.workspace = true
+ruzstd.workspace = true
+serde.workspace = true
+sha1.workspace = true
+steam-vent.workspace = true
+steam-vent-proto.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+zip.workspace = true

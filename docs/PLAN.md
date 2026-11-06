@@ -3,13 +3,14 @@
 This fork turns **Aurelia** (a CLI Steam client, `aurelia-steam` crate) and
 **Aurelia-TUI** (a TUI that drives the `aurelia` binary as a subprocess and parses
 its output) into **gaki**, a lean, Linux-only Steam client. It ships as three crates
-in one workspace:
+in one workspace, plus `gaki-steam-cdn`, the download engine adopted in 7.4:
 
 | Crate      | Kind | Binary     | Role                                                    |
 | ---------- | ---- | ---------- | ------------------------------------------------------- |
 | `libgaki`  | lib  | —          | All logic: Steam session, library, install, cloud, launch, config/profiles |
 | `gaki-cli` | bin  | `gaki-cli` | Thin CLI over `libgaki`                                 |
 | `gaki-tui` | bin  | `gaki-tui` | Thin TUI over `libgaki` (imported from Aurelia-TUI)     |
+| `gaki-steam-cdn` | lib | — | Depot downloads for `libgaki` (adopted from `aurelia-steam-cdn`) |
 
 Sources: `docs/aurelia-questions.md` (the original upstream questions plus the request
 list), `../rust-template` (ARCHITECTURE.md, CI, lint/deny/typos configs),
@@ -829,7 +830,7 @@ I make the changes, and you review, commit, and push.
   `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
 - [x] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
   `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
-  Split into four commits. Test files keep their current layout until 7.4.
+  Split into four commits. Test files keep their current layout until 7.5.
   - [x] **4.5a** Entry plumbing. `util/` → `utils/`. A clap `cli/` replaces the
     hand-parsed `--chat <steamid> <name>` with `--chat <STEAMID> [--name <NAME>]`,
     and adds `--log-level`. `settings/` resolves `CliOptions` (plus the proxy
@@ -889,10 +890,10 @@ I make the changes, and you review, commit, and push.
     became `pub(super)`; nothing else changed visibility. **Not done:** the
     fields still all live on `Browser` rather than in per-view sub-structs.
     That change would touch every `ui/` builder and integration test that
-    reads `browser.show_*` and friends, so it fits better with 7.4 or with
+    reads `browser.show_*` and friends, so it fits better with 7.5 or with
     feature gating (6.x), where each view's state needs a `cfg` anyway. Some
     integration-test comments still describe `main.rs` layouts that no longer
-    exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.4 covers them.
+    exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.5 covers them.
   - [x] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
     `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
     `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,
@@ -1411,17 +1412,43 @@ I make the changes, and you review, commit, and push.
   gone after the update. The duplicate `rand` (0.8, 0.9, 0.10) and
   `getrandom` versions come from steam-vent-crypto, ratatui-image and
   tungstenite, so they stay as warnings.
-- [ ] **7.4** Refactor tests to the ARCHITECTURE layout (R32): convert the
+- [x] **7.4** Adopt `aurelia-steam-cdn` into the workspace as `gaki-steam-cdn`,
+  so its pins stop holding gaki's dependencies back and the `cargo deny`
+  ignores for its zip and ruzstd advisories can go.
+  *Done.* `gaki-steam-cdn/` is the fork's 1.0.0 source (git `5ed5ed9`),
+  ported to edition 2024 and the workspace's dependencies: zip 9 (deflate
+  only, which is all Steam uses), ruzstd 0.9.1, aes 0.9 + cbc 0.2 (the
+  cipher 0.5 API), base64 0.23, itertools 0.15, sha1 0.11. libgaki depends on
+  it by path, under `install`. Cleanups: the `AURELIA_CDN_CONCURRENCY`
+  variable is gone (gaki has no env-var settings; 16 chunk requests per
+  depot, `CONCURRENCY`), along with the unused `TryBuf` trait, magic
+  constants, commented-out code and `#[macro_use]`. Deprecated calls are
+  replaced and clippy is clean; `download_depot` keeps its 11 parameters
+  under a reasoned `allow`, since an options struct is an API change for
+  later. A new test caught a fork bug: `AppDepots::app_name` kept the VDF
+  quotes (`"\"Some Game\""`); fixed (libgaki doesn't read it). 18 tests now
+  cover the AES format, VSZ/zip chunk decoding, base64, appinfo depot
+  parsing, and the server pool. Licensing: the crate is GPL-3.0-or-later,
+  keeps upstream steam-cdn's `LICENSE-APACHE`, credits OccamyLab and Aurelia
+  in its README, and every source file says it was modified. Five `deny.toml`
+  ignores are gone; protobuf and rsa (both pinned by steam-vent) remain. CI
+  covers the crate through `--workspace`, codecov gets its own entry, and
+  `deploy.yml` publishes it first. Follow-ups: `lzma-rs` (legacy VZ chunks)
+  hasn't released since January 2023, which fails ARCHITECTURE §7.2, so a
+  maintained LZMA decoder should replace it in its own change; and no crate
+  ships a `LICENSE` file in its package yet, which matters before the first
+  publish.
+- [ ] **7.5** Refactor tests to the ARCHITECTURE layout (R32): convert the
   `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
   integration tests under each crate's `tests/`.
-- [ ] **7.5** Raise coverage (R33). Priorities: config/settings resolution,
+- [ ] **7.6** Raise coverage (R33). Priorities: config/settings resolution,
   profile merging, proton discovery order, launch command building, and
   feature-gated modules. Add coverage upload to `test.yml` as the template
   does.
-- [ ] **7.6** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
+- [ ] **7.7** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
   clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
   `luxtorpeda`, `hltb`, and `locale`.
-- [ ] **7.7** Library export and import as TOML. `gaki-cli library export
+- [ ] **7.8** Library export and import as TOML. `gaki-cli library export
   library.toml` writes the library (by default the installed games, `--all`
   for every owned one) as `[[game]]` entries with `app_id`, `name`, the
   installed `platform` and the branch. `gaki-cli install library.toml`

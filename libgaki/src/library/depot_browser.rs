@@ -4,8 +4,8 @@ use sha1::Digest;
 use std::collections::HashMap;
 use std::path::Path;
 
+use gaki_steam_cdn::CDNClient;
 use std::sync::Arc;
-use steam_cdn::CDNClient;
 use steam_vent::connection::Connection;
 
 #[derive(Debug, Clone)]

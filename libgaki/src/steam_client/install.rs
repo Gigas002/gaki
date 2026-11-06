@@ -13,12 +13,12 @@ pub(crate) fn cdn_server_for(
     host: &str,
     cell_id: u32,
     auth_token: Option<String>,
-) -> steam_cdn::web_api::content_service::CDNServer {
+) -> gaki_steam_cdn::web_api::content_service::CDNServer {
     let (host_name, port) = match host.rsplit_once(':') {
         Some((name, port)) => (name, port.parse::<u16>().unwrap_or(80)),
         None => (host, 80),
     };
-    steam_cdn::web_api::content_service::CDNServer {
+    gaki_steam_cdn::web_api::content_service::CDNServer {
         r#type: "CDN".to_string(),
         https: port == 443,
         host: host_name.to_string(),
@@ -37,9 +37,9 @@ fn aborted_error() -> anyhow::Error {
 }
 
 /// Kind for a CDN client error.
-pub(crate) fn cdn_error_kind(err: &steam_cdn::Error) -> Option<ErrorKind> {
+pub(crate) fn cdn_error_kind(err: &gaki_steam_cdn::Error) -> Option<ErrorKind> {
     match err {
-        steam_cdn::Error::Io(io) => io_kind(io),
+        gaki_steam_cdn::Error::Io(io) => io_kind(io),
         other => message_kind(&other.to_string()),
     }
 }
@@ -635,7 +635,7 @@ impl SteamClient {
 
         let depot_size = Arc::new(std::sync::atomic::AtomicU64::new(0));
         let mut depot_success = false;
-        let mut last_error: Option<steam_cdn::Error> = None;
+        let mut last_error: Option<gaki_steam_cdn::Error> = None;
 
         // Counters before this depot, per attempt.
         let (base_downloaded, base_reused) = shared_state
@@ -665,19 +665,20 @@ impl SteamClient {
             }
 
             let cdn_client =
-                steam_cdn::CDNClient::with_servers(Arc::new(connection.clone()), servers);
+                gaki_steam_cdn::CDNClient::with_servers(Arc::new(connection.clone()), servers);
 
             let state_for_closure = shared_state.clone();
-            let on_progress: steam_cdn::ProgressFn = Arc::new(move |bytes: u64, reused: bool| {
-                if let Ok(mut state) = state_for_closure.write() {
-                    // Overall (whole app) and current-depot counters.
-                    state.downloaded_bytes += bytes;
-                    state.depot_downloaded_bytes += bytes;
-                    if reused {
-                        state.reused_bytes += bytes;
+            let on_progress: gaki_steam_cdn::ProgressFn =
+                Arc::new(move |bytes: u64, reused: bool| {
+                    if let Ok(mut state) = state_for_closure.write() {
+                        // Overall (whole app) and current-depot counters.
+                        state.downloaded_bytes += bytes;
+                        state.depot_downloaded_bytes += bytes;
+                        if reused {
+                            state.reused_bytes += bytes;
+                        }
                     }
-                }
-            });
+                });
 
             let state_for_manifest = shared_state.clone();
             let size_clone = depot_size.clone();

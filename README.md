@@ -101,15 +101,18 @@ less.
 | Crate | What it is |
 | --- | --- |
 | `libgaki` | All the logic: Steam session, library, installs, cloud, launch, config |
+| `gaki-steam-cdn` | The depot download engine `libgaki` installs with: manifests, depot keys, chunks |
 | `gaki-cli` | The `gaki-cli` command, a thin layer over `libgaki` |
 | `gaki-tui` | The `gaki-tui` terminal UI, a thin layer over `libgaki` |
 
-None is on crates.io yet, and `libgaki`'s API may change before 1.0. Two
-dependencies are forks published by Aurelia's author:
-[`aurelia-steam-cdn`](https://crates.io/crates/aurelia-steam-cdn) (depot
-downloads, from [steam-cdn](https://github.com/OccamyLab/steam-cdn)) and
-[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat)
-(friend chat, from [steam-vent-chat](https://codeberg.org/steam-vent/chat)).
+None is on crates.io yet, and `libgaki`'s API may change before 1.0.
+`gaki-steam-cdn` is gaki's own copy of
+[`aurelia-steam-cdn`](https://github.com/Drackrath/aurelia-steam-cdn), Aurelia's
+fork of [steam-cdn](https://github.com/OccamyLab/steam-cdn); its
+[README](gaki-steam-cdn/README.md) lists what changed. Friend chat uses
+[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat), a
+fork of [steam-vent-chat](https://codeberg.org/steam-vent/chat) published by
+Aurelia's author.
 
 ---
 
@@ -123,9 +126,9 @@ authors: they did the groundwork everything here is built on.
 
 It stands, in turn, on **[steam-vent](https://codeberg.org/steam-vent/steam-vent)** and
 **[steam-vent-chat](https://codeberg.org/steam-vent/chat)**, whose reverse-engineering and
-protocol work let gaki speak Steam's real network protocols, and on a modified fork of
-[`steam-cdn`](https://github.com/OccamyLab/steam-cdn) (plus the `zip` crate) for the content
-pipeline.
+protocol work let gaki speak Steam's real network protocols, and on
+[`steam-cdn`](https://github.com/OccamyLab/steam-cdn), whose modified copy is the content
+pipeline in `gaki-steam-cdn`.
 
 ### Credits
 
@@ -134,7 +137,7 @@ pipeline.
 - [steam-tui](https://github.com/dmadisetti/steam-tui): the original TUI that Aurelia-TUI rebuilt
 - [steam-vent](https://codeberg.org/steam-vent/steam-vent): Steam network protocol implementation
 - [steam-vent-chat](https://codeberg.org/steam-vent/chat): Steam Chat protocol implementation (forked & modified as [aurelia-steam-vent-chat](https://codeberg.org/Drackrath/aurelia-steam-vent-chat))
-- [steam-cdn](https://github.com/OccamyLab/steam-cdn): content-delivery and depot download engine (forked & modified as [aurelia-steam-cdn](https://github.com/Drackrath/aurelia-steam-cdn))
+- [steam-cdn](https://github.com/OccamyLab/steam-cdn): content-delivery and depot download engine (forked & modified as [aurelia-steam-cdn](https://github.com/Drackrath/aurelia-steam-cdn), and from there as `gaki-steam-cdn`)
 - [SteamKit2](https://github.com/SteamRE/SteamKit): Steam .NET research code
 - [SteamHelper-rs](https://github.com/saskenuba/SteamHelper-rs): SteamKit Rust port
 

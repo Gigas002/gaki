@@ -36,7 +36,7 @@ uses it.
 | Feature          | Brings in                                                                        |
 | ---------------- | -------------------------------------------------------------------------------- |
 | `authentication` | `steam-vent` (+ protos), `protobuf` (+ codegen), `reqwest`, `keyring-core` + `dbus-secret-service-keyring-store`, `secrecy`, `steam-vdf-parser`, `keyvalues-serde`, `tokio-stream`; in `gaki-cli` also `qrcode`, `rpassword` |
-| `install`        | `steam-cdn`                                                                      |
+| `install`        | `gaki-steam-cdn` (the workspace's download engine)                               |
 | `cloud`          | `zip`, `filetime`, `sha1`                                                        |
 | `depot`          | `hex`, `sha1`                                                                    |
 | `social`         | `steam-vent-chat`, `steamid-ng`; in `gaki-cli` also `tokio-stream`               |

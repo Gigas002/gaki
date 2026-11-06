@@ -323,12 +323,15 @@ layout is tracked in [`PLAN.md`](PLAN.md).
 
 | Crate      | Kind | Binary     | Depends on | Responsibility |
 | ---------- | ---- | ---------- | ---------- | -------------- |
-| `libgaki`  | lib  | —          | —          | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config/profile model and resolver |
+| `gaki-steam-cdn` | lib | — | — | Steam content delivery: content-server pool, depot keys, manifests, chunk download and decompression (adopted from `aurelia-steam-cdn`) |
+| `libgaki`  | lib  | —          | `gaki-steam-cdn` (with `install`) | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config/profile model and resolver |
 | `gaki-cli` | bin  | `gaki-cli` | `libgaki`  | Argument parsing, output formatting, session daemon |
 | `gaki-tui` | bin  | `gaki-tui` | `libgaki`  | Terminal UI (ratatui) |
 
 - `libgaki` is the **only** source of logic. The binaries never shell out to each
   other or parse each other's output.
+- `gaki-steam-cdn` knows only the CDN protocol. It never reads gaki's config;
+  `libgaki` hands it servers, keys and callbacks.
 - `gaki-cli` and `gaki-tui` must not depend on each other.
 
 ### 11.2 Shared configuration model (deviation from §3)

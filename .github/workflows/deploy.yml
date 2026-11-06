@@ -14,7 +14,7 @@ env:
   # Final crate layout (docs/PLAN.md Phases 2-3); only runs on v* tags, so it is
   # inert until the workspace split lands. Publish list is in dependency order.
   BINARY_CRATES: '[{"package": "gaki-cli", "bin": "gaki-cli"}, {"package": "gaki-tui", "bin": "gaki-tui"}]'
-  PUBLISH_CRATES: '["libgaki", "gaki-cli", "gaki-tui"]'
+  PUBLISH_CRATES: '["gaki-steam-cdn", "libgaki", "gaki-cli", "gaki-tui"]'
 
 jobs:
   configure:
