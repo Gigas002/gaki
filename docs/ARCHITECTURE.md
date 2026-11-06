@@ -374,3 +374,9 @@ channels; the UI thread never blocks on network or disk I/O.
   are `#[ignore]`d with a comment naming what they require.
 - Filesystem tests use `tempfile` directories and point gaki's XDG roots there;
   they never touch the real `~/.config/gaki` or Steam install.
+- Layout (§1.3): a module with unit tests is a folder, `<module>/mod.rs` and
+  `<module>/tests.rs`. A module with several test areas keeps `tests.rs` as an
+  index of `mod <area>;` lines, with each area in `<module>/tests/<area>.rs`.
+  A module without tests stays a single file until it gets some. A crate
+  root's tests are `src/tests.rs`. No `#[path]` attributes and no inline
+  `mod tests { ... }`.

@@ -654,5 +654,4 @@ async fn run(cli: Cli) -> Result<()> {
 
 /// Discover Proton/Wine runtimes under the user's Steam directories.
 #[cfg(test)]
-#[path = "main_tests.rs"]
 mod tests;

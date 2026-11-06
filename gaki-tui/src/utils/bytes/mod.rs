@@ -1,0 +1,20 @@
+//! Human-readable byte sizes in decimal units (`1.5 GB`), as the TUI shows them.
+
+/// Format `num` bytes with a decimal unit, rounded to at most two decimals
+/// (`0 B`, `512 B`, `1.5 kB`, `12.35 GB`).
+pub fn convert(num: f64) -> String {
+    const UNITS: [&str; 9] = ["B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"];
+    let sign = if num.is_sign_negative() { "-" } else { "" };
+    let num = num.abs();
+    if num < 1.0 {
+        return format!("{sign}{num} B");
+    }
+    let exponent = ((num.log10() / 3.0).floor() as usize).min(UNITS.len() - 1);
+    let scaled = num / 1000f64.powi(exponent as i32);
+    // Round to two decimals, then print without trailing zeros.
+    let rounded = (scaled * 100.0).round() / 100.0;
+    format!("{sign}{rounded} {}", UNITS[exponent])
+}
+
+#[cfg(test)]
+mod tests;

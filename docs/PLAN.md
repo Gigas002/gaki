@@ -1473,9 +1473,27 @@ I make the changes, and you review, commit, and push.
     in any source used here, and unverifiable crypto would only look like
     protection. With HTTPS and path confinement, a forged manifest can at
     worst fail or garble an install. Left open as a follow-up.
-- [ ] **7.6** Refactor tests to the ARCHITECTURE layout (R32): convert the
+- [x] **7.6** Refactor tests to the ARCHITECTURE layout (R32): convert the
   `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
   integration tests under each crate's `tests/`.
+  *Done.* Every unit test now sits in `<module>/tests.rs` beside its
+  `<module>/mod.rs`, across all four crates: the 54 `#[path]`-loaded
+  `*_tests.rs` files, the stray `launch/verification_tests.rs`, and 16
+  inline `mod tests { ... }` blocks (13 named `tests`, plus
+  `auth::redaction_tests` and gaki-tui `steam`'s `progress_tests` and
+  `cloud_tests`). No `#[path]` and no inline test module is left. Modules
+  with several test files keep `tests.rs` as an index, with one file per
+  area: `core/utils/tests/` (8 areas), `core/config/tests/runtime_settings.rs`
+  and gaki-tui `app/steam/tests/` (`progress`, `versioning`-gated; `cloud`,
+  `cloud`-gated). `gaki-cli`'s crate-root tests are `src/tests.rs`. Modules
+  without tests stay single files, since folders for the 199 of them would
+  be churn with nothing in them; ARCHITECTURE §11.6 records that rule.
+  Files moved with `mv`, not `git mv`, so git pairs the renames at commit
+  time. One test changed: capabilities' `events_match_the_source` scans
+  `src/` for emitted events and skipped `*_tests.rs`, so it now skips
+  `tests.rs` and `tests/`. Integration tests under each crate's `tests/`
+  are unchanged. Test counts match before and after (424 / 532 / 585 at
+  the three levels, all-features 585 before the move).
 - [ ] **7.7** Raise coverage (R33). Priorities: config/settings resolution,
   profile merging, proton discovery order, launch command building, and
   feature-gated modules. Add coverage upload to `test.yml` as the template

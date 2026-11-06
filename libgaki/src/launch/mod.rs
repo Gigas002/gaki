@@ -6,4 +6,4 @@ pub mod stages;
 pub mod validators;
 
 #[cfg(test)]
-mod verification_tests;
+mod tests;
