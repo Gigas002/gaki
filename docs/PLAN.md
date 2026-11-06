@@ -830,7 +830,7 @@ I make the changes, and you review, commit, and push.
   `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
 - [x] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
   `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
-  Split into four commits. Test files keep their current layout until 7.5.
+  Split into four commits. Test files keep their current layout until 7.6.
   - [x] **4.5a** Entry plumbing. `util/` → `utils/`. A clap `cli/` replaces the
     hand-parsed `--chat <steamid> <name>` with `--chat <STEAMID> [--name <NAME>]`,
     and adds `--log-level`. `settings/` resolves `CliOptions` (plus the proxy
@@ -890,10 +890,10 @@ I make the changes, and you review, commit, and push.
     became `pub(super)`; nothing else changed visibility. **Not done:** the
     fields still all live on `Browser` rather than in per-view sub-structs.
     That change would touch every `ui/` builder and integration test that
-    reads `browser.show_*` and friends, so it fits better with 7.5 or with
+    reads `browser.show_*` and friends, so it fits better with 7.6 or with
     feature gating (6.x), where each view's state needs a `cfg` anyway. Some
     integration-test comments still describe `main.rs` layouts that no longer
-    exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.5 covers them.
+    exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.6 covers them.
   - [x] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
     `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
     `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,
@@ -1438,17 +1438,52 @@ I make the changes, and you review, commit, and push.
   maintained LZMA decoder should replace it in its own change; and no crate
   ships a `LICENSE` file in its package yet, which matters before the first
   publish.
-- [ ] **7.5** Refactor tests to the ARCHITECTURE layout (R32): convert the
+- [x] **7.5** Harden depot downloads in `gaki-steam-cdn`. The fork trusted
+  the manifest's file list, and manifests often came over plain HTTP, so a
+  network attacker could forge one: entries with absolute or `..` paths
+  landed outside the game directory, and a symlink entry ran `remove_file`
+  on its path and linked it anywhere, so it could replace a file such as
+  `~/.bashrc`. Chunk contents were never at risk (they're encrypted with the
+  depot key). Upstream steam-cdn and aurelia-steam-cdn have the same flaw.
+  *Done.*
+  - **Paths** (`cdn/paths.rs`): every entry is placed by `paths::place`
+    under the canonical install directory. An empty, absolute or `..`
+    entry fails the depot (`Error::UnsafePath`). Before anything is made,
+    the nearest existing ancestor is canonicalized and must be inside, so
+    neither a link from the manifest nor one already on disk can carry a
+    write outside. A symlink already at a regular file's path is removed,
+    not written through. A symlink whose target would leave the directory
+    is skipped with a warning (one odd link shouldn't fail an install). It
+    is judged from the link's real parent, and `..` may only lead the
+    target, because the kernel follows links before it applies `..`: the
+    first, text-only version of the check passed `b -> .` then
+    `a -> b/..`, and the tests now cover that. A symlink target read from
+    chunk data is capped at 4096 bytes.
+  - **HTTPS**: `get_content_servers` returns `ContentServer { host, https }`
+    from each server's `https_support`, and keeps only the HTTPS servers
+    when any exist; plain HTTP is the fallback, with a warning. Before, gaki
+    used HTTPS only for port 443, so downloads, the manifest and the CDN
+    auth token (a URL parameter) went over HTTP. `CDNClient::discover`
+    counts `optional` as HTTPS too.
+  - Tests: a forged manifest's entries are played into a temp directory
+    (straight escapes, climbing links, links through links, absolute links,
+    planted links on disk), plus the server choice. 585 tests in all.
+  - Not done: checking the manifest's signature, as Steam's client does.
+    The signature section is in the format, but the key and scheme aren't
+    in any source used here, and unverifiable crypto would only look like
+    protection. With HTTPS and path confinement, a forged manifest can at
+    worst fail or garble an install. Left open as a follow-up.
+- [ ] **7.6** Refactor tests to the ARCHITECTURE layout (R32): convert the
   `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
   integration tests under each crate's `tests/`.
-- [ ] **7.6** Raise coverage (R33). Priorities: config/settings resolution,
+- [ ] **7.7** Raise coverage (R33). Priorities: config/settings resolution,
   profile merging, proton discovery order, launch command building, and
   feature-gated modules. Add coverage upload to `test.yml` as the template
   does.
-- [ ] **7.7** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
+- [ ] **7.8** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
   clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
   `luxtorpeda`, `hltb`, and `locale`.
-- [ ] **7.8** Library export and import as TOML. `gaki-cli library export
+- [ ] **7.9** Library export and import as TOML. `gaki-cli library export
   library.toml` writes the library (by default the installed games, `--all`
   for every owned one) as `[[game]]` entries with `app_id`, `name`, the
   installed `platform` and the branch. `gaki-cli install library.toml`
@@ -1480,7 +1515,10 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   `fetch_manifest_files` and `download_single_file` (the `depot` feature) have
   no `ops` wrapper and no surface. Add `ops::depot`, a CLI (e.g. `depots files
   <app> <depot>`, `depots download <app> <depot> <path>`), and a TUI file view
-  from the depots overlay.
+  from the depots overlay. Note (found in 7.5): `depot_browser.rs` builds
+  `CDNClient::new` with no servers, so `get_manifest` can only fail; it needs
+  `get_content_servers`. `download_single_file` must also go through the
+  `paths` checks.
 - [ ] **8.3** Remove dead code: `ops::library::cached_game_name` has no
   callers. Sweep for other unused `pub` items in `libgaki` while there.
 - [ ] **8.4** TUI store views (`store`): search, price (with region compare),

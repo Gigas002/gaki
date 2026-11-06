@@ -1252,6 +1252,7 @@ dependencies = [
  "sha1 0.11.0",
  "steam-vent",
  "steam-vent-proto",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tracing",

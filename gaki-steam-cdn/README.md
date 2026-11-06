@@ -16,7 +16,10 @@ Aurelia's author made of it. Compared to upstream steam-cdn it:
 - reuses a chunk already on disk only when its SHA-1 matches;
 - creates directories, empty files and symlinks from depot entries, and sets
   the executable bit;
-- reports typed disk-full, offline and cancelled errors, and progress.
+- reports typed disk-full, offline and cancelled errors, and progress;
+- keeps every manifest entry inside the install directory: absolute and `..`
+  paths are refused, symlinks pointing outside are skipped, and nothing is
+  written through a link (gaki's addition; upstream trusts the manifest).
 
 gaki adopted the fork into its workspace to keep its dependencies current
 (zip 9, ruzstd 0.9, the RustCrypto 0.9/0.5 crates, edition 2024). Every

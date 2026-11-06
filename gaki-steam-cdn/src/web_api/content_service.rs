@@ -54,7 +54,8 @@ pub async fn get_servers_for_steam_pipe(cell_id: u32) -> Result<Vec<CDNServer>, 
             .servers
             .into_iter()
             .map(|server| {
-                let https = server.https_support == "mandatory";
+                // "optional" serves HTTPS too; only "unavailable" is HTTP-only.
+                let https = server.https_support != "unavailable";
                 CDNServer {
                     r#type: server.r#type,
                     https,

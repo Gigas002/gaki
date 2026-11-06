@@ -19,6 +19,7 @@ pub mod depot;
 pub mod depot_chunk;
 pub mod inner;
 pub mod manifest;
+mod paths;
 
 pub const MANIFEST_VERSION: usize = 5;
 
@@ -157,7 +158,10 @@ impl CDNClient {
             cb(manifest.original_size());
         }
 
+        // Every entry is checked against the real (canonical) directory.
         let target_dir = target_dir.as_ref();
+        std::fs::create_dir_all(target_dir).map_err(Error::Io)?;
+        let root = target_dir.canonicalize().map_err(Error::Io)?;
         let aborted = || {
             abort_signal
                 .as_ref()
@@ -170,48 +174,36 @@ impl CDNClient {
             if aborted() {
                 return Ok(());
             }
-            let full_path = target_dir.join(file.full_path());
-
-            if file.flags() & manifest::file::FLAG_DIRECTORY != 0 {
-                std::fs::create_dir_all(&full_path).map_err(Error::Io)?;
-                continue;
-            }
-            if let Some(parent) = full_path.parent() {
-                std::fs::create_dir_all(parent).map_err(Error::Io)?;
-            }
-
             let linktarget = file.linktarget();
-            let is_symlink = file.flags() & manifest::file::FLAG_SYMLINK != 0;
-            if !linktarget.is_empty() || is_symlink {
-                #[cfg(unix)]
-                {
-                    // Symlink entries without a linktarget field carry the
-                    // target path as their chunk content instead.
-                    let raw_target = if !linktarget.is_empty() {
-                        linktarget
-                    } else {
-                        let bytes = file.download_to_memory(key_arr).await?;
-                        String::from_utf8(bytes).map_err(|e| Error::Unexpected(e.to_string()))?
-                    };
-                    let target = raw_target
-                        .trim_matches(|c: char| c.is_whitespace() || c == '\0')
-                        .replace('\\', "/");
-                    if target.is_empty() {
-                        return Err(Error::Unexpected(format!(
-                            "symlink entry {} has no target",
-                            file.full_path()
+            let entry = if file.flags() & manifest::file::FLAG_DIRECTORY != 0 {
+                paths::Entry::Dir
+            } else if !linktarget.is_empty() || file.flags() & manifest::file::FLAG_SYMLINK != 0 {
+                // Symlink entries without a linktarget field carry the
+                // target path as their chunk content instead.
+                let raw_target = if !linktarget.is_empty() {
+                    linktarget
+                } else {
+                    if file.size() > paths::MAX_LINK_TARGET {
+                        return Err(Error::UnsafePath(format!(
+                            "symlink entry {} claims a {}-byte target",
+                            file.full_path(),
+                            file.size()
                         )));
                     }
-                    let points_there = std::fs::read_link(&full_path)
-                        .is_ok_and(|existing| existing == std::path::Path::new(&target));
-                    if !points_there {
-                        let _ = std::fs::remove_file(&full_path);
-                        std::os::unix::fs::symlink(&target, &full_path).map_err(Error::Io)?;
-                    }
-                }
-                continue;
+                    let bytes = file.download_to_memory(key_arr).await?;
+                    String::from_utf8(bytes).map_err(|e| Error::Unexpected(e.to_string()))?
+                };
+                paths::Entry::Link(
+                    raw_target
+                        .trim_matches(|c: char| c.is_whitespace() || c == '\0')
+                        .replace('\\', "/"),
+                )
+            } else {
+                paths::Entry::File
+            };
+            if let Some(full_path) = paths::place(&root, &file.full_path(), entry)? {
+                regular.push((file, full_path));
             }
-            regular.push((file, full_path));
         }
 
         // Files in parallel, one chunk budget.

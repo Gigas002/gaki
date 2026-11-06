@@ -757,15 +757,47 @@ fn cdn_errors_map_to_kinds() {
 #[cfg(feature = "install")]
 #[test]
 fn cdn_server_parses_host_and_port() {
-    let s = install::cdn_server_for("cache1.steamcontent.com", 7, Some("t".into()));
+    let server = |host: &str, https| ContentServer {
+        host: host.into(),
+        https,
+    };
+    let s = install::cdn_server_for(
+        &server("cache1.steamcontent.com", false),
+        7,
+        Some("t".into()),
+    );
     assert_eq!(
         (s.host.as_str(), s.port, s.https),
         ("cache1.steamcontent.com", 80, false)
     );
     assert_eq!(s.auth_token.as_deref(), Some("t"));
-    let s = install::cdn_server_for("cdn.example:443", 7, None);
+    let s = install::cdn_server_for(&server("cache1.steamcontent.com", true), 7, None);
+    assert_eq!(
+        (s.host.as_str(), s.port, s.https),
+        ("cache1.steamcontent.com", 443, true)
+    );
+    let s = install::cdn_server_for(&server("cdn.example:443", false), 7, None);
     assert_eq!(
         (s.host.as_str(), s.port, s.https),
         ("cdn.example", 443, true)
     );
+}
+
+#[cfg(feature = "library")]
+#[test]
+fn content_servers_prefer_https() {
+    let server = |host: &str, https| ContentServer {
+        host: host.into(),
+        https,
+    };
+    let mixed = vec![server("a", false), server("b", true), server("c", true)];
+    // Only the HTTPS ones, in their (load) order.
+    assert_eq!(
+        content::prefer_https(mixed),
+        vec![server("b", true), server("c", true)]
+    );
+    // No HTTPS at all: plain HTTP rather than nothing.
+    let plain = vec![server("a", false), server("b", false)];
+    assert_eq!(content::prefer_https(plain.clone()), plain);
+    assert!(content::prefer_https(Vec::new()).is_empty());
 }

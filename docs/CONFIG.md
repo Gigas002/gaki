@@ -177,7 +177,8 @@ exits; the next command starts a new one.
 Installs, updates, verifications and Workshop downloads share one download
 engine. It picks the least-loaded content servers, spreads chunk requests over
 a pool of them, retries a failed chunk on another server, and keeps 16 chunk
-requests in flight per depot. Unfinished installs stay in
-`install_backlog.toml` until they finish or you `install forget` them, and a
-resumed one reuses the files already on disk. `pins.toml` holds the games that
+requests in flight per depot. It uses HTTPS servers whenever Steam lists
+any, and keeps every file a depot names inside the game's directory.
+Unfinished installs stay in `install_backlog.toml` until they finish or you
+`install forget` them, and a resumed one reuses the files already on disk. `pins.toml` holds the games that
 `pin` or `downgrade` hold at a build.

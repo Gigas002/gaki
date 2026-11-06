@@ -522,6 +522,8 @@ mod categories;
 #[cfg(feature = "library")]
 mod content;
 #[cfg(feature = "library")]
+pub use content::ContentServer;
+#[cfg(feature = "library")]
 pub mod genres_table;
 #[cfg(feature = "library")]
 mod launch;
@@ -1569,14 +1571,14 @@ pub(crate) struct DepotLoopOpts {
 }
 
 /// Depot fetch loop; `None` reports failure.
-/// Content-server hosts; `None` after reporting failure.
+/// Content servers; `None` after reporting failure.
 #[cfg(feature = "install")]
 pub(crate) async fn fetch_content_hosts(
     client: &SteamClient,
     connection: &Connection,
     tx: &tokio::sync::mpsc::Sender<DownloadProgress>,
     appid: u32,
-) -> Option<Vec<String>> {
+) -> Option<Vec<ContentServer>> {
     tracing::info!("Fetching Content Servers for AppID: {}...", appid);
     match client.get_content_servers(connection.cell_id()).await {
         Ok(h) => Some(h),
@@ -1600,7 +1602,7 @@ pub(crate) async fn run_depot_loop(
     appid: u32,
     selections: Vec<ManifestSelection>,
     dest: &Path,
-    hosts: &[String],
+    hosts: &[ContentServer],
     opts: &DepotLoopOpts,
 ) -> Option<Vec<(u32, u64, u64)>> {
     let verb = if opts.verify_mode {

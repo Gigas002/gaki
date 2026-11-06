@@ -4,8 +4,31 @@
 //! and free helpers live in the parent module (in scope via `use super::*`).
 use super::*;
 
+/// A content server: its host, and whether it serves HTTPS.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ContentServer {
+    pub host: String,
+    pub https: bool,
+}
+
+/// The servers to download from: only the HTTPS ones when any exist. Over
+/// plain HTTP anyone on the path can read the CDN auth token and swap the
+/// manifest, so that is the fallback when no server offers HTTPS.
+pub(crate) fn prefer_https(servers: Vec<ContentServer>) -> Vec<ContentServer> {
+    if servers.iter().any(|s| s.https) {
+        servers.into_iter().filter(|s| s.https).collect()
+    } else {
+        if !servers.is_empty() {
+            tracing::warn!("no content server offers HTTPS; downloading over plain HTTP");
+        }
+        servers
+    }
+}
+
 impl SteamClient {
-    pub async fn get_content_servers(&self, cell_id: u32) -> Result<Vec<String>> {
+    /// Content servers for `cell_id`, least-loaded first. Only the HTTPS ones
+    /// are kept when any exist; plain HTTP is the fallback.
+    pub async fn get_content_servers(&self, cell_id: u32) -> Result<Vec<ContentServer>> {
         let connection = self.require_connection()?;
         let mut request = CContentServerDirectory_GetServersForSteamPipe_Request::new();
         request.set_cell_id(cell_id);
@@ -25,7 +48,16 @@ impl SteamClient {
             .collect();
         // Least-loaded first, as Steam does.
         servers.sort_by(|a, b| a.weighted_load().total_cmp(&b.weighted_load()));
-        let hosts: Vec<String> = servers.iter().map(|s| s.host().to_string()).collect();
+        let hosts = prefer_https(
+            servers
+                .iter()
+                .map(|s| ContentServer {
+                    host: s.host().to_string(),
+                    // "mandatory" or "optional"; "unavailable" is HTTP only.
+                    https: matches!(s.https_support(), "mandatory" | "optional"),
+                })
+                .collect(),
+        );
 
         if hosts.is_empty() {
             tracing::error!("ContentServerDirectory returned 0 valid CDN servers");

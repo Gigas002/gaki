@@ -32,6 +32,9 @@ pub enum Error {
     Manifest(#[from] ManifestError),
     #[error("unexpected none")]
     NoneOption,
+    /// A manifest entry would land outside the install directory.
+    #[error("unsafe depot entry: {0}")]
+    UnsafePath(String),
 }
 
 impl From<JoinError> for Error {
