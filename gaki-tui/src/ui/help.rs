@@ -123,10 +123,11 @@ fn entries() -> Vec<Entry> {
         #[cfg(feature = "cloud")]
         Entry::Binding("C", "cloud saves (s/d/u)"),
         Entry::Binding("L", "launch options"),
+        Entry::Binding("B", "ProtonDB page"),
+        Entry::Binding("T", "Proton issues (GitHub)"),
         Entry::Binding("r", "refresh library"),
         Entry::Binding("A", "account"),
         Entry::Binding("p", "settings"),
-        Entry::Binding("p then h", "toggle HowLongToBeat"),
         #[cfg(feature = "social")]
         Entry::Binding("F / 5", "open Friends tab"),
         #[cfg(feature = "social")]

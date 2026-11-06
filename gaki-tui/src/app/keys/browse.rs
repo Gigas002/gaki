@@ -6,7 +6,7 @@ use ratatui::crossterm::event::KeyCode;
 use super::{Flow, actions, overlays, shared};
 #[cfg(feature = "inventory")]
 use crate::app::SensitiveView;
-use crate::app::browser::Filter;
+use crate::app::browser::{Filter, Link};
 use crate::app::library::Library;
 use crate::app::{AppResult, Mode};
 
@@ -215,6 +215,16 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
         KeyCode::Char('o') => {
             if let Some(game) = browser.selected() {
                 browser.open_depots(game.id);
+            }
+        }
+        KeyCode::Char('B') => {
+            if let Some(game) = browser.selected() {
+                browser.open_link(Link::ProtonDb, game.id);
+            }
+        }
+        KeyCode::Char('T') => {
+            if let Some(game) = browser.selected() {
+                browser.open_link(Link::ProtonIssues, game.id);
             }
         }
         KeyCode::Char('L') => {

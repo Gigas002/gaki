@@ -47,6 +47,8 @@ pub enum Action {
     Import,
     #[cfg(feature = "collections")]
     Collections,
+    ProtonDb,
+    ProtonIssues,
     Favourite,
     Hide,
 }
@@ -214,6 +216,20 @@ impl Browser {
             category: CONTENT,
             label: "Inventory",
             key: "I",
+        });
+
+        const LINKS: &str = "Links";
+        rows.push(ActionRow {
+            action: Action::ProtonDb,
+            category: LINKS,
+            label: "ProtonDB page",
+            key: "B",
+        });
+        rows.push(ActionRow {
+            action: Action::ProtonIssues,
+            category: LINKS,
+            label: "Proton issues on GitHub",
+            key: "T",
         });
 
         const LIB: &str = "Library";

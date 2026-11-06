@@ -4,7 +4,7 @@
 //! they lay out and paint without panicking. State is set through the public
 //! fields directly so the tests never reach Steam.
 
-use gaki_tui::app::browser::{Action, Browser};
+use gaki_tui::app::browser::{Action, Browser, Link};
 use gaki_tui::app::game::Game;
 #[cfg(feature = "collections")]
 use gaki_tui::app::steam::Collection;
@@ -358,4 +358,23 @@ fn settings_overlay_renders_proxy() {
         "typed url shown while editing"
     );
     assert!(text.contains("save"), "edit-mode title hint shown");
+}
+
+#[test]
+fn every_game_links_to_protondb_and_the_proton_tracker() {
+    isolate_config();
+    for installed in [true, false] {
+        let browser = Browser::new(vec![game(1, "Alpha", installed)]);
+        let rows = browser.action_candidates();
+        for (action, key) in [(Action::ProtonDb, "B"), (Action::ProtonIssues, "T")] {
+            let row = rows.iter().find(|r| r.action == action).expect("link row");
+            assert_eq!(row.category, "Links");
+            assert_eq!(row.key, key);
+        }
+    }
+    assert_eq!(
+        Link::ProtonDb.url(945360),
+        "https://www.protondb.com/app/945360"
+    );
+    assert!(Link::ProtonIssues.url(945360).ends_with("+945360"));
 }

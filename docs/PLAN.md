@@ -1329,7 +1329,7 @@ I make the changes, and you review, commit, and push.
 
 ### Phase 7 — small features, docs, dependencies, tests
 
-- [ ] **7.1** Add hotkeys that open ProtonDB (`https://www.protondb.com/app/<id>`)
+- [x] **7.1** Add hotkeys that open ProtonDB (`https://www.protondb.com/app/<id>`)
   and a GitHub issue search for the app id in `ValveSoftware/Proton` (R28/Q9).
   They run `xdg-open` through `std::process::Command`, with no new crate, and
   are added to the TUI help. A CLI equivalent, `gaki-cli open protondb <app>`,
@@ -1340,6 +1340,15 @@ I make the changes, and you review, commit, and push.
   scrape HLTB pages. A title search (`howlongtobeat.com/?q=<name>`) would be
   name-based and can match the wrong game, so it stays out unless you want it
   anyway.
+  *Done.* `core::steam_urls` gained `protondb_url` and `proton_issues_url`
+  (`ValveSoftware/Proton/issues?q=is%3Aissue+<id>`), with tests. In the TUI,
+  `B` opens the selected game's ProtonDB page and `T` the Proton issue search;
+  both are also Actions-menu rows under a new "Links" category, and in the
+  help. A new `browser/links.rs` (`Link`, `open_link`, `poll_links`) runs the
+  existing `utils::browser::open` (`xdg-open`, previously unused) on a thread
+  and shows a notice, or the failure once the thread reports it. They need no
+  feature. The optional CLI `open` command was left out. The help's stale
+  "p then h — toggle HowLongToBeat" entry (no key behind it) is gone.
 - [ ] **7.2** Split the README (R34) into `docs/CONFIG.md`, `docs/GAKI-CLI.md`,
   `docs/GAKI-TUI.md`, `docs/FEATURES.md`, and `docs/FAQ.md`. `FAQ.md` covers
   prerequisites: Steam must be installed, Proton must be installed

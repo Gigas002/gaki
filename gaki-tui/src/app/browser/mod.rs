@@ -29,6 +29,7 @@ mod inventory;
 mod launch;
 mod launch_targets;
 mod library;
+mod links;
 #[cfg(feature = "market")]
 mod market;
 mod proton;
@@ -44,6 +45,7 @@ pub use actions::{Action, ActionRow};
 #[cfg(feature = "install")]
 pub use install::InstallPhase;
 pub use library::{Badge, Counts, Filter, Sort, View, badge};
+pub use links::Link;
 
 #[cfg(feature = "install")]
 use std::collections::HashMap;
@@ -56,7 +58,6 @@ use crate::app::game::status::GameStatus;
 use crate::app::steam::{self, Account, LauncherSettings};
 
 /// A one-shot result slot a worker thread fills and the UI loop drains.
-#[cfg(feature = "workshop")]
 type Slot<T> = Arc<Mutex<Option<T>>>;
 
 /// The browse state.
@@ -379,6 +380,8 @@ pub struct Browser {
     /// status bar until the next keypress. Keeps a failed backend call from
     /// having to crash the whole TUI to report itself.
     pub notice: Option<String>,
+    /// Why the last [`Link`] didn't open, filled by its thread.
+    link_error: Slot<String>,
 
     // --- Actions menu (per-game command palette) ---
     /// Whether the per-game Actions menu is open. This is the primary way to
@@ -603,6 +606,7 @@ impl Browser {
             #[cfg(feature = "install")]
             game_refresh_slot: Arc::new(Mutex::new(Vec::new())),
             notice: None,
+            link_error: Arc::new(Mutex::new(None)),
             show_actions: false,
             actions_index: 0,
             actions_filter: String::new(),

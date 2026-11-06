@@ -68,6 +68,8 @@ pub fn run() -> AppResult {
         if std::mem::take(&mut lib.clear_screen) {
             terminal::clear(&mut terminal)?;
         }
+        // A link that failed to open becomes the notice.
+        lib.browser.poll_links();
         // Adopt a market search or price result published off-thread.
         #[cfg(feature = "market")]
         lib.browser.poll_market();

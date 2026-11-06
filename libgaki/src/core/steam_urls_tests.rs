@@ -24,3 +24,12 @@ fn builds_expected_urls() {
         "https://cdn.cloudflare.steamstatic.com/steam/apps/8850/logo.png"
     );
 }
+
+#[test]
+fn builds_proton_compatibility_urls() {
+    assert_eq!(protondb_url(8850), "https://www.protondb.com/app/8850");
+    assert_eq!(
+        proton_issues_url(8850),
+        "https://github.com/ValveSoftware/Proton/issues?q=is%3Aissue+8850"
+    );
+}
