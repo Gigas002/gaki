@@ -11,7 +11,7 @@ use crate::core::utils::extract_quoted_values;
 #[cfg(feature = "cloud")]
 use crate::library::cloud_sync::{CloudClient, CloudPathResolver, UfsSaveSpec, default_cloud_root};
 #[cfg(feature = "depot")]
-use crate::library::depot_browser::{self, DepotInfo as BrowserDepotInfo, ManifestFileEntry};
+use crate::library::depot_browser::{self, ManifestFileEntry};
 use crate::web::cm_list::get_cm_endpoints;
 use anyhow::{Context, Result, anyhow, bail};
 #[cfg(feature = "library")]

@@ -1664,14 +1664,40 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     every binary used the keyring. `auth::store::session_store()` now reads
     it from `config.toml`, which fixes the two `session_store` integration
     tests on keyring-less CI runners.
-- [ ] **8.2** Depot browser. `SteamClient::fetch_depots`,
-  `fetch_manifest_files` and `download_single_file` (the `depot` feature) have
-  no `ops` wrapper and no surface. Add `ops::depot`, a CLI (e.g. `depots files
-  <app> <depot>`, `depots download <app> <depot> <path>`), and a TUI file view
-  from the depots overlay. Note (found in 7.5): `depot_browser.rs` builds
-  `CDNClient::new` with no servers, so `get_manifest` can only fail; it needs
-  `get_content_servers`. `download_single_file` must also go through the
-  `paths` checks.
+- [x] **8.2a** Depot browser, library and CLI. `SteamClient::fetch_depots`,
+  `fetch_manifest_files` and `download_single_file` (the `depot` feature) had
+  no `ops` wrapper and no surface, and couldn't work: `depot_browser.rs` built
+  `CDNClient::new` with no servers, no manifest request code and no depot key
+  (so filenames stayed encrypted).
+  *Done.*
+  - **Library.** `SteamClient::depot_manifest_files` and
+    `download_depot_file` replace the old three. Both fetch the manifest the
+    way an install does: depot key, manifest request code, then the content
+    servers in pools of four, each with its CDN auth token. `fetch_depots`
+    (a second, older parse of `get_depot_list`'s data) is gone.
+    `depot_browser` now only turns a manifest into `ManifestFileEntry` rows
+    (path, kind, size, content SHA-1, chunks, executable bit, link target)
+    and writes one file.
+  - **Writing a file.** The target is `out_dir/<file name>`, after the
+    depot path passes `gaki_steam_cdn::entry_path` (now public), the check
+    an install makes. The download goes to a fresh `.<name>.gaki-part`
+    (`create_new`), is checked against the manifest's SHA-1 (chunks aren't
+    hash-checked on download), then moved into place: a hard link without
+    `--force`, so a file that appeared meanwhile is never replaced, and a
+    rename with it, which replaces a symlink rather than writing through it.
+    Directories and symlinks are refused.
+  - **`ops::depot`.** `ManifestRef` (an id, or a branch's current manifest
+    from `list_depot_manifests`; default `public`), `files` with a
+    case-insensitive glob filter, and `download`.
+  - **CLI.** `depots files <app> <depot> [-m ID | -b BRANCH] [-f GLOB]` and
+    `depots download <app> <depot> <path> [-o DIR] [--force]`, next to the
+    unchanged `depots <app>`. `-o` resolves against the client's working
+    directory, not the daemon's. Documented in `docs/GAKI-CLI.md` and
+    `docs/FEATURES.md`.
+- [ ] **8.2b** Depot browser, TUI. A file view opened from the depots
+  overlay (`o`): the selected depot's public manifest, a filter, and
+  downloading the selected file (to a directory to pick at the start of the
+  step). Uses `ops::depot` from 8.2a.
 - [ ] **8.3** Remove dead code: `ops::library::cached_game_name` has no
   callers. Sweep for other unused `pub` items in `libgaki` while there.
 - [ ] **8.4** TUI store views (`store`): search, price (with region compare),

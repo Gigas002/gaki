@@ -569,8 +569,17 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Dlc { app_id } => cmd_dlc(app_id, json).await,
         #[cfg(feature = "library")]
         Command::Achievements { app_id } => cmd_achievements(app_id, json).await,
+        #[cfg(feature = "depot")]
+        Command::Depots {
+            command: Some(command),
+            ..
+        } => cmd_depots_command(command, json).await,
         #[cfg(feature = "library")]
-        Command::Depots { app_id } => cmd_depots(app_id, json).await,
+        Command::Depots { app_id, .. } => {
+            // clap requires the app id when no subcommand is given.
+            let app_id = app_id.ok_or_else(|| anyhow::anyhow!("missing app id"))?;
+            cmd_depots(app_id, json).await
+        }
         #[cfg(feature = "library")]
         Command::LaunchOptions { app_id } => cmd_launch_options(app_id, json).await,
         #[cfg(feature = "library")]

@@ -486,40 +486,108 @@ impl SteamClient {
         Ok(response.depot_encryption_key().to_vec())
     }
 
+    /// Fetch a depot manifest (filenames decrypted) and the depot key, as an
+    /// install does: manifest request code, then the content servers in
+    /// pools, each with its CDN auth token, until one serves the manifest.
     #[cfg(feature = "depot")]
-    pub async fn fetch_depots(&self, appid: u32) -> Result<Vec<BrowserDepotInfo>> {
-        let connection = self.require_connection()?;
-        depot_browser::fetch_depots(connection, appid).await
-    }
-
-    #[cfg(feature = "depot")]
-    pub async fn fetch_manifest_files(
+    async fn open_depot_manifest(
         &self,
-        appid: u32,
+        app_id: u32,
         depot_id: u32,
-        manifest_ref: &str,
-    ) -> Result<Vec<ManifestFileEntry>> {
-        let connection = self.require_connection()?;
-        depot_browser::fetch_manifest_files(connection, appid, depot_id, manifest_ref).await
-    }
+        manifest_id: u64,
+    ) -> Result<(gaki_steam_cdn::DepotManifest, [u8; 32])> {
+        let connection = self.require_connection_owned()?;
+        let key = self
+            .get_depot_key(app_id, depot_id)
+            .await
+            .with_context(|| format!("no access to depot {depot_id} (is it owned?)"))?;
+        let key: [u8; 32] = key
+            .as_slice()
+            .try_into()
+            .map_err(|_| anyhow!("depot {depot_id} key has {} bytes, expected 32", key.len()))?;
+        let request_code = match self
+            .get_manifest_request_code(app_id, depot_id, manifest_id)
+            .await
+        {
+            Ok(code) => Some(code),
+            Err(e) => {
+                tracing::warn!("no manifest request code for depot {depot_id}: {e}");
+                None
+            }
+        };
+        let hosts = self.get_content_servers(connection.cell_id()).await?;
+        if hosts.is_empty() {
+            bail!("Steam returned no content servers");
+        }
 
-    #[cfg(feature = "depot")]
-    pub fn download_single_file(
-        &self,
-        appid: u32,
-        depot_id: u32,
-        manifest_ref: &str,
-        file_path: &str,
-        output_dir: &Path,
-    ) -> Result<()> {
-        let connection = self.require_connection()?;
-        depot_browser::download_single_file(
-            connection,
-            appid,
-            depot_id,
-            manifest_ref,
-            file_path,
-            output_dir,
+        let mut last_error = None;
+        for pool in hosts.chunks(super::install::HOST_POOL_SIZE) {
+            let mut servers = Vec::with_capacity(pool.len());
+            for host in pool {
+                let token = self
+                    .get_cdn_auth_token(app_id, depot_id, &host.host)
+                    .await
+                    .ok();
+                servers.push(super::install::cdn_server_for(
+                    host,
+                    connection.cell_id(),
+                    token,
+                ));
+            }
+            let cdn =
+                gaki_steam_cdn::CDNClient::with_servers(Arc::new(connection.clone()), servers);
+            match cdn
+                .get_manifest(app_id, depot_id, manifest_id, request_code, Some(key))
+                .await
+            {
+                Ok(manifest) => return Ok((manifest, key)),
+                Err(e) => {
+                    tracing::warn!("manifest {manifest_id} of depot {depot_id}: {e}");
+                    last_error = Some(e);
+                }
+            }
+        }
+        let detail = last_error
+            .map(|e| format!(" (last: {e})"))
+            .unwrap_or_default();
+        bail!(
+            "failed to fetch manifest {manifest_id} of depot {depot_id} from every content server{detail}"
         )
+    }
+
+    /// Every entry of one depot manifest, sorted by path.
+    #[cfg(feature = "depot")]
+    pub async fn depot_manifest_files(
+        &self,
+        app_id: u32,
+        depot_id: u32,
+        manifest_id: u64,
+    ) -> Result<Vec<ManifestFileEntry>> {
+        let (manifest, _) = self
+            .open_depot_manifest(app_id, depot_id, manifest_id)
+            .await?;
+        Ok(depot_browser::entries(&manifest))
+    }
+
+    /// Download one file of a depot manifest to `dest`: written to a partial
+    /// file, checked against the manifest's SHA-1, then moved into place; an
+    /// existing `dest` is kept unless `overwrite`. Returns its size.
+    #[cfg(feature = "depot")]
+    pub async fn download_depot_file(
+        &self,
+        app_id: u32,
+        depot_id: u32,
+        manifest_id: u64,
+        depot_path: &str,
+        dest: &Path,
+        overwrite: bool,
+    ) -> Result<u64> {
+        // Fail on an existing file before any network round-trip.
+        depot_browser::check_dest(dest, overwrite)?;
+        let (manifest, key) = self
+            .open_depot_manifest(app_id, depot_id, manifest_id)
+            .await?;
+        let file = depot_browser::find_file(&manifest, depot_path)?;
+        depot_browser::write_file(file, key, dest, overwrite).await
     }
 }

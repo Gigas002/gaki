@@ -6,7 +6,7 @@ use super::*;
 use crate::core::error::{ErrorKind, TypedError, io_kind, message_kind};
 
 /// CDN hosts tried together.
-const HOST_POOL_SIZE: usize = 4;
+pub(super) const HOST_POOL_SIZE: usize = 4;
 
 /// Content host as CDN server.
 pub(crate) fn cdn_server_for(

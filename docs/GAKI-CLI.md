@@ -121,6 +121,29 @@ gaki-cli unpin 1245620                # release the pin
 Steam doesn't list older manifest ids. SteamDB does:
 `https://steamdb.info/depot/<depot_id>/manifests/`.
 
+### Depot browser (`depot` feature)
+
+```bash
+gaki-cli depots files 1245620 1245621                 # every file of the public manifest
+gaki-cli depots files 1245620 1245621 -f '*.exe'      # only paths matching a glob
+gaki-cli depots files 1245620 1245621 -b beta         # the beta branch's current manifest
+gaki-cli depots files 1245620 1245621 -m 8593343465227540543  # a specific (older) manifest
+gaki-cli depots download 1245620 1245621 Game/bin/game.exe    # save ./game.exe
+gaki-cli depots download 1245620 1245621 Game/bin/game.exe -o ~/old -m 8593343465227540543
+```
+
+`files` lists a manifest's entries with their size: `/` marks a directory,
+`*` an executable and `->` a symlink's target. `--json` adds each entry's
+SHA-1 and chunk count. You need access to the depot (its decryption key), so
+in practice you must own the game.
+
+`download` fetches one regular file into the output directory (default: the
+current one) under its own name, so `Game/bin/game.exe` becomes `game.exe`.
+It refuses an existing file unless you pass `--force`. The file is written
+next to its target first, checked against the manifest's SHA-1, and only then
+moved into place, so a failed download leaves nothing behind. Paths that
+climb out with `..` are refused, the same check an install makes.
+
 ### Launch
 
 ```bash

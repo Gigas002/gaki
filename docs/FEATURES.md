@@ -62,7 +62,7 @@ uses it.
 | `inventory`      | `inventory`, `wallet`                                                            |
 | `market`         | `market`                                                                         |
 | `store`          | `price`, `search`, `deals`, `players`, `events`, `news`, `reviews`, `wishlist`, `similar` |
-| `depot`          | none yet (only the library API)                                                  |
+| `depot`          | `depots files`, `depots download`                                                |
 
 The session daemon needs `authentication`, because without a login there is no
 session to keep. `--no-daemon`, `--no-spawn` and `--socket` are still accepted in

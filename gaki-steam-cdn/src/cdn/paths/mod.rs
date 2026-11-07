@@ -15,7 +15,7 @@ pub(crate) const MAX_LINK_TARGET: u64 = 4096;
 
 /// The entry's path relative to the install directory, or an error if it is
 /// empty, absolute, or climbs out with `..`.
-pub(crate) fn entry_path(raw: &str) -> Result<PathBuf, Error> {
+pub fn entry_path(raw: &str) -> Result<PathBuf, Error> {
     let mut out = PathBuf::new();
     for component in Path::new(raw).components() {
         match component {

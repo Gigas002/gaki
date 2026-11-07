@@ -11,6 +11,8 @@ pub(crate) mod common;
 pub(crate) mod config;
 #[cfg(feature = "authentication")]
 pub(crate) mod daemon;
+#[cfg(feature = "depot")]
+pub(crate) mod depot;
 #[cfg(feature = "library")]
 pub(crate) mod info;
 #[cfg(feature = "install")]
@@ -41,6 +43,8 @@ pub(crate) use self::common::*;
 pub(crate) use self::config::*;
 #[cfg(feature = "authentication")]
 pub(crate) use self::daemon::*;
+#[cfg(feature = "depot")]
+pub(crate) use self::depot::*;
 #[cfg(feature = "library")]
 pub(crate) use self::info::*;
 #[cfg(feature = "install")]

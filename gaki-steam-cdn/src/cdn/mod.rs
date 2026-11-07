@@ -19,7 +19,7 @@ pub mod depot;
 pub mod depot_chunk;
 pub mod inner;
 pub mod manifest;
-mod paths;
+pub(crate) mod paths;
 
 pub const MANIFEST_VERSION: usize = 5;
 

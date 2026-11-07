@@ -473,11 +473,15 @@ pub(crate) enum Command {
         app_id: u32,
         branch: String,
     },
-    /// List depots for a game.
+    /// List depots for a game, or browse and download a depot's files.
     #[cfg(feature = "library")]
+    #[command(args_conflicts_with_subcommands = true, subcommand_negates_reqs = true)]
     Depots {
-        #[arg(value_parser = app_ref)]
-        app_id: u32,
+        #[arg(value_parser = app_ref, required = true)]
+        app_id: Option<u32>,
+        #[cfg(feature = "depot")]
+        #[command(subcommand)]
+        command: Option<DepotsCommand>,
     },
     /// List each depot's current manifest id per branch (version discovery for
     /// `downgrade`). Steam only exposes current ids — older ones live on SteamDB.
@@ -847,6 +851,53 @@ pub(crate) enum ChatCommand {
     /// messages stream in. End with Ctrl-D. With `--json`,
     /// emits one JSON event per line and reads message text from stdin lines.
     Open { steamid: u64 },
+}
+
+#[cfg(feature = "depot")]
+#[derive(Subcommand)]
+pub(crate) enum DepotsCommand {
+    /// List the files of a depot manifest (default: the depot's current
+    /// manifest on the public branch).
+    Files {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+        depot_id: u32,
+        #[command(flatten)]
+        manifest: DepotManifestArgs,
+        /// Only list paths matching this glob (`*`, `?`; case-insensitive),
+        /// e.g. `'*.exe'` or `'bin/*'`.
+        #[arg(short = 'f', long)]
+        filter: Option<String>,
+    },
+    /// Download one file of a depot manifest into a directory, under its
+    /// own file name. The content is checked against the manifest's SHA-1.
+    Download {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+        depot_id: u32,
+        /// The file's path inside the depot, as `depots files` prints it.
+        path: String,
+        #[command(flatten)]
+        manifest: DepotManifestArgs,
+        /// Directory to save into (default: the current directory).
+        #[arg(short = 'o', long)]
+        output: Option<PathBuf>,
+        /// Overwrite an existing file.
+        #[arg(long)]
+        force: bool,
+    },
+}
+
+/// Which manifest of a depot: an id, or a branch's current one.
+#[cfg(feature = "depot")]
+#[derive(clap::Args)]
+pub(crate) struct DepotManifestArgs {
+    /// Manifest id (see `gaki-cli manifests`, or SteamDB for older ones).
+    #[arg(short = 'm', long, conflicts_with = "branch")]
+    pub(crate) manifest: Option<u64>,
+    /// Use this branch's current manifest (default: public).
+    #[arg(short = 'b', long)]
+    pub(crate) branch: Option<String>,
 }
 
 #[cfg(feature = "cloud")]
