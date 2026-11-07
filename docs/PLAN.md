@@ -2179,10 +2179,16 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     game info, SteamDB link, settings tabs, Duplicates tab and user
     profiles. The TUI's favourites and hidden games, kept apart from
     Steam's, became 8.18. The §8 gates pass.
-- [ ] **8.16** Verify depot manifest signatures (8.14a follow-up). Find
+- [x] **8.16** Verify depot manifest signatures (8.14a follow-up). Find
   the scheme `ContentManifestSignature` uses and Valve's public key, then
   refuse a manifest whose signature doesn't verify. If neither can be
   established, record why in `docs/AUDIT.md` and close the step.
+  *Done (closed without a check):* the section holds a 128-byte RSA-1024
+  signature, but Valve's public system key doesn't verify it and no public
+  source names the manifest key or scheme. Taking the key from the
+  official client's binary was ruled out (user decision, 2026-11-08).
+  Recorded in `docs/AUDIT.md` §1.5; the chunk SHA-1 check stays the
+  protection.
 - [ ] **8.17** Replace `lzma-rs` (unmaintained) for VZ chunks with a
   maintained decoder (8.14a follow-up), keeping the bounded output and the
   CRC check.
@@ -2192,6 +2198,41 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   built-in favourite and hidden collections. Make the keys and the
   Favourites tab use those collections, and move any existing local lists
   into them once.
+- [ ] **8.19** Shader caches: where a game's compiled shaders go, and a
+  setting for it (user request, 2026-11-08). Today gaki sets nothing, so
+  DXVK, VKD3D-Proton and the Mesa/NVIDIA drivers each pick their own
+  default (often inside the prefix or the working directory), and nothing
+  removes them. Steam keeps them per game in
+  `<library>/steamapps/shadercache/<app_id>` and hands that to Proton as
+  `STEAM_COMPAT_SHADER_PATH`; the Proton script then points
+  `DXVK_STATE_CACHE_PATH`, `VKD3D_SHADER_CACHE_PATH`,
+  `__GL_SHADER_DISK_CACHE_PATH` and `MESA_SHADER_CACHE_DIR` under it (check
+  this against the script first). Do the same for Proton launches, and set
+  the driver variables directly for native ones.
+  - A `shader_cache` key in `config.toml`: unset keeps Steam's per-library
+    layout, a path puts every game's cache under `<path>/<app_id>`, and
+    `off` sets nothing (today's behaviour). A profile or a `games.toml`
+    entry can override it. A variable the user sets in `env` wins.
+  - `uninstall` removes the game's shader cache, as Steam does;
+    `available` and the TUI's Game info Checks tab show its size.
+  - `gaki-cli config set`, the TUI Settings tab, `config check` (a path
+    that can't be created) and `docs/CONFIG.md` cover the new key.
+- [ ] **8.20** `gaki-cli clean`: remove gaki's caches and leftovers in
+  one go (user request, 2026-11-08). It lists what it would delete, with
+  sizes, and deletes only after a confirm or `--yes`; `--dry-run` only
+  lists. The things to clean:
+  - the image and artwork cache, the `info` cache and the library cache;
+  - the TUI's cache (`$XDG_CACHE_HOME/gaki/tui`);
+  - old logs (the current one is kept) and install lock files no live
+    process holds;
+  - shader caches of games that aren't installed any more (8.19),
+    and, with `--shaders`, every game's.
+  Flags choose a subset (`--images`, `--info`, `--logs`, ...). It never
+  touches the config, the session, the install backlog, installed games,
+  Cloud saves or prefixes; partial downloads stay with `install forget
+  --delete-files`. `--json` reports what was freed. The TUI gets the same
+  as a **Clean** action in Settings, after a y/n. A running daemon keeps
+  working: it reloads what it needs.
 
 ### Phase 9 — Steam rules audit
 

@@ -4,7 +4,7 @@
 
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
-[![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#what-it-does)
+[![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#gaki-a-command-line-steam-client-for-linux)
 
 <br clear="left" />
 
@@ -16,6 +16,12 @@
 > - **No warranty for games launched outside the official Steam launcher.** Titles started through gaki bypass the normal Steam client and may not behave as expected.
 >
 > Use gaki entirely **at your own risk**. The authors accept no liability for damage to your Steam installation, lost data, or banned or suspended accounts.
+
+> [!CAUTION]
+> **gaki is experimental, and we don't recommend using it yet.** Commands,
+> config files and behaviour still change without notice, and it hasn't been
+> checked against Steam's rules. Try it on a spare account, not the one your
+> library lives on.
 
 gaki is a command-line Steam client and launcher for Linux. No CEF, no
 WebViews, no GUI. It talks to Steam's real network protocols through
@@ -39,29 +45,72 @@ gaki-cli play 1245620
 
 ---
 
+## Why gaki
+
+gaki isn't just Steam in a terminal. It does a few things the official
+client doesn't:
+
+- **Profiles.** A [profile](docs/CONFIG.md#profiles) is one file holding a
+  runner (Proton or native), a prefix, environment variables, DLL overrides
+  and wrappers like `mangohud` or `gamemoderun`. Any number of games can share
+  one profile and its prefix, and a game's
+  [`games.toml`](docs/CONFIG.md#gamestoml) entry only names what it changes.
+  So "run these ten games with this Proton build and these tweaks" is one
+  file, not ten trips through properties dialogs. Profiles use the same format
+  as [lootrs](https://github.com/Gigas002/lootrs), so its Proton and native
+  profiles work in gaki unchanged.
+- **Scriptable from end to end.** Every command speaks `--json`, errors come
+  with stable types and exit codes, and `gaki-cli capabilities` describes the
+  build to whatever drives it. A session daemon keeps one login warm, so
+  scripts don't sign in on every call ([GAKI-CLI.md](docs/GAKI-CLI.md#scripting-with---json)).
+- **Your versions, your choice.** Install an older manifest and pin it so
+  updates leave it alone, switch branches, or browse a depot's files and pull
+  out a single one, with SteamDB links for the manifest history
+  ([versions](docs/GAKI-CLI.md#versions-and-branches),
+  [depot browser](docs/GAKI-CLI.md#depot-browser-depot-feature)).
+- **Move your library.** `library export` writes the installed games to a
+  TOML file, and `library import` installs them on another machine, one at a
+  time through the resumable backlog
+  ([how](docs/GAKI-CLI.md#moving-a-library-to-another-machine)).
+- **Collections offline.** Edit collections without a connection and sync
+  them with Steam when you choose ([collections](docs/GAKI-CLI.md#collections)).
+- **Build only what you need.** Each capability is a Cargo feature, from
+  "launch what's installed" up to the Store and the Market
+  ([FEATURES.md](docs/FEATURES.md)).
+
+---
+
 ## What it does
 
 - **Library:** owned and Family-Shared games, local installs, search and
-  filters, collections synced with Steam, achievements, DLC.
+  filters, collections synced with Steam, achievements, DLC
+  ([library commands](docs/GAKI-CLI.md#library)).
 - **Installs:** parallel downloads from the least-loaded content servers,
   updates, verification, moves between libraries, and an install backlog that
   pauses, resumes and survives restarts. Downgrade to an older manifest and pin
-  it there.
+  it there ([install commands](docs/GAKI-CLI.md#install-and-maintain)).
 - **Launching:** native Linux builds, or Windows builds through Proton.
   [Profiles](docs/CONFIG.md#profiles) hold the runner, a shared prefix, the
   environment and wrappers, and games point at a profile. Steam integration
   (`auto`, `host`, `none`) bridges to the host Steam client for Steamworks and
-  DRM.
+  DRM ([launching](docs/GAKI-CLI.md#launch)).
 - **Steam Cloud** save sync, and the **Workshop**: browse, subscribe,
-  install, rate, comment.
+  install, rate, comment ([Cloud](docs/GAKI-CLI.md#steam-cloud),
+  [Workshop](docs/GAKI-CLI.md#steam-workshop)).
 - **Friends and chat**, the **Store** (search, prices, deals, news, reviews,
   wishlists), and a read-only **inventory and Community Market**. gaki
   never moves real money or items: no buying, selling, trading or store
-  purchases, now or later.
+  purchases, now or later ([friends](docs/GAKI-CLI.md#friends-and-chat),
+  [store](docs/GAKI-CLI.md#store),
+  [inventory and market](docs/GAKI-CLI.md#inventory-and-market)).
+- **A terminal UI:** `gaki-tui` covers the same library with keys, overlays
+  and background loading ([GAKI-TUI.md](docs/GAKI-TUI.md)).
 - **Slim builds:** every capability is a Cargo feature
   ([FEATURES.md](docs/FEATURES.md)).
 
-gaki is in **experimental beta**.
+gaki is in **experimental beta**; see the caution above.
+[FAQ.md](docs/FAQ.md) answers common questions, and
+[AUDIT.md](docs/AUDIT.md) records the security, performance and feature audit.
 
 ---
 
@@ -92,6 +141,7 @@ less.
 | [docs/CONFIG.md](docs/CONFIG.md) | `config.toml`, profiles, `games.toml`, where files live, the session |
 | [docs/FEATURES.md](docs/FEATURES.md) | The Cargo features and what each one builds |
 | [docs/FAQ.md](docs/FAQ.md) | Prerequisites and common questions |
+| [docs/AUDIT.md](docs/AUDIT.md) | Security, performance and feature audit, with a matrix against the official client |
 | [examples/](examples) | Commented example configuration |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows |
 | [docs/PLAN.md](docs/PLAN.md) | The fork plan: what changed from Aurelia, step by step |

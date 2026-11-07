@@ -43,7 +43,7 @@ override is still `0600` and peer-checked. OK.
 | Manifest ZIP | A zipped manifest was unzipped without limit (a decompression bomb from a CDN server, or over plain HTTP). Now capped at 512 MiB; real manifests are tens of MB. | medium | Fixed |
 | Cloud ZIP | A Cloud download that Steam stored zipped was unzipped without limit, and its buffer pre-allocated from a size field Steam controls. Now capped at 1 GiB, and the size field is only a bounded hint. | medium | Fixed |
 | Manifest paths | Every entry's path and symlink target is checked before anything is created (`gaki-steam-cdn::cdn::paths`): no absolute paths, no `..` out of the install directory, no writing through an existing symlink, links pointing outside are skipped. Windows `\` separators are normalised before the check. | — | OK |
-| Manifest signatures | Manifests aren't signature-checked (the key and scheme aren't known yet). With chunks now hash-checked, a forged manifest can still rearrange or drop files of the depot, not inject new content without the depot key. | low | Follow-up 8.16 |
+| Manifest signatures | Manifests aren't signature-checked (the key and scheme aren't known yet). With chunks now hash-checked, a forged manifest can still rearrange or drop files of the depot, not inject new content without the depot key. | low | Accepted (8.16: key not public, see §1.5) |
 | CDN transport | HTTPS whenever any content server offers it; plain HTTP only when none does. | — | OK |
 | Cloud file names | `%Root%` tokens map to fixed directories, and the rest is joined with empty, `.` and `..` components dropped, so a crafted name can't leave its root. | — | OK |
 | `installdir` | Every PICS or `appmanifest` install directory is checked to be one plain name before use, except in `import_install`. It now checks too. | low | Fixed |
@@ -61,6 +61,39 @@ override is still `0600` and peer-checked. OK.
 | Browser launchers | `xdg-open` was handed whatever URL it got. All of gaki's URLs are built from ids except a user profile's page, which comes from Steam's profile data; a `file:` URL or a `.desktop` path could make `xdg-open` run something. The TUI opener and the OpenID helper now accept only `http(s)://` URLs. | low | Fixed |
 | Other spawns | `proton run`, wrappers and `env` come from the user's own config; `steam -silent` and the chat window run fixed programs with fixed or validated arguments (a friend's name is passed as `--name=…`). | — | OK |
 | Remaining `unsafe` | `std::env::set_var` for the proxy (documented to run before any thread starts), `libc::getuid`, `libc::kill`, and `setsid` in a `pre_exec` (async-signal-safe). | — | OK |
+
+### 1.5 Manifest signatures (8.16, 2026-11-08)
+
+The step was to verify each depot manifest's signature, or record why that
+can't be done. It can't, for now:
+
+- **The format is known.** A manifest from the CDN has three sections:
+  payload, metadata, then `ContentManifestSignature`, which holds one
+  128-byte value (`signature`): an RSA-1024 signature. Checked on the
+  manifest of depot 2835573 as the CDN served it.
+- **The official client keeps no signatures.** All 15 manifests in its
+  `depotcache` have an empty signature section, so they can't be used to
+  work the scheme out.
+- **Valve's public "system" key isn't the signer.** Applying it (the key
+  steam-vent ships as `system.pem`, used for the logon session key) to the
+  signature gives neither PKCS#1 v1.5 nor PSS padding, read big-endian or
+  little-endian. So the manifest key is a different one.
+- **No open-source client knows it.** SteamKit2 and DepotDownloader parse
+  the section and ignore it, and nothing public names the key or what the
+  signature covers.
+
+The one remaining source is the official client's own binary, which would
+embed the key. Taking it from there means inspecting Valve's proprietary
+code, which the Steam Subscriber Agreement restricts, so it wasn't done
+(user decision, 2026-11-08).
+
+Without the signature check, a download is still protected by HTTPS to the
+content server, by the manifest request code that only an owner of the
+depot can get, and by the SHA-1 and size check on every chunk (8.14a). A
+forged manifest would also need the depot key to make chunks that decrypt
+to anything. What it could still do is drop files or rearrange the depot's
+own chunks. Severity stays **low**. Revisit if Valve or an open-source
+client publishes the key.
 
 ## 2. Performance (8.14b, 2026-11-08)
 
