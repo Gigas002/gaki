@@ -113,24 +113,20 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
     #[cfg(feature = "cloud")]
     if browser.show_cloud {
         // Steam Cloud overlay: Esc/q close, s syncs both ways,
-        // d downloads only, u uploads only; each re-fetches.
+        // d downloads only, u uploads only (each in the background);
+        // after conflicts, c keeps the cloud copies and l the local
+        // ones, both after a y/n.
+        if browser.cloud_state.confirm.is_some() {
+            browser.answer_cloud_resolve(matches!(input, KeyCode::Char('y' | 'Y')));
+            return Ok(true);
+        }
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_cloud(),
-            KeyCode::Char('s') => {
-                if let Some(game) = browser.selected() {
-                    browser.sync_cloud(game.id, steam::CloudDirection::Both);
-                }
-            }
-            KeyCode::Char('d') => {
-                if let Some(game) = browser.selected() {
-                    browser.sync_cloud(game.id, steam::CloudDirection::Down);
-                }
-            }
-            KeyCode::Char('u') => {
-                if let Some(game) = browser.selected() {
-                    browser.sync_cloud(game.id, steam::CloudDirection::Up);
-                }
-            }
+            KeyCode::Char('s') => browser.sync_cloud(steam::CloudDirection::Both),
+            KeyCode::Char('d') => browser.sync_cloud(steam::CloudDirection::Down),
+            KeyCode::Char('u') => browser.sync_cloud(steam::CloudDirection::Up),
+            KeyCode::Char('c') => browser.begin_cloud_resolve(steam::CloudResolve::KeepCloud),
+            KeyCode::Char('l') => browser.begin_cloud_resolve(steam::CloudResolve::KeepLocal),
             _ => {}
         }
         return Ok(true);

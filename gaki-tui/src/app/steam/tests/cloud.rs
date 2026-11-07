@@ -8,7 +8,7 @@ fn a_clean_sync_has_no_problem() {
         uploaded: vec!["b.sav".into()],
         ..Default::default()
     };
-    assert_eq!(sync_problem(7, &outcome), None);
+    assert_eq!(sync_problem(&outcome), None);
 }
 
 #[test]
@@ -26,7 +26,7 @@ fn failures_outrank_skips() {
         }],
         ..Default::default()
     };
-    let problem = sync_problem(7, &outcome).unwrap();
+    let problem = sync_problem(&outcome).unwrap();
     assert!(problem.starts_with("1 file(s) failed"), "{problem}");
     assert!(problem.contains("y.sav: timed out"), "{problem}");
 
@@ -34,9 +34,28 @@ fn failures_outrank_skips() {
         failed: Vec::new(),
         ..outcome
     };
-    let problem = sync_problem(7, &skipped_only).unwrap();
+    let problem = sync_problem(&skipped_only).unwrap();
     assert!(
         problem.contains("skipped (first: x.sav: no prefix)"),
         "{problem}"
     );
+}
+
+#[test]
+fn conflicts_keep_both_copies() {
+    let outcome = SyncOutcome {
+        conflicts: vec![libgaki::library::cloud_sync::SyncConflict {
+            filename: "a.sav".into(),
+            local_path: "/tmp/a.sav".into(),
+            local_hash: "1".into(),
+            local_size: 1,
+            local_timestamp: 1,
+            cloud_hash: "2".into(),
+            cloud_size: 2,
+            cloud_timestamp: 2,
+        }],
+        ..Default::default()
+    };
+    let problem = sync_problem(&outcome).unwrap();
+    assert!(problem.starts_with("1 save(s) differ"), "{problem}");
 }

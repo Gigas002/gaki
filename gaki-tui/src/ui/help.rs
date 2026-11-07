@@ -145,7 +145,7 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("f", "toggle favourite"),
         Entry::Binding("H", "hide game"),
         #[cfg(feature = "cloud")]
-        Entry::Binding("C", "cloud saves (s/d/u)"),
+        Entry::Binding("C", "cloud saves (s/d/u sync, c/l keep cloud/local)"),
         Entry::Binding("L", "launch options"),
         Entry::Binding("E", "Steam store page"),
         Entry::Binding("B", "ProtonDB page"),

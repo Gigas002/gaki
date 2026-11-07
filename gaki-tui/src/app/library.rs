@@ -124,6 +124,8 @@ impl Library {
         #[cfg(feature = "workshop")]
         browser.poll_workshop();
         browser.poll_depots();
+        #[cfg(feature = "cloud")]
+        browser.poll_cloud();
         #[cfg(feature = "store")]
         {
             browser.poll_store();

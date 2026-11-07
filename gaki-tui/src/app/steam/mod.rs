@@ -973,12 +973,51 @@ pub enum CloudDirection {
     Up,
 }
 
-/// Sync a game's Steam Cloud saves, optionally in one direction only. A
-/// blocking call that can be slow. Diverged saves are left alone (both copies
-/// kept); they, and files that failed or had no local path, come back as an
-/// error saying so, rather than as a plain success.
+/// What to do with saves that differ between Steam Cloud and this machine.
 #[cfg(feature = "cloud")]
-pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), TuiError> {
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CloudResolve {
+    /// Leave both copies and report them.
+    Detect,
+    /// Overwrite the local copies with the cloud ones.
+    KeepCloud,
+    /// Overwrite the cloud copies with the local ones.
+    KeepLocal,
+}
+
+/// A save that differs between Steam Cloud and this machine.
+#[cfg(feature = "cloud")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CloudConflict {
+    pub filename: String,
+    pub local_size: u64,
+    /// Unix seconds.
+    pub local_timestamp: u64,
+    pub cloud_size: u64,
+    /// Unix seconds.
+    pub cloud_timestamp: u64,
+}
+
+/// What a sync did: the saves left diverged, what else went wrong (worst
+/// first), and the game's cloud files afterwards.
+#[cfg(feature = "cloud")]
+#[derive(Clone, Debug, Default)]
+pub struct CloudSyncResult {
+    pub conflicts: Vec<CloudConflict>,
+    pub problem: Option<String>,
+    pub files: Vec<CloudFile>,
+}
+
+/// Sync a game's Steam Cloud saves, optionally in one direction only, then
+/// re-read its file list. A blocking call that can be slow. With
+/// [`CloudResolve::Detect`] diverged saves are left alone and come back in
+/// `conflicts`; the others overwrite one side.
+#[cfg(feature = "cloud")]
+pub fn cloud_sync(
+    app_id: i32,
+    direction: CloudDirection,
+    resolve: CloudResolve,
+) -> Result<CloudSyncResult, TuiError> {
     use libgaki::library::cloud_sync::{ConflictPolicy, SyncDirection};
     let request = libgaki::ops::cloud::SyncRequest {
         app_id: app_id as u32,
@@ -987,25 +1026,39 @@ pub fn cloud_sync(app_id: i32, direction: CloudDirection) -> Result<(), TuiError
             CloudDirection::Down => SyncDirection::Down,
             CloudDirection::Up => SyncDirection::Up,
         },
-        policy: ConflictPolicy::Detect,
+        policy: match resolve {
+            CloudResolve::Detect => ConflictPolicy::Detect,
+            CloudResolve::KeepCloud => ConflictPolicy::TakeCloud,
+            CloudResolve::KeepLocal => ConflictPolicy::TakeLocal,
+        },
         remote_root: None,
     };
     let report = in_process(async {
         let client = worker::global().session().authed().await?;
         libgaki::ops::cloud::sync(&client, &request).await
     })?;
-    match sync_problem(app_id, &report.outcome) {
-        Some(problem) => Err(TuiError::Problem(problem)),
-        None => Ok(()),
-    }
+    let conflicts = report
+        .outcome
+        .conflicts
+        .iter()
+        .map(|c| CloudConflict {
+            filename: c.filename.clone(),
+            local_size: c.local_size,
+            local_timestamp: c.local_timestamp,
+            cloud_size: c.cloud_size,
+            cloud_timestamp: c.cloud_timestamp,
+        })
+        .collect();
+    Ok(CloudSyncResult {
+        conflicts,
+        problem: sync_problem(&report.outcome),
+        files: cloud_list(app_id)?,
+    })
 }
 
 /// What went wrong in a sync, worst first, or `None` if nothing did.
 #[cfg(feature = "cloud")]
-fn sync_problem(
-    app_id: i32,
-    outcome: &libgaki::library::cloud_sync::SyncOutcome,
-) -> Option<String> {
+fn sync_problem(outcome: &libgaki::library::cloud_sync::SyncOutcome) -> Option<String> {
     if let Some(first) = outcome.failed.first() {
         return Some(format!(
             "{} file(s) failed to transfer (first: {}: {})",
@@ -1016,8 +1069,7 @@ fn sync_problem(
     }
     if outcome.has_conflicts() {
         return Some(format!(
-            "{} save(s) differ between Steam Cloud and this machine; both copies were kept. \
-             Resolve with `gaki-cli cloud sync {app_id} --resolve cloud|local`",
+            "{} save(s) differ between Steam Cloud and this machine; both copies were kept.",
             outcome.conflicts.len(),
         ));
     }

@@ -13,7 +13,7 @@ mod branches;
 #[cfg(feature = "social")]
 mod chat;
 #[cfg(feature = "cloud")]
-mod cloud;
+pub mod cloud;
 #[cfg(feature = "collections")]
 mod collections;
 pub mod depots;
@@ -86,6 +86,9 @@ pub struct Browser {
     pub cloud_files: Vec<steam::CloudFile>,
     /// A short status line for the cloud overlay (errors, sync progress).
     pub cloud_status: String,
+    /// The cloud overlay's loads, sync job and conflicts.
+    #[cfg(feature = "cloud")]
+    pub cloud_state: cloud::CloudState,
     /// Whether the account overlay is open.
     pub show_account: bool,
     /// The fetched account details, shown by the account overlay.
@@ -498,6 +501,8 @@ impl Browser {
             show_cloud: false,
             cloud_files: Vec::new(),
             cloud_status: String::new(),
+            #[cfg(feature = "cloud")]
+            cloud_state: cloud::CloudState::default(),
             show_account: false,
             account_info: None,
             show_config: false,

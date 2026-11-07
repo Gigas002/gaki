@@ -1,53 +1,160 @@
 //! The Steam Cloud overlay: lists the selected game's Cloud save files, with
-//! keys to sync them — `s` both ways, `d` download-only, `u` upload-only.
+//! keys to sync them (`s` both ways, `d` download-only, `u` upload-only).
+//! After a sync leaves diverged saves, they're listed with each side's size
+//! and time, the newer side marked, and `c` / `l` keep the cloud or the
+//! local copies.
 
 use crate::utils::bytes::convert;
 
-use ratatui::layout::Constraint;
-use ratatui::text::Span;
-use ratatui::widgets::{Cell, Row, Table};
+use libgaki::steam_client::unix_to_ymd;
+use ratatui::Frame;
+use ratatui::layout::{Constraint, Layout, Rect};
+use ratatui::text::{Line, Span};
+use ratatui::widgets::{Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::browser::Browser;
+use crate::app::steam::CloudResolve;
 use crate::ui::theme;
 
-/// Build the Steam Cloud file table from the browser's fetched state. Each row
-/// shows the file name and its (human-readable) size; a status line, when set,
-/// is shown as the first row. Empty file lists render a "No cloud files." row.
-pub fn cloud(browser: &Browser) -> Table<'static> {
-    let mut rows: Vec<Row<'static>> = Vec::new();
+/// `secs` as `YYYY-MM-DD HH:MM` (UTC).
+pub(crate) fn date_time(secs: u64) -> String {
+    let secs = secs as i64;
+    let day = secs.rem_euclid(86_400);
+    format!(
+        "{} {:02}:{:02}",
+        unix_to_ymd(secs),
+        day / 3600,
+        (day % 3600) / 60
+    )
+}
 
+/// The lines above the file table: the status, then the conflicts with the
+/// resolve confirm or its keys. Wrapped, so long messages stay whole.
+fn header_lines(browser: &Browser) -> Vec<Line<'static>> {
+    let state = &browser.cloud_state;
+    let mut lines = Vec::new();
     if !browser.cloud_status.is_empty() {
-        rows.push(Row::new(vec![
-            Cell::from(Span::styled(browser.cloud_status.clone(), theme::accent())),
-            Cell::from(Span::raw("")),
-        ]));
+        lines.push(Line::from(Span::styled(
+            browser.cloud_status.clone(),
+            theme::accent(),
+        )));
     }
+    if state.conflicts.is_empty() {
+        return lines;
+    }
+    lines.push(Line::from(Span::styled(
+        format!(
+            "Differ between Steam Cloud and here ({}):",
+            state.conflicts.len()
+        ),
+        theme::label(),
+    )));
+    for c in &state.conflicts {
+        lines.push(Line::from(Span::styled(
+            format!("  {}", c.filename),
+            theme::value().fg(theme::WARN),
+        )));
+        let local_newer = c.local_timestamp > c.cloud_timestamp;
+        let cloud_newer = c.cloud_timestamp > c.local_timestamp;
+        lines.push(side("local", c.local_size, c.local_timestamp, local_newer));
+        lines.push(side("cloud", c.cloud_size, c.cloud_timestamp, cloud_newer));
+    }
+    lines.push(match state.confirm {
+        Some(CloudResolve::KeepCloud) => {
+            warn("Overwrite the local copies with the cloud ones? [y] yes  [n] no")
+        }
+        Some(CloudResolve::KeepLocal) => {
+            warn("Overwrite the cloud copies with the local ones? [y] yes  [n] no")
+        }
+        _ if state.sync.is_some() => Line::from(""),
+        _ => Line::from(Span::styled(
+            "[c] keep the cloud copies  [l] keep the local copies",
+            theme::dim(),
+        )),
+    });
+    lines
+}
 
+fn warn(text: &str) -> Line<'static> {
+    Line::from(Span::styled(
+        text.to_string(),
+        theme::value().fg(theme::WARN),
+    ))
+}
+
+/// One side of a conflict: `label  size  time`, plus `newer` when it is.
+fn side(label: &str, size: u64, time: u64, newer: bool) -> Line<'static> {
+    let style = if newer {
+        theme::value().fg(theme::ONLINE)
+    } else {
+        theme::dim()
+    };
+    let mark = if newer { "  newer" } else { "" };
+    Line::from(Span::styled(
+        format!(
+            "    {label}  {:>10}  {} UTC{mark}",
+            convert(size as f64),
+            date_time(time)
+        ),
+        style,
+    ))
+}
+
+/// Draw the overlay into `area`: the header lines, then the file table.
+pub fn draw(frame: &mut Frame, area: Rect, browser: &Browser) {
+    let block = theme::panel("Steam Cloud ([s] sync  [d] down  [u] up  [Esc] close)".to_string());
+    let inner = block.inner(area);
+    frame.render_widget(Paragraph::new("").block(block).style(theme::base()), area);
+
+    let header = Paragraph::new(header_lines(browser))
+        .style(theme::base())
+        .wrap(Wrap { trim: false });
+    let height = (header.line_count(inner.width.max(1)) as u16).min(inner.height / 2 + 1);
+    let [top, _, bottom] = Layout::vertical([
+        Constraint::Length(height),
+        Constraint::Length(u16::from(height > 0)),
+        Constraint::Min(1),
+    ])
+    .areas(inner);
+    frame.render_widget(header, top);
+    frame.render_widget(files(browser), bottom);
+}
+
+/// The file table.
+fn files(browser: &Browser) -> Table<'static> {
+    let mut rows: Vec<Row<'static>> = Vec::new();
     if browser.cloud_files.is_empty() {
-        if browser.cloud_status.is_empty() {
-            rows.push(Row::new(vec![
-                Cell::from(Span::styled("No cloud files.", theme::dim())),
-                Cell::from(Span::raw("")),
-            ]));
+        if !browser.cloud_state.is_busy() {
+            rows.push(Row::new(vec![Cell::from(Span::styled(
+                "No cloud files.",
+                theme::dim(),
+            ))]));
         }
     } else {
         for file in &browser.cloud_files {
+            let modified = if file.timestamp > 0 {
+                date_time(file.timestamp as u64)
+            } else {
+                String::new()
+            };
             rows.push(Row::new(vec![
                 Cell::from(Span::styled(file.filename.clone(), theme::value())),
                 Cell::from(Span::styled(convert(file.size as f64), theme::dim())),
+                Cell::from(Span::styled(modified, theme::dim())),
             ]));
         }
     }
-
     Table::default()
         .rows(rows)
         .header(Row::new(vec![
             Cell::from(Span::styled("NAME", theme::label())),
             Cell::from(Span::styled("SIZE", theme::label())),
+            Cell::from(Span::styled("MODIFIED (UTC)", theme::label())),
         ]))
-        .block(theme::panel(
-            "Steam Cloud ([s] sync  [d] down  [u] up)".to_string(),
-        ))
         .style(theme::base())
-        .widths([Constraint::Percentage(75), Constraint::Percentage(25)])
+        .widths([
+            Constraint::Percentage(55),
+            Constraint::Percentage(15),
+            Constraint::Percentage(30),
+        ])
 }

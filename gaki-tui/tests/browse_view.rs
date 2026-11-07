@@ -279,7 +279,7 @@ fn cloud_overlay_shows_directional_hints() {
 
     terminal
         .draw(|f| {
-            f.render_widget(ui::cloud::cloud(&browser), Rect::new(0, 0, 80, 12));
+            ui::cloud::draw(f, Rect::new(0, 0, 80, 12), &browser);
         })
         .unwrap();
 
@@ -843,4 +843,68 @@ fn workshop_comment_prompt_flow() {
 
     browser.cancel_workshop_comment();
     assert!(!browser.workshop_comment_open());
+}
+
+#[cfg(feature = "cloud")]
+fn render_cloud(browser: &Browser, width: u16, height: u16) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal
+        .draw(|f| ui::cloud::draw(f, Rect::new(0, 0, width, height), browser))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| buffer.cell((x, y)).unwrap().symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// Diverged saves are listed with each side's size and time, the newer one
+/// marked, and the keys to resolve them; `c` asks before overwriting and
+/// "no" leaves everything as it was.
+#[cfg(feature = "cloud")]
+#[test]
+fn cloud_conflicts_list_and_ask() {
+    use gaki_tui::app::steam::{CloudConflict, CloudResolve};
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.show_cloud = true;
+
+    browser.begin_cloud_resolve(CloudResolve::KeepCloud);
+    assert!(
+        browser.cloud_state.confirm.is_none(),
+        "nothing to resolve yet"
+    );
+
+    browser.cloud_state.conflicts = vec![CloudConflict {
+        filename: "slot1.sav".into(),
+        local_size: 2048,
+        // 2024-01-02 03:04 UTC
+        local_timestamp: 1_704_164_640,
+        cloud_size: 1024,
+        cloud_timestamp: 1_704_000_000,
+    }];
+    let screen = render_cloud(&browser, 100, 20);
+    assert!(screen.contains("slot1.sav"), "{screen}");
+    assert!(
+        screen.contains("2024-01-02 03:04 UTC  newer"),
+        "the local side is newer: {screen}"
+    );
+    assert!(screen.contains("[c] keep the cloud copies"), "{screen}");
+
+    browser.begin_cloud_resolve(CloudResolve::KeepCloud);
+    assert_eq!(browser.cloud_state.confirm, Some(CloudResolve::KeepCloud));
+    let screen = render_cloud(&browser, 100, 20);
+    assert!(
+        screen.contains("Overwrite the local copies with the cloud ones?"),
+        "{screen}"
+    );
+
+    browser.answer_cloud_resolve(false);
+    assert!(browser.cloud_state.confirm.is_none());
+    assert!(browser.cloud_state.sync.is_none(), "no sync started");
+    assert_eq!(browser.cloud_state.conflicts.len(), 1);
 }

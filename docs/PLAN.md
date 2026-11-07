@@ -1880,9 +1880,22 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   renamed collection. Also, as agreed, `x` now asks before deleting
   (`collections_delete`, "its games stay"). Tests in
   `tests/actions_view.rs`; help line and `docs/GAKI-TUI.md`.
-- [ ] **8.9** TUI Cloud conflict resolution. A sync with diverged saves only
+- [x] **8.9** TUI Cloud conflict resolution. A sync with diverged saves only
   tells you to run `gaki-cli cloud sync --resolve`; offer "keep cloud" and
   "keep local" in the Cloud overlay.
+  *Done.* Whole-game, as agreed (no libgaki change). `steam::cloud_sync`
+  takes a `CloudResolve` (`Detect` / `KeepCloud` / `KeepLocal`, mapped to
+  `ConflictPolicy`) and returns a `CloudSyncResult`: the diverged saves
+  (`CloudConflict`, sizes and timestamps), the worst other problem, and the
+  re-read file list. The overlay keeps a `CloudState` (`browser/cloud.rs`):
+  the list and syncs run as `job::Load`s (`poll_cloud` on each tick), so
+  opening and syncing no longer block the UI; the overlay works on the game
+  it was opened for. After conflicts, `c` / `l` ask "Overwrite the local /
+  cloud copies…?" and `y` syncs both ways with that side winning.
+  `ui::cloud::draw` puts the status and conflicts (each side's size and
+  UTC time, the newer marked `newer`) in a wrapped header above the file
+  table, which gained a modified column. Tests in `tests/browse_view.rs` and
+  `steam/tests/cloud.rs`; help line, `docs/GAKI-TUI.md` ("Cloud saves").
 - [ ] **8.10** TUI settings parity. Settings edits only presence and proxy.
   Add the other `config.toml` keys (`default_profile`, `default_platform`,
   `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,

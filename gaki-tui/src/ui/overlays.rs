@@ -75,7 +75,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     if browser.show_cloud {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
-        frame.render_widget(ui::cloud::cloud(browser), area);
+        ui::cloud::draw(frame, area, browser);
     }
 
     // Launch-options overlay floats above everything.

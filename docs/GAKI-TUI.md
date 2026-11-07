@@ -67,7 +67,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `V` / `b`             | Versions and pinning, beta branches                      |
 | `o` / `D` / `L`       | Depots (and their files, see below), DLC, launch options |
 | `P`                   | Proton builds (`d` sets the default, `i` installs, `u` uninstalls) |
-| `C` / `W` / `a`       | Cloud saves, Workshop (see below), achievements          |
+| `C` / `W` / `a`       | Cloud saves, Workshop, achievements (both below)         |
 | `M` / `K` / `N`       | Move, relink, import an install                          |
 | `O`                   | Collections: `a`/`r` add or remove the game, `n` new, `e` rename, `x` delete (asks), `P`/`U`/`S` cloud pull/push/sync |
 | `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it |
@@ -119,6 +119,17 @@ Both forgets ask first. A game another gaki process (`gaki-cli`, its
 session daemon, another TUI) is downloading shows as `running elsewhere`,
 and the keys leave it to that process. See `gaki-cli install` in
 [GAKI-CLI.md](GAKI-CLI.md) for the lock behind this.
+
+### Cloud saves
+
+`C` lists the game's Steam Cloud files. `s` syncs both ways, `d` only
+downloads, `u` only uploads; each runs in the background. A sync never
+overwrites a save that changed on both sides: it lists those with each
+side's size and modification time (UTC), the newer side marked. `c` then
+keeps the cloud copies (overwriting the local ones) and `l` keeps the local
+copies (overwriting the cloud ones), both after a `y`/`n`. This is
+`gaki-cli cloud sync --resolve cloud|local`, for every diverged save of the
+game at once.
 
 ### Workshop
 
