@@ -479,9 +479,15 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         }
         return Ok(true);
     }
+    // The per-game Store overlay can sit on top of the Steam Store one.
     #[cfg(feature = "store")]
     if browser.store.is_some() {
         store_key(browser, input);
+        return Ok(true);
+    }
+    #[cfg(feature = "store")]
+    if browser.shop.is_some() {
+        shop_key(browser, input);
         return Ok(true);
     }
     if browser.show_depots {
@@ -678,6 +684,58 @@ fn store_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         KeyCode::PageDown => browser.store_scroll(10),
         KeyCode::PageUp => browser.store_scroll(-10),
         KeyCode::Char('r') => browser.begin_store_regions(),
+        _ => {}
+    }
+}
+
+/// Keys in the Steam Store overlay: the search prompt and the wishlist
+/// confirm take them first.
+#[cfg(feature = "store")]
+fn shop_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+    if browser.shop_confirm_open() {
+        match input {
+            KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                browser.answer_shop_confirm(true)
+            }
+            KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                browser.answer_shop_confirm(false)
+            }
+            _ => {}
+        }
+        return;
+    }
+    if browser.shop_input_open() {
+        match input {
+            KeyCode::Esc => browser.cancel_shop_input(),
+            KeyCode::Char('\n') | KeyCode::Enter => browser.submit_shop_input(),
+            KeyCode::Backspace => browser.shop_input_pop(),
+            KeyCode::Tab => {
+                browser.cancel_shop_input();
+                browser.shop_cycle(1);
+            }
+            KeyCode::BackTab => {
+                browser.cancel_shop_input();
+                browser.shop_cycle(-1);
+            }
+            KeyCode::Char(c) => browser.shop_input_push(c),
+            _ => {}
+        }
+        return;
+    }
+    match input {
+        KeyCode::Esc | KeyCode::Char('q') => browser.close_shop(),
+        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => browser.shop_cycle(1),
+        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => browser.shop_cycle(-1),
+        KeyCode::Down | KeyCode::Char('j') => browser.shop_move(1),
+        KeyCode::Up | KeyCode::Char('k') => browser.shop_move(-1),
+        KeyCode::PageDown => browser.shop_move(10),
+        KeyCode::PageUp => browser.shop_move(-10),
+        KeyCode::Char('\n') | KeyCode::Enter => browser.shop_open_game(),
+        KeyCode::Char('/') => browser.begin_shop_search(),
+        KeyCode::Char('w') => browser.begin_shop_wish(),
+        KeyCode::Char('E') => browser.shop_open_page(),
+        KeyCode::Char('s') => browser.shop_next_deals(),
+        KeyCode::Char('r') => browser.shop_reload(),
         _ => {}
     }
 }

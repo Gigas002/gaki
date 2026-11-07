@@ -49,6 +49,8 @@ pub mod proton;
 #[cfg(feature = "install")]
 pub mod relink;
 pub mod running;
+#[cfg(feature = "store")]
+pub mod shop;
 pub mod status;
 #[cfg(feature = "store")]
 pub mod store;

@@ -38,6 +38,8 @@ mod proton;
 mod relocate;
 mod running;
 #[cfg(feature = "store")]
+pub mod shop;
+#[cfg(feature = "store")]
 pub mod store;
 #[cfg(feature = "versioning")]
 mod versions;
@@ -279,6 +281,9 @@ pub struct Browser {
     /// The Store overlay (`Y`), when open.
     #[cfg(feature = "store")]
     pub store: Option<store::StoreView>,
+    /// The Steam Store overlay (`J`), when open.
+    #[cfg(feature = "store")]
+    pub shop: Option<shop::ShopView>,
     /// Whether the launch-options overlay is open.
     pub show_launch: bool,
     /// The selected game's launch options (loaded when the overlay opens).
@@ -569,6 +574,8 @@ impl Browser {
             depots: depots::DepotsView::default(),
             #[cfg(feature = "store")]
             store: None,
+            #[cfg(feature = "store")]
+            shop: None,
             show_launch: false,
             launch_options: Vec::new(),
             launch_scroll: 0,

@@ -76,6 +76,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes) |
 | `R`                   | Running games                                            |
 | `Y`                   | Store: price, players, news, reviews, similar games      |
+| `J`                   | Steam Store: search, deals, events, your wishlist        |
 | `f` / `H`             | Toggle a favourite, hide the game                        |
 | `A` / `p`             | Account (`o` logs out), settings (presence, proxy)       |
 | `r`                   | Refresh the library from Steam                           |
@@ -116,8 +117,22 @@ the overlay with `Esc`.
 - **Similar** lists related games, priced for your country.
 
 This is `gaki-cli price --compare`, `players`, `news`, `reviews` and
-`similar`. The store-wide views (search, deals, events, the wishlist) aren't
-in the TUI yet.
+`similar`.
+
+`J` opens the **Steam Store** overlay for everything not tied to one game,
+in four sections. It opens on **Search**, ready to type: `Enter` searches,
+and `/` edits the search again. **Deals** starts on the discounted top
+sellers; `s` switches to top sellers and then specials (anything on sale).
+**Events** lists the store's current sales and events, and **Wishlist** your
+own wishlist. `Tab` / `Shift-Tab` switch sections, `j` / `k` move, and `r`
+reloads the shown section.
+
+On a game row, `Enter` opens that game's Store overlay (the `Y` one, even
+for games you don't own; `Esc` comes back), `E` opens its store page in the
+browser, and `w` adds it to your wishlist, or removes it if it's already on
+it, after a `y` / `n` confirm. In the Wishlist section, `w` always removes.
+This is `gaki-cli search`, `deals`, `events` and `wishlist` (`add`,
+`remove`). gaki never buys anything: a wishlist is free.
 
 ### Depot files
 

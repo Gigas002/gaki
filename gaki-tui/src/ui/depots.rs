@@ -86,7 +86,7 @@ fn dim(text: impl Into<String>) -> Line<'static> {
 }
 
 /// A framed list over a footer, scrolled so `selected` stays visible.
-fn draw_list(
+pub(crate) fn draw_list(
     frame: &mut Frame,
     area: Rect,
     title: String,

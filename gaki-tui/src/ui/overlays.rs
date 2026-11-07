@@ -186,6 +186,14 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
         frame.render_widget(ui::branches::branches(browser), area);
     }
 
+    // The Steam Store overlay, with the per-game one above it.
+    #[cfg(feature = "store")]
+    if let Some(view) = &browser.shop {
+        let area = ui::centered_rect(80, 85, frame.area());
+        frame.render_widget(Clear, area);
+        ui::shop::draw(frame, area, view);
+    }
+
     // Store overlay floats above everything.
     #[cfg(feature = "store")]
     if let Some(view) = &browser.store {

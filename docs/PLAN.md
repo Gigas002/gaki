@@ -1768,9 +1768,28 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     and review summary.
   - Help line, `docs/GAKI-TUI.md` ("Store" and the config table) and
     `docs/FEATURES.md`.
-- [ ] **8.4b** TUI store views, store-wide: search, deals, events, and the
-  wishlist with add/remove, as more sections of the Store overlay (or its
-  own view; decide at the start of the step).
+- [x] **8.4b** TUI store views, store-wide: search, deals, events, and the
+  wishlist with add/remove.
+  *Done.*
+  - **The Steam Store overlay.** `J` opens its own overlay (the user's
+    choice; `Y` stays per-game) with four sections: Search, Deals, Events,
+    Wishlist. It needs no selected game. Sections load in the background
+    (`job::Load`) the first time they are shown, priced for the account's
+    country; `r` reloads one. Gated on `store`.
+  - **Search** opens with the prompt ready; `Enter` runs it (25 results),
+    `/` edits it again. **Deals** starts on the discounted top sellers and
+    `s` cycles to top sellers and specials (minimum discount 1%, like the
+    CLI default). **Events** lists the running sales. **Wishlist** shows
+    the first 100 items; one the store has no record for still gets a row.
+  - **Game rows.** `Enter` opens that game's per-game Store overlay on
+    top (keys go to it first; `Esc` comes back), `E` its store page, and
+    `w` adds it to the wishlist, or removes it when it is on the loaded
+    wishlist (always, in the Wishlist section), after a `y`/`n` confirm.
+    One change at a time; the result shows in the overlay and the status
+    bar, and the wishlist reloads the next time it's shown.
+  - The overlay counts in `overlay_open`. Help line, `docs/GAKI-TUI.md`
+    ("Store") and `docs/FEATURES.md`. No Actions-menu row, since the menu
+    is per game.
 - [ ] **8.5** TUI install backlog view: list running and backlog installs,
   including interrupted ones from earlier runs or from `gaki-cli`, and
   resume, resume all, stop and forget them.

@@ -261,11 +261,12 @@ impl Browser {
             || self.store_open()
     }
 
-    /// Whether the Store overlay is open (never, without `store`).
+    /// Whether a Store overlay (`Y` or `J`) is open (never, without
+    /// `store`).
     pub fn store_open(&self) -> bool {
         #[cfg(feature = "store")]
         {
-            self.store.is_some()
+            self.store.is_some() || self.shop.is_some()
         }
         #[cfg(not(feature = "store"))]
         {

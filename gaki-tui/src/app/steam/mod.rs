@@ -1297,6 +1297,69 @@ pub fn store_similar(app_id: i32) -> Result<libgaki::ops::store::Listing, TuiErr
     })
 }
 
+/// Store search results for `term`, priced for the account's country.
+#[cfg(feature = "store")]
+pub fn store_search(term: &str) -> Result<libgaki::ops::store::Listing, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let country = account_country(&client).await;
+        libgaki::ops::store::search(&client, term, 25, &country).await
+    })
+}
+
+/// One of the store's deal lists.
+#[cfg(feature = "store")]
+pub fn store_deals(
+    scope: libgaki::steam_client::DealsScope,
+) -> Result<libgaki::ops::store::Listing, TuiError> {
+    use libgaki::ops::store::{self, DealsQuery};
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let country = account_country(&client).await;
+        let query = DealsQuery {
+            scope,
+            min_discount: 1,
+            start: 0,
+            count: 25,
+        };
+        store::deals(&client, query, &country).await
+    })
+}
+
+/// The store's running sales and events.
+#[cfg(feature = "store")]
+pub fn store_events() -> Result<Vec<libgaki::steam_client::StoreEvent>, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let country = account_country(&client).await;
+        libgaki::ops::store::events(&client, &country).await
+    })
+}
+
+/// The signed-in account's wishlist (its first 100 items), with store
+/// records.
+#[cfg(feature = "store")]
+pub fn store_wishlist() -> Result<libgaki::ops::store::Wishlist, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let country = account_country(&client).await;
+        libgaki::ops::store::wishlist(&client, None, 0, 100, &country).await
+    })
+}
+
+/// Add `app_id` to the wishlist (or remove it). Returns the wishlist's size.
+#[cfg(feature = "store")]
+pub fn store_wishlist_set(app_id: u32, add: bool) -> Result<u32, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        if add {
+            libgaki::ops::store::wishlist_add(&client, app_id).await
+        } else {
+            libgaki::ops::store::wishlist_remove(&client, app_id).await
+        }
+    })
+}
+
 /// A game's launch options, as listed in its app info.
 pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOption>, TuiError> {
     in_process(async {
