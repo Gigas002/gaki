@@ -80,13 +80,22 @@ pub fn global() -> Result<Config> {
 
 /// The value `key` is set to in `config.toml`, as TOML text; `None` when unset.
 pub fn get_global(key: &str) -> Result<Option<String>> {
+    get_value(key, |value| value.to_string().trim().to_owned())
+}
+
+/// Like [`get_global`], but a string comes back as its text, without TOML
+/// quotes: what a user would type for [`set_global`].
+pub fn get_global_text(key: &str) -> Result<Option<String>> {
+    get_value(key, |value| match value.as_str() {
+        Some(text) => text.to_owned(),
+        None => value.to_string().trim().to_owned(),
+    })
+}
+
+fn get_value(key: &str, show: impl Fn(&toml_edit::Value) -> String) -> Result<Option<String>> {
     key_kind(key)?;
     let file = TomlFile::open(&config_toml_path()?)?;
-    Ok(file
-        .doc
-        .get(key)
-        .and_then(|item| item.as_value())
-        .map(|value| value.to_string().trim().to_owned()))
+    Ok(file.doc.get(key).and_then(|item| item.as_value()).map(show))
 }
 
 fn key_kind(key: &str) -> Result<KeyKind> {

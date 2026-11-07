@@ -39,6 +39,7 @@ mod proton;
 #[cfg(feature = "install")]
 mod relocate;
 mod running;
+pub mod settings;
 #[cfg(feature = "store")]
 pub mod shop;
 #[cfg(feature = "store")]
@@ -62,7 +63,7 @@ use ratatui::widgets::ListState;
 
 use crate::app::game::Game;
 use crate::app::game::status::GameStatus;
-use crate::app::steam::{self, Account, LauncherSettings};
+use crate::app::steam::{self, Account};
 
 /// A one-shot result slot a worker thread fills and the UI loop drains.
 type Slot<T> = Arc<Mutex<Option<T>>>;
@@ -95,14 +96,8 @@ pub struct Browser {
     pub account_info: Option<Account>,
     /// Whether the config (settings) overlay is open.
     pub show_config: bool,
-    /// The fetched launcher configuration, shown by the config overlay.
-    pub config_info: Option<LauncherSettings>,
-    /// The fetched network proxy setting, shown
-    /// in the config overlay. Fetched alongside `config_info` when it opens.
-    pub config_proxy: Option<steam::ProxySettings>,
-    /// The inline proxy-URL edit buffer in the config overlay (None = not
-    /// editing; Some = the URL the user is typing, empty to clear).
-    pub config_proxy_input: Option<String>,
+    /// The Settings overlay's keys, prompt and confirm.
+    pub settings: settings::SettingsView,
     /// Whether the Steam Wallet overlay is open.
     pub show_wallet: bool,
     /// The fetched wallet balance, shown by the wallet overlay.
@@ -506,9 +501,7 @@ impl Browser {
             show_account: false,
             account_info: None,
             show_config: false,
-            config_info: None,
-            config_proxy: None,
-            config_proxy_input: None,
+            settings: settings::SettingsView::default(),
             show_wallet: false,
             wallet_info: None,
             expand_description: false,

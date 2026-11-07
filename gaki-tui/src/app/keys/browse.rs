@@ -44,9 +44,8 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             let _ = browser.open_account();
         }
         KeyCode::Char('p') => {
-            // Fetch the launcher configuration (blocking) and
-            // open the settings overlay; ignore failures.
-            let _ = browser.open_config();
+            // Settings: reads config.toml (local only).
+            browser.open_config();
         }
         #[cfg(feature = "inventory")]
         KeyCode::Char('w') => {

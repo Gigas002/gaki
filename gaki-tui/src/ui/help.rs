@@ -152,7 +152,10 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("T", "Proton issues (GitHub)"),
         Entry::Binding("r", "refresh library"),
         Entry::Binding("A", "account"),
-        Entry::Binding("p", "settings"),
+        Entry::Binding(
+            "p",
+            "settings: every config.toml key (Enter edit, x default)",
+        ),
         #[cfg(feature = "social")]
         Entry::Binding("F / 5", "open Friends tab"),
         #[cfg(feature = "social")]

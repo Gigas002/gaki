@@ -80,7 +80,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `J`                   | Steam Store: search, deals, events, your wishlist        |
 | `X`                   | Installs: running installs and the backlog               |
 | `f` / `H`             | Toggle a favourite, hide the game                        |
-| `A` / `p`             | Account (`o` logs out), settings (presence, proxy)       |
+| `A` / `p`             | Account (`o` logs out), settings (see below)             |
 | `r`                   | Refresh the library from Steam                           |
 | `l`                   | Sign in again                                            |
 | `?`                   | Help                                                     |
@@ -119,6 +119,20 @@ Both forgets ask first. A game another gaki process (`gaki-cli`, its
 session daemon, another TUI) is downloading shows as `running elsewhere`,
 and the keys leave it to that process. See `gaki-cli install` in
 [GAKI-CLI.md](GAKI-CLI.md) for the lock behind this.
+
+### Settings
+
+`p` lists every `config.toml` key with its value, or its default in
+brackets when it isn't set. `j` / `k` move; the line under the list says
+what the highlighted key is and what an unset one means. `Enter` edits it:
+a switch flips, a choice steps to the next value (the default profile
+steps through your profiles), and anything else opens a prompt with the
+current value. `x` unsets the key, back to its default. Saving checks the
+value like `gaki-cli config set`, so a bad one is refused with the reason.
+Changing where the session tokens are kept (`secret_store`) asks first. A
+few keys apply later, and the status line says when: the proxy when gaki next
+starts, `daemon_idle_timeout` when the daemon next starts, and the library
+and profile directories after a library reload (`r`).
 
 ### Cloud saves
 

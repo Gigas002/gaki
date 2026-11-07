@@ -1901,6 +1901,25 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,
   `daemon_idle_timeout`, `info_cache_ttl`, `secret_store`, ...), a profiles
   view (`profiles list/show`, the games using each), and `config check`.
+  Split in two:
+  - [x] **8.10a** Every key. *Done.* Settings (`p`) is now a list of all
+    `ops::config::KEYS` (`browser/settings`: one `Spec` per key with its
+    label, its default, how it's edited, when it applies, and an optional
+    confirm; a unit test keeps `SPECS` in step with `KEYS`). `Enter` flips
+    a toggle, steps a choice (`next_value`; optional choices step through
+    unset, `default_profile` through the profiles), or opens a prefilled
+    prompt; `x` unsets. Saves go through `steam::settings_set`: presence
+    via `set_presence` (announced now), proxy and bypass via `update_proxy`
+    (URL checked), the rest via `set_global`, so errors are the CLI's. An
+    unchanged value isn't saved; `secret_store` asks first. Values are read
+    with the new `ops::config::get_global_text` (strings without TOML
+    quotes). The old presence/proxy fields, `LauncherSettings` and
+    `steam::config_show` are gone. Tests: `settings/tests.rs`,
+    `tests/actions_view.rs`, and the offline settings round trip. Help
+    line, `docs/GAKI-TUI.md` ("Settings").
+  - [ ] **8.10b** Settings tabs (`Tab`): Profiles (each profile, its
+    settings, the games using it, its issues) and Check (load errors and
+    issues, errors first).
 - [ ] **8.11** TUI odds and ends that only the CLI has: `drm` check,
   `duplicates`, `available`, saving artwork (`image -o`), user profiles
   (`user`), the extended `info` fields, and daemon management

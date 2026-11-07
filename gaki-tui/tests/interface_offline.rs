@@ -48,16 +48,40 @@ fn logged_out_session_is_reported_not_fetched() {
     proton_default_is_saved();
 }
 
-/// Presence and proxy edits land in the launcher config and read back.
+/// What `key` is set to in `config.toml`.
+fn setting(key: &str) -> Option<String> {
+    steam::settings_values()
+        .unwrap()
+        .into_iter()
+        .find(|(k, _)| *k == key)
+        .expect("a known key")
+        .1
+}
+
+/// Settings edits land in `config.toml` and read back, unquoted; bad values
+/// are refused and leave the file alone.
 fn settings_round_trip() {
+    assert_eq!(setting("presence"), None, "default is unset (offline)");
+    steam::settings_set("presence", Some("online")).unwrap();
+    assert_eq!(setting("presence").as_deref(), Some("online"));
+    steam::settings_set("presence", Some("offline")).unwrap();
+    assert_eq!(setting("presence").as_deref(), Some("offline"));
+    assert!(steam::settings_set("presence", Some("away")).is_err());
+
+    steam::settings_set("cloud_sync", Some("false")).unwrap();
+    assert_eq!(setting("cloud_sync").as_deref(), Some("false"));
+    steam::settings_set("info_cache_ttl", Some("60")).unwrap();
+    assert_eq!(setting("info_cache_ttl").as_deref(), Some("60"));
+    assert!(steam::settings_set("info_cache_ttl", Some("soon")).is_err());
+    assert_eq!(setting("info_cache_ttl").as_deref(), Some("60"));
     assert!(
-        !steam::config_show().unwrap().is_online(),
-        "default is offline"
+        steam::settings_set("default_profile", Some("ghost")).is_err(),
+        "an unknown profile is refused"
     );
-    steam::set_presence(true).unwrap();
-    assert!(steam::config_show().unwrap().is_online());
-    steam::set_presence(false).unwrap();
-    assert!(!steam::config_show().unwrap().is_online());
+    steam::settings_set("cloud_sync", None).unwrap();
+    steam::settings_set("info_cache_ttl", None).unwrap();
+    assert_eq!(setting("cloud_sync"), None);
+    assert_eq!(setting("info_cache_ttl"), None);
 
     assert_eq!(steam::config_proxy_show().unwrap().url, None);
     steam::config_proxy_set("http://127.0.0.1:8080").unwrap();
@@ -126,7 +150,7 @@ fn proton_default_is_saved() {
         .collect();
     assert_eq!(marked, [official]);
     assert_eq!(
-        steam::config_show().unwrap().proton_version.as_deref(),
+        setting("default_proton").as_deref(),
         Some(marked[0].as_str())
     );
 }

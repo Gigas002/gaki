@@ -94,9 +94,9 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
 
     // Settings overlay floats above everything.
     if browser.show_config {
-        let area = ui::centered_rect(55, 60, frame.area());
+        let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
-        frame.render_widget(ui::config::config(browser), area);
+        ui::config::draw(frame, area, &browser.settings);
     }
 
     // Wallet overlay floats above everything.

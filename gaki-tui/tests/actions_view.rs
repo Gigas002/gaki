@@ -4,15 +4,14 @@
 //! they lay out and paint without panicking. State is set through the public
 //! fields directly so the tests never reach Steam.
 
+use gaki_tui::app::browser::settings::{Pending, SPECS, SettingsView};
 use gaki_tui::app::browser::{Action, Browser, Link};
 use gaki_tui::app::game::Game;
 #[cfg(feature = "collections")]
 use gaki_tui::app::steam::Collection;
 #[cfg(feature = "versioning")]
 use gaki_tui::app::steam::{DepotManifestInfo, PinState};
-use gaki_tui::app::steam::{
-    GameSettings, LaunchTarget, LauncherSettings, LibraryGame, ProxySettings,
-};
+use gaki_tui::app::steam::{GameSettings, LaunchTarget, LibraryGame};
 use gaki_tui::ui;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
@@ -422,33 +421,75 @@ fn collection_delete_asks_first() {
     assert!(browser.collections_status.is_empty());
 }
 
+fn settings_screen(view: &SettingsView, width: u16, height: u16) -> String {
+    render(width, height, |f| {
+        ui::config::draw(f, Rect::new(0, 0, width, height), view)
+    })
+}
+
+fn key_index(key: &str) -> usize {
+    SPECS.iter().position(|s| s.key == key).unwrap()
+}
+
+/// Every key is listed; a set key shows its value, an unset one its
+/// default; the footer describes the highlighted key.
 #[test]
-fn settings_overlay_renders_proxy() {
+fn settings_list_every_key_with_values_and_defaults() {
+    let mut values = vec![None; SPECS.len()];
+    values[key_index("proxy")] = Some("http://host:8080".to_string());
+    let mut view = SettingsView::with_values(values);
+    view.selected = key_index("proxy");
+    let text = settings_screen(&view, 110, 26);
+    for spec in SPECS {
+        assert!(text.contains(spec.label), "{} listed: {text}", spec.key);
+    }
+    assert!(text.contains("http://host:8080"), "{text}");
+    assert!(
+        text.contains("(experimental)"),
+        "unset shows default: {text}"
+    );
+    assert!(
+        text.contains("proxy · default: direct connection"),
+        "{text}"
+    );
+    assert!(text.contains("[x] back to the default"), "{text}");
+}
+
+/// The prompt shows the typed text; a confirm shows its question.
+#[test]
+fn settings_prompt_and_confirm_render() {
+    let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
+    view.selected = key_index("proxy");
+    view.input = Some("http://new:1".to_string());
+    let text = settings_screen(&view, 110, 26);
+    assert!(text.contains("http://new:1_"), "{text}");
+    assert!(text.contains("empty unsets it"), "{text}");
+
+    view.input = None;
+    view.confirm = Some(Pending {
+        index: key_index("secret_store"),
+        value: Some("memory".to_string()),
+    });
+    let text = settings_screen(&view, 110, 26);
+    assert!(
+        text.contains("Change where the session tokens are kept?"),
+        "{text}"
+    );
+    assert!(text.contains("[y] yes"), "{text}");
+}
+
+/// The highlight moves within the keys and stays on screen.
+#[test]
+fn settings_highlight_stays_visible() {
     isolate_config();
     let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
-    browser.show_config = true;
-    browser.config_info = Some(LauncherSettings::default());
-    browser.config_proxy = Some(ProxySettings {
-        url: Some("http://host:8080".to_string()),
-        no_proxy: Some("localhost".to_string()),
-    });
-    let text = render(80, 18, |f| {
-        f.render_widget(ui::config::config(&browser), Rect::new(0, 0, 80, 18));
-    });
-    assert!(text.contains("Proxy"), "proxy row renders");
-    assert!(text.contains("http://host:8080"), "proxy url renders");
-    assert!(text.contains("localhost"), "proxy bypass renders");
-
-    // Editing shows the typed URL plus the edit-mode title hint.
-    browser.config_proxy_input = Some("http://new:1".to_string());
-    let text = render(80, 18, |f| {
-        f.render_widget(ui::config::config(&browser), Rect::new(0, 0, 80, 18));
-    });
-    assert!(
-        text.contains("http://new:1"),
-        "typed url shown while editing"
-    );
-    assert!(text.contains("save"), "edit-mode title hint shown");
+    browser.settings = SettingsView::with_values(vec![None; SPECS.len()]);
+    browser.settings_move(100);
+    assert_eq!(browser.settings.selected, SPECS.len() - 1);
+    let text = settings_screen(&browser.settings, 110, 12);
+    assert!(text.contains("Session tokens"), "{text}");
+    browser.settings_move(-100);
+    assert_eq!(browser.settings.selected, 0);
 }
 
 #[test]

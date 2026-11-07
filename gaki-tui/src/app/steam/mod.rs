@@ -48,28 +48,6 @@ impl Account {
     }
 }
 
-/// The launcher configuration: the human-relevant top-level scalars of
-/// `LauncherConfig`. Empty settings are `None`.
-#[derive(Debug, Clone, Default)]
-pub struct LauncherSettings {
-    /// The Steam library path games install into.
-    pub steam_library_path: Option<String>,
-    /// The default Proton/Wine runtime.
-    pub proton_version: Option<String>,
-    /// Friends/chat presence (`"online"` / `"offline"`).
-    pub chat_presence: Option<String>,
-    /// Whether Steam Cloud save sync is enabled.
-    pub enable_cloud_sync: bool,
-}
-
-impl LauncherSettings {
-    /// Whether the configured presence is online. Defaults to `false`
-    /// (offline) when the field is missing or unrecognised.
-    pub fn is_online(&self) -> bool {
-        self.chat_presence.as_deref() == Some("online")
-    }
-}
-
 /// The Steam Wallet balance.
 #[derive(Debug, Clone, Default)]
 pub struct Wallet {
@@ -704,23 +682,37 @@ pub fn account() -> Result<Account, TuiError> {
     })
 }
 
-/// Fetch the launcher configuration.
-pub fn config_show() -> Result<LauncherSettings, TuiError> {
-    use libgaki::core::config::ChatPresence;
-    let config = in_process(libgaki::ops::config::load())?;
-    let text = |s: String| Some(s).filter(|s| !s.is_empty());
-    Ok(LauncherSettings {
-        steam_library_path: text(config.steam_library_path),
-        proton_version: text(config.proton_version),
-        chat_presence: Some(
-            match config.chat_presence {
-                ChatPresence::Online => "online",
-                ChatPresence::Offline => "offline",
-            }
-            .to_string(),
-        ),
-        enable_cloud_sync: config.enable_cloud_sync,
-    })
+/// Every `config.toml` key with the text it is set to (`None` when unset),
+/// in the order `gaki-cli config show` lists them.
+pub fn settings_values() -> Result<Vec<(&'static str, Option<String>)>, TuiError> {
+    libgaki::ops::config::KEYS
+        .iter()
+        .map(|(key, _)| Ok((*key, local(libgaki::ops::config::get_global_text(key))?)))
+        .collect()
+}
+
+/// Set (`Some`) or unset (`None`) a `config.toml` key, validated like
+/// `gaki-cli config set`. Presence is announced right away when signed in,
+/// and a proxy URL is checked before it's saved.
+pub fn settings_set(key: &str, value: Option<&str>) -> Result<(), TuiError> {
+    match (key, value) {
+        ("presence", Some(value)) => match value {
+            "online" => set_presence(true),
+            "offline" => set_presence(false),
+            other => Err(TuiError::Problem(format!(
+                "`presence` takes `online` or `offline`, got `{other}`"
+            ))),
+        },
+        ("proxy", Some(url)) => config_proxy_set(url),
+        ("no_proxy", Some(list)) => config_proxy_set_no_proxy(list),
+        _ => local(libgaki::ops::config::set_global(key, value)).map(drop),
+    }
+}
+
+/// The names of the profiles in the profiles directory, sorted.
+pub fn profile_names() -> Result<Vec<String>, TuiError> {
+    let (_, infos, _) = local(libgaki::ops::config::profiles())?;
+    Ok(infos.into_iter().map(|i| i.profile.name).collect())
 }
 
 /// Set the friends/chat presence, and announce it right away when logged in.
@@ -2544,7 +2536,6 @@ pub fn downgrade(
 }
 
 /// Map a local-store error to the TUI's error type.
-#[cfg(feature = "collections")]
 fn local<T>(result: anyhow::Result<T>) -> Result<T, TuiError> {
     result.map_err(|e| TuiError::Problem(format!("{e:#}")))
 }

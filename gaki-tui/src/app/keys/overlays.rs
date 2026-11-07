@@ -624,33 +624,25 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         return Ok(true);
     }
     if browser.show_config {
-        // Settings overlay. While editing the proxy URL, keys edit
-        // that input; otherwise dismiss / toggle presence / edit or
-        // clear the proxy.
-        if browser.config_proxy_input.is_some() {
+        // Settings overlay: a confirm takes y/n; the prompt takes
+        // text; otherwise j/k move, Enter edits, x unsets.
+        if browser.settings.confirm.is_some() {
+            browser.answer_settings_confirm(matches!(input, KeyCode::Char('y' | 'Y')));
+        } else if browser.settings.input.is_some() {
             match input {
-                KeyCode::Esc => browser.cancel_proxy_edit(),
-                KeyCode::Char('\n') | KeyCode::Enter => browser.commit_proxy_edit(),
-                KeyCode::Backspace => browser.proxy_input_pop(),
-                KeyCode::Char(c) => browser.proxy_input_push(c),
+                KeyCode::Esc => browser.cancel_settings_input(),
+                KeyCode::Char('\n') | KeyCode::Enter => browser.commit_settings_input(),
+                KeyCode::Backspace => browser.settings_input_pop(),
+                KeyCode::Char(c) => browser.settings_input_push(c),
                 _ => {}
             }
         } else {
             match input {
                 KeyCode::Esc | KeyCode::Char('q') => browser.close_config(),
-                KeyCode::Char('o') => {
-                    // Flip whatever the config currently shows
-                    // (default offline when unknown), then re-fetch.
-                    let online = browser
-                        .config_info
-                        .as_ref()
-                        .map(|c| c.is_online())
-                        .unwrap_or(false);
-                    let _ = steam::set_presence(!online);
-                    let _ = browser.open_config();
-                }
-                KeyCode::Char('e') => browser.begin_proxy_edit(),
-                KeyCode::Char('c') => browser.clear_proxy(),
+                KeyCode::Down | KeyCode::Char('j') => browser.settings_move(1),
+                KeyCode::Up | KeyCode::Char('k') => browser.settings_move(-1),
+                KeyCode::Char('\n') | KeyCode::Enter => browser.settings_activate(),
+                KeyCode::Char('x') => browser.settings_unset(),
                 _ => {}
             }
         }
