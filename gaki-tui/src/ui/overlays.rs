@@ -281,6 +281,14 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
         frame.render_widget(ui::friend_add::friend_add_overlay(browser), area);
     }
 
+    // User profile overlay floats above the friends panel.
+    #[cfg(feature = "social")]
+    if let Some(view) = &browser.user_profile {
+        let area = ui::centered_rect(70, 75, frame.area());
+        frame.render_widget(Clear, area);
+        ui::user_profile::draw(frame, area, view);
+    }
+
     // Remove-friend confirmation prompt floats above the friends panel.
     #[cfg(feature = "social")]
     if browser.confirm_friend_remove

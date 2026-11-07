@@ -121,6 +121,14 @@ session daemon, another TUI) is downloading shows as `running elsewhere`,
 and the keys leave it to that process. See `gaki-cli install` in
 [GAKI-CLI.md](GAKI-CLI.md) for the lock behind this.
 
+`Tab` switches to **Duplicates**, which is `gaki-cli duplicates`: each game
+installed in more than one Steam library, the copy gaki keeps (the most
+recently updated), the stale copies with their sizes, and the space deleting
+them would free. Two copies leave two appmanifests disagreeing, which is why
+such a game can report an update on every check. The tab is read-only: gaki
+never deletes a copy, so remove the stale folder yourself. The scan runs the
+first time the tab is shown; `r` scans again.
+
 ### Settings
 
 `p` lists every `config.toml` key with its value, or its default in
@@ -135,7 +143,7 @@ few keys apply later, and the status line says when: the proxy when gaki next
 starts, `daemon_idle_timeout` when the daemon next starts, and the library
 and profile directories after a library reload (`r`).
 
-`Tab` / `Shift-Tab` switch to two more tabs:
+`Tab` / `Shift-Tab` switch to three more tabs:
 
 - **Profiles** lists the profiles, the default one marked. Beside the
   highlighted profile it shows its file, its issues, the games whose
@@ -145,6 +153,12 @@ and profile directories after a library reload (`r`).
 - **Check** runs `gaki-cli config check` each time you open the tab: files
   that didn't load, then errors, then warnings, or "No problems found."
   `r` checks again.
+- **Daemons** lists the running `gaki-cli` session daemons, each with its
+  PID, config directory and socket (`(default)` when it uses the usual
+  one), and the highlighted one's full command. `s` stops the highlighted
+  daemon and `S` stops them all, each after a y/n; this is
+  `gaki-cli daemon stop`. A client starts a fresh daemon the next time it
+  needs one. `r` reads the list again.
 
 ### Cloud saves
 
@@ -258,6 +272,15 @@ expands. The file is saved there under its own name, checked against the
 manifest's SHA-1, and never replaces an existing file. One download runs at a
 time. It keeps going if you close the overlay, and the status bar says when
 it's done. Only regular files download; this is `gaki-cli depots download`.
+
+### User profiles
+
+In the Friends tab, `v` shows the highlighted friend's public profile: the
+fields `gaki-cli user` prints (persona name, SteamID, profile URL, privacy,
+name, location, account age, status and current game, last seen, headline,
+summary and any community ban). `/`, in the Friends tab or the profile
+overlay, looks anyone up by SteamID64, profile URL, a friend's name or `me`.
+`E` opens the profile page in your browser; `j` / `k` scroll.
 
 ### Chat in its own window
 

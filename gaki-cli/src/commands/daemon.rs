@@ -1,6 +1,6 @@
 //! Session daemon and process admin: `daemon stop|list`, `kill`.
 
-use crate::proc_admin;
+use libgaki::ops::daemon as proc_admin;
 
 use crate::commands::common::*;
 
@@ -29,10 +29,7 @@ pub(crate) fn cmd_kill(json: bool) -> Result<()> {
 /// `gaki-cli daemon stop [PID]`: terminate the session daemon(s). With a PID, stop
 /// only that daemon (erroring if it isn't a running gaki-cli daemon).
 pub(crate) fn cmd_daemon_stop(pid: Option<u32>, json: bool) -> Result<()> {
-    let daemons: Vec<_> = proc_admin::find_gaki_processes()
-        .into_iter()
-        .filter(|p| p.is_daemon)
-        .collect();
+    let daemons = proc_admin::daemons();
 
     let targets: Vec<u32> = match pid {
         Some(pid) => {
@@ -57,10 +54,7 @@ pub(crate) fn cmd_daemon_stop(pid: Option<u32>, json: bool) -> Result<()> {
 
 /// `gaki-cli daemon list`: show running gaki-cli daemon(s) and their PIDs.
 pub(crate) fn cmd_daemon_list(json: bool) -> Result<()> {
-    let daemons: Vec<_> = proc_admin::find_gaki_processes()
-        .into_iter()
-        .filter(|p| p.is_daemon)
-        .collect();
+    let daemons = proc_admin::daemons();
 
     if json {
         let arr: Vec<_> = daemons

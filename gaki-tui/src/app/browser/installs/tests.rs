@@ -104,3 +104,50 @@ fn closing_drops_the_view() {
     browser.close_installs();
     assert!(browser.installs.is_none());
 }
+
+fn duplicate(app_id: u32) -> steam::DuplicateRow {
+    steam::DuplicateRow {
+        app_id,
+        name: format!("app {app_id}"),
+        keep: "/a".into(),
+        keep_updated: 0,
+        stale: vec![steam::StaleCopy {
+            path: "/b".into(),
+            last_updated: 0,
+            size: 10,
+        }],
+    }
+}
+
+#[test]
+fn tab_switches_between_the_queue_and_duplicates() {
+    let mut browser = browser_with(vec![row(1, "paused"), row(2, "paused")]);
+    // A finished scan, so switching doesn't start a real one.
+    browser.installs.as_mut().unwrap().duplicates = Some(DuplicatesTab::with(vec![
+        duplicate(1),
+        duplicate(2),
+        duplicate(3),
+    ]));
+    browser.installs_tab();
+    assert_eq!(view(&browser).tab, InstallsTab::Duplicates);
+
+    // j/k move the duplicates highlight, not the queue's.
+    browser.installs_move(10);
+    assert_eq!(view(&browser).duplicates.as_ref().unwrap().selected, 2);
+    assert_eq!(view(&browser).selected, 0);
+
+    browser.installs_tab();
+    assert_eq!(view(&browser).tab, InstallsTab::Queue);
+    assert_eq!(view(&browser).duplicates.as_ref().unwrap().selected, 2);
+}
+
+#[test]
+fn reclaimable_sums_the_stale_copies() {
+    let mut row = duplicate(1);
+    row.stale.push(steam::StaleCopy {
+        path: "/c".into(),
+        last_updated: 0,
+        size: 5,
+    });
+    assert_eq!(row.reclaimable(), 15);
+}

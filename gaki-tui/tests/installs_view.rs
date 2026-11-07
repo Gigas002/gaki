@@ -75,3 +75,50 @@ fn forget_with_files_warns() {
     );
     assert!(screen.contains("[y] yes  [n] no"), "{screen}");
 }
+
+#[test]
+fn the_duplicates_tab_lists_keep_and_stale_copies() {
+    use gaki_tui::app::browser::installs::{DuplicatesTab, InstallsTab};
+    use gaki_tui::app::steam::{DuplicateRow, StaleCopy};
+    let gib = 1024 * 1024 * 1024;
+    let mut view = InstallsView::with_rows(Vec::new());
+    view.tab = InstallsTab::Duplicates;
+    view.duplicates = Some(DuplicatesTab::with(vec![DuplicateRow {
+        app_id: 620,
+        name: "Portal 2".into(),
+        keep: "/games/SteamLibrary/steamapps/common/Portal 2".into(),
+        keep_updated: 1_700_000_000,
+        stale: vec![StaleCopy {
+            path: "/old/steamapps/common/Portal 2".into(),
+            last_updated: 1_600_000_000,
+            size: 12 * gib,
+        }],
+    }]));
+    let screen = render(&view, 130, 16);
+    assert!(screen.contains("[Duplicates (1)]"), "{screen}");
+    assert!(screen.contains("▶ Portal 2"), "{screen}");
+    assert!(
+        screen.contains("keep   /games/SteamLibrary/steamapps/common/Portal 2"),
+        "{screen}"
+    );
+    assert!(
+        screen.contains("stale  /old/steamapps/common/Portal 2"),
+        "{screen}"
+    );
+    assert!(screen.contains("2023-11-14"), "{screen}");
+    assert!(screen.contains("reclaimable"), "{screen}");
+    assert!(screen.contains("gaki never deletes a copy"), "{screen}");
+}
+
+#[test]
+fn the_duplicates_tab_says_when_there_are_none() {
+    use gaki_tui::app::browser::installs::{DuplicatesTab, InstallsTab};
+    let mut view = InstallsView::with_rows(Vec::new());
+    view.tab = InstallsTab::Duplicates;
+    view.duplicates = Some(DuplicatesTab::with(Vec::new()));
+    let screen = render(&view, 100, 10);
+    assert!(
+        screen.contains("No game is installed in more than one Steam library."),
+        "{screen}"
+    );
+}

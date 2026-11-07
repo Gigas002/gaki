@@ -154,6 +154,32 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         return Ok(true);
     }
     #[cfg(feature = "social")]
+    if browser.user_profile.is_some() {
+        // User profile overlay: the lookup prompt takes text; otherwise
+        // `/` looks someone else up, E opens the page, j/k scroll.
+        if browser.profile_input_open() {
+            match input {
+                KeyCode::Esc => browser.cancel_profile_input(),
+                KeyCode::Char('\n') | KeyCode::Enter => browser.commit_profile_input(),
+                KeyCode::Backspace => browser.profile_input_pop(),
+                KeyCode::Char(c) => browser.profile_input_push(c),
+                _ => {}
+            }
+        } else {
+            match input {
+                KeyCode::Esc | KeyCode::Char('q') => browser.close_user_profile(),
+                KeyCode::Char('/') => browser.begin_profile_lookup(),
+                KeyCode::Char('E') => browser.open_profile_page(),
+                KeyCode::Down | KeyCode::Char('j') => browser.profile_scroll(1),
+                KeyCode::Up | KeyCode::Char('k') => browser.profile_scroll(-1),
+                KeyCode::PageDown => browser.profile_scroll(10),
+                KeyCode::PageUp => browser.profile_scroll(-10),
+                _ => {}
+            }
+        }
+        return Ok(true);
+    }
+    #[cfg(feature = "social")]
     if browser.show_friend_add {
         // Add-friend prompt: type the reference, Enter to resolve
         // it via `friends search`, a to send the request via
@@ -185,13 +211,16 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         // Friends panel focused: j/k move the highlight (the whole
         // list scrolls under it), c/Enter open the in-app chat, t
         // pops the chat into a new terminal window, a opens the
-        // add-friend prompt, x removes the highlighted friend
+        // add-friend prompt, v shows the highlighted friend's profile,
+        // / looks a user up, x removes the highlighted friend
         // (confirmed), Esc/F/q unfocus.
         match input {
             KeyCode::Esc | KeyCode::Char('q') | KeyCode::Char('F') => browser.unfocus_friends(),
             KeyCode::Enter | KeyCode::Char('c') => browser.open_chat(),
             KeyCode::Char('t') => browser.open_chat_terminal(),
             KeyCode::Char('a') => browser.open_friend_add(),
+            KeyCode::Char('v') => browser.open_friend_profile(),
+            KeyCode::Char('/') => browser.open_profile_lookup(),
             KeyCode::Char('x') => {
                 if browser.selected_friend().is_some() {
                     browser.confirm_friend_remove = true;
@@ -500,8 +529,26 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             return Ok(true);
         }
+        let duplicates = browser
+            .installs
+            .as_ref()
+            .is_some_and(|v| v.tab == crate::app::browser::installs::InstallsTab::Duplicates);
+        if duplicates {
+            match input {
+                KeyCode::Esc | KeyCode::Char('q') => browser.close_installs(),
+                KeyCode::Tab | KeyCode::BackTab => browser.installs_tab(),
+                KeyCode::Down | KeyCode::Char('j') => browser.installs_move(1),
+                KeyCode::Up | KeyCode::Char('k') => browser.installs_move(-1),
+                KeyCode::PageDown => browser.installs_move(10),
+                KeyCode::PageUp => browser.installs_move(-10),
+                KeyCode::Char('r') => browser.rescan_duplicates(),
+                _ => {}
+            }
+            return Ok(true);
+        }
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_installs(),
+            KeyCode::Tab | KeyCode::BackTab => browser.installs_tab(),
             KeyCode::Down | KeyCode::Char('j') => browser.installs_move(1),
             KeyCode::Up | KeyCode::Char('k') => browser.installs_move(-1),
             KeyCode::PageDown => browser.installs_move(10),
@@ -632,6 +679,8 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         // text; otherwise j/k move, Enter edits, x unsets.
         if browser.settings.confirm.is_some() {
             browser.answer_settings_confirm(matches!(input, KeyCode::Char('y' | 'Y')));
+        } else if browser.daemon_confirm_open() {
+            browser.answer_daemon_stop(matches!(input, KeyCode::Char('y' | 'Y')));
         } else if browser.settings.input.is_some() {
             match input {
                 KeyCode::Esc => browser.cancel_settings_input(),
@@ -662,6 +711,11 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 (Tab::Check, KeyCode::PageDown) => browser.settings_scroll(10),
                 (Tab::Check, KeyCode::PageUp) => browser.settings_scroll(-10),
                 (Tab::Check, KeyCode::Char('r')) => browser.rerun_check(),
+                (Tab::Daemons, KeyCode::Down | KeyCode::Char('j')) => browser.daemons_move(1),
+                (Tab::Daemons, KeyCode::Up | KeyCode::Char('k')) => browser.daemons_move(-1),
+                (Tab::Daemons, KeyCode::Char('s')) => browser.begin_daemon_stop(false),
+                (Tab::Daemons, KeyCode::Char('S')) => browser.begin_daemon_stop(true),
+                (Tab::Daemons, KeyCode::Char('r')) => browser.reload_daemons(),
                 _ => {}
             }
         }

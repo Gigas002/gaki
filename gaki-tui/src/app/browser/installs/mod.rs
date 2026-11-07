@@ -3,6 +3,11 @@
 //! pause, stop, and forget (optionally deleting the partial files). An
 //! install another gaki process runs shows as "running elsewhere" and is
 //! left to that process.
+//!
+//! A second tab (`Tab`) lists games installed in more than one Steam
+//! library (`gaki-cli duplicates`): the copy kept, the stale ones with their
+//! sizes, and the space deleting them would free. It is read-only; which
+//! copy to delete is left to the user.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -10,6 +15,7 @@ use std::time::{Duration, Instant};
 use libgaki::ops::install::{InstallRow, RUNNING_ELSEWHERE, Signalled};
 
 use super::Browser;
+use crate::app::browser::job::Load;
 use crate::app::client::Client;
 use crate::app::steam;
 use crate::utils::error::TuiError;
@@ -36,6 +42,52 @@ pub fn row_kind(row: &InstallRow) -> RowKind {
     }
 }
 
+/// The overlay's tabs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum InstallsTab {
+    #[default]
+    Queue,
+    Duplicates,
+}
+
+impl InstallsTab {
+    pub const ALL: [InstallsTab; 2] = [InstallsTab::Queue, InstallsTab::Duplicates];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            InstallsTab::Queue => "Installs",
+            InstallsTab::Duplicates => "Duplicates",
+        }
+    }
+}
+
+/// The Duplicates tab: the scan runs on a thread the first time it's shown.
+pub struct DuplicatesTab {
+    pub scan: Load<Vec<steam::DuplicateRow>>,
+    pub selected: usize,
+}
+
+impl DuplicatesTab {
+    /// A tab over `rows`, without scanning (tests, previews).
+    pub fn with(rows: Vec<steam::DuplicateRow>) -> Self {
+        Self {
+            scan: Load::Ready(rows),
+            selected: 0,
+        }
+    }
+
+    fn start() -> Self {
+        Self {
+            scan: Load::start(steam::duplicates),
+            selected: 0,
+        }
+    }
+
+    pub fn rows(&self) -> &[steam::DuplicateRow] {
+        self.scan.ready().map(Vec::as_slice).unwrap_or_default()
+    }
+}
+
 /// A forget waiting for its y/n.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForgetConfirm {
@@ -51,6 +103,8 @@ pub struct InstallsView {
     pub confirm: Option<ForgetConfirm>,
     /// A one-line message (an action's result).
     pub status: String,
+    pub tab: InstallsTab,
+    pub duplicates: Option<DuplicatesTab>,
     refreshed: Instant,
 }
 
@@ -62,18 +116,14 @@ impl InstallsView {
             selected: 0,
             confirm: None,
             status: String::new(),
+            tab: InstallsTab::Queue,
+            duplicates: None,
             refreshed: Instant::now(),
         }
     }
 
     fn load() -> Self {
-        let mut view = Self {
-            rows: Ok(Vec::new()),
-            selected: 0,
-            confirm: None,
-            status: String::new(),
-            refreshed: Instant::now(),
-        };
+        let mut view = Self::with_rows(Vec::new());
         view.refresh();
         view
     }
@@ -122,7 +172,45 @@ impl Browser {
         self.installs = None;
     }
 
+    /// Switch between the queue and the Duplicates tab. The scan runs the
+    /// first time Duplicates is shown; `r` there rescans.
+    pub fn installs_tab(&mut self) {
+        if let Some(view) = &mut self.installs {
+            view.tab = match view.tab {
+                InstallsTab::Queue => InstallsTab::Duplicates,
+                InstallsTab::Duplicates => InstallsTab::Queue,
+            };
+            if view.tab == InstallsTab::Duplicates && view.duplicates.is_none() {
+                view.duplicates = Some(DuplicatesTab::start());
+            }
+        }
+    }
+
+    /// `r` in the Duplicates tab: scan again.
+    pub fn rescan_duplicates(&mut self) {
+        if let Some(view) = &mut self.installs
+            && !view
+                .duplicates
+                .as_ref()
+                .is_some_and(|d| d.scan.is_loading())
+        {
+            view.duplicates = Some(DuplicatesTab::start());
+        }
+    }
+
     pub fn installs_move(&mut self, delta: isize) {
+        if let Some(view) = &mut self.installs
+            && view.tab == InstallsTab::Duplicates
+        {
+            if let Some(tab) = &mut view.duplicates {
+                let len = tab.rows().len();
+                tab.selected = tab
+                    .selected
+                    .saturating_add_signed(delta)
+                    .min(len.saturating_sub(1));
+            }
+            return;
+        }
         if let Some(view) = &mut self.installs {
             let len = view.rows.as_ref().map_or(0, Vec::len);
             view.selected = view
@@ -294,10 +382,13 @@ impl Browser {
     /// Re-read the list once a second while the overlay is open, for live
     /// progress and for installs other processes start or finish.
     pub fn poll_installs(&mut self) {
-        if let Some(view) = &mut self.installs
-            && view.refreshed.elapsed() >= REFRESH
-        {
-            view.refresh();
+        if let Some(view) = &mut self.installs {
+            if let Some(tab) = &mut view.duplicates {
+                tab.scan.poll();
+            }
+            if view.refreshed.elapsed() >= REFRESH {
+                view.refresh();
+            }
         }
     }
 }

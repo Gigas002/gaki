@@ -569,7 +569,8 @@ fn settings_check_tab_renders() {
     assert!(text.contains("[r] check again"), "{text}");
 }
 
-/// Tab and Shift-Tab cycle the tabs; the check runs when its tab is shown.
+/// Tab and Shift-Tab cycle the tabs; the check runs and the daemons are
+/// listed when their tabs are shown.
 #[test]
 fn settings_tabs_cycle() {
     use gaki_tui::app::browser::settings::Tab;
@@ -583,9 +584,12 @@ fn settings_tabs_cycle() {
     assert_eq!(browser.settings.tab, Tab::Check);
     assert!(browser.settings.check.is_some(), "check ran");
     browser.settings_tab(true);
+    assert_eq!(browser.settings.tab, Tab::Daemons);
+    assert!(browser.settings.daemons.is_some(), "daemons listed");
+    browser.settings_tab(true);
     assert_eq!(browser.settings.tab, Tab::Settings);
     browser.settings_tab(false);
-    assert_eq!(browser.settings.tab, Tab::Check);
+    assert_eq!(browser.settings.tab, Tab::Daemons);
 }
 
 #[test]
@@ -621,5 +625,57 @@ fn every_game_links_to_steam_protondb_steamdb_and_the_proton_tracker() {
     assert_eq!(
         Link::SteamDbDepot.url(945361),
         "https://steamdb.info/depot/945361/manifests/"
+    );
+}
+
+fn daemon(pid: u32, config_dir: Option<&str>) -> libgaki::ops::daemon::GakiProcess {
+    libgaki::ops::daemon::GakiProcess {
+        pid,
+        is_daemon: true,
+        command: format!("gaki-cli --config-dir {} daemon", config_dir.unwrap_or("-")),
+        config_dir: config_dir.map(str::to_string),
+        socket: None,
+    }
+}
+
+#[test]
+fn settings_daemons_tab_lists_and_confirms() {
+    use gaki_tui::app::browser::settings::{DaemonsTab, StopConfirm, Tab};
+    let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
+    view.tab = Tab::Daemons;
+    view.daemons = Some(DaemonsTab::with(vec![
+        daemon(4242, None),
+        daemon(4300, Some("/home/me/.config/gaki-test")),
+    ]));
+    let screen = settings_screen(&view, 120, 24);
+    assert!(screen.contains(" Daemons "), "{screen}");
+    assert!(screen.contains("▶ 4242"), "{screen}");
+    assert!(screen.contains("/home/me/.config/gaki-test"), "{screen}");
+    assert!(screen.contains("(default)"), "{screen}");
+    assert!(
+        screen.contains("gaki-cli --config-dir - daemon"),
+        "{screen}"
+    );
+    assert!(screen.contains("[S] stop all"), "{screen}");
+
+    view.daemons.as_mut().unwrap().confirm = Some(StopConfirm {
+        pids: vec![4242, 4300],
+        all: true,
+    });
+    let screen = settings_screen(&view, 120, 24);
+    assert!(screen.contains("Stop all 2 daemons?"), "{screen}");
+    assert!(screen.contains("[y] yes"), "{screen}");
+}
+
+#[test]
+fn settings_daemons_tab_says_when_none_run() {
+    use gaki_tui::app::browser::settings::{DaemonsTab, Tab};
+    let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
+    view.tab = Tab::Daemons;
+    view.daemons = Some(DaemonsTab::with(Vec::new()));
+    let screen = settings_screen(&view, 100, 20);
+    assert!(
+        screen.contains("No gaki-cli daemon is running."),
+        "{screen}"
     );
 }

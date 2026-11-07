@@ -117,14 +117,13 @@ fn daemon_needs_restart(info: Option<&super::DaemonInfo>, current: &str) -> bool
 /// since we can't otherwise identify which process owns the socket.
 fn restart_daemon(pid: Option<u32>) {
     let killed = match pid {
-        Some(pid) => crate::proc_admin::kill_pids(&[pid]),
+        Some(pid) => libgaki::ops::daemon::kill_pids(&[pid]),
         None => {
-            let daemons: Vec<u32> = crate::proc_admin::find_gaki_processes()
+            let daemons: Vec<u32> = libgaki::ops::daemon::daemons()
                 .into_iter()
-                .filter(|p| p.is_daemon)
                 .map(|p| p.pid)
                 .collect();
-            crate::proc_admin::kill_pids(&daemons)
+            libgaki::ops::daemon::kill_pids(&daemons)
         }
     };
     tracing::info!("stopped {killed} stale gaki-cli daemon(s)");

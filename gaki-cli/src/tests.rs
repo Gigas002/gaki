@@ -178,3 +178,45 @@ fn config_dir_is_found_before_parsing() {
     );
     assert_eq!(config_dir_arg(args(&["play", "1"])), None);
 }
+
+/// libgaki's argv rule for spotting the session daemon agrees with this
+/// CLI's own parse of the same command lines.
+#[cfg(feature = "authentication")]
+#[test]
+fn the_daemon_argv_rule_matches_clap() {
+    use clap::Parser;
+    let lines: &[&[&str]] = &[
+        &["gaki-cli", "daemon"],
+        &[
+            "gaki-cli",
+            "--config-dir",
+            "/c",
+            "--socket",
+            "/tmp/x",
+            "daemon",
+        ],
+        &["gaki-cli", "daemon", "--socket", "/tmp/x"],
+        &["gaki-cli", "--log=debug", "-vv", "daemon"],
+        &["gaki-cli", "-j", "daemon"],
+        &["gaki-cli", "daemon", "stop"],
+        &["gaki-cli", "daemon", "stop", "42"],
+        &["gaki-cli", "daemon", "list"],
+        &["gaki-cli", "list"],
+        &["gaki-cli", "--config-dir", "daemon", "list"],
+    ];
+    for line in lines {
+        let argv: Vec<String> = line.iter().map(|a| a.to_string()).collect();
+        let clap_says = matches!(
+            cli::Cli::try_parse_from(&argv),
+            Ok(cli::Cli {
+                command: cli::Command::Daemon { command: None },
+                ..
+            })
+        );
+        assert_eq!(
+            libgaki::ops::daemon::is_daemon_command(&argv),
+            clap_says,
+            "{line:?}"
+        );
+    }
+}

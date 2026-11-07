@@ -116,7 +116,10 @@ impl Library {
         // Adopt any async friend-management results (resolved search previews and
         // roster refreshes after an add/remove) before drawing this frame.
         #[cfg(feature = "social")]
-        browser.poll_friends_ops();
+        {
+            browser.poll_friends_ops();
+            browser.poll_user_profile();
+        }
 
         // Drain any finished off-thread Workshop browse/search/subscribe worker
         // before rendering, so its result lands on the next frame. Runs on every

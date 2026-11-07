@@ -1,5 +1,6 @@
 //! The Installs overlay (`X`): running installs with their progress, then
-//! the backlog, and a footer with the forget confirm or the key hints.
+//! the backlog, and a footer with the forget confirm or the key hints. Its
+//! Duplicates tab lists games installed in more than one library.
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -8,27 +9,52 @@ use ratatui::widgets::ListItem;
 
 use libgaki::ops::install::InstallRow;
 
-use crate::app::browser::installs::{InstallsView, RowKind, row_kind};
+use crate::app::browser::installs::{DuplicatesTab, InstallsTab, InstallsView, RowKind, row_kind};
+use crate::app::browser::job::Load;
+use crate::app::steam::DuplicateRow;
 use crate::ui::depots::draw_list;
 use crate::ui::theme;
-use crate::ui::{empty_list_rows, selection_marker};
+use crate::ui::{date_time, empty_list_rows, selection_marker};
 use crate::utils::bytes::convert;
+
+/// `Installs · [Queue] Duplicates`, the shown tab bracketed, with a count.
+fn title(view: &InstallsView, count: Option<usize>) -> String {
+    let mut title = String::new();
+    for tab in InstallsTab::ALL {
+        if !title.is_empty() {
+            title.push_str(" · ");
+        }
+        if tab == view.tab {
+            match count {
+                Some(n) => title.push_str(&format!("[{} ({n})]", tab.label())),
+                None => title.push_str(&format!("[{}]", tab.label())),
+            }
+        } else {
+            title.push_str(tab.label());
+        }
+    }
+    title
+}
 
 /// Draw the overlay into `area`.
 pub fn draw(frame: &mut Frame, area: Rect, view: &InstallsView) {
+    if view.tab == InstallsTab::Duplicates {
+        draw_duplicates(frame, area, view);
+        return;
+    }
     let (title, items, selected) = match &view.rows {
         Err(e) => (
-            "Installs".to_string(),
+            title(view, None),
             empty_list_rows(format!("Couldn't read the install backlog: {e}")),
             None,
         ),
         Ok(rows) if rows.is_empty() => (
-            "Installs (0)".to_string(),
+            title(view, Some(0)),
             empty_list_rows("Nothing running, and the backlog is empty."),
             None,
         ),
         Ok(rows) => (
-            format!("Installs ({})", rows.len()),
+            title(view, Some(rows.len())),
             rows.iter()
                 .enumerate()
                 .map(|(i, r)| row(r, i == view.selected))
@@ -108,7 +134,97 @@ fn footer(view: &InstallsView) -> Vec<Line<'static>> {
         )));
     }
     lines.push(dim(
-        "[r/Enter] resume  [R] resume all  [p] pause  [s] stop  [f] forget  [F] forget + delete files  [Esc] close",
+        "[r/Enter] resume  [R] resume all  [p] pause  [s] stop  [f] forget  [F] forget + delete files  [Tab] duplicates  [Esc] close",
     ));
     lines
+}
+
+fn duplicate_row(row: &DuplicateRow, selected: bool) -> ListItem<'static> {
+    let style = if selected {
+        theme::selection(theme::ACCENT)
+    } else {
+        theme::value()
+    };
+    let mut lines = vec![Line::from(vec![
+        Span::styled(selection_marker(selected).to_string(), style),
+        Span::styled(row.name.clone(), style),
+        Span::styled(format!("  {}", row.app_id), theme::dim()),
+        Span::styled(
+            format!("  {} reclaimable", convert(row.reclaimable() as f64)),
+            theme::accent(),
+        ),
+    ])];
+    lines.push(Line::from(vec![
+        Span::styled("    keep   ".to_string(), theme::value().fg(theme::ONLINE)),
+        Span::styled(row.keep.display().to_string(), theme::value()),
+        Span::styled(
+            format!("  updated {}", date_time(row.keep_updated)),
+            theme::dim(),
+        ),
+    ]));
+    for stale in &row.stale {
+        lines.push(Line::from(vec![
+            Span::styled("    stale  ".to_string(), theme::value().fg(theme::WARN)),
+            Span::styled(stale.path.display().to_string(), theme::value()),
+            Span::styled(
+                format!(
+                    "  {}  updated {}",
+                    convert(stale.size as f64),
+                    date_time(stale.last_updated)
+                ),
+                theme::dim(),
+            ),
+        ]));
+    }
+    ListItem::new(lines)
+}
+
+fn draw_duplicates(frame: &mut Frame, area: Rect, view: &InstallsView) {
+    let tab: Option<&DuplicatesTab> = view.duplicates.as_ref();
+    let hint = dim("[j/k] move  [r] scan again  [Tab] installs  [Esc] close");
+    let (count, items, selected, mut footer) = match tab.map(|t| &t.scan) {
+        None | Some(Load::Loading(_)) => (
+            None,
+            empty_list_rows("Scanning the Steam libraries…"),
+            None,
+            Vec::new(),
+        ),
+        Some(Load::Failed(e)) => (
+            None,
+            empty_list_rows(format!("Couldn't scan the Steam libraries: {e}")),
+            None,
+            Vec::new(),
+        ),
+        Some(Load::Ready(rows)) if rows.is_empty() => (
+            Some(0),
+            empty_list_rows("No game is installed in more than one Steam library."),
+            None,
+            Vec::new(),
+        ),
+        Some(Load::Ready(rows)) => {
+            let selected = tab.map_or(0, |t| t.selected);
+            let total: u64 = rows.iter().map(DuplicateRow::reclaimable).sum();
+            (
+                Some(rows.len()),
+                rows.iter()
+                    .enumerate()
+                    .map(|(i, r)| duplicate_row(r, i == selected))
+                    .collect(),
+                Some(selected),
+                vec![
+                    Line::from(Span::styled(
+                        format!(
+                            "{} reclaimable. Two copies leave two manifests disagreeing, \
+                             so the game can report an update on every check.",
+                            convert(total as f64)
+                        ),
+                        theme::value().fg(theme::WARN),
+                    )),
+                    dim("gaki never deletes a copy: remove the stale folder yourself."),
+                ],
+            )
+        }
+    };
+    footer.push(hint);
+    draw_list(frame, area, title(view, count), items, selected, footer);
 }

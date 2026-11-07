@@ -780,6 +780,69 @@ pub fn config_check() -> Result<Vec<CheckFinding>, TuiError> {
     Ok(findings)
 }
 
+/// The running `gaki-cli` session daemons (read from the process table).
+pub fn daemons() -> Vec<libgaki::ops::daemon::GakiProcess> {
+    libgaki::ops::daemon::daemons()
+}
+
+/// Stop the daemons `pids` the way `gaki-cli daemon stop` does; returns how
+/// many were signalled.
+pub fn stop_daemons(pids: &[u32]) -> usize {
+    libgaki::ops::daemon::kill_pids(pids)
+}
+
+/// A copy of a game that another library's copy supersedes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StaleCopy {
+    pub path: std::path::PathBuf,
+    pub last_updated: u64,
+    /// Bytes on disk.
+    pub size: u64,
+}
+
+/// A game installed in more than one Steam library: the copy gaki uses and
+/// the ones that can go (`gaki-cli duplicates`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DuplicateRow {
+    pub app_id: u32,
+    pub name: String,
+    pub keep: std::path::PathBuf,
+    pub keep_updated: u64,
+    pub stale: Vec<StaleCopy>,
+}
+
+impl DuplicateRow {
+    /// What deleting the stale copies would free.
+    pub fn reclaimable(&self) -> u64 {
+        self.stale.iter().map(|s| s.size).sum()
+    }
+}
+
+/// Every game installed in more than one library, with the stale copies'
+/// sizes. Reads only local files, but walks whole game folders.
+pub fn duplicates() -> Result<Vec<DuplicateRow>, TuiError> {
+    use libgaki::library::relocate::dir_size;
+    let found = in_process(libgaki::library::find_duplicate_installs())?;
+    Ok(found
+        .into_iter()
+        .map(|d| DuplicateRow {
+            app_id: d.app_id,
+            name: d.name.unwrap_or_else(|| format!("app {}", d.app_id)),
+            keep: d.live.install_path,
+            keep_updated: d.live.last_updated,
+            stale: d
+                .stale
+                .into_iter()
+                .map(|s| StaleCopy {
+                    size: dir_size(&s.install_path),
+                    path: s.install_path,
+                    last_updated: s.last_updated,
+                })
+                .collect(),
+        })
+        .collect())
+}
+
 /// The names of the profiles in the profiles directory, sorted.
 pub fn profile_names() -> Result<Vec<String>, TuiError> {
     let (_, infos, _) = local(libgaki::ops::config::profiles())?;
@@ -1338,6 +1401,17 @@ pub fn friends_search(query: &str) -> Result<FriendLookup, TuiError> {
             persona_name: profile.persona_name,
             profile_url: Some(profile.profile_url).filter(|u| !u.is_empty()),
         })
+    })
+}
+
+/// The public profile of the user `query` resolves to (a SteamID64, a
+/// profile URL, a friend's name or `me`), as `gaki-cli user` shows it.
+#[cfg(feature = "social")]
+pub fn user_profile(query: &str) -> Result<libgaki::steam_client::UserProfile, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let steam_id = libgaki::ops::session::resolve_user_ident(&client, query, None).await?;
+        libgaki::ops::social::profile(&client, steam_id).await
     })
 }
 

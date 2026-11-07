@@ -6,7 +6,6 @@
 
 use crate::utils::bytes::convert;
 
-use libgaki::steam_client::unix_to_ymd;
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
@@ -14,19 +13,7 @@ use ratatui::widgets::{Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::browser::Browser;
 use crate::app::steam::CloudResolve;
-use crate::ui::theme;
-
-/// `secs` as `YYYY-MM-DD HH:MM` (UTC).
-pub(crate) fn date_time(secs: u64) -> String {
-    let secs = secs as i64;
-    let day = secs.rem_euclid(86_400);
-    format!(
-        "{} {:02}:{:02}",
-        unix_to_ymd(secs),
-        day / 3600,
-        (day % 3600) / 60
-    )
-}
+use crate::ui::{date_time, theme};
 
 /// The lines above the file table: the status, then the conflicts with the
 /// resolve confirm or its keys. Wrapped, so long messages stay whole.

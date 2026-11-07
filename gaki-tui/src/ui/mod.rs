@@ -59,6 +59,8 @@ pub mod status;
 pub mod store;
 pub mod tabs;
 pub mod theme;
+#[cfg(feature = "social")]
+pub mod user_profile;
 #[cfg(feature = "versioning")]
 pub mod versions;
 #[cfg(feature = "inventory")]
@@ -198,4 +200,17 @@ pub fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(vertical[1])[1]
+}
+
+/// `secs` as `YYYY-MM-DD HH:MM` (UTC).
+#[cfg(any(feature = "cloud", feature = "install"))]
+pub(crate) fn date_time(secs: u64) -> String {
+    let secs = secs as i64;
+    let day = secs.rem_euclid(86_400);
+    format!(
+        "{} {:02}:{:02}",
+        libgaki::steam_client::unix_to_ymd(secs),
+        day / 3600,
+        (day % 3600) / 60
+    )
 }

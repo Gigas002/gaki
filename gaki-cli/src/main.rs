@@ -7,8 +7,6 @@ use clap::Parser;
 mod output;
 #[cfg(feature = "authentication")]
 mod daemon;
-#[cfg(feature = "authentication")]
-mod proc_admin;
 
 mod cli;
 use crate::cli::*;

@@ -158,7 +158,7 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("A", "account"),
         Entry::Binding(
             "p",
-            "settings (Tab: keys, profiles, config check; Enter edit, x default)",
+            "settings (Tab: keys, profiles, config check, daemons; Enter edit, x default)",
         ),
         #[cfg(feature = "social")]
         Entry::Binding("F / 5", "open Friends tab"),
@@ -168,6 +168,10 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("t", "chat in new window"),
         #[cfg(feature = "social")]
         Entry::Binding("a", "add friend (Friends)"),
+        #[cfg(feature = "social")]
+        Entry::Binding("v", "friend's profile (Friends)"),
+        #[cfg(feature = "social")]
+        Entry::Binding("/", "look up a user (Friends)"),
         #[cfg(feature = "social")]
         Entry::Binding("x", "remove friend (Friends)"),
         Entry::Binding("A then o", "log out"),

@@ -339,3 +339,46 @@ fn chat_overflow_keeps_newest() {
     assert!(!joined.contains("msg0"), "oldest dropped");
     print_shot("Chat (overflow keeps newest)", &rows);
 }
+
+#[test]
+fn the_profile_overlay_shows_the_user_fields() {
+    use gaki_tui::app::browser::user_profile::ProfileView;
+    use libgaki::steam_client::UserProfile;
+    let view = ProfileView::with_profile(UserProfile {
+        steam_id: 76561197960287930,
+        persona_name: Some("Rabscuttle".into()),
+        profile_url: "https://steamcommunity.com/id/rabscuttle/".into(),
+        visibility: 3,
+        real_name: Some("Robin".into()),
+        location: Some("Bellevue, WA".into()),
+        created: Some(1_000_000_000),
+        persona_state: Some(1),
+        game_name: Some("Half-Life".into()),
+        summary: Some("Hello<br>there".into()),
+        ..UserProfile::default()
+    });
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 24)).unwrap();
+    terminal
+        .draw(|frame| gaki_tui::ui::user_profile::draw(frame, frame.area(), &view))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    let screen: String = (0..24)
+        .map(|y| {
+            (0..100)
+                .map(|x| buffer.cell((x, y)).unwrap().symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(screen.contains("Profile · Rabscuttle"), "{screen}");
+    assert!(screen.contains("(76561197960287930)"), "{screen}");
+    assert!(
+        screen.contains("https://steamcommunity.com/id/rabscuttle/"),
+        "{screen}"
+    );
+    assert!(screen.contains("Bellevue, WA"), "{screen}");
+    assert!(screen.contains("2001-09-09"), "{screen}");
+    assert!(screen.contains("Half-Life"), "{screen}");
+    assert!(screen.contains("Hello"), "{screen}");
+    assert!(screen.contains("[E] profile page"), "{screen}");
+}

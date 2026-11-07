@@ -1,4 +1,4 @@
-//! The Settings overlay (`p`), in three tabs (`Tab` switches):
+//! The Settings overlay (`p`), in four tabs (`Tab` switches):
 //!
 //! * Settings: every `config.toml` key, each with its value or its default.
 //!   `Enter` flips a switch, cycles a choice or opens a prompt; `x` unsets a
@@ -7,6 +7,10 @@
 //! * Profiles: each profile with its settings, its file, the games using it
 //!   and its issues; `d` makes it the default.
 //! * Check: `gaki-cli config check`, run when the tab is shown; `r` re-runs.
+//! * Daemons: the running `gaki-cli` session daemons; `s` stops the
+//!   highlighted one and `S` all of them, each after a y/n.
+
+use libgaki::ops::daemon::GakiProcess;
 
 use super::Browser;
 use crate::app::steam;
@@ -235,16 +239,18 @@ pub enum Tab {
     Settings,
     Profiles,
     Check,
+    Daemons,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 3] = [Tab::Settings, Tab::Profiles, Tab::Check];
+    pub const ALL: [Tab; 4] = [Tab::Settings, Tab::Profiles, Tab::Check, Tab::Daemons];
 
     pub fn label(self) -> &'static str {
         match self {
             Tab::Settings => "Settings",
             Tab::Profiles => "Profiles",
             Tab::Check => "Check",
+            Tab::Daemons => "Daemons",
         }
     }
 
@@ -313,6 +319,50 @@ impl CheckTab {
     }
 }
 
+/// A daemon stop waiting for its y/n.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StopConfirm {
+    pub pids: Vec<u32>,
+    /// `S`: every listed daemon.
+    pub all: bool,
+}
+
+/// The Daemons tab.
+#[derive(Debug, Clone, Default)]
+pub struct DaemonsTab {
+    pub rows: Vec<GakiProcess>,
+    pub selected: usize,
+    pub confirm: Option<StopConfirm>,
+}
+
+impl DaemonsTab {
+    pub fn with(rows: Vec<GakiProcess>) -> Self {
+        Self {
+            rows,
+            ..Self::default()
+        }
+    }
+
+    fn load() -> Self {
+        Self::with(steam::daemons())
+    }
+
+    pub fn selected_row(&self) -> Option<&GakiProcess> {
+        self.rows.get(self.selected)
+    }
+
+    /// Re-read the list, keeping the highlight on the same PID if it's
+    /// still running.
+    fn reload(&mut self) {
+        let keep = self.selected_row().map(|p| p.pid);
+        self.rows = steam::daemons();
+        self.selected = keep
+            .and_then(|pid| self.rows.iter().position(|p| p.pid == pid))
+            .unwrap_or(0)
+            .min(self.rows.len().saturating_sub(1));
+    }
+}
+
 /// A change waiting for its y/n.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pending {
@@ -339,6 +389,8 @@ pub struct SettingsView {
     pub profiles_tab: Option<ProfilesTab>,
     /// Run each time the Check tab is shown.
     pub check: Option<CheckTab>,
+    /// Read each time the Daemons tab is shown.
+    pub daemons: Option<DaemonsTab>,
 }
 
 impl SettingsView {
@@ -442,6 +494,7 @@ impl Browser {
                 view.profiles_tab = Some(ProfilesTab::load());
             }
             Tab::Check => view.check = Some(CheckTab::run()),
+            Tab::Daemons => view.daemons = Some(DaemonsTab::load()),
             _ => {}
         }
     }
@@ -464,7 +517,7 @@ impl Browser {
         let scroll = match view.tab {
             Tab::Profiles => view.profiles_tab.as_mut().map(|t| &mut t.scroll),
             Tab::Check => view.check.as_mut().map(|t| &mut t.scroll),
-            Tab::Settings => None,
+            Tab::Settings | Tab::Daemons => None,
         };
         if let Some(scroll) = scroll {
             *scroll = scroll.saturating_add_signed(delta);
@@ -474,6 +527,70 @@ impl Browser {
     /// `r` in the Check tab: check again.
     pub fn rerun_check(&mut self) {
         self.settings.check = Some(CheckTab::run());
+    }
+
+    /// `j`/`k` in the Daemons tab.
+    pub fn daemons_move(&mut self, delta: isize) {
+        if let Some(tab) = &mut self.settings.daemons {
+            tab.selected = tab
+                .selected
+                .saturating_add_signed(delta)
+                .min(tab.rows.len().saturating_sub(1));
+        }
+    }
+
+    /// `r` in the Daemons tab: read the list again.
+    pub fn reload_daemons(&mut self) {
+        if let Some(tab) = &mut self.settings.daemons {
+            tab.reload();
+        }
+    }
+
+    /// Ask to stop the highlighted daemon (`s`) or every one listed (`S`).
+    pub fn begin_daemon_stop(&mut self, all: bool) {
+        let view = &mut self.settings;
+        let Some(tab) = &mut view.daemons else {
+            return;
+        };
+        let pids: Vec<u32> = if all {
+            tab.rows.iter().map(|p| p.pid).collect()
+        } else {
+            tab.selected_row().map(|p| p.pid).into_iter().collect()
+        };
+        if pids.is_empty() {
+            view.status = "No daemon is running.".to_string();
+            return;
+        }
+        tab.confirm = Some(StopConfirm { pids, all });
+    }
+
+    pub fn daemon_confirm_open(&self) -> bool {
+        self.settings
+            .daemons
+            .as_ref()
+            .is_some_and(|t| t.confirm.is_some())
+    }
+
+    /// Answer the stop confirm: `yes` stops them and re-reads the list.
+    pub fn answer_daemon_stop(&mut self, yes: bool) {
+        let view = &mut self.settings;
+        let Some(tab) = &mut view.daemons else {
+            return;
+        };
+        let Some(confirm) = tab.confirm.take() else {
+            return;
+        };
+        if !yes {
+            return;
+        }
+        let stopped = steam::stop_daemons(&confirm.pids);
+        view.status = match (stopped, confirm.pids.len()) {
+            (0, _) => "No daemon was stopped; it may have exited already.".to_string(),
+            (1, 1) => format!("Stopped the daemon (PID {}).", confirm.pids[0]),
+            (n, total) if n == total => format!("Stopped {n} daemons."),
+            (n, total) => format!("Stopped {n} of {total} daemons."),
+        };
+        tab.reload();
     }
 
     /// `d` in the Profiles tab: make the highlighted profile the default.

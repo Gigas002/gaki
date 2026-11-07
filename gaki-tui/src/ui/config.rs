@@ -1,18 +1,22 @@
-//! The Settings overlay (modal popup), with a tab bar over three tabs:
+//! The Settings overlay (modal popup), with a tab bar over four tabs:
 //!
 //! * Settings: every `config.toml` key with its value (or its default,
 //!   dimmed), the highlighted key's description, and a footer with the
 //!   prompt, the confirm, the last save's result or the key hints;
 //! * Profiles: the profiles (the default marked) beside the highlighted
 //!   one's TOML, file, games and issues;
-//! * Check: `config check`'s findings, errors first.
+//! * Check: `config check`'s findings, errors first;
+//! * Daemons: the running session daemons, the highlighted one's details,
+//!   and the stop confirm.
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
-use crate::app::browser::settings::{CheckTab, Edit, ProfilesTab, SPECS, SettingsView, Tab};
+use crate::app::browser::settings::{
+    CheckTab, DaemonsTab, Edit, ProfilesTab, SPECS, SettingsView, Tab,
+};
 use crate::ui::{selection_marker, theme};
 
 fn dim(text: impl Into<String>) -> Line<'static> {
@@ -149,6 +153,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &SettingsView) {
         }
         Tab::Profiles => draw_profiles(frame, body, view),
         Tab::Check => draw_check(frame, body, view.check.as_ref()),
+        Tab::Daemons => draw_daemons(frame, body, view),
     }
 }
 
@@ -307,4 +312,88 @@ fn draw_check(frame: &mut Frame, area: Rect, check: Option<&CheckTab>) {
         .wrap(Wrap { trim: false });
     let max = paragraph.line_count(body.width.max(1)).saturating_sub(1);
     frame.render_widget(paragraph.scroll((scroll.min(max as u16), 0)), body);
+}
+
+fn daemons_footer(view: &SettingsView, tab: Option<&DaemonsTab>) -> Vec<Line<'static>> {
+    if let Some(confirm) = tab.and_then(|t| t.confirm.as_ref()) {
+        let question = match confirm.pids.as_slice() {
+            [pid] if !confirm.all => format!("Stop the daemon with PID {pid}?"),
+            pids => format!("Stop all {} daemons?", pids.len()),
+        };
+        return vec![
+            warn(format!(
+                "{question} Its clients reconnect to a fresh one when they next need it."
+            )),
+            dim("[y] yes  [n] no"),
+        ];
+    }
+    status_and_hint(
+        view,
+        "[j/k] move  [s] stop  [S] stop all  [r] refresh  [Esc] close",
+    )
+}
+
+fn draw_daemons(frame: &mut Frame, area: Rect, view: &SettingsView) {
+    let tab = view.daemons.as_ref();
+    let body = with_footer(frame, area, daemons_footer(view, tab));
+    let Some(tab) = tab else {
+        frame.render_widget(Paragraph::new(dim("Reading the process list…")), body);
+        return;
+    };
+    if tab.rows.is_empty() {
+        frame.render_widget(
+            Paragraph::new(dim("No gaki-cli daemon is running.")).style(theme::base()),
+            body,
+        );
+        return;
+    }
+    let [list, _, detail] = Layout::vertical([
+        Constraint::Min(1),
+        Constraint::Length(1),
+        Constraint::Length(5),
+    ])
+    .areas(body);
+
+    let mut lines = vec![Line::from(Span::styled(
+        format!("  {:<9}{:<32}{}", "PID", "CONFIG DIR", "SOCKET"),
+        theme::label(),
+    ))];
+    let height = (list.height as usize).saturating_sub(1).max(1);
+    let skip = tab.selected.saturating_sub(height - 1);
+    for (i, row) in tab.rows.iter().enumerate().skip(skip).take(height) {
+        let selected = i == tab.selected;
+        let style = if selected {
+            theme::selection(theme::ACCENT)
+        } else {
+            theme::value()
+        };
+        lines.push(Line::from(vec![
+            Span::styled(selection_marker(selected).to_string(), style),
+            Span::styled(format!("{:<9}", row.pid), style),
+            Span::styled(
+                format!("{:<32}", row.config_dir.as_deref().unwrap_or("(default)")),
+                theme::value(),
+            ),
+            Span::styled(
+                row.socket
+                    .clone()
+                    .unwrap_or_else(|| "(default)".to_string()),
+                theme::value(),
+            ),
+        ]));
+    }
+    frame.render_widget(Paragraph::new(lines).style(theme::base()), list);
+
+    if let Some(row) = tab.selected_row() {
+        let detail_lines = vec![
+            Line::from(Span::styled("Command".to_string(), theme::label())),
+            Line::from(Span::styled(row.command.clone(), theme::value())),
+        ];
+        frame.render_widget(
+            Paragraph::new(detail_lines)
+                .style(theme::base())
+                .wrap(Wrap { trim: false }),
+            detail,
+        );
+    }
 }

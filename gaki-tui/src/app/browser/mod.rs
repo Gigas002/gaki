@@ -45,6 +45,8 @@ pub mod settings;
 pub mod shop;
 #[cfg(feature = "store")]
 pub mod store;
+#[cfg(feature = "social")]
+pub mod user_profile;
 #[cfg(feature = "versioning")]
 mod versions;
 #[cfg(feature = "workshop")]
@@ -285,6 +287,9 @@ pub struct Browser {
     pub depots: depots::DepotsView,
     /// The Game info overlay (`n`), when open.
     pub game_info: Option<game_info::GameInfoView>,
+    /// The user profile overlay (`v` / `/` in the Friends panel), when open.
+    #[cfg(feature = "social")]
+    pub user_profile: Option<user_profile::ProfileView>,
     /// The Store overlay (`Y`), when open.
     #[cfg(feature = "store")]
     pub store: Option<store::StoreView>,
@@ -589,6 +594,8 @@ impl Browser {
             show_depots: false,
             depots: depots::DepotsView::default(),
             game_info: None,
+            #[cfg(feature = "social")]
+            user_profile: None,
             #[cfg(feature = "store")]
             store: None,
             #[cfg(feature = "store")]

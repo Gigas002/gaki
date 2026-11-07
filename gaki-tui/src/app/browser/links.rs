@@ -55,7 +55,12 @@ impl Browser {
     /// block, so it runs on its own thread; a failure comes back through
     /// [`Browser::poll_links`].
     pub fn open_link(&mut self, link: Link, app_id: i32) {
-        let url = link.url(app_id);
+        self.open_url(link.url(app_id), link.label());
+    }
+
+    /// Open `url` in the default browser on its own thread; `label` names
+    /// it in the notice.
+    pub fn open_url(&mut self, url: String, label: &str) {
         let slot = self.link_error.clone();
         thread::spawn(move || {
             if let Err(e) = browser::open(&url) {
@@ -65,7 +70,7 @@ impl Browser {
                 }
             }
         });
-        self.notice = Some(format!("Opening {} in your browser…", link.label()));
+        self.notice = Some(format!("Opening {label} in your browser…"));
     }
 
     /// Show a failed [`Browser::open_link`] as the notice.

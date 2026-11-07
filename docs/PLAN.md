@@ -1935,7 +1935,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     severity) runs each time it's shown and on `r`. Tests in
     `tests/actions_view.rs` and the offline round trip; help line,
     `docs/GAKI-TUI.md`.
-- [ ] **8.11** TUI odds and ends that only the CLI has: `drm` check,
+- [x] **8.11** TUI odds and ends that only the CLI has: `drm` check,
   `duplicates`, `available`, saving artwork (`image -o`), user profiles
   (`user`), the extended `info` fields, and daemon management
   (`daemon list/stop`, `kill`). Split in two:
@@ -1954,10 +1954,26 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `tests/game_info_view.rs`, `ops/info/tests.rs` (file names),
     `utils/xdg/tests.rs`, the offline test; help line, `docs/GAKI-TUI.md`
     ("Game info").
-  - [ ] **8.11b** The rest: `duplicates`, user profiles (`v` on a friend,
-    plus a lookup prompt for a SteamID64, profile URL or `me`), and a
-    Daemons tab in Settings (list, `s` stop one, `S` stop all, after a
-    y/n; no `kill`).
+  - [x] **8.11b** The rest. *Done.* Daemon discovery moved from
+    `gaki-cli/src/proc_admin` into libgaki `ops::daemon` (`GakiProcess`,
+    `is_daemon_command`, `find_gaki_processes`, `daemons`, `kill_pids`):
+    an argv rule (the only positional is `daemon`, skipping the values of
+    `--log`/`--config-dir`/`--socket`) replaces the clap parse, and
+    `gaki-cli/src/tests.rs` checks the rule against clap. Settings gains a
+    **Daemons** tab (`DaemonsTab`: PID, config dir, socket, command; `s`
+    stops the highlighted one, `S` all, after a y/n; `r` re-reads; no
+    `kill`). The Installs overlay gains a read-only **Duplicates** tab
+    (`steam::duplicates` over `library::find_duplicate_installs` with
+    `relocate::dir_size`, a `job::Load`; keep copy, stale copies with
+    sizes, reclaimable space; `r` rescans). A user profile overlay
+    (`browser/user_profile`, `ui/user_profile.rs`, cfg `social`): `v` on a
+    friend, `/` in the Friends tab or the overlay looks up a SteamID64,
+    profile URL, friend name or `me` (`steam::user_profile`), `E` opens
+    the page (new `Browser::open_url`). `ui::date_time` moved out of the
+    cloud view for the Duplicates tab. Tests: settings, installs and
+    user_profile unit tests, `tests/actions_view.rs`,
+    `tests/installs_view.rs`, `tests/friends_chat.rs`; help lines,
+    `docs/GAKI-TUI.md` (Installs, Settings, "User profiles").
 - **8.12** ~~Market buying and selling.~~ **Dropped, never to be done.**
   gaki doesn't move real money or items (see Non-goals). Inventory and
   market stay read-only.

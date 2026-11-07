@@ -11,6 +11,7 @@ pub mod cloud;
 #[cfg(feature = "collections")]
 pub mod collections;
 pub mod config;
+pub mod daemon;
 #[cfg(feature = "depot")]
 pub mod depot;
 #[cfg(feature = "library")]

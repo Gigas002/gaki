@@ -261,6 +261,19 @@ impl Browser {
             || self.game_info.is_some()
             || self.store_open()
             || self.installs_open()
+            || self.user_profile_open()
+    }
+
+    /// Whether the user profile overlay is open (never, without `social`).
+    pub fn user_profile_open(&self) -> bool {
+        #[cfg(feature = "social")]
+        {
+            self.user_profile.is_some()
+        }
+        #[cfg(not(feature = "social"))]
+        {
+            false
+        }
     }
 
     /// Whether the Installs overlay is open (never, without `install`).
