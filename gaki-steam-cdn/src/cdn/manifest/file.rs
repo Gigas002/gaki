@@ -1,5 +1,5 @@
 // Based on steam-cdn (Apache-2.0), modified by Aurelia and gaki; see README.md.
-use futures::{StreamExt, stream::FuturesOrdered};
+use futures::{StreamExt, stream::FuturesUnordered};
 use itertools::Itertools;
 use sha1::Digest;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -209,7 +209,10 @@ impl ManifestFile {
                     on_progress.clone(),
                 )))
             })
-            .collect::<FuturesOrdered<_>>();
+            // Written as they arrive, each at its own offset: collecting in
+            // file order would hold every chunk that finished behind a slow
+            // one in memory, up to most of a large file.
+            .collect::<FuturesUnordered<_>>();
 
         while let Some(result) = tasks.next().await {
             if abort_signal

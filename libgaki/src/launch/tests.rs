@@ -113,3 +113,31 @@ async fn test_launch_verification_success() {
         let _ = child.kill();
     }
 }
+
+#[tokio::test]
+async fn native_launches_skip_wine_dll_resolution() {
+    use crate::core::models::{LaunchInfo, LaunchTarget};
+    use crate::launch::pipeline::PipelineStage;
+    let info = |target| LaunchInfo {
+        app_id: 1,
+        id: "0".into(),
+        description: String::new(),
+        executable: "game.x86_64".into(),
+        arguments: String::new(),
+        workingdir: None,
+        target,
+    };
+    let mut ctx = PipelineContext::new(1);
+    assert!(!ctx.is_native_launch());
+    ctx.launch_info = Some(info(LaunchTarget::WindowsProton));
+    assert!(!ctx.is_native_launch());
+    ctx.launch_info = Some(info(LaunchTarget::NativeLinux));
+    assert!(ctx.is_native_launch());
+    // No app context at all: a Windows launch would fail here, a native one
+    // returns before looking for a Wine runner.
+    crate::launch::stages::resolve_dll_providers::ResolveDllProvidersStage
+        .execute(&mut ctx)
+        .await
+        .unwrap();
+    assert!(ctx.dll_resolutions.is_empty());
+}

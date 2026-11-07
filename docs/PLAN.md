@@ -2162,7 +2162,15 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     an `Arc<Mutex<_>>`; the browser launchers accept only `http(s)` URLs;
     `import_install` checks the PICS `installdir`; the protobuf note in
     `deny.toml` now says CDN manifests are parsed with it too.
-  - [ ] **8.14b** Performance: `docs/AUDIT.md` §2.
+  - [x] **8.14b** Performance: `docs/AUDIT.md` §2. Measured startup,
+    install, verify, launch, request counts and TUI latency on the test
+    account, and one install against the official client (same speed).
+    Fixed: chunks are written as they finish (peak install memory 276 →
+    149 MiB); PICS appinfo replies are reused for 10 s (5 → 1 request per
+    install); CDN auth tokens are asked for only from `CDN`-type servers;
+    native launches skip the Wine runner lookup; `config` runs in-process
+    instead of starting a daemon; the TUI's move, relink, import and
+    uninstall run as a background disk job instead of freezing the UI.
   - [ ] **8.14c** Supported features: `docs/AUDIT.md` §3.
 - [ ] **8.16** Verify depot manifest signatures (8.14a follow-up). Find
   the scheme `ContentManifestSignature` uses and Valve's public key, then

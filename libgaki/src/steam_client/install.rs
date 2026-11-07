@@ -647,13 +647,7 @@ impl SteamClient {
         for pool in hosts.chunks(HOST_POOL_SIZE) {
             let mut servers = Vec::with_capacity(pool.len());
             for host in pool {
-                let token = match self.get_cdn_auth_token(app_id, depot_id, &host.host).await {
-                    Ok(t) => Some(t),
-                    Err(e) => {
-                        tracing::warn!("Failed to get auth token for host {}: {}", host.host, e);
-                        None
-                    }
-                };
+                let token = self.cdn_token_for(app_id, depot_id, host).await;
                 servers.push(cdn_server_for(host, connection.cell_id(), token));
             }
             let host = pool

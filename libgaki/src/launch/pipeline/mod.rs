@@ -210,6 +210,13 @@ impl PipelineContext {
         }
     }
 
+    /// Whether this launch runs a native Linux build (no Wine, no Proton).
+    pub fn is_native_launch(&self) -> bool {
+        self.launch_info
+            .as_ref()
+            .is_some_and(|info| info.target == crate::core::models::LaunchTarget::NativeLinux)
+    }
+
     pub fn add_warning(&mut self, code: impl Into<String>, message: impl Into<String>) {
         let warning = CompatibilityWarning {
             code: code.into(),
@@ -1500,7 +1507,7 @@ impl LaunchPipeline {
                     },
                     runner: EffectiveRunnerConfig {
                         name: ctx.runner.as_ref().map(|r| r.name().to_string()),
-                        root: {
+                        root: (!ctx.is_native_launch()).then(|| {
                             let proton = ctx.proton_path.as_deref().unwrap_or("wine");
                             let library_root = ctx
                                 .launcher_config
@@ -1509,8 +1516,8 @@ impl LaunchPipeline {
                                 .unwrap_or_default();
                             let active_runner =
                                 crate::core::utils::resolve_runner(proton, &library_root);
-                            Some(crate::core::utils::derive_runner_root(&active_runner))
-                        },
+                            crate::core::utils::derive_runner_root(&active_runner)
+                        }),
                     },
                     settings: EffectiveSettingsConfig {
                         requested_backend: ctx.graphics_stack.requested_backend.clone(),

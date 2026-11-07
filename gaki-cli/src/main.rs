@@ -103,12 +103,19 @@ fn must_run_locally(cli: &Cli) -> bool {
     // daemon holds. Forwarding it would gain nothing and cost accuracy: a long-lived
     // daemon answers from the code it was started with, so a freshly fixed scan would
     // still report the old result until the daemon happened to be restarted.
-    // Same for `profiles`, which only reads config files.
+    // Same for `profiles`, which only reads config files, and `config`, which
+    // only reads and writes them (the daemon picks changes up on restart, as
+    // its messages say). Forwarded, an offline `config check` would also
+    // start a daemon and a Steam connection it never uses.
     #[cfg(feature = "install")]
     let duplicates = matches!(cli.command, Command::Duplicates);
     #[cfg(not(feature = "install"))]
     let duplicates = false;
-    let local_disk_scan = duplicates || matches!(cli.command, Command::Profiles { .. });
+    let local_disk_scan = duplicates
+        || matches!(
+            cli.command,
+            Command::Profiles { .. } | Command::Config { .. }
+        );
 
     // With `reauth_sensitive`, an interactive sensitive read signs in again
     // first, which needs the terminal for the same reason as `login`.

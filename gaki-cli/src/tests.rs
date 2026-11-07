@@ -150,6 +150,11 @@ fn ordinary_commands_forward_but_local_managers_do_not() {
         "game"
     ])));
     assert!(must_run_locally(&parse(&["gaki-cli", "daemon", "stop"])));
+    // Config files only: no session, so no daemon to start.
+    assert!(must_run_locally(&parse(&["gaki-cli", "config", "check"])));
+    assert!(must_run_locally(&parse(&[
+        "gaki-cli", "config", "set", "x", "1"
+    ])));
     // Bare `gaki-cli daemon` (becomes the server) is handled earlier, before the
     // forward gate, so it is not flagged local here.
     assert!(!must_run_locally(&parse(&["gaki-cli", "daemon"])));

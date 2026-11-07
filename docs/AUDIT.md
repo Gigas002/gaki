@@ -61,3 +61,80 @@ override is still `0600` and peer-checked. OK.
 | Browser launchers | `xdg-open` was handed whatever URL it got. All of gaki's URLs are built from ids except a user profile's page, which comes from Steam's profile data; a `file:` URL or a `.desktop` path could make `xdg-open` run something. The TUI opener and the OpenID helper now accept only `http(s)://` URLs. | low | Fixed |
 | Other spawns | `proton run`, wrappers and `env` come from the user's own config; `steam -silent` and the chat window run fixed programs with fixed or validated arguments (a friend's name is passed as `--name=…`). | — | OK |
 | Remaining `unsafe` | `std::env::set_var` for the proxy (documented to run before any thread starts), `libc::getuid`, `libc::kill`, and `setsid` in a `pre_exec` (async-signal-safe). | — | OK |
+
+## 2. Performance (8.14b, 2026-11-08)
+
+Measured on the test account with release builds (`cargo build --release
+--all-features`) on one desktop machine (NVMe disk, Steam cell in Tokyo).
+Wall times are medians of five runs unless one run is given. Peak memory is
+the process's peak RSS. The test game is Buckshot Roulette (app 2835570),
+Linux depot: an 864 MiB download, 1.25 GiB on disk, 14 files. One of them
+is an 811 MB executable. Network times vary from run to run with the
+connection Manager Steam picks, so treat them as rough.
+
+### 2.1 Startup
+
+| What | Time | Memory | Notes |
+| ---- | ---- | ------ | ----- |
+| `gaki-cli --help` | 2.2 ms | 15.5 MiB | |
+| `capabilities --json`, `profiles list`, `config check` | 2.8–3.9 ms | 15 MiB | Offline. |
+| `--no-daemon list --installed` | 48 ms | 27 MiB | Local disk only. |
+| First forwarded command, daemon not running | 3.9–5.5 s | — | The daemon binds its socket at once, then restores the session. A traced run: CM list 0.2 s, websocket TLS handshake to the CM 1.3 s, logon reply 0.7 s. The same command in-process (`--no-daemon account`) took 2.9 s. |
+| Forwarded commands, daemon running | `account` 170–350 ms, `dlc` 210 ms, `list` 400 ms, `achievements` 450 ms, `update` 640 ms | 15 MiB (client) | One or two Steam round trips each. `info` answers from the info cache in 3 ms. |
+| `gaki-tui` first frame | 10–50 ms | | The library then lists in 4.3 s on a cold start (session restore plus `list`). |
+
+| Finding | Status |
+| ------- | ------ |
+| `config check` (and every `config` subcommand) was forwarded to the daemon, so an offline check started a daemon and a Steam logon it never used. `config` now runs in-process like `profiles`: it only reads and writes config files, and its messages already tell the user to restart the daemon for keys it reads at start. | Fixed |
+
+### 2.2 Install, verify, launch
+
+| What | gaki | Official client |
+| ---- | ---- | --------------- |
+| Fresh install of the Linux depot | 14.0–15.5 s, including a 1–2 s logon; peaks near 150 MiB/s | 14 s from `steam://validate` to done, 12 s of it downloading (files deleted, appmanifest kept; it first installed two Steam Linux Runtime apps the game requires, not counted) |
+| Memory during the install | 145–149 MiB peak for the whole process (276 MiB before the fix below) | The `steam` process grew from 333 to 461 MiB (+128 MiB) |
+| `verify` (1.25 GiB) | 2.9 s, about 430 MiB/s | — |
+| `update` check | 3.9 s cold, of which 1.2 s logon | — |
+| Native launch: `play` until the game's process runs | 1.3 s | — |
+| `stop` until `play` returns | 0.5 s, nothing left running | — |
+
+gaki also verified the files the official client wrote without finding a
+difference.
+
+| Finding | Status |
+| ------- | ------ |
+| Chunks were collected in file order (`FuturesOrdered`), so every chunk that finished behind a slow one waited in memory until that one arrived. With 16 requests in flight and an 811 MB file this is most of the peak. Chunks are now written as they finish, each at its own offset (`FuturesUnordered`); peak memory fell from 276 to 149 MiB at the same speed, and `verify` confirms the files. | Fixed |
+| A CDN auth token was requested for every content server, but Steam only gives one for `CDN`-type servers; every `SteamCache` server answered with an error (logged as a warning), one round trip per host per depot. Tokens are now asked for only where the server type takes one. Installs still work with none requested. | Fixed |
+| A native Linux launch resolved a Wine runner anyway: the DLL-provider stage looked for one and logged that `wine` couldn't be resolved, and the effective config reported a runner root. Both are now skipped when the launch target is `NativeLinux`. | Fixed |
+
+### 2.3 Requests to Steam
+
+One fresh install, counted from the debug log (CM messages):
+
+| Request | Before | After |
+| ------- | ------ | ----- |
+| Logon (with `Hello`) | 1 | 1 |
+| PICS product info for the same app | 5 | 1 |
+| Depot decryption key | 1 | 1 |
+| Service calls (registering the install, content servers, manifest request code) | 4 | 4 |
+| `GetCDNAuthToken` for `SteamCache` hosts | 2+ (all refused) | 0 |
+
+One install asked PICS for the same app's info five times: for its name, its
+DLC parent, its depots, its build id and the appmanifest. PICS replies are
+now reused for 10 seconds, per app id. That's long enough to cover a single
+operation, and short enough that a long-lived daemon never serves an old build
+id. That's well inside Steam's rate limits either way. Store and web calls
+(`price`, `search`, `news`, `reviews`) are one request per command and
+user-driven, and the TUI loads them only when an overlay opens.
+
+### 2.4 TUI responsiveness
+
+Driven through a pseudo-terminal: every overlay key tried (game info `n`,
+depots `D`, branches `b`, user profile `V`, Workshop `W`, Store `Y`, installs
+`X`) redraws within 1–11 ms. The overlays load in the background
+(`browser/job`) and show a loading state meanwhile.
+
+| Finding | Status |
+| ------- | ------ |
+| Move, relink, import and uninstall ran on the UI thread. The TUI froze for the whole copy or delete, which for a large game is minutes. They now run as one background disk job. Its outcome goes to the prompt that started it, or to the status bar once that prompt is closed, and it refreshes that game's install state. Only one runs at a time; starting a second one says so. Uninstall used to reload the whole library afterwards; it now refreshes just that game. | Fixed |
+| Toggling a DLC still calls Steam on the UI thread: 0.3 s cold (one PICS request), instant while the PICS reply is reused. Switching branch, stopping a game, choosing the default Proton and logging out are local or one short call. | Accepted (short) |

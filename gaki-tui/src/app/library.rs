@@ -145,6 +145,7 @@ impl Library {
             browser.poll_game_refresh();
             browser.poll_update_check();
             browser.poll_installs();
+            browser.poll_disk_job();
         }
 
         // A just-finished Proton install flips a runtime to [installed]; pick

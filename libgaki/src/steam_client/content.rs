@@ -4,11 +4,16 @@
 //! and free helpers live in the parent module (in scope via `use super::*`).
 use super::*;
 
-/// A content server: its host, and whether it serves HTTPS.
+/// A content server: its host, whether it serves HTTPS, and whether it wants
+/// a per-host CDN auth token.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ContentServer {
     pub host: String,
     pub https: bool,
+    /// A `CDN` server (as opposed to a Valve `SteamCache` one). Only these
+    /// take a CDN auth token; Steam refuses the request for the others, so
+    /// asking costs one round trip per host for nothing.
+    pub needs_token: bool,
 }
 
 /// The servers to download from: only the HTTPS ones when any exist. Over
@@ -55,6 +60,7 @@ impl SteamClient {
                     host: s.host().to_string(),
                     // "mandatory" or "optional"; "unavailable" is HTTP only.
                     https: matches!(s.https_support(), "mandatory" | "optional"),
+                    needs_token: s.type_() == "CDN",
                 })
                 .collect(),
         );
@@ -96,6 +102,27 @@ impl SteamClient {
             );
         }
         Ok(code)
+    }
+
+    /// The CDN auth token for `host`, when it is a server that takes one.
+    /// A refusal is logged at debug level: the download still tries the host.
+    #[cfg(feature = "install")]
+    pub(crate) async fn cdn_token_for(
+        &self,
+        app_id: u32,
+        depot_id: u32,
+        host: &ContentServer,
+    ) -> Option<String> {
+        if !host.needs_token {
+            return None;
+        }
+        match self.get_cdn_auth_token(app_id, depot_id, &host.host).await {
+            Ok(token) => Some(token),
+            Err(e) => {
+                tracing::debug!("no CDN auth token for {}: {e:#}", host.host);
+                None
+            }
+        }
     }
 
     pub async fn get_cdn_auth_token(
@@ -524,10 +551,7 @@ impl SteamClient {
         for pool in hosts.chunks(super::install::HOST_POOL_SIZE) {
             let mut servers = Vec::with_capacity(pool.len());
             for host in pool {
-                let token = self
-                    .get_cdn_auth_token(app_id, depot_id, &host.host)
-                    .await
-                    .ok();
+                let token = self.cdn_token_for(app_id, depot_id, host).await;
                 servers.push(super::install::cdn_server_for(
                     host,
                     connection.cell_id(),

@@ -31,6 +31,11 @@ impl PipelineStage for ResolveDllProvidersStage {
     }
 
     async fn execute(&self, ctx: &mut PipelineContext) -> std::result::Result<(), LaunchError> {
+        // A native Linux build loads no Windows DLLs and has no Wine runner to
+        // look them up in.
+        if ctx.is_native_launch() {
+            return Ok(());
+        }
         let app = ctx
             .app
             .as_ref()

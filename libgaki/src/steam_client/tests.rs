@@ -760,6 +760,7 @@ fn cdn_server_parses_host_and_port() {
     let server = |host: &str, https| ContentServer {
         host: host.into(),
         https,
+        needs_token: false,
     };
     let s = install::cdn_server_for(
         &server("cache1.steamcontent.com", false),
@@ -789,6 +790,7 @@ fn content_servers_prefer_https() {
     let server = |host: &str, https| ContentServer {
         host: host.into(),
         https,
+        needs_token: false,
     };
     let mixed = vec![server("a", false), server("b", true), server("c", true)];
     // Only the HTTPS ones, in their (load) order.
@@ -800,4 +802,23 @@ fn content_servers_prefer_https() {
     let plain = vec![server("a", false), server("b", false)];
     assert_eq!(content::prefer_https(plain.clone()), plain);
     assert!(content::prefer_https(Vec::new()).is_empty());
+}
+
+#[cfg(feature = "library")]
+#[test]
+fn pics_replies_are_reused_briefly() {
+    use std::sync::Arc;
+    use std::time::{Duration, Instant};
+    let cache = super::PicsCache::default();
+    let t = Instant::now();
+    assert!(cache.get(7, t).is_none());
+    cache.put(7, t, Arc::new(vec![1, 2, 3]));
+    assert_eq!(
+        cache.get(7, t + Duration::from_secs(9)).as_deref(),
+        Some(&vec![1, 2, 3])
+    );
+    assert!(cache.get(8, t).is_none());
+    // Past the reuse window it is asked for again (and dropped).
+    assert!(cache.get(7, t + Duration::from_secs(10)).is_none());
+    assert!(cache.get(7, t).is_none());
 }

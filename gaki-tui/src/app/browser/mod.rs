@@ -405,6 +405,9 @@ pub struct Browser {
     /// [`Browser::poll_update_check`] adopts it.
     #[cfg(feature = "install")]
     update_check: Option<install::UpdateSlot>,
+    /// The move, relink, import or uninstall running in the background.
+    #[cfg(feature = "install")]
+    disk_job: Option<relocate::DiskJob>,
     /// A transient one-line notice (e.g. an action that failed) shown in the
     /// status bar until the next keypress. Keeps a failed backend call from
     /// having to crash the whole TUI to report itself.
@@ -650,6 +653,8 @@ impl Browser {
             game_refresh_slot: Arc::new(Mutex::new(Vec::new())),
             #[cfg(feature = "install")]
             update_check: None,
+            #[cfg(feature = "install")]
+            disk_job: None,
             notice: None,
             link_error: Arc::new(Mutex::new(None)),
             show_actions: false,

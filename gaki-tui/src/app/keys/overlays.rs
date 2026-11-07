@@ -21,8 +21,6 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         app,
         browser,
         client,
-        #[cfg(feature = "install")]
-        cached,
         ..
     } = lib;
     #[cfg(feature = "versioning")]
@@ -437,20 +435,11 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         // Uninstall confirmation prompt: y confirms, anything else cancels.
         match input {
             KeyCode::Char('y') | KeyCode::Char('Y') => {
-                if let Some(game) = browser.selected() {
-                    match steam::uninstall(game.id) {
-                        Ok(()) => {
-                            // Reload the library so the listing
-                            // reflects the now-uninstalled game
-                            // (mirrors 'r').
-                            shared::reload(app, client, cached)?;
-                        }
-                        // A failed uninstall must not crash the
-                        // TUI — surface it and stay running.
-                        Err(err) => {
-                            browser.notice = Some(format!("Uninstall failed: {err}"));
-                        }
-                    }
+                // In the background: deleting a big game takes a while.
+                // The finished job refreshes the game's install state,
+                // or puts the error in the status bar.
+                if let Some(id) = browser.selected().map(|game| game.id) {
+                    browser.start_uninstall(id);
                 }
                 browser.confirm_uninstall = false;
             }
@@ -671,7 +660,7 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         match input {
             KeyCode::Esc => browser.close_move(),
             KeyCode::Char('\n') | KeyCode::Enter => {
-                let _ = browser.do_move();
+                browser.do_move();
             }
             KeyCode::Backspace => browser.move_pop(),
             KeyCode::Char(c) => browser.move_push(c),
@@ -686,7 +675,7 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         match input {
             KeyCode::Esc => browser.close_relink(),
             KeyCode::Char('\n') | KeyCode::Enter => {
-                let _ = browser.do_relink();
+                browser.do_relink();
             }
             KeyCode::Backspace => browser.relink_pop(),
             KeyCode::Char(c) => browser.relink_push(c),
@@ -702,7 +691,7 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         match input {
             KeyCode::Esc => browser.close_import(),
             KeyCode::Char('\n') | KeyCode::Enter => {
-                let _ = browser.do_import();
+                browser.do_import();
             }
             KeyCode::Backspace => browser.import_pop(),
             KeyCode::Char(c) => browser.import_push(c),

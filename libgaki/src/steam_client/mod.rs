@@ -2189,13 +2189,57 @@ fn split_args(args: &str) -> Vec<String> {
     args.split_whitespace().map(ToString::to_string).collect()
 }
 
-/// One-app PICS `ProductInfo` buffer request.
+/// How long a PICS appinfo reply is reused. One operation (an install, an
+/// update check) asks for the same app several times, for its name, DLC
+/// parent, depots and build id; this collapses those into one request without
+/// letting a long-lived daemon serve an old build id.
+#[cfg(feature = "library")]
+const PICS_REUSE: Duration = Duration::from_secs(10);
+
+/// A PICS appinfo reply and when it arrived.
+#[cfg(feature = "library")]
+type PicsReply = (Instant, Arc<Vec<u8>>);
+
+/// Recent PICS appinfo replies, by app id.
+#[cfg(feature = "library")]
+#[derive(Default)]
+pub(crate) struct PicsCache(std::sync::Mutex<HashMap<u32, PicsReply>>);
+
+#[cfg(feature = "library")]
+impl PicsCache {
+    pub(crate) fn get(&self, appid: u32, now: Instant) -> Option<Arc<Vec<u8>>> {
+        let mut map = self
+            .0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        map.retain(|_, (at, _)| now.saturating_duration_since(*at) < PICS_REUSE);
+        map.get(&appid).map(|(_, buffer)| Arc::clone(buffer))
+    }
+
+    pub(crate) fn put(&self, appid: u32, now: Instant, buffer: Arc<Vec<u8>>) {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .insert(appid, (now, buffer));
+    }
+}
+
+#[cfg(feature = "library")]
+fn pics_cache() -> &'static PicsCache {
+    static CACHE: std::sync::OnceLock<PicsCache> = std::sync::OnceLock::new();
+    CACHE.get_or_init(PicsCache::default)
+}
+
+/// One-app PICS `ProductInfo` buffer, reused for [`PICS_REUSE`].
 #[cfg(feature = "library")]
 pub(crate) async fn pics_app_buffer(
     connection: &Connection,
     appid: u32,
     job_context: &'static str,
 ) -> Result<Vec<u8>> {
+    if let Some(buffer) = pics_cache().get(appid, Instant::now()) {
+        return Ok(buffer.as_ref().clone());
+    }
     let mut request = CMsgClientPICSProductInfoRequest::new();
     request
         .apps
@@ -2212,7 +2256,9 @@ pub(crate) async fn pics_app_buffer(
         .iter()
         .find(|entry| entry.appid() == appid)
         .ok_or_else(|| anyhow!("missing appinfo payload for app {appid}"))?;
-    Ok(app.buffer().to_vec())
+    let buffer = app.buffer().to_vec();
+    pics_cache().put(appid, Instant::now(), Arc::new(buffer.clone()));
+    Ok(buffer)
 }
 
 impl SteamClient {
