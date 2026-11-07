@@ -154,7 +154,7 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("A", "account"),
         Entry::Binding(
             "p",
-            "settings: every config.toml key (Enter edit, x default)",
+            "settings (Tab: keys, profiles, config check; Enter edit, x default)",
         ),
         #[cfg(feature = "social")]
         Entry::Binding("F / 5", "open Friends tab"),

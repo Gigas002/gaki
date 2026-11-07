@@ -492,6 +492,102 @@ fn settings_highlight_stays_visible() {
     assert_eq!(browser.settings.selected, 0);
 }
 
+/// The Profiles tab lists the profiles (default marked) beside the
+/// highlighted one's file, games, issues and TOML.
+#[test]
+fn settings_profiles_tab_renders() {
+    use gaki_tui::app::browser::settings::{ProfilesTab, Tab};
+    use gaki_tui::app::steam::{ProfileRow, Profiles};
+    let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
+    view.tab = Tab::Profiles;
+    let mut tab = ProfilesTab::with(Profiles {
+        dir: "/cfg/profiles".into(),
+        rows: vec![
+            ProfileRow {
+                name: "proton".into(),
+                path: "/cfg/profiles/proton.toml".into(),
+                is_default: true,
+                games: vec!["portal (400)".into()],
+                issues: Vec::new(),
+                toml: "name = \"proton\"\nrunner = \"proton\"\n".into(),
+            },
+            ProfileRow {
+                name: "wine".into(),
+                path: "/cfg/profiles/wine.toml".into(),
+                issues: vec!["error: profile wine: no runner".into()],
+                ..Default::default()
+            },
+        ],
+        errors: vec!["broken.toml: bad syntax".into()],
+    });
+    let text = settings_screen(
+        &{
+            view.profiles_tab = Some(tab.clone());
+            view.clone()
+        },
+        110,
+        26,
+    );
+    assert!(text.contains("Profiles"), "{text}");
+    assert!(text.contains("proton  default"), "{text}");
+    assert!(text.contains("/cfg/profiles/proton.toml"), "{text}");
+    assert!(text.contains("portal (400)"), "{text}");
+    assert!(text.contains("runner = \"proton\""), "{text}");
+    assert!(text.contains("broken.toml: bad syntax"), "{text}");
+    assert!(text.contains("[d] make default"), "{text}");
+
+    tab.selected = 1;
+    view.profiles_tab = Some(tab);
+    let text = settings_screen(&view, 110, 26);
+    assert!(text.contains("no runner"), "{text}");
+    assert!(text.contains("no game names it"), "{text}");
+}
+
+/// The Check tab shows the findings, or that there are none.
+#[test]
+fn settings_check_tab_renders() {
+    use gaki_tui::app::browser::settings::{CheckTab, Tab};
+    use gaki_tui::app::steam::CheckFinding;
+    let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
+    view.tab = Tab::Check;
+    view.check = Some(CheckTab::with(Vec::new()));
+    assert!(settings_screen(&view, 100, 16).contains("No problems found."));
+
+    view.check = Some(CheckTab::with(vec![
+        CheckFinding {
+            error: true,
+            text: "error: config.toml: bad".into(),
+        },
+        CheckFinding {
+            error: false,
+            text: "warning: scripts/1.sh: old".into(),
+        },
+    ]));
+    let text = settings_screen(&view, 100, 16);
+    assert!(text.contains("error: config.toml: bad"), "{text}");
+    assert!(text.contains("warning: scripts/1.sh: old"), "{text}");
+    assert!(text.contains("[r] check again"), "{text}");
+}
+
+/// Tab and Shift-Tab cycle the tabs; the check runs when its tab is shown.
+#[test]
+fn settings_tabs_cycle() {
+    use gaki_tui::app::browser::settings::Tab;
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
+    browser.settings = SettingsView::with_values(vec![None; SPECS.len()]);
+    browser.settings_tab(true);
+    assert_eq!(browser.settings.tab, Tab::Profiles);
+    assert!(browser.settings.profiles_tab.is_some(), "profiles loaded");
+    browser.settings_tab(true);
+    assert_eq!(browser.settings.tab, Tab::Check);
+    assert!(browser.settings.check.is_some(), "check ran");
+    browser.settings_tab(true);
+    assert_eq!(browser.settings.tab, Tab::Settings);
+    browser.settings_tab(false);
+    assert_eq!(browser.settings.tab, Tab::Check);
+}
+
 #[test]
 fn every_game_links_to_steam_protondb_steamdb_and_the_proton_tracker() {
     isolate_config();

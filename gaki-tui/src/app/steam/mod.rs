@@ -709,6 +709,77 @@ pub fn settings_set(key: &str, value: Option<&str>) -> Result<(), TuiError> {
     }
 }
 
+/// A profile as the Settings Profiles tab shows it.
+#[derive(Debug, Clone, Default)]
+pub struct ProfileRow {
+    pub name: String,
+    /// Its file.
+    pub path: String,
+    pub is_default: bool,
+    /// The games whose `games.toml` entry names it, as `alias (id)` or `id`.
+    pub games: Vec<String>,
+    pub issues: Vec<String>,
+    /// The profile as TOML, the way its file reads.
+    pub toml: String,
+}
+
+/// The profiles directory, its profiles, and the profile files that didn't
+/// load.
+#[derive(Debug, Clone, Default)]
+pub struct Profiles {
+    pub dir: String,
+    pub rows: Vec<ProfileRow>,
+    pub errors: Vec<String>,
+}
+
+/// Every profile, sorted by name, with the games using it.
+pub fn profiles() -> Result<Profiles, TuiError> {
+    let (dir, infos, errors) = local(libgaki::ops::config::profiles())?;
+    let rows = infos
+        .into_iter()
+        .map(|info| ProfileRow {
+            toml: toml::to_string_pretty(&info.profile).unwrap_or_default(),
+            name: info.profile.name,
+            path: info.path.display().to_string(),
+            is_default: info.is_default,
+            games: info.games.iter().map(ToString::to_string).collect(),
+            issues: info.issues.iter().map(ToString::to_string).collect(),
+        })
+        .collect();
+    Ok(Profiles {
+        dir: dir.display().to_string(),
+        rows,
+        errors,
+    })
+}
+
+/// One finding of `config check`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckFinding {
+    /// An error (a file that didn't load, or an invalid setting), not a
+    /// warning.
+    pub error: bool,
+    pub text: String,
+}
+
+/// `config check`: files that didn't load, then errors, then warnings.
+pub fn config_check() -> Result<Vec<CheckFinding>, TuiError> {
+    use libgaki::config::Severity;
+    let report = local(libgaki::ops::config::check())?;
+    let mut findings: Vec<CheckFinding> = report
+        .load_errors
+        .into_iter()
+        .map(|text| CheckFinding { error: true, text })
+        .collect();
+    let mut issues = report.issues;
+    issues.sort_by_key(|issue| std::cmp::Reverse(issue.severity));
+    findings.extend(issues.into_iter().map(|issue| CheckFinding {
+        error: issue.severity == Severity::Error,
+        text: issue.to_string(),
+    }));
+    Ok(findings)
+}
+
 /// The names of the profiles in the profiles directory, sorted.
 pub fn profile_names() -> Result<Vec<String>, TuiError> {
     let (_, infos, _) = local(libgaki::ops::config::profiles())?;

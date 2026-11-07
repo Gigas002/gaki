@@ -637,12 +637,27 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 _ => {}
             }
         } else {
-            match input {
-                KeyCode::Esc | KeyCode::Char('q') => browser.close_config(),
-                KeyCode::Down | KeyCode::Char('j') => browser.settings_move(1),
-                KeyCode::Up | KeyCode::Char('k') => browser.settings_move(-1),
-                KeyCode::Char('\n') | KeyCode::Enter => browser.settings_activate(),
-                KeyCode::Char('x') => browser.settings_unset(),
+            use crate::app::browser::settings::Tab;
+            match (browser.settings.tab, input) {
+                (_, KeyCode::Esc | KeyCode::Char('q')) => browser.close_config(),
+                (_, KeyCode::Tab) => browser.settings_tab(true),
+                (_, KeyCode::BackTab) => browser.settings_tab(false),
+                (Tab::Settings, KeyCode::Down | KeyCode::Char('j')) => browser.settings_move(1),
+                (Tab::Settings, KeyCode::Up | KeyCode::Char('k')) => browser.settings_move(-1),
+                (Tab::Settings, KeyCode::Char('\n') | KeyCode::Enter) => {
+                    browser.settings_activate()
+                }
+                (Tab::Settings, KeyCode::Char('x')) => browser.settings_unset(),
+                (Tab::Profiles, KeyCode::Down | KeyCode::Char('j')) => browser.profiles_move(1),
+                (Tab::Profiles, KeyCode::Up | KeyCode::Char('k')) => browser.profiles_move(-1),
+                (Tab::Profiles, KeyCode::PageDown) => browser.settings_scroll(10),
+                (Tab::Profiles, KeyCode::PageUp) => browser.settings_scroll(-10),
+                (Tab::Profiles, KeyCode::Char('d')) => browser.make_profile_default(),
+                (Tab::Check, KeyCode::Down | KeyCode::Char('j')) => browser.settings_scroll(1),
+                (Tab::Check, KeyCode::Up | KeyCode::Char('k')) => browser.settings_scroll(-1),
+                (Tab::Check, KeyCode::PageDown) => browser.settings_scroll(10),
+                (Tab::Check, KeyCode::PageUp) => browser.settings_scroll(-10),
+                (Tab::Check, KeyCode::Char('r')) => browser.rerun_check(),
                 _ => {}
             }
         }

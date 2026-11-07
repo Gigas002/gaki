@@ -78,6 +78,11 @@ fn settings_round_trip() {
         steam::settings_set("default_profile", Some("ghost")).is_err(),
         "an unknown profile is refused"
     );
+    assert!(steam::profiles().is_ok(), "profiles read from an empty dir");
+    assert!(
+        !steam::config_check().unwrap().iter().any(|f| f.error),
+        "a fresh config has no errors"
+    );
     steam::settings_set("cloud_sync", None).unwrap();
     steam::settings_set("info_cache_ttl", None).unwrap();
     assert_eq!(setting("cloud_sync"), None);

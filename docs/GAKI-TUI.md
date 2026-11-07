@@ -134,6 +134,17 @@ few keys apply later, and the status line says when: the proxy when gaki next
 starts, `daemon_idle_timeout` when the daemon next starts, and the library
 and profile directories after a library reload (`r`).
 
+`Tab` / `Shift-Tab` switch to two more tabs:
+
+- **Profiles** lists the profiles, the default one marked. Beside the
+  highlighted profile it shows its file, its issues, the games whose
+  `games.toml` entry names it, and its settings as they read in the file
+  (`PgUp` / `PgDn` scroll them). `d` makes it the default profile. Profile
+  files themselves are edited by hand.
+- **Check** runs `gaki-cli config check` each time you open the tab: files
+  that didn't load, then errors, then warnings, or "No problems found."
+  `r` checks again.
+
 ### Cloud saves
 
 `C` lists the game's Steam Cloud files. `s` syncs both ways, `d` only

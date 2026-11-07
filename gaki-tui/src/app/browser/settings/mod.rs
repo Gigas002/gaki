@@ -1,7 +1,12 @@
-//! The Settings overlay (`p`): every `config.toml` key, each with its value
-//! or its default. `Enter` flips a switch, cycles a choice or opens a
-//! prompt; `x` unsets a key. Values go through the same validation as
-//! `gaki-cli config set`, so a bad one is refused with its reason.
+//! The Settings overlay (`p`), in three tabs (`Tab` switches):
+//!
+//! * Settings: every `config.toml` key, each with its value or its default.
+//!   `Enter` flips a switch, cycles a choice or opens a prompt; `x` unsets a
+//!   key. Values go through the same validation as `gaki-cli config set`, so
+//!   a bad one is refused with its reason.
+//! * Profiles: each profile with its settings, its file, the games using it
+//!   and its issues; `d` makes it the default.
+//! * Check: `gaki-cli config check`, run when the tab is shown; `r` re-runs.
 
 use super::Browser;
 use crate::app::steam;
@@ -223,6 +228,91 @@ pub fn next_value(
     }
 }
 
+/// The overlay's tabs.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Tab {
+    #[default]
+    Settings,
+    Profiles,
+    Check,
+}
+
+impl Tab {
+    pub const ALL: [Tab; 3] = [Tab::Settings, Tab::Profiles, Tab::Check];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Tab::Settings => "Settings",
+            Tab::Profiles => "Profiles",
+            Tab::Check => "Check",
+        }
+    }
+
+    fn step(self, forward: bool) -> Tab {
+        let i = Tab::ALL.iter().position(|t| *t == self).unwrap_or(0);
+        let n = Tab::ALL.len();
+        Tab::ALL[if forward {
+            (i + 1) % n
+        } else {
+            (i + n - 1) % n
+        }]
+    }
+}
+
+/// The Profiles tab.
+#[derive(Debug, Clone)]
+pub struct ProfilesTab {
+    pub data: Result<steam::Profiles, String>,
+    pub selected: usize,
+    /// The detail pane's scroll, in rows.
+    pub scroll: u16,
+}
+
+impl ProfilesTab {
+    pub fn with(data: steam::Profiles) -> Self {
+        Self {
+            data: Ok(data),
+            selected: 0,
+            scroll: 0,
+        }
+    }
+
+    fn load() -> Self {
+        Self {
+            data: steam::profiles().map_err(|e| e.to_string()),
+            selected: 0,
+            scroll: 0,
+        }
+    }
+
+    pub fn selected_row(&self) -> Option<&steam::ProfileRow> {
+        self.data.as_ref().ok()?.rows.get(self.selected)
+    }
+}
+
+/// The Check tab.
+#[derive(Debug, Clone)]
+pub struct CheckTab {
+    pub findings: Result<Vec<steam::CheckFinding>, String>,
+    pub scroll: u16,
+}
+
+impl CheckTab {
+    pub fn with(findings: Vec<steam::CheckFinding>) -> Self {
+        Self {
+            findings: Ok(findings),
+            scroll: 0,
+        }
+    }
+
+    fn run() -> Self {
+        Self {
+            findings: steam::config_check().map_err(|e| e.to_string()),
+            scroll: 0,
+        }
+    }
+}
+
 /// A change waiting for its y/n.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pending {
@@ -244,6 +334,11 @@ pub struct SettingsView {
     /// The last save's result.
     pub status: String,
     pub profiles: Vec<String>,
+    pub tab: Tab,
+    /// Loaded when the Profiles tab is first shown.
+    pub profiles_tab: Option<ProfilesTab>,
+    /// Run each time the Check tab is shown.
+    pub check: Option<CheckTab>,
 }
 
 impl SettingsView {
@@ -335,6 +430,76 @@ impl Browser {
             Some(value) => view.apply(index, value),
             None => view.input = Some(view.value(index).unwrap_or_default().to_string()),
         }
+    }
+
+    /// Show the next (`Tab`) or previous (`Shift-Tab`) tab. Profiles load
+    /// the first time; the check runs each time it's shown.
+    pub fn settings_tab(&mut self, forward: bool) {
+        let view = &mut self.settings;
+        view.tab = view.tab.step(forward);
+        match view.tab {
+            Tab::Profiles if view.profiles_tab.is_none() => {
+                view.profiles_tab = Some(ProfilesTab::load());
+            }
+            Tab::Check => view.check = Some(CheckTab::run()),
+            _ => {}
+        }
+    }
+
+    /// `j`/`k` in the Profiles tab.
+    pub fn profiles_move(&mut self, delta: isize) {
+        if let Some(tab) = &mut self.settings.profiles_tab {
+            let len = tab.data.as_ref().map_or(0, |d| d.rows.len());
+            tab.selected = tab
+                .selected
+                .saturating_add_signed(delta)
+                .min(len.saturating_sub(1));
+            tab.scroll = 0;
+        }
+    }
+
+    /// Scroll the Profiles detail pane or the Check list by `delta` rows.
+    pub fn settings_scroll(&mut self, delta: i16) {
+        let view = &mut self.settings;
+        let scroll = match view.tab {
+            Tab::Profiles => view.profiles_tab.as_mut().map(|t| &mut t.scroll),
+            Tab::Check => view.check.as_mut().map(|t| &mut t.scroll),
+            Tab::Settings => None,
+        };
+        if let Some(scroll) = scroll {
+            *scroll = scroll.saturating_add_signed(delta);
+        }
+    }
+
+    /// `r` in the Check tab: check again.
+    pub fn rerun_check(&mut self) {
+        self.settings.check = Some(CheckTab::run());
+    }
+
+    /// `d` in the Profiles tab: make the highlighted profile the default.
+    pub fn make_profile_default(&mut self) {
+        let view = &mut self.settings;
+        let Some(row) = view
+            .profiles_tab
+            .as_ref()
+            .and_then(ProfilesTab::selected_row)
+        else {
+            return;
+        };
+        if row.is_default {
+            view.status = format!("{} is already the default.", row.name);
+            return;
+        }
+        let name = row.name.clone();
+        view.status = match steam::settings_set("default_profile", Some(&name)) {
+            Ok(()) => format!("{name} is now the default profile."),
+            Err(e) => e.to_string(),
+        };
+        view.reload();
+        let selected = view.profiles_tab.as_ref().map_or(0, |t| t.selected);
+        let mut tab = ProfilesTab::load();
+        tab.selected = selected;
+        view.profiles_tab = Some(tab);
     }
 
     /// `x`: unset the highlighted key, back to its default.

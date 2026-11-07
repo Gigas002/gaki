@@ -1896,7 +1896,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   UTC time, the newer marked `newer`) in a wrapped header above the file
   table, which gained a modified column. Tests in `tests/browse_view.rs` and
   `steam/tests/cloud.rs`; help line, `docs/GAKI-TUI.md` ("Cloud saves").
-- [ ] **8.10** TUI settings parity. Settings edits only presence and proxy.
+- [x] **8.10** TUI settings parity. Settings edits only presence and proxy.
   Add the other `config.toml` keys (`default_profile`, `default_platform`,
   `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,
   `daemon_idle_timeout`, `info_cache_ttl`, `secret_store`, ...), a profiles
@@ -1917,9 +1917,20 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `steam::config_show` are gone. Tests: `settings/tests.rs`,
     `tests/actions_view.rs`, and the offline settings round trip. Help
     line, `docs/GAKI-TUI.md` ("Settings").
-  - [ ] **8.10b** Settings tabs (`Tab`): Profiles (each profile, its
+  - [x] **8.10b** Settings tabs (`Tab`): Profiles (each profile, its
     settings, the games using it, its issues) and Check (load errors and
     issues, errors first).
+    *Done.* `settings::Tab` with a tab bar; `Tab` / `Shift-Tab` switch.
+    Profiles (`ProfilesTab`, loaded the first time it's shown, from
+    `steam::profiles`) lists them, default marked and `!` on ones with
+    issues, beside the highlighted one's path, issues, games
+    (`GameRef` display) and its TOML (`toml::to_string_pretty` of the
+    profile); `PgUp`/`PgDn` scroll; `d` sets `default_profile` and reloads.
+    Profiles that failed to load are listed under the detail. Check
+    (`CheckTab`, from `steam::config_check`: load errors, then issues by
+    severity) runs each time it's shown and on `r`. Tests in
+    `tests/actions_view.rs` and the offline round trip; help line,
+    `docs/GAKI-TUI.md`.
 - [ ] **8.11** TUI odds and ends that only the CLI has: `drm` check,
   `duplicates`, `available`, saving artwork (`image -o`), user profiles
   (`user`), the extended `info` fields, and daemon management
