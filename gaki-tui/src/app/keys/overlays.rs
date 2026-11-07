@@ -480,11 +480,18 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         return Ok(true);
     }
     if browser.show_depots {
-        // Depots overlay: Esc/q close, j/k scroll.
+        #[cfg(feature = "depot")]
+        if browser.depots.files.is_some() {
+            depot_files_key(browser, input);
+            return Ok(true);
+        }
+        // Depots overlay: Esc/q close, j/k move, Enter opens the files.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_depots(),
-            KeyCode::Down | KeyCode::Char('j') => browser.depots_scroll_down(),
-            KeyCode::Up | KeyCode::Char('k') => browser.depots_scroll_up(),
+            KeyCode::Down | KeyCode::Char('j') => browser.depots_next(),
+            KeyCode::Up | KeyCode::Char('k') => browser.depots_previous(),
+            #[cfg(feature = "depot")]
+            KeyCode::Char('\n') | KeyCode::Enter => browser.open_depot_files(),
             _ => {}
         }
         return Ok(true);
@@ -614,4 +621,31 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         return Ok(true);
     }
     Ok(false)
+}
+
+/// Keys in the depot file view. With a prompt open they type into it;
+/// otherwise Esc/q go back to the depot list.
+#[cfg(feature = "depot")]
+fn depot_files_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+    if browser.depot_input_open() {
+        match input {
+            KeyCode::Esc => browser.cancel_depot_input(),
+            KeyCode::Char('\n') | KeyCode::Enter => browser.submit_depot_input(),
+            KeyCode::Backspace => browser.depot_input_pop(),
+            KeyCode::Char(c) => browser.depot_input_push(c),
+            _ => {}
+        }
+        return;
+    }
+    match input {
+        KeyCode::Esc | KeyCode::Char('q') => browser.close_depot_files(),
+        KeyCode::Down | KeyCode::Char('j') => browser.depot_files_move(1),
+        KeyCode::Up | KeyCode::Char('k') => browser.depot_files_move(-1),
+        KeyCode::PageDown => browser.depot_files_move(10),
+        KeyCode::PageUp => browser.depot_files_move(-10),
+        KeyCode::Char('/') => browser.begin_depot_filter(),
+        KeyCode::Char('b') => browser.begin_depot_branch(),
+        KeyCode::Char('d') => browser.begin_depot_download(),
+        _ => {}
+    }
 }

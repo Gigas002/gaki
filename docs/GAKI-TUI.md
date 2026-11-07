@@ -65,7 +65,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `Space` / `c`         | Pause or resume, or cancel, an install                   |
 | `U` / `v` / `x`       | Update, verify, uninstall                                |
 | `V` / `b`             | Versions and pinning, beta branches                      |
-| `o` / `D` / `L`       | Depots, DLC, launch options                              |
+| `o` / `D` / `L`       | Depots (and their files, see below), DLC, launch options |
 | `P`                   | Proton builds (`d` sets the default, `i` installs, `u` uninstalls) |
 | `C` / `W` / `a`       | Cloud saves, Workshop, achievements                      |
 | `M` / `K` / `N`       | Move, relink, import an install                          |
@@ -95,6 +95,27 @@ game: type to narrow it, `Enter` to run. Two entries live only here:
   profile, the platform (auto, windows, linux) and the Steam integration (the
   profile's, auto, host, none). Wrappers are shown read-only; change them with
   `gaki-cli config game <id> --wrapper …`.
+
+### Depot files
+
+`o` lists the selected game's depots; the list loads in the background.
+With the `depot` feature, `Enter` on a depot opens its files: the current
+manifest on the public branch, loaded in the background too.
+
+| Key                   | Action                                                    |
+| --------------------- | --------------------------------------------------------- |
+| `j` / `k`, `PgUp` / `PgDn` | Move, page                                           |
+| `/`                   | Filter as you type: plain text matches anywhere in the path, `*` and `?` are wildcards; `Enter` keeps it, `Esc` clears it |
+| `b`                   | Load another branch's current manifest                    |
+| `d`                   | Download the highlighted file                             |
+| `Esc` / `q`           | Back to the depot list                                    |
+
+`d` asks for a directory, prefilled with the one used last in this session,
+or else your Downloads folder (`XDG_DOWNLOAD_DIR`, else `~/Downloads`); `~`
+expands. The file is saved there under its own name, checked against the
+manifest's SHA-1, and never replaces an existing file. One download runs at a
+time. It keeps going if you close the overlay, and the status bar says when
+it's done. Only regular files download; this is `gaki-cli depots download`.
 
 ### Chat in its own window
 

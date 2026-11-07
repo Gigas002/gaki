@@ -1192,6 +1192,46 @@ pub fn depots(app_id: i32) -> Result<Vec<Depot>, TuiError> {
     })
 }
 
+/// The entries of a depot's current manifest on `branch`.
+#[cfg(feature = "depot")]
+pub fn depot_files(
+    app_id: i32,
+    depot_id: u32,
+    branch: &str,
+) -> Result<libgaki::ops::depot::DepotFiles, TuiError> {
+    use libgaki::ops::depot::{self, ManifestRef};
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let manifest = ManifestRef::Branch(branch.to_string());
+        depot::files(&client, app_id as u32, depot_id, &manifest, None).await
+    })
+}
+
+/// Download one file of a depot manifest into `out_dir` (never replacing an
+/// existing file). Returns where it was saved.
+#[cfg(feature = "depot")]
+pub fn download_depot_file(
+    app_id: i32,
+    depot_id: u32,
+    manifest_id: u64,
+    path: &str,
+    out_dir: &std::path::Path,
+) -> Result<std::path::PathBuf, TuiError> {
+    use libgaki::ops::depot::{self, FileDownload, ManifestRef};
+    let request = FileDownload {
+        app_id: app_id as u32,
+        depot_id,
+        manifest: ManifestRef::Id(manifest_id),
+        path: path.to_string(),
+        out_dir: out_dir.to_path_buf(),
+        force: false,
+    };
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        Ok(depot::download(&client, &request).await?.path)
+    })
+}
+
 /// A game's launch options, as listed in its app info.
 pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOption>, TuiError> {
     in_process(async {

@@ -90,7 +90,7 @@ A TUI without a library has nothing to show, so `gaki-tui` always builds
 | `inventory`   | inventory `I`, wallet `w`                                                          |
 | `market`      | market listings `m`, market search `S`                                             |
 | `store`       | none yet                                                                           |
-| `depot`       | none yet                                                                           |
+| `depot`       | the depot file view (`Enter` in depots `o`): filter, branch, single-file download  |
 
 The help overlay, the status-bar hints and the Proton overlay's title list only
 the keys the build has. If the build lacks `install`, Play on a game that isn't

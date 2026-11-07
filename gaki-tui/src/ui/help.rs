@@ -108,6 +108,9 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("D", "manage DLC"),
         #[cfg(feature = "versioning")]
         Entry::Binding("b", "beta branches"),
+        #[cfg(feature = "depot")]
+        Entry::Binding("o", "depots (Enter: files, / filter, b branch, d download)"),
+        #[cfg(not(feature = "depot"))]
         Entry::Binding("o", "depots"),
         #[cfg(feature = "install")]
         Entry::Binding("P", "proton (d/i/u)"),

@@ -190,7 +190,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     if browser.show_depots {
         let area = ui::centered_rect(70, 80, frame.area());
         frame.render_widget(Clear, area);
-        frame.render_widget(ui::depots::depots(browser), area);
+        ui::depots::draw(frame, area, browser);
     }
 
     // Move (relocate install) prompt floats above everything.

@@ -1694,10 +1694,30 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     unchanged `depots <app>`. `-o` resolves against the client's working
     directory, not the daemon's. Documented in `docs/GAKI-CLI.md` and
     `docs/FEATURES.md`.
-- [ ] **8.2b** Depot browser, TUI. A file view opened from the depots
-  overlay (`o`): the selected depot's public manifest, a filter, and
-  downloading the selected file (to a directory to pick at the start of the
-  step). Uses `ops::depot` from 8.2a.
+- [x] **8.2b** Depot browser, TUI. A file view opened from the depots
+  overlay (`o`), using `ops::depot` from 8.2a.
+  *Done.*
+  - **Off the UI thread.** The depot list (`o`) used to block while it
+    loaded; it now opens at once with "Loading depots…". The manifest and
+    downloads load the same way: a small `Load<T>` (loading, ready, failed)
+    over a thread's result slot, adopted by `Browser::poll_depots` on every
+    tick. `poll_workers` lost its feature gate so the poll runs in every
+    build.
+  - **The depot list** gets a highlight; `Enter` opens the file view
+    (`depot` builds only).
+  - **The file view** shows the public manifest's entries (size, `/` for
+    directories, `*` for executables, `->` link targets) and scrolls to
+    keep the highlight in view. `/` filters as you type (a substring, or a
+    glob with `*`/`?`), `b` loads another branch, `d` downloads, `PgUp`/
+    `PgDn` page, `Esc` goes back.
+  - **Downloads.** `d` on a regular file asks for a directory, prefilled
+    with the last one this session or `XDG_DOWNLOAD_DIR` (from
+    `user-dirs.dirs`, else `~/Downloads`); `~` expands. One at a time,
+    never overwriting (`force: false`), at the listed manifest id. The
+    result shows in the view and the status bar, and still reports when
+    the overlay was closed.
+  - Help line, `docs/GAKI-TUI.md` ("Depot files") and `docs/FEATURES.md`.
+    No Actions-menu row: the menu already opens the depots overlay.
 - [ ] **8.3** Remove dead code: `ops::library::cached_game_name` has no
   callers. Sweep for other unused `pub` items in `libgaki` while there.
 - [ ] **8.4** TUI store views (`store`): search, price (with region compare),

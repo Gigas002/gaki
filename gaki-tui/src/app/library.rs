@@ -43,7 +43,6 @@ pub fn run() -> AppResult {
     let mut lib = Library::start()?;
     let events = Events::new();
     loop {
-        #[cfg(any(feature = "social", feature = "workshop", feature = "install"))]
         lib.poll_workers();
         let marquee_tick = lib.marquee.tick(lib.browser.selected_index());
         terminal.draw(|frame| {
@@ -112,7 +111,6 @@ impl Library {
 
     /// Adopt whatever the background workers finished since the last frame.
     /// Never blocks.
-    #[cfg(any(feature = "social", feature = "workshop", feature = "install"))]
     fn poll_workers(&mut self) {
         let browser = &mut self.browser;
         // Adopt any async friend-management results (resolved search previews and
@@ -125,6 +123,7 @@ impl Library {
         // event (including ticks) and never blocks the UI thread.
         #[cfg(feature = "workshop")]
         browser.poll_workshop();
+        browser.poll_depots();
 
         // Reconcile a game's install state once its install finishes, and adopt
         // any targeted single-game refresh that landed — so `installed` (which

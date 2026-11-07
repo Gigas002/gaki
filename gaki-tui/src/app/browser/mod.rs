@@ -16,7 +16,7 @@ mod chat;
 mod cloud;
 #[cfg(feature = "collections")]
 mod collections;
-mod depots;
+pub mod depots;
 mod dlc;
 #[cfg(feature = "social")]
 mod friends;
@@ -271,10 +271,8 @@ pub struct Browser {
     branch_app_id: i32,
     /// Whether the depots overlay is open.
     pub show_depots: bool,
-    /// Depots for the game the overlay was opened for.
-    pub depots: Vec<steam::Depot>,
-    /// Scroll offset (top row) within the depots overlay.
-    pub depots_scroll: usize,
+    /// The depots overlay's list (and, with `depot`, its file view).
+    pub depots: depots::DepotsView,
     /// Whether the launch-options overlay is open.
     pub show_launch: bool,
     /// The selected game's launch options (loaded when the overlay opens).
@@ -562,8 +560,7 @@ impl Browser {
             #[cfg(feature = "versioning")]
             branch_app_id: 0,
             show_depots: false,
-            depots: Vec::new(),
-            depots_scroll: 0,
+            depots: depots::DepotsView::default(),
             show_launch: false,
             launch_options: Vec::new(),
             launch_scroll: 0,
