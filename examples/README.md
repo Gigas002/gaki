@@ -8,6 +8,7 @@ Example configuration for gaki. Copy what you need into `~/.config/gaki/`
 | [`config.toml`](config.toml) | global settings |
 | [`games.toml`](games.toml) | per-game overrides, one `[[game]]` per game |
 | [`profiles/`](profiles) | one runner, prefix and environment per file; the file name must match `name` |
+| [`keybinds.toml`](keybinds.toml) | gaki-tui's key bindings; goes in `tui/keybinds.toml` |
 
 [`library.toml`](library.toml) isn't configuration. `gaki-cli library export`
 writes this format, and `gaki-cli library import` reads it.
@@ -29,4 +30,5 @@ bridges to the host Steam client when it is running, `host` always does
 Profiles use the same format as lootrs, so `profiles_dir` in `config.toml` can
 point both tools at one directory.
 
-`libgaki/tests/examples.rs` parses and validates every file here.
+`libgaki/tests/examples.rs` parses and validates every file here, and
+gaki-tui's keymap tests check `keybinds.toml` against the built-in defaults.

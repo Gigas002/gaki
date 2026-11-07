@@ -307,3 +307,36 @@ The cached library (`games.toml`) and cover art (`icons/`) are in
 `$XDG_STATE_HOME/gaki/gaki-tui.log`. `--log-level` sets how much it writes.
 A `config.json` from an older version, here or in `~/.config/aurelia-tui/`,
 isn't read and can be deleted.
+
+### Key bindings
+
+The library's keys (with no overlay open) can be changed in
+`$XDG_CONFIG_HOME/gaki/tui/keybinds.toml`, a file of its own, never
+`config.toml`. Under `[library]`, each line binds an action to a key or a
+list of keys; an empty list leaves it without one (the Actions menu still
+has it):
+
+```toml
+[library]
+install = "i"
+description = "d"
+sort = ["s", "ctrl+s"]
+hide = []
+```
+
+Keys are one character, case-sensitive (`"E"` is Shift+e), or a name:
+`Enter`, `Esc`, `Tab`, `BackTab` (Shift+Tab), `Backspace`, `Delete`,
+`Insert`, `Home`, `End`, `PageUp`, `PageDown`, the arrows, `Space`,
+`F1`–`F24`, each optionally after `ctrl+` and/or `alt+`. An action left out
+keeps its default, so a missing or empty file changes nothing.
+[`examples/keybinds.toml`](../examples/keybinds.toml) lists every action
+with its default key.
+
+The file is read once at startup. On an unknown section or action, a key it
+can't read, or two actions on one key, gaki-tui doesn't start and prints the
+file and line, e.g.
+``keybinds.toml:3: `x` is bound to both `sort` and `uninstall` in [library]``.
+`Esc`, `?` (help), the arrow keys and Ctrl+C (quit, from anywhere) can't be
+rebound, so a bad file can't lock you out. The help (`?`), the status-bar
+hints and the Actions menu show the keys in effect. Overlay keys are fixed
+for now.

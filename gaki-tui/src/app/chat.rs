@@ -28,7 +28,8 @@ pub fn run(steamid: u64, name: String) -> AppResult {
         terminal.draw(|frame| ui::chat::window(frame, &browser))?;
 
         match events.next()? {
-            Event::Input(input) => match input {
+            Event::Input(key) if key.is_interrupt() => break,
+            Event::Input(key) => match key.code {
                 KeyCode::Esc => break,
                 KeyCode::Char('\n') | KeyCode::Enter => browser.chat_send(),
                 KeyCode::Backspace => browser.chat_pop(),

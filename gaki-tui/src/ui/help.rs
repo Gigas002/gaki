@@ -5,13 +5,32 @@ use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
+use crate::keymap::{self, LibraryAction as A};
 use crate::ui::theme;
 
-/// One entry in the help list: either a group header or a key binding.
+/// One entry in the help list: a group header, a library action (its keys
+/// read from the live keymap), or a fixed binding.
 enum Entry {
     Header(&'static str),
+    /// Library actions sharing a line; their keys are joined with `/`.
+    Keys(&'static [A], &'static str),
     Binding(&'static str, &'static str),
     Blank,
+}
+
+/// The key column for `actions`, from the keymap; `—` when none is bound.
+fn keys_label(actions: &[A]) -> String {
+    let map = keymap::get();
+    let labels: Vec<String> = actions
+        .iter()
+        .map(|&a| map.label(a))
+        .filter(|l| !l.is_empty())
+        .collect();
+    if labels.is_empty() {
+        "\u{2014}".to_string()
+    } else {
+        labels.join("/")
+    }
 }
 
 /// Width of a single column (the half the overlay devotes to one entry).
@@ -28,7 +47,12 @@ fn entry_spans(entry: &Entry) -> Vec<Span<'static>> {
                 .fg(theme::ACCENT)
                 .add_modifier(Modifier::BOLD),
         )],
-        Entry::Binding(keys, desc) => {
+        Entry::Keys(..) | Entry::Binding(..) => {
+            let (keys, desc) = match entry {
+                Entry::Keys(actions, desc) => (keys_label(actions), *desc),
+                Entry::Binding(keys, desc) => (keys.to_string(), *desc),
+                _ => unreachable!(),
+            };
             let keys_field = format!("  {:<14}", keys);
             // Clamp the description to whatever space remains in the column so
             // the two columns stay aligned regardless of entry length.
@@ -50,88 +74,109 @@ fn entry_spans(entry: &Entry) -> Vec<Span<'static>> {
 fn entries() -> Vec<Entry> {
     vec![
         Entry::Header("Navigation"),
-        Entry::Binding("j / \u{2193}", "move down"),
-        Entry::Binding("k / \u{2191}", "move up"),
-        Entry::Binding("g", "jump to top"),
-        Entry::Binding("G", "jump to bottom"),
-        Entry::Binding("PageUp/Down", "page up / down"),
+        Entry::Keys(&[A::Down], "move down"),
+        Entry::Keys(&[A::Up], "move up"),
+        Entry::Keys(&[A::Top], "jump to top"),
+        Entry::Keys(&[A::Bottom], "jump to bottom"),
+        Entry::Keys(&[A::PageUp, A::PageDown], "page up / down"),
         Entry::Binding("mouse wheel", "scroll the list"),
         Entry::Binding("Shift+drag", "select text"),
         Entry::Blank,
         Entry::Header("Filtering"),
         #[cfg(feature = "social")]
-        Entry::Binding("Tab / S-Tab", "cycle tabs (+Friends)"),
+        Entry::Keys(&[A::NextTab, A::PreviousTab], "cycle tabs (+Friends)"),
         #[cfg(feature = "social")]
-        Entry::Binding("1 \u{2013} 5", "jump to a tab (5=Friends)"),
+        Entry::Keys(
+            &[
+                A::TabAll,
+                A::TabInstalled,
+                A::TabUpdates,
+                A::TabFavourites,
+                A::TabFriends,
+            ],
+            "jump to a tab (5=Friends)",
+        ),
         #[cfg(not(feature = "social"))]
-        Entry::Binding("Tab / S-Tab", "cycle tabs"),
+        Entry::Keys(&[A::NextTab, A::PreviousTab], "cycle tabs"),
         #[cfg(not(feature = "social"))]
-        Entry::Binding("1 \u{2013} 4", "jump to a tab"),
-        Entry::Binding("/", "focus text filter"),
+        Entry::Keys(
+            &[A::TabAll, A::TabInstalled, A::TabUpdates, A::TabFavourites],
+            "jump to a tab",
+        ),
+        Entry::Keys(&[A::Filter], "focus text filter"),
         Entry::Binding("Esc", "clear filter"),
-        Entry::Binding("s", "cycle sort"),
+        Entry::Keys(&[A::Sort], "cycle sort"),
         Entry::Blank,
         Entry::Header("Actions"),
-        Entry::Binding("Enter", "Actions menu (all)"),
+        Entry::Keys(&[A::ActionsMenu], "Actions menu (all)"),
         #[cfg(feature = "versioning")]
-        Entry::Binding("V", "versions & pinning"),
+        Entry::Keys(&[A::Versions], "versions & pinning"),
         #[cfg(feature = "collections")]
-        Entry::Binding(
-            "O",
+        Entry::Keys(
+            &[A::Collections],
             "collections (a/r add/remove game, n new, e rename, x delete)",
         ),
-        Entry::Binding("a", "achievements"),
+        Entry::Keys(&[A::Achievements], "achievements"),
         #[cfg(feature = "inventory")]
-        Entry::Binding("I", "inventory"),
+        Entry::Keys(&[A::Inventory], "inventory"),
         #[cfg(feature = "market")]
-        Entry::Binding("m", "market listings"),
+        Entry::Keys(&[A::MarketListings], "market listings"),
         #[cfg(feature = "market")]
-        Entry::Binding("S", "search community market"),
+        Entry::Keys(&[A::MarketSearch], "search community market"),
         #[cfg(feature = "market")]
         Entry::Binding("  Enter / Tab", "  run / price highlighted"),
-        Entry::Binding("i", "expand / collapse desc"),
+        Entry::Keys(&[A::Description], "expand / collapse desc"),
         #[cfg(feature = "install")]
-        Entry::Binding("d", "install (pick library)"),
+        Entry::Keys(&[A::Install], "install (pick library)"),
         #[cfg(feature = "install")]
-        Entry::Binding("Space", "pause / resume install"),
+        Entry::Keys(&[A::PauseResume], "pause / resume install"),
         #[cfg(feature = "install")]
-        Entry::Binding("c", "cancel install"),
+        Entry::Keys(&[A::CancelInstall], "cancel install"),
         #[cfg(feature = "install")]
-        Entry::Binding("x", "uninstall game"),
+        Entry::Keys(&[A::Uninstall], "uninstall game"),
         #[cfg(feature = "install")]
-        Entry::Binding("M", "move install"),
+        Entry::Keys(&[A::MoveInstall], "move install"),
         #[cfg(feature = "install")]
-        Entry::Binding("K", "relink install"),
+        Entry::Keys(&[A::Relink], "relink install"),
         #[cfg(feature = "install")]
-        Entry::Binding("N", "import install"),
+        Entry::Keys(&[A::Import], "import install"),
         #[cfg(feature = "install")]
-        Entry::Binding("v", "verify files"),
+        Entry::Keys(&[A::Verify], "verify files"),
         #[cfg(feature = "install")]
-        Entry::Binding("U", "update game"),
-        Entry::Binding("D", "manage DLC"),
+        Entry::Keys(&[A::Update], "update game"),
+        Entry::Keys(&[A::Dlc], "manage DLC"),
         #[cfg(feature = "versioning")]
-        Entry::Binding("b", "beta branches"),
+        Entry::Keys(&[A::Branches], "beta branches"),
         #[cfg(feature = "depot")]
-        Entry::Binding("o", "depots (Enter: files, / filter, b branch, d download)"),
+        Entry::Keys(
+            &[A::Depots],
+            "depots (Enter: files, / filter, b branch, d download)",
+        ),
         #[cfg(not(feature = "depot"))]
-        Entry::Binding("o", "depots"),
+        Entry::Keys(&[A::Depots], "depots"),
         #[cfg(feature = "install")]
-        Entry::Binding("P", "proton (d/i/u)"),
+        Entry::Keys(&[A::Proton], "proton (d/i/u)"),
         #[cfg(not(feature = "install"))]
-        Entry::Binding("P", "proton (d)"),
-        Entry::Binding("R", "running games"),
+        Entry::Keys(&[A::Proton], "proton (d)"),
+        Entry::Keys(&[A::Running], "running games"),
         #[cfg(feature = "store")]
-        Entry::Binding("Y", "store (price, players, news, reviews, similar)"),
+        Entry::Keys(
+            &[A::Store],
+            "store (price, players, news, reviews, similar)",
+        ),
         #[cfg(feature = "store")]
-        Entry::Binding("J", "steam store (search, deals, events, wishlist)"),
+        Entry::Keys(
+            &[A::SteamStore],
+            "steam store (search, deals, events, wishlist)",
+        ),
         #[cfg(feature = "install")]
-        Entry::Binding(
-            "X",
+        Entry::Keys(
+            &[A::Installs],
             "installs and backlog (r/R resume, p pause, s stop, f/F forget)",
         ),
         #[cfg(feature = "workshop")]
-        Entry::Binding(
-            "W",
+        Entry::Keys(
+            &[A::Workshop],
             "workshop status (i install/update, u uninstall, U update all)",
         ),
         #[cfg(feature = "workshop")]
@@ -141,27 +186,33 @@ fn entries() -> Vec<Entry> {
         ),
         #[cfg(feature = "workshop")]
         Entry::Binding("W, b, F3, c", "post a workshop comment"),
-        Entry::Binding(
-            "n",
+        Entry::Keys(
+            &[A::GameInfo],
             "game info (Tab: details, DRM/files checks, save artwork)",
         ),
-        Entry::Binding("Z", "SteamDB page (in Depots / Versions: the depot's)"),
-        Entry::Binding("f", "toggle favourite"),
-        Entry::Binding("H", "hide game"),
+        Entry::Keys(
+            &[A::SteamDb],
+            "SteamDB page (in Depots / Versions: the depot's)",
+        ),
+        Entry::Keys(&[A::Favourite], "toggle favourite"),
+        Entry::Keys(&[A::Hide], "hide game"),
         #[cfg(feature = "cloud")]
-        Entry::Binding("C", "cloud saves (s/d/u sync, c/l keep cloud/local)"),
-        Entry::Binding("L", "launch options"),
-        Entry::Binding("E", "Steam store page"),
-        Entry::Binding("B", "ProtonDB page"),
-        Entry::Binding("T", "Proton issues (GitHub)"),
-        Entry::Binding("r", "refresh library"),
-        Entry::Binding("A", "account"),
-        Entry::Binding(
-            "p",
+        Entry::Keys(
+            &[A::Cloud],
+            "cloud saves (s/d/u sync, c/l keep cloud/local)",
+        ),
+        Entry::Keys(&[A::LaunchOptions], "launch options"),
+        Entry::Keys(&[A::SteamPage], "Steam store page"),
+        Entry::Keys(&[A::ProtonDb], "ProtonDB page"),
+        Entry::Keys(&[A::ProtonIssues], "Proton issues (GitHub)"),
+        Entry::Keys(&[A::Reload], "refresh library"),
+        Entry::Keys(&[A::Account], "account"),
+        Entry::Keys(
+            &[A::Settings],
             "settings (Tab: keys, profiles, config check, daemons; Enter edit, x default)",
         ),
         #[cfg(feature = "social")]
-        Entry::Binding("F / 5", "open Friends tab"),
+        Entry::Keys(&[A::Friends, A::TabFriends], "open Friends tab"),
         #[cfg(feature = "social")]
         Entry::Binding("c / Enter", "chat (Friends tab)"),
         #[cfg(feature = "social")]
@@ -176,12 +227,12 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("x", "remove friend (Friends)"),
         Entry::Binding("A then o", "log out"),
         #[cfg(feature = "inventory")]
-        Entry::Binding("w", "wallet balance"),
-        Entry::Binding("l", "sign in again"),
+        Entry::Keys(&[A::Wallet], "wallet balance"),
+        Entry::Keys(&[A::SignIn], "sign in again"),
         Entry::Blank,
         Entry::Header("General"),
         Entry::Binding("?", "toggle this help"),
-        Entry::Binding("q", "quit"),
+        Entry::Keys(&[A::Quit], "quit"),
     ]
 }
 

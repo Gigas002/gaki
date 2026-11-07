@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{self, LibraryAction as A};
 use crate::ui::theme;
 
 /// A dim "  ·  " separator span.
@@ -14,19 +15,36 @@ fn sep() -> Span<'static> {
     Span::styled("  ·  ", theme::dim())
 }
 
-/// The footer's key hints (line 2), as `(key, description)` pairs.
-const HINTS: &[(&str, &str)] = &[
-    ("[/]", " filter  "),
-    ("[Tab]", " view  "),
-    ("[s]", " sort  "),
-    ("[Enter]", " actions  "),
+/// The footer's key hints (line 2): the action whose first key is shown
+/// (`None` for the fixed `?`), and its description.
+const HINTS: &[(Option<A>, &str)] = &[
+    (Some(A::Filter), " filter  "),
+    (Some(A::NextTab), " view  "),
+    (Some(A::Sort), " sort  "),
+    (Some(A::ActionsMenu), " actions  "),
     #[cfg(feature = "install")]
-    ("[d]", " install  "),
-    ("[f]", " fav  "),
-    ("[r]", " refresh  "),
-    ("[?]", " help  "),
-    ("[q]", " quit"),
+    (Some(A::Install), " install  "),
+    (Some(A::Favourite), " fav  "),
+    (Some(A::Reload), " refresh  "),
+    (None, " help  "),
+    (Some(A::Quit), " quit"),
 ];
+
+/// The hints as `([key], description)`, from the live keymap. An action
+/// with no key is left out.
+fn hints() -> Vec<(String, &'static str)> {
+    let map = keymap::get();
+    HINTS
+        .iter()
+        .filter_map(|&(action, desc)| {
+            let key = match action {
+                Some(action) => map.first(action),
+                None => "?".to_string(),
+            };
+            (!key.is_empty()).then(|| (format!("[{key}]"), desc))
+        })
+        .collect()
+}
 
 /// The footer's version badge text.
 fn version_badge_text() -> String {
@@ -36,7 +54,7 @@ fn version_badge_text() -> String {
 /// Where the version badge fits in a footer `area`: the bottom row when the
 /// key hints leave room for it, else the top (status) row.
 pub fn version_badge_area(area: Rect) -> Rect {
-    let hints: usize = HINTS
+    let hints: usize = hints()
         .iter()
         .map(|(k, d)| k.chars().count() + d.chars().count())
         .sum();
@@ -127,8 +145,8 @@ pub fn status_bar(browser: &Browser, account: Option<&str>) -> Paragraph<'static
 
     // --- Line 2: key hints ---
     let mut line2: Vec<Span<'static>> = Vec::new();
-    for (cap, desc) in HINTS {
-        line2.push(Span::styled(cap.to_string(), theme::key()));
+    for (cap, desc) in hints() {
+        line2.push(Span::styled(cap, theme::key()));
         line2.push(Span::styled(desc.to_string(), theme::dim()));
     }
 

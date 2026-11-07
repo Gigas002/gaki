@@ -1993,6 +1993,28 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   syntax (`"E"`, `"ctrl+r"`, `"PageDown"`), whether one action may have
   several keys, and which bindings stay fixed (`q`, `?` and `Esc` are
   candidates, so a bad file can't lock anyone out).
+  Settled at the start: case-sensitive characters plus names, with
+  `ctrl+`/`alt+` (Shift lives in the character, or `BackTab`); a string
+  or a list per action, `[]` unbinds; `Esc`, `?`, the arrows and Ctrl+C
+  are fixed. Split in two:
+  - [x] **8.13a** The file and the library context. *Done.* New
+    `gaki-tui/src/keymap` (`Key` with parse/display and `from_event`;
+    `LibraryAction`, one variant per library key with its name and
+    defaults; `Keymap::{defaults, load, parse}` with `toml::Spanned` line
+    numbers, refusing unknown sections/actions, bad keys, reserved keys
+    and clashes; a `OnceLock` set by `main` via `install`, `get` falls
+    back to the defaults). The input thread sends `Key` (modifiers
+    included) instead of a `KeyCode`; Ctrl+C now quits from anywhere,
+    chat included, rather than turning into `q`. `keys/browse.rs` looks
+    keys up in the map (`?` and the arrows stay fixed); the help
+    (`Entry::Keys`), the status hints and the Actions menu
+    (`ActionRow::key()` via `Action::shortcut`) read the live map.
+    `examples/keybinds.toml` lists every default, commented; a test
+    checks it against `LibraryAction`. Tests: `keymap/tests.rs`,
+    `tests/keymap_live.rs` (a custom map in the help, hints and menu);
+    `docs/GAKI-TUI.md` ("Key bindings"), `examples/README.md`.
+  - [ ] **8.13b** One table per overlay (`[installs]`, `[settings]`, …),
+    each overlay's handler and footer hints reading the map.
 - [ ] **8.15** Share the profile model with lootrs (D9 revised). libgaki
   depends on `liblootrs` for the profile model and its validation only;
   the runners and launch code stay in each tool. Done before 8.14, so the

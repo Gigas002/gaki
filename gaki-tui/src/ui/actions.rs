@@ -52,9 +52,10 @@ pub fn actions(browser: &Browser) -> Paragraph<'static> {
                 Span::styled(selection_marker(selected).to_string(), style),
                 Span::styled(row.label.to_string(), style),
             ];
-            if !row.key.is_empty() {
+            let key = row.key();
+            if !key.is_empty() {
                 spans.push(Span::raw("  ".to_string()));
-                spans.push(Span::styled(format!("[{}]", row.key), theme::dim()));
+                spans.push(Span::styled(format!("[{key}]"), theme::dim()));
             }
             lines.push(Line::from(spans));
         }

@@ -606,7 +606,7 @@ fn every_game_links_to_steam_protondb_steamdb_and_the_proton_tracker() {
         ] {
             let row = rows.iter().find(|r| r.action == action).expect("link row");
             assert_eq!(row.category, "Links");
-            assert_eq!(row.key, key);
+            assert_eq!(row.key(), key);
         }
     }
     assert_eq!(

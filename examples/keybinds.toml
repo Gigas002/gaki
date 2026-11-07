@@ -1,0 +1,91 @@
+# gaki-tui key bindings. Copy to ~/.config/gaki/tui/keybinds.toml
+# (or $XDG_CONFIG_HOME/gaki/tui/keybinds.toml) and uncomment what you change.
+#
+# Each line binds an action to a key or a list of keys:
+#
+#   install = "i"
+#   sort = ["s", "ctrl+s"]
+#   hide = []                # no key; the Actions menu still has it
+#
+# Keys: one character, case-sensitive ("E" is Shift+e), or a name: Enter,
+# Esc, Tab, BackTab (Shift+Tab), Backspace, Delete, Insert, Home, End,
+# PageUp, PageDown, Up, Down, Left, Right, Space, F1-F24. Prefix "ctrl+" or
+# "alt+" for modifiers ("ctrl+r", "alt+PageDown").
+#
+# An action left out keeps its default. gaki-tui refuses to start, naming
+# the line, on an unknown action, a key it can't read, or two actions on one
+# key. Esc, ?, the arrow keys and Ctrl+C can't be rebound.
+#
+# This file sets the library's keys (no overlay open); each overlay keeps
+# its own for now.
+
+[library]
+
+# Moving around (the arrow keys always move too)
+# quit = "q"
+# down = "j"
+# up = "k"
+# top = "g"
+# bottom = "G"
+# page_down = "PageDown"
+# page_up = "PageUp"
+
+# Filtering and tabs
+# filter = "/"
+# next_tab = "Tab"
+# previous_tab = "BackTab"
+# tab_all = "1"
+# tab_installed = "2"
+# tab_updates = "3"
+# tab_favourites = "4"
+# tab_friends = "5"
+# friends = "F"
+# sort = "s"
+# description = "i"
+
+# Installing
+# actions_menu = "Enter"
+# install = "d"
+# pause_resume = "Space"
+# cancel_install = "c"
+# uninstall = "x"
+# move_install = "M"
+# relink = "K"
+# import = "N"
+# verify = "v"
+# update = "U"
+# versions = "V"
+# branches = "b"
+
+# Overlays
+# collections = "O"
+# achievements = "a"
+# inventory = "I"
+# market_listings = "m"
+# market_search = "S"
+# workshop = "W"
+# dlc = "D"
+# depots = "o"
+# proton = "P"
+# running = "R"
+# store = "Y"
+# steam_store = "J"
+# installs = "X"
+# game_info = "n"
+# cloud = "C"
+# launch_options = "L"
+
+# The game
+# favourite = "f"
+# hide = "H"
+# steam_page = "E"
+# protondb = "B"
+# proton_issues = "T"
+# steamdb = "Z"
+
+# Session
+# reload = "r"
+# account = "A"
+# settings = "p"
+# wallet = "w"
+# sign_in = "l"

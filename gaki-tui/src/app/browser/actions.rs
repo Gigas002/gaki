@@ -59,13 +59,77 @@ pub enum Action {
 }
 
 /// One rendered row of the Actions menu: the action, the category header it
-/// sits under, its human label, and the base-keymap key that also triggers it
-/// (shown as a hint; empty when the action is reachable only from the menu).
+/// sits under, and its human label. [`ActionRow::key`] is the library key
+/// that also triggers it.
 pub struct ActionRow {
     pub action: Action,
     pub category: &'static str,
     pub label: &'static str,
-    pub key: &'static str,
+}
+
+impl ActionRow {
+    /// The library key that also runs this action, from the live keymap
+    /// (shown as a hint); empty when only the menu reaches it.
+    pub fn key(&self) -> String {
+        self.action
+            .shortcut()
+            .map(|a| crate::keymap::get().first(a))
+            .unwrap_or_default()
+    }
+}
+
+impl Action {
+    /// The library action that runs the same thing, if any.
+    pub fn shortcut(self) -> Option<crate::keymap::LibraryAction> {
+        use crate::keymap::LibraryAction as A;
+        Some(match self {
+            Action::Play | Action::PlayAs | Action::GameSettings => return None,
+            #[cfg(feature = "install")]
+            Action::Install => A::Install,
+            #[cfg(feature = "install")]
+            Action::PauseResume => A::PauseResume,
+            #[cfg(feature = "install")]
+            Action::CancelInstall => A::CancelInstall,
+            #[cfg(feature = "install")]
+            Action::Update => A::Update,
+            #[cfg(feature = "install")]
+            Action::Verify => A::Verify,
+            #[cfg(feature = "install")]
+            Action::Uninstall => A::Uninstall,
+            #[cfg(feature = "versioning")]
+            Action::Versions => A::Versions,
+            #[cfg(feature = "versioning")]
+            Action::Branches => A::Branches,
+            Action::Proton => A::Proton,
+            Action::LaunchOptions => A::LaunchOptions,
+            Action::Dlc => A::Dlc,
+            #[cfg(feature = "workshop")]
+            Action::Workshop => A::Workshop,
+            #[cfg(feature = "cloud")]
+            Action::Cloud => A::Cloud,
+            Action::Achievements => A::Achievements,
+            Action::Depots => A::Depots,
+            #[cfg(feature = "inventory")]
+            Action::Inventory => A::Inventory,
+            #[cfg(feature = "install")]
+            Action::Move => A::MoveInstall,
+            #[cfg(feature = "install")]
+            Action::Relink => A::Relink,
+            #[cfg(feature = "install")]
+            Action::Import => A::Import,
+            #[cfg(feature = "collections")]
+            Action::Collections => A::Collections,
+            #[cfg(feature = "store")]
+            Action::Store => A::Store,
+            Action::GameInfo => A::GameInfo,
+            Action::SteamPage => A::SteamPage,
+            Action::ProtonDb => A::ProtonDb,
+            Action::ProtonIssues => A::ProtonIssues,
+            Action::SteamDb => A::SteamDb,
+            Action::Favourite => A::Favourite,
+            Action::Hide => A::Hide,
+        })
+    }
 }
 
 impl Browser {
@@ -91,14 +155,12 @@ impl Browser {
                 action: Action::PauseResume,
                 category: PLAY,
                 label: "Pause / resume install",
-                key: "Space",
             });
             #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::CancelInstall,
                 category: PLAY,
                 label: "Cancel install",
-                key: "c",
             });
         }
         if installed {
@@ -106,34 +168,29 @@ impl Browser {
                 action: Action::Play,
                 category: PLAY,
                 label: "Play",
-                key: "",
             });
             rows.push(ActionRow {
                 action: Action::PlayAs,
                 category: PLAY,
                 label: "Play as… (launch target)",
-                key: "",
             });
             #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Update,
                 category: PLAY,
                 label: "Update",
-                key: "U",
             });
             #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Verify,
                 category: PLAY,
                 label: "Verify files",
-                key: "v",
             });
             #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Uninstall,
                 category: PLAY,
                 label: "Uninstall",
-                key: "x",
             });
         } else if !installing {
             #[cfg(feature = "install")]
@@ -141,7 +198,6 @@ impl Browser {
                 action: Action::Install,
                 category: PLAY,
                 label: "Install",
-                key: "d",
             });
         }
 
@@ -152,14 +208,12 @@ impl Browser {
             action: Action::Versions,
             category: VERS,
             label: "Versions & pinning",
-            key: "V",
         });
         #[cfg(feature = "versioning")]
         rows.push(ActionRow {
             action: Action::Branches,
             category: VERS,
             label: "Beta branches",
-            key: "b",
         });
 
         const RT: &str = "Runtimes & config";
@@ -167,19 +221,16 @@ impl Browser {
             action: Action::GameSettings,
             category: RT,
             label: "Game settings",
-            key: "",
         });
         rows.push(ActionRow {
             action: Action::Proton,
             category: RT,
             label: "Proton runtimes",
-            key: "P",
         });
         rows.push(ActionRow {
             action: Action::LaunchOptions,
             category: RT,
             label: "Launch options",
-            key: "L",
         });
 
         const CONTENT: &str = "Content";
@@ -187,40 +238,34 @@ impl Browser {
             action: Action::Dlc,
             category: CONTENT,
             label: "DLC",
-            key: "D",
         });
         #[cfg(feature = "workshop")]
         rows.push(ActionRow {
             action: Action::Workshop,
             category: CONTENT,
             label: "Workshop",
-            key: "W",
         });
         #[cfg(feature = "cloud")]
         rows.push(ActionRow {
             action: Action::Cloud,
             category: CONTENT,
             label: "Cloud saves",
-            key: "C",
         });
         rows.push(ActionRow {
             action: Action::Achievements,
             category: CONTENT,
             label: "Achievements",
-            key: "a",
         });
         rows.push(ActionRow {
             action: Action::Depots,
             category: CONTENT,
             label: "Depots",
-            key: "o",
         });
         #[cfg(feature = "inventory")]
         rows.push(ActionRow {
             action: Action::Inventory,
             category: CONTENT,
             label: "Inventory",
-            key: "I",
         });
 
         #[cfg(feature = "store")]
@@ -228,13 +273,11 @@ impl Browser {
             action: Action::Store,
             category: CONTENT,
             label: "Store: price, players, news, reviews, similar",
-            key: "Y",
         });
         rows.push(ActionRow {
             action: Action::GameInfo,
             category: CONTENT,
             label: "Game info: details, DRM and files checks, save artwork",
-            key: "n",
         });
 
         const LINKS: &str = "Links";
@@ -242,25 +285,21 @@ impl Browser {
             action: Action::SteamPage,
             category: LINKS,
             label: "Steam store page",
-            key: "E",
         });
         rows.push(ActionRow {
             action: Action::ProtonDb,
             category: LINKS,
             label: "ProtonDB page",
-            key: "B",
         });
         rows.push(ActionRow {
             action: Action::ProtonIssues,
             category: LINKS,
             label: "Proton issues on GitHub",
-            key: "T",
         });
         rows.push(ActionRow {
             action: Action::SteamDb,
             category: LINKS,
             label: "SteamDB page",
-            key: "Z",
         });
 
         const LIB: &str = "Library";
@@ -270,14 +309,12 @@ impl Browser {
                 action: Action::Move,
                 category: LIB,
                 label: "Move install",
-                key: "M",
             });
             #[cfg(feature = "install")]
             rows.push(ActionRow {
                 action: Action::Relink,
                 category: LIB,
                 label: "Relink install",
-                key: "K",
             });
         }
         #[cfg(feature = "install")]
@@ -285,26 +322,22 @@ impl Browser {
             action: Action::Import,
             category: LIB,
             label: "Import install",
-            key: "N",
         });
         #[cfg(feature = "collections")]
         rows.push(ActionRow {
             action: Action::Collections,
             category: LIB,
             label: "Collections",
-            key: "O",
         });
         rows.push(ActionRow {
             action: Action::Favourite,
             category: LIB,
             label: "Toggle favourite",
-            key: "f",
         });
         rows.push(ActionRow {
             action: Action::Hide,
             category: LIB,
             label: "Hide game",
-            key: "H",
         });
 
         rows

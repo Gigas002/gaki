@@ -1,5 +1,6 @@
 //! Keys in the library itself. Overlays and the Actions menu take keys
-//! first; the rest is the base keymap.
+//! first; the rest is the base keymap, looked up in [`keymap`] so
+//! `keybinds.toml` can rebind it.
 
 use ratatui::crossterm::event::KeyCode;
 
@@ -9,21 +10,23 @@ use crate::app::SensitiveView;
 use crate::app::browser::{Filter, Link};
 use crate::app::library::Library;
 use crate::app::{AppResult, Mode};
+use crate::keymap::{self, Key, LibraryAction as A};
 
-pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
+pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<Flow> {
+    let input = key.code;
     // Any keypress dismisses the previous action's notice (this action sets
     // it again if it fails too).
     lib.browser.notice = None;
     if lib.browser.show_actions {
         actions::key(lib, input)?;
     } else if !overlays::key(lib, input)? {
-        return base(lib, input);
+        return base(lib, key);
     }
     Ok(Flow::Continue)
 }
 
 /// The base keymap, with no overlay open.
-fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
+fn base(lib: &mut Library, key: Key) -> AppResult<Flow> {
     let Library {
         app,
         browser,
@@ -32,68 +35,81 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
         cached,
         ..
     } = lib;
-    match input {
-        KeyCode::Char('q') => return Ok(Flow::Quit),
-        KeyCode::Char('?') => {
+    // The fixed keys first: `?` opens the help, the arrows move.
+    match key.code {
+        KeyCode::Char('?') if !key.ctrl && !key.alt => {
             browser.help_scroll = 0;
             browser.show_help = true;
+            return Ok(Flow::Continue);
         }
-        KeyCode::Char('A') => {
+        KeyCode::Down if !key.ctrl && !key.alt => {
+            browser.next();
+            return Ok(Flow::Continue);
+        }
+        KeyCode::Up if !key.ctrl && !key.alt => {
+            browser.previous();
+            return Ok(Flow::Continue);
+        }
+        _ => {}
+    }
+    match keymap::get().library_action(key) {
+        Some(A::Quit) => return Ok(Flow::Quit),
+        Some(A::Account) => {
             // Fetch the account (blocking) and open the overlay;
             // ignore failures so a missing session is non-fatal.
             let _ = browser.open_account();
         }
-        KeyCode::Char('p') => {
+        Some(A::Settings) => {
             // Settings: reads config.toml (local only).
             browser.open_config();
         }
         #[cfg(feature = "inventory")]
-        KeyCode::Char('w') => {
+        Some(A::Wallet) => {
             // Fetch the wallet (blocking) and open the overlay; a
             // failure becomes a notice.
             app.open_sensitive(browser, SensitiveView::Wallet);
         }
-        KeyCode::Char('/') => browser.filtering = true,
-        KeyCode::Char('l') => {
+        Some(A::Filter) => browser.filtering = true,
+        Some(A::SignIn) => {
             app.mode = Mode::Login;
         }
-        KeyCode::Char('r') => shared::reload(app, client, cached)?,
-        KeyCode::Tab => browser.cycle_filter(true),
-        KeyCode::BackTab => browser.cycle_filter(false),
-        KeyCode::Char('1') => browser.set_filter(Filter::All),
-        KeyCode::Char('2') => browser.set_filter(Filter::Installed),
-        KeyCode::Char('3') => browser.set_filter(Filter::Updates),
-        KeyCode::Char('4') => browser.set_filter(Filter::Favourites),
+        Some(A::Reload) => shared::reload(app, client, cached)?,
+        Some(A::NextTab) => browser.cycle_filter(true),
+        Some(A::PreviousTab) => browser.cycle_filter(false),
+        Some(A::TabAll) => browser.set_filter(Filter::All),
+        Some(A::TabInstalled) => browser.set_filter(Filter::Installed),
+        Some(A::TabUpdates) => browser.set_filter(Filter::Updates),
+        Some(A::TabFavourites) => browser.set_filter(Filter::Favourites),
         #[cfg(feature = "social")]
-        KeyCode::Char('5') => browser.enter_friends(),
-        KeyCode::Char('s') => browser.cycle_sort(),
-        KeyCode::Char('a') => browser.open_achievements(),
+        Some(A::TabFriends) => browser.enter_friends(),
+        Some(A::Sort) => browser.cycle_sort(),
+        Some(A::Achievements) => browser.open_achievements(),
         #[cfg(feature = "social")]
-        KeyCode::Char('F') => browser.toggle_friends_focus(),
+        Some(A::Friends) => browser.toggle_friends_focus(),
         #[cfg(feature = "inventory")]
-        KeyCode::Char('I') => {
+        Some(A::Inventory) => {
             if let Some(game) = browser.selected() {
                 app.open_sensitive(browser, SensitiveView::Inventory(game.id));
             }
         }
         #[cfg(feature = "market")]
-        KeyCode::Char('m') => app.open_sensitive(browser, SensitiveView::Listings),
+        Some(A::MarketListings) => app.open_sensitive(browser, SensitiveView::Listings),
         #[cfg(feature = "market")]
-        KeyCode::Char('S') => browser.open_market_search(),
+        Some(A::MarketSearch) => browser.open_market_search(),
         #[cfg(feature = "workshop")]
-        KeyCode::Char('W') => {
+        Some(A::Workshop) => {
             if let Some(game) = browser.selected() {
                 browser.open_workshop(game.id);
             }
         }
-        KeyCode::Char('i') => browser.toggle_description(),
-        KeyCode::Down | KeyCode::Char('j') => browser.next(),
-        KeyCode::Up | KeyCode::Char('k') => browser.previous(),
-        KeyCode::Char('g') => browser.home(),
-        KeyCode::Char('G') => browser.end(),
-        KeyCode::PageDown => browser.page_down(10),
-        KeyCode::PageUp => browser.page_up(10),
-        KeyCode::Char('\n') | KeyCode::Enter => {
+        Some(A::Description) => browser.toggle_description(),
+        Some(A::Down) => browser.next(),
+        Some(A::Up) => browser.previous(),
+        Some(A::Top) => browser.home(),
+        Some(A::Bottom) => browser.end(),
+        Some(A::PageDown) => browser.page_down(10),
+        Some(A::PageUp) => browser.page_up(10),
+        Some(A::ActionsMenu) => {
             // Open the per-game Actions menu (command palette).
             // Power users keep the direct accelerators below;
             // the menu is the discoverable path to all of them
@@ -101,37 +117,37 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             browser.open_actions();
         }
         #[cfg(feature = "versioning")]
-        KeyCode::Char('V') => {
+        Some(A::Versions) => {
             if let Some(game) = browser.selected() {
                 browser.open_versions(game.id);
             }
         }
         #[cfg(feature = "collections")]
-        KeyCode::Char('O') => {
+        Some(A::Collections) => {
             if let Some(game) = browser.selected() {
                 browser.open_collections(game.id);
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('d') => {
+        Some(A::Install) => {
             if let Some(game) = browser.selected() {
                 shared::install(browser, client, &game)?;
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char(' ') => {
+        Some(A::PauseResume) => {
             if let Some(game) = browser.selected() {
                 shared::pause_or_resume(browser, client, &game)?;
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('c') => {
+        Some(A::CancelInstall) => {
             if let Some(game) = browser.selected() {
                 shared::cancel_install(browser, &game);
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('x') => {
+        Some(A::Uninstall) => {
             // Only offer uninstall for installed games.
             if let Some(game) = browser.selected()
                 && game.installed
@@ -140,7 +156,7 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('M') => {
+        Some(A::MoveInstall) => {
             // Only offer move for installed games.
             if let Some(game) = browser.selected()
                 && game.installed
@@ -149,7 +165,7 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('K') => {
+        Some(A::Relink) => {
             // Only offer relink for installed games.
             if let Some(game) = browser.selected()
                 && game.installed
@@ -158,7 +174,7 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('N') => {
+        Some(A::Import) => {
             // Import registers an on-disk install, so it does
             // not require the game to already be installed.
             if let Some(game) = browser.selected() {
@@ -166,92 +182,92 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('v') => {
+        Some(A::Verify) => {
             if let Some(game) = browser.selected() {
                 client.verify(&game)?;
             }
         }
         #[cfg(feature = "install")]
-        KeyCode::Char('U') => {
+        Some(A::Update) => {
             if let Some(game) = browser.selected() {
                 client.update(&game)?;
             }
         }
-        KeyCode::Char('D') => {
+        Some(A::Dlc) => {
             if let Some(game) = browser.selected() {
                 // Blocking fetch; failure leaves the overlay closed.
                 let _ = browser.open_dlc(game.id);
             }
         }
         #[cfg(feature = "versioning")]
-        KeyCode::Char('b') => {
+        Some(A::Branches) => {
             if let Some(game) = browser.selected() {
                 // Blocking fetch; failure leaves the overlay closed.
                 let _ = browser.open_branches(game.id);
             }
         }
-        KeyCode::Char('P') => {
+        Some(A::Proton) => {
             // Blocking fetch; failure leaves the overlay closed.
             let _ = browser.open_proton();
         }
-        KeyCode::Char('R') => browser.open_running(),
-        KeyCode::Char('f') => {
+        Some(A::Running) => browser.open_running(),
+        Some(A::Favourite) => {
             if let Some(game) = browser.selected() {
                 shared::toggle_favourite(browser, config, &game)?;
             }
         }
-        KeyCode::Char('H') => {
+        Some(A::Hide) => {
             if let Some(game) = browser.selected() {
                 shared::hide(browser, config, &game)?;
             }
         }
         #[cfg(feature = "cloud")]
-        KeyCode::Char('C') => {
+        Some(A::Cloud) => {
             if let Some(game) = browser.selected() {
                 browser.open_cloud(game.id);
             }
         }
-        KeyCode::Char('o') => {
+        Some(A::Depots) => {
             if let Some(game) = browser.selected() {
                 browser.open_depots(game.id);
             }
         }
         #[cfg(feature = "store")]
-        KeyCode::Char('J') => browser.open_shop(),
+        Some(A::SteamStore) => browser.open_shop(),
         #[cfg(feature = "install")]
-        KeyCode::Char('X') => browser.open_installs(),
+        Some(A::Installs) => browser.open_installs(),
         #[cfg(feature = "store")]
-        KeyCode::Char('Y') => {
+        Some(A::Store) => {
             if let Some(game) = browser.selected() {
                 browser.open_store(game.id, &game.name);
             }
         }
-        KeyCode::Char('E') => {
+        Some(A::SteamPage) => {
             if let Some(game) = browser.selected() {
                 browser.open_link(Link::Steam, game.id);
             }
         }
-        KeyCode::Char('B') => {
+        Some(A::ProtonDb) => {
             if let Some(game) = browser.selected() {
                 browser.open_link(Link::ProtonDb, game.id);
             }
         }
-        KeyCode::Char('T') => {
+        Some(A::ProtonIssues) => {
             if let Some(game) = browser.selected() {
                 browser.open_link(Link::ProtonIssues, game.id);
             }
         }
-        KeyCode::Char('n') => {
+        Some(A::GameInfo) => {
             if let Some(game) = browser.selected() {
                 browser.open_game_info(game.id, &game.name);
             }
         }
-        KeyCode::Char('Z') => {
+        Some(A::SteamDb) => {
             if let Some(game) = browser.selected() {
                 browser.open_link(Link::SteamDb, game.id);
             }
         }
-        KeyCode::Char('L') => {
+        Some(A::LaunchOptions) => {
             if let Some(game) = browser.selected() {
                 browser.open_launch(game.id);
             }

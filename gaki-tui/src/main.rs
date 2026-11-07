@@ -16,6 +16,18 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    // Key bindings: a bad file refuses to start, naming the line, so a typo
+    // never leaves keys silently doing the wrong thing.
+    match gaki_tui::utils::paths::keybinds_file()
+        .map_err(|e| e.to_string())
+        .and_then(|path| gaki_tui::keymap::Keymap::load(&path).map_err(|e| e.to_string()))
+    {
+        Ok(map) => gaki_tui::keymap::install(map),
+        Err(err) => {
+            eprintln!("gaki-tui: keybinds: {err}");
+            return ExitCode::FAILURE;
+        }
+    }
     // Route libgaki's (and the artwork loader's) HTTP through the configured
     // proxy. This sets env vars, so it must run before any thread starts.
     libgaki::core::net::install_proxy_env(&settings.proxy);

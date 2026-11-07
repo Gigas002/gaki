@@ -6,9 +6,9 @@ use std::sync::{
 use std::thread;
 use std::time::Duration;
 
-use ratatui::crossterm::event::{
-    Event as CrossEvent, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind, read,
-};
+use ratatui::crossterm::event::{Event as CrossEvent, KeyCode, MouseEvent, MouseEventKind, read};
+
+use crate::keymap::Key;
 
 pub enum Event<I> {
     Input(I),
@@ -26,7 +26,7 @@ pub enum Event<I> {
 /// any release/re-arm handshake. Tick events are produced independently by the
 /// tick thread.
 pub struct Events {
-    rx: mpsc::Receiver<Event<KeyCode>>,
+    rx: mpsc::Receiver<Event<Key>>,
     stop: Arc<AtomicBool>,
 }
 
@@ -76,22 +76,11 @@ impl Events {
                         }
                     };
                     let code = match event {
-                        CrossEvent::Key(KeyEvent {
-                            code: kc,
-                            modifiers,
-                            ..
-                        }) => {
-                            // Let CTRL-c just be q
-                            if kc == KeyCode::Char('c') && modifiers.contains(KeyModifiers::CONTROL)
-                            {
-                                Some(KeyCode::Char('q'))
-                            } else {
-                                Some(kc)
-                            }
-                        }
+                        // Ctrl+C arrives as itself; the consumers quit on it.
+                        CrossEvent::Key(event) => Some(Key::from_event(event)),
                         CrossEvent::Mouse(MouseEvent { kind, .. }) => match kind {
-                            MouseEventKind::ScrollDown => Some(KeyCode::Down),
-                            MouseEventKind::ScrollUp => Some(KeyCode::Up),
+                            MouseEventKind::ScrollDown => Some(Key::plain(KeyCode::Down)),
+                            MouseEventKind::ScrollUp => Some(Key::plain(KeyCode::Up)),
                             _ => None,
                         },
                         _ => None,
@@ -129,7 +118,7 @@ impl Events {
 
     /// Block for the next input or tick event. Every keypress is delivered
     /// exactly once, in order, with no release handshake required.
-    pub fn next(&self) -> Result<Event<KeyCode>, mpsc::RecvError> {
+    pub fn next(&self) -> Result<Event<Key>, mpsc::RecvError> {
         self.rx.recv()
     }
 }
