@@ -189,13 +189,25 @@ fn social_needs_a_session() {
     ]);
     #[cfg(feature = "workshop")]
     needs_login.extend([
-        ("workshop list", steam::workshop_list(945360).map(drop)),
+        ("workshop status", steam::workshop_status(945360).map(drop)),
         (
             "workshop browse",
             steam::workshop_browse(945360, "").map(drop),
         ),
         ("workshop subscribe", steam::workshop_subscribe(1)),
         ("workshop rate", steam::workshop_rate(1, true)),
+        (
+            "workshop install",
+            steam::workshop_install(vec![1], Default::default()).map(drop),
+        ),
+        (
+            "workshop uninstall",
+            steam::workshop_uninstall(vec![1]).map(drop),
+        ),
+        (
+            "workshop comment",
+            steam::workshop_post_comment(1, "hi".to_string()).map(drop),
+        ),
         (
             "workshop comments",
             steam::workshop_comments(1, 5).map(drop),

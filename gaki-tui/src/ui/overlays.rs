@@ -59,7 +59,8 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
     if browser.show_workshop {
         let area = ui::centered_rect(72, 80, frame.area());
         frame.render_widget(Clear, area);
-        frame.render_widget(ui::workshop::workshop(browser), area);
+        let rows = area.height.saturating_sub(2) as usize;
+        frame.render_widget(ui::workshop::workshop(browser, rows), area);
     }
 
     // Help overlay floats above everything.

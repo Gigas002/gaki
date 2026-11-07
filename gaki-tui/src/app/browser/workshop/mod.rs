@@ -1,4 +1,6 @@
-//! The Workshop overlay: subscribed items, browse and search, ratings, comments.
+//! The Workshop overlay: the status list (installed and subscribed items),
+//! browse and search, ratings, comments. Installing, uninstalling and
+//! posting comments live in `manage`.
 
 use std::sync::Arc;
 use std::thread;
@@ -6,14 +8,19 @@ use std::thread;
 use super::Browser;
 use crate::app::steam;
 
+mod manage;
+
+pub use manage::{CommentDraft, UninstallConfirm, WorkshopJob, WorkshopTasks};
+
 impl Browser {
-    /// Fetch the given game's subscribed Workshop items (blocking) and open the
-    /// overlay in its subscribed-list mode. A fetch error simply opens an empty
-    /// overlay ("No workshop items.").
+    /// Open the overlay on the given game's status list, which loads in the
+    /// background.
     pub fn open_workshop(&mut self, app_id: i32) {
-        self.workshop = steam::workshop_list(app_id).unwrap_or_default();
-        self.workshop_scroll = 0;
+        self.workshop = Vec::new();
+        self.workshop_selected = 0;
         self.workshop_app_id = app_id;
+        self.reset_workshop_tasks();
+        self.reload_workshop_status();
         self.workshop_browse = false;
         self.workshop_query.clear();
         self.workshop_results = Vec::new();
@@ -29,7 +36,8 @@ impl Browser {
     pub fn close_workshop(&mut self) {
         self.show_workshop = false;
         self.workshop = Vec::new();
-        self.workshop_scroll = 0;
+        self.workshop_selected = 0;
+        self.reset_workshop_tasks();
         self.workshop_browse = false;
         self.workshop_query.clear();
         self.workshop_results = Vec::new();
@@ -42,17 +50,27 @@ impl Browser {
         self.workshop_gen = self.workshop_gen.wrapping_add(1);
     }
 
-    /// Scroll the Workshop overlay down by one row (clamped).
-    pub fn workshop_scroll_down(&mut self) {
+    /// Drop the overlay's per-visit state. A running job is kept, so its
+    /// progress shows again when the overlay reopens.
+    fn reset_workshop_tasks(&mut self) {
+        let job = self.workshop_tasks.job.take();
+        self.workshop_tasks = WorkshopTasks {
+            job,
+            ..WorkshopTasks::default()
+        };
+    }
+
+    /// Move the status-list highlight down one row (clamped).
+    pub fn workshop_select_next(&mut self) {
         let max = self.workshop.len().saturating_sub(1);
-        if self.workshop_scroll < max {
-            self.workshop_scroll += 1;
+        if self.workshop_selected < max {
+            self.workshop_selected += 1;
         }
     }
 
-    /// Scroll the Workshop overlay up by one row (clamped).
-    pub fn workshop_scroll_up(&mut self) {
-        self.workshop_scroll = self.workshop_scroll.saturating_sub(1);
+    /// Move the status-list highlight up one row (clamped).
+    pub fn workshop_select_previous(&mut self) {
+        self.workshop_selected = self.workshop_selected.saturating_sub(1);
     }
 
     /// Switch the Workshop overlay into browse/search mode and kick off an
@@ -131,6 +149,7 @@ impl Browser {
     /// once per event-loop iteration; cheap and non-blocking when idle. Stale
     /// results (generation mismatch) are discarded.
     pub fn poll_workshop(&mut self) {
+        self.poll_workshop_tasks();
         let posted = match self.workshop_slot.lock() {
             Ok(mut guard) => guard.take(),
             Err(_) => None,
@@ -206,8 +225,8 @@ impl Browser {
         {
             self.workshop = items;
             let max = self.workshop.len().saturating_sub(1);
-            if self.workshop_scroll > max {
-                self.workshop_scroll = max;
+            if self.workshop_selected > max {
+                self.workshop_selected = max;
             }
         }
 
@@ -302,7 +321,7 @@ impl Browser {
             // the generation captured up front, so the UI thread never blocks on
             // `workshop list` and a stale refresh is dropped on arrival.
             if result.is_ok()
-                && let Ok(items) = steam::workshop_list(app_id)
+                && let Ok(items) = steam::workshop_status(app_id)
                 && let Ok(mut guard) = refresh_slot.lock()
             {
                 *guard = Some((generation, items));
@@ -356,6 +375,11 @@ impl Browser {
             return;
         };
         self.workshop_comments_open = true;
+        self.fetch_workshop_comments(id);
+    }
+
+    /// Load item `id`'s comments into the open sub-pane, off the UI thread.
+    fn fetch_workshop_comments(&mut self, id: u64) {
         self.workshop_comments_loading = true;
         self.workshop_comments = Vec::new();
         self.workshop_comments_scroll = 0;
@@ -380,6 +404,7 @@ impl Browser {
             self.workshop_gen = self.workshop_gen.wrapping_add(1);
         }
         self.workshop_comments_open = false;
+        self.workshop_tasks.comment = None;
         self.workshop_comments_loading = false;
         self.workshop_comments = Vec::new();
         self.workshop_comments_scroll = 0;

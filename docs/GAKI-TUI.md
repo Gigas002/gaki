@@ -67,7 +67,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `V` / `b`             | Versions and pinning, beta branches                      |
 | `o` / `D` / `L`       | Depots (and their files, see below), DLC, launch options |
 | `P`                   | Proton builds (`d` sets the default, `i` installs, `u` uninstalls) |
-| `C` / `W` / `a`       | Cloud saves, Workshop, achievements                      |
+| `C` / `W` / `a`       | Cloud saves, Workshop (see below), achievements          |
 | `M` / `K` / `N`       | Move, relink, import an install                          |
 | `O`                   | Collections                                              |
 | `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it |
@@ -118,6 +118,31 @@ Both forgets ask first. A game another gaki process (`gaki-cli`, its
 session daemon, another TUI) is downloading shows as `running elsewhere`,
 and the keys leave it to that process. See `gaki-cli install` in
 [GAKI-CLI.md](GAKI-CLI.md) for the lock behind this.
+
+### Workshop
+
+With the `workshop` feature, `W` lists the selected game's installed and
+subscribed Workshop items: `●` installed, `○` subscribed only, with
+`update available` when Steam has newer content than what's on disk. The
+list loads in the background.
+
+| Key       | Action                                                          |
+| --------- | --------------------------------------------------------------- |
+| `i`       | Install the highlighted item, or update it                      |
+| `u`       | Uninstall it (asks first)                                       |
+| `U`       | Update every outdated item, one after another                   |
+| `r`       | Reload the list                                                 |
+| `b`       | Browse and search the game's Workshop                           |
+
+In browse, typing goes to the search line, so the actions use other keys:
+`Enter` searches, `↑` / `↓` move, `Tab` subscribes or unsubscribes, `F1` /
+`F2` rate up or down, `F3` opens the comments, and `F4` installs (a
+collection installs its items). In the comments, `c` writes a comment:
+`Enter` asks before it posts, since comments are public.
+
+One install or uninstall runs at a time. It keeps going if you close the
+overlay, and its progress shows again when you reopen it. This is
+`gaki-cli workshop status`, `install`, `uninstall` and `comment`.
 
 ### Store
 

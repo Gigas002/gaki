@@ -46,7 +46,7 @@ pub mod store;
 #[cfg(feature = "versioning")]
 mod versions;
 #[cfg(feature = "workshop")]
-mod workshop;
+pub mod workshop;
 
 pub use actions::{Action, ActionRow};
 #[cfg(feature = "install")]
@@ -192,10 +192,14 @@ pub struct Browser {
     pub market_scroll: usize,
     /// Whether the Workshop overlay is open.
     pub show_workshop: bool,
-    /// The selected game's Workshop items (loaded when the overlay opens).
+    /// The selected game's installed and subscribed Workshop items (loaded
+    /// in the background when the overlay opens).
     pub workshop: Vec<steam::WorkshopItem>,
-    /// Scroll offset (top row) within the Workshop overlay.
-    pub workshop_scroll: usize,
+    /// The highlighted row of the Workshop status list.
+    pub workshop_selected: usize,
+    /// The status-list load, item jobs and the comment prompt.
+    #[cfg(feature = "workshop")]
+    pub workshop_tasks: workshop::WorkshopTasks,
     /// The app id the Workshop overlay is showing (used for browse/subscribe).
     #[cfg(feature = "workshop")]
     workshop_app_id: i32,
@@ -535,7 +539,9 @@ impl Browser {
             market_scroll: 0,
             show_workshop: false,
             workshop: Vec::new(),
-            workshop_scroll: 0,
+            workshop_selected: 0,
+            #[cfg(feature = "workshop")]
+            workshop_tasks: workshop::WorkshopTasks::default(),
             #[cfg(feature = "workshop")]
             workshop_app_id: 0,
             workshop_browse: false,

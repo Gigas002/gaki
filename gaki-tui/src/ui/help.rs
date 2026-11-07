@@ -127,9 +127,17 @@ fn entries() -> Vec<Entry> {
             "installs and backlog (r/R resume, p pause, s stop, f/F forget)",
         ),
         #[cfg(feature = "workshop")]
-        Entry::Binding("W", "workshop items"),
+        Entry::Binding(
+            "W",
+            "workshop status (i install/update, u uninstall, U update all)",
+        ),
         #[cfg(feature = "workshop")]
-        Entry::Binding("W then b", "browse workshop"),
+        Entry::Binding(
+            "W then b",
+            "browse workshop (Tab sub, F1/F2 rate, F3 comments, F4 install)",
+        ),
+        #[cfg(feature = "workshop")]
+        Entry::Binding("W, b, F3, c", "post a workshop comment"),
         Entry::Binding("f", "toggle favourite"),
         Entry::Binding("H", "hide game"),
         #[cfg(feature = "cloud")]

@@ -518,7 +518,10 @@ fn workshop_browse_pane_renders() {
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|f| {
-            f.render_widget(ui::workshop::workshop(&browser), Rect::new(0, 0, 80, 24));
+            f.render_widget(
+                ui::workshop::workshop(&browser, 22),
+                Rect::new(0, 0, 80, 24),
+            );
         })
         .unwrap();
 
@@ -605,7 +608,10 @@ fn workshop_comments_pane_renders() {
     let mut terminal = Terminal::new(backend).unwrap();
     terminal
         .draw(|f| {
-            f.render_widget(ui::workshop::workshop(&browser), Rect::new(0, 0, 80, 24));
+            f.render_widget(
+                ui::workshop::workshop(&browser, 22),
+                Rect::new(0, 0, 80, 24),
+            );
         })
         .unwrap();
 
@@ -679,4 +685,162 @@ fn version_badge_sits_in_bottom_right_corner() {
     let rows = render(105);
     assert!(rows[0].trim_end().ends_with(&badge));
     assert!(rows[1].contains("[q] quit"));
+}
+
+#[cfg(feature = "workshop")]
+fn status_item(id: u64, title: &str, installed: bool, update: bool) -> WorkshopItem {
+    WorkshopItem {
+        id: Some(id),
+        title: title.to_string(),
+        installed,
+        subscribed: true,
+        update_available: update,
+        ..Default::default()
+    }
+}
+
+#[cfg(feature = "workshop")]
+fn render_workshop(browser: &Browser, width: u16, height: u16) -> String {
+    let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+    terminal
+        .draw(|f| {
+            let rows = height.saturating_sub(2) as usize;
+            f.render_widget(
+                ui::workshop::workshop(browser, rows),
+                Rect::new(0, 0, width, height),
+            );
+        })
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    (0..height)
+        .map(|y| {
+            (0..width)
+                .map(|x| buffer.cell((x, y)).unwrap().symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+/// The status list shows installed and subscribed rows, the update badge,
+/// the highlight and the key hints.
+#[cfg(feature = "workshop")]
+#[test]
+fn workshop_status_list_renders() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.show_workshop = true;
+    browser.workshop = vec![
+        status_item(10, "Big Map", true, true),
+        status_item(20, "Small Mod", false, false),
+    ];
+    browser.workshop_selected = 1;
+    let screen = render_workshop(&browser, 110, 14);
+    assert!(screen.contains("Workshop (2)"), "{screen}");
+    assert!(screen.contains("1 update(s) available"), "{screen}");
+    assert!(screen.contains("● Big Map"), "{screen}");
+    assert!(screen.contains("update available"), "{screen}");
+    assert!(screen.contains("> ○ Small Mod"), "{screen}");
+    assert!(screen.contains("[U] update all"), "{screen}");
+}
+
+/// The highlight stays on screen when the list is longer than the overlay.
+#[cfg(feature = "workshop")]
+#[test]
+fn workshop_status_list_follows_the_highlight() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.workshop = (0..30)
+        .map(|i| status_item(i, &format!("Item number {i}"), true, false))
+        .collect();
+    for _ in 0..40 {
+        browser.workshop_select_next();
+    }
+    assert_eq!(browser.workshop_selected, 29, "clamped at the last row");
+    let screen = render_workshop(&browser, 100, 12);
+    assert!(screen.contains("> ● Item number 29"), "{screen}");
+    browser.workshop_select_previous();
+    assert_eq!(browser.workshop_selected, 28);
+}
+
+/// Uninstall asks first and only for installed rows; "no" drops the ask.
+#[cfg(feature = "workshop")]
+#[test]
+fn workshop_uninstall_asks_first() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.show_workshop = true;
+    browser.workshop = vec![
+        status_item(10, "Big Map", true, false),
+        status_item(20, "Small Mod", false, false),
+    ];
+
+    browser.workshop_selected = 1;
+    browser.begin_workshop_uninstall();
+    assert!(!browser.workshop_confirm_open(), "nothing to remove");
+    assert_eq!(browser.workshop_tasks.message, "It isn't installed.");
+
+    browser.workshop_selected = 0;
+    browser.begin_workshop_uninstall();
+    assert!(browser.workshop_confirm_open());
+    let screen = render_workshop(&browser, 100, 12);
+    assert!(screen.contains("Uninstall Big Map?"), "{screen}");
+    assert!(screen.contains("[y] yes"), "{screen}");
+
+    browser.answer_workshop_uninstall(false);
+    assert!(!browser.workshop_confirm_open());
+    assert!(browser.workshop_tasks.job.is_none(), "nothing started");
+}
+
+/// Update all with nothing outdated says so instead of starting a job.
+#[cfg(feature = "workshop")]
+#[test]
+fn workshop_update_all_without_updates() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.workshop = vec![status_item(10, "Big Map", true, false)];
+    browser.workshop_update_all();
+    assert!(browser.workshop_tasks.job.is_none());
+    assert_eq!(
+        browser.workshop_tasks.message,
+        "Everything installed is up to date."
+    );
+}
+
+/// The comment prompt: typed text, Enter asks, "no" returns to editing with
+/// the text kept, Esc drops it. Empty text never asks.
+#[cfg(feature = "workshop")]
+#[test]
+fn workshop_comment_prompt_flow() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true, false)]);
+    browser.show_workshop = true;
+    browser.workshop_browse = true;
+    browser.workshop_comments_open = true;
+
+    browser.begin_workshop_comment();
+    browser.submit_workshop_comment();
+    assert!(
+        !browser.workshop_tasks.comment.as_ref().unwrap().confirming,
+        "empty text doesn't ask"
+    );
+    for c in "nice map".chars() {
+        browser.workshop_comment_push(c);
+    }
+    browser.workshop_comment_pop();
+    let screen = render_workshop(&browser, 90, 14);
+    assert!(screen.contains("Comment: nice ma_"), "{screen}");
+
+    browser.submit_workshop_comment();
+    let screen = render_workshop(&browser, 90, 14);
+    assert!(screen.contains("Post “nice ma”?"), "{screen}");
+
+    browser.answer_workshop_comment(false);
+    let draft = browser.workshop_tasks.comment.as_ref().unwrap();
+    assert_eq!(draft.text, "nice ma");
+    assert!(!draft.confirming);
+    assert!(browser.workshop_tasks.posting.is_none(), "nothing posted");
+
+    browser.cancel_workshop_comment();
+    assert!(!browser.workshop_comment_open());
 }

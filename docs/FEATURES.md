@@ -18,7 +18,7 @@ have.
 | `collections`    | on      | `library`        | library collections (CloudConfigStore)                                       |
 | `versioning`     | off     | `install`        | branches, set-branch, downgrade, pin/unpin, manifests                        |
 | `depot`          | off     | `install`        | depot browser: depot listings, manifest file lists, single-file downloads    |
-| `workshop`       | off     | `install`        | Workshop list, browse, subscribe, rate, comments                             |
+| `workshop`       | off     | `install`        | Workshop status, install, uninstall, browse, subscribe, rate, comments       |
 | `social`         | off     | `authentication` | friends, chat, presence, persona lookups by name                             |
 | `inventory`      | off     | `authentication` | inventory, wallet                                                            |
 | `market`         | off     | `inventory`      | Community Market listings, search, prices                                    |

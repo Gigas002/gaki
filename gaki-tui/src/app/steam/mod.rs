@@ -249,14 +249,15 @@ pub struct WorkshopItem {
     pub id: Option<u64>,
     /// The item title.
     pub title: String,
-    /// Whether the item's content is installed on disk. Nothing reports this
-    /// yet, so it is always `false`.
+    /// Whether the item's content is installed on disk (status rows only).
     pub installed: bool,
     /// Whether the user is subscribed to the item: `true` for the subscribed
     /// list, `false` for browse results until a subscribe succeeds.
     pub subscribed: bool,
     /// On-disk size in bytes.
     pub file_size: u64,
+    /// Installed, but Steam has newer content (status rows only).
+    pub update_available: bool,
 }
 
 impl WorkshopItem {
@@ -1381,13 +1382,116 @@ pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOption>, TuiError> {
     })
 }
 
-/// The Workshop items the user is subscribed to for a game.
+/// A game's installed and subscribed Workshop items, with update detection.
+/// Offline this still lists what is installed.
 #[cfg(feature = "workshop")]
-pub fn workshop_list(app_id: i32) -> Result<Vec<WorkshopItem>, TuiError> {
+pub fn workshop_status(app_id: i32) -> Result<Vec<WorkshopItem>, TuiError> {
     in_process(async {
         let client = worker::global().session().authed().await?;
-        let items = libgaki::ops::workshop::subscribed(&client, app_id as u32).await?;
-        Ok(items.into_iter().map(|i| workshop_row(i, true)).collect())
+        let rows = libgaki::ops::workshop::status(&client, app_id as u32).await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| WorkshopItem {
+                id: Some(r.id),
+                title: r.title,
+                installed: r.installed,
+                subscribed: r.subscribed,
+                file_size: 0,
+                update_available: r.update_available,
+            })
+            .collect())
+    })
+}
+
+/// Download Workshop items (collections expand to their items) and register
+/// them with their game, one after another. `progress` carries a one-line
+/// description of what is happening. Returns how many items were installed.
+#[cfg(feature = "workshop")]
+pub fn workshop_install(ids: Vec<u64>, progress: Arc<Mutex<String>>) -> Result<usize, TuiError> {
+    in_process(async move {
+        let client = worker::global().session().authed().await?;
+        let items = libgaki::ops::workshop::resolve(&client, ids, true).await?;
+        if items.is_empty() {
+            anyhow::bail!("no installable Workshop items resolved");
+        }
+        let total = items.len();
+        for (n, item) in items.iter().enumerate() {
+            let label = if total > 1 {
+                format!("Installing {} ({}/{total})", item.title, n + 1)
+            } else {
+                format!("Installing {}", item.title)
+            };
+            set_line(&progress, format!("{label}…"));
+            libgaki::ops::workshop::install(&client, item, |rx| {
+                drive_workshop(rx, &progress, &label)
+            })
+            .await?;
+        }
+        Ok(total)
+    })
+}
+
+#[cfg(feature = "workshop")]
+fn set_line(line: &Mutex<String>, text: String) {
+    if let Ok(mut guard) = line.lock() {
+        *guard = text;
+    }
+}
+
+/// Follow one Workshop download, writing its progress into `progress`.
+#[cfg(feature = "workshop")]
+async fn drive_workshop(
+    mut rx: tokio::sync::mpsc::Receiver<libgaki::core::models::DownloadProgress>,
+    progress: &Mutex<String>,
+    label: &str,
+) -> anyhow::Result<bool> {
+    use libgaki::core::models::DownloadProgressState as State;
+    while let Some(p) = rx.recv().await {
+        match p.state {
+            State::Queued => set_line(progress, format!("{label}: queued…")),
+            State::Downloading | State::Verifying | State::Moving => {
+                let verb = if p.state == State::Verifying {
+                    "verifying"
+                } else {
+                    "downloading"
+                };
+                let line = if p.total_bytes > 0 {
+                    format!(
+                        "{label}: {verb} {:.1}%",
+                        p.bytes_downloaded.min(p.total_bytes) as f64 * 100.0 / p.total_bytes as f64
+                    )
+                } else {
+                    format!("{label}: {verb}…")
+                };
+                set_line(progress, line);
+            }
+            State::Completed => return Ok(true),
+            State::Failed => anyhow::bail!("download failed: {}", p.current_file),
+        }
+    }
+    Ok(false)
+}
+
+/// Remove installed Workshop items' files (collections expand to their
+/// items). Returns how many items were removed.
+#[cfg(feature = "workshop")]
+pub fn workshop_uninstall(ids: Vec<u64>) -> Result<usize, TuiError> {
+    in_process(async move {
+        let client = worker::global().session().authed().await?;
+        let items = libgaki::ops::workshop::resolve(&client, ids, true).await?;
+        for item in &items {
+            libgaki::ops::workshop::uninstall(&client, item).await?;
+        }
+        Ok(items.len())
+    })
+}
+
+/// Post a comment on a Workshop item; returns the new comment's id.
+#[cfg(feature = "workshop")]
+pub fn workshop_post_comment(item_id: u64, text: String) -> Result<u64, TuiError> {
+    in_process(async move {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::workshop::post_comment(&client, item_id, &text).await
     })
 }
 
@@ -1400,6 +1504,7 @@ fn workshop_row(item: libgaki::core::models::WorkshopItem, subscribed: bool) -> 
         installed: false,
         subscribed,
         file_size: item.file_size,
+        update_available: false,
     }
 }
 

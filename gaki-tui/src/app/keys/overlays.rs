@@ -259,15 +259,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
     #[cfg(feature = "workshop")]
     if browser.show_workshop {
         if browser.workshop_comments_open {
-            // Comments sub-pane (over the browse results): Esc
-            // returns to the results, Up/Down scroll. No text is
-            // edited here, so j/k are also accepted as scroll keys.
-            match input {
-                KeyCode::Esc => browser.close_workshop_comments(),
-                KeyCode::Down | KeyCode::Char('j') => browser.workshop_comments_scroll_down(),
-                KeyCode::Up | KeyCode::Char('k') => browser.workshop_comments_scroll_up(),
-                _ => {}
-            }
+            workshop_comments_key(browser, input);
         } else if browser.workshop_browse {
             // Browse/search pane: the query line takes typed
             // text (Enter searches off-thread). Navigation/action
@@ -275,7 +267,8 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             // the user is typing: Up/Down move the highlight,
             // Tab subscribes/unsubscribes it off-thread, F1/F2
             // rate it up/down off-thread, F3 opens its comments
-            // sub-pane, and Esc returns to the subscribed list.
+            // sub-pane, F4 installs it, and Esc returns to the
+            // status list.
             match input {
                 KeyCode::Esc => browser.workshop_exit_browse(),
                 KeyCode::Char('\n') | KeyCode::Enter => browser.start_workshop_search(),
@@ -285,18 +278,26 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 KeyCode::F(1) => browser.workshop_rate_selected(true),
                 KeyCode::F(2) => browser.workshop_rate_selected(false),
                 KeyCode::F(3) => browser.workshop_open_comments(),
+                KeyCode::F(4) => browser.workshop_install_result(),
                 KeyCode::Backspace => browser.workshop_pop_query(),
                 KeyCode::Char(c) => browser.workshop_push_query(c),
                 _ => {}
             }
+        } else if browser.workshop_confirm_open() {
+            browser.answer_workshop_uninstall(matches!(input, KeyCode::Char('y' | 'Y')));
         } else {
-            // Subscribed-items list: Esc/q close, j/k scroll,
-            // 'b' opens the browse/search pane.
+            // Status list: Esc/q close, j/k move, b browse, i
+            // install/update, u uninstall (asks), U update all
+            // outdated, r reload.
             match input {
                 KeyCode::Esc | KeyCode::Char('q') => browser.close_workshop(),
                 KeyCode::Char('b') => browser.workshop_enter_browse(),
-                KeyCode::Down | KeyCode::Char('j') => browser.workshop_scroll_down(),
-                KeyCode::Up | KeyCode::Char('k') => browser.workshop_scroll_up(),
+                KeyCode::Down | KeyCode::Char('j') => browser.workshop_select_next(),
+                KeyCode::Up | KeyCode::Char('k') => browser.workshop_select_previous(),
+                KeyCode::Char('i') => browser.workshop_install_selected(),
+                KeyCode::Char('u') => browser.begin_workshop_uninstall(),
+                KeyCode::Char('U') => browser.workshop_update_all(),
+                KeyCode::Char('r') => browser.reload_workshop_status(),
                 _ => {}
             }
         }
@@ -769,5 +770,34 @@ fn shop_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         KeyCode::Char('s') => browser.shop_next_deals(),
         KeyCode::Char('r') => browser.shop_reload(),
         _ => {}
+    }
+}
+
+/// The Workshop comments sub-pane: scroll, or write a comment (`c`), which
+/// asks before it posts.
+#[cfg(feature = "workshop")]
+fn workshop_comments_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+    match browser
+        .workshop_tasks
+        .comment
+        .as_ref()
+        .map(|d| d.confirming)
+    {
+        Some(true) => browser.answer_workshop_comment(matches!(input, KeyCode::Char('y' | 'Y'))),
+        Some(false) => match input {
+            KeyCode::Esc => browser.cancel_workshop_comment(),
+            KeyCode::Enter | KeyCode::Char('\n') => browser.submit_workshop_comment(),
+            KeyCode::Backspace => browser.workshop_comment_pop(),
+            KeyCode::Char(c) => browser.workshop_comment_push(c),
+            _ => {}
+        },
+        // No text is edited here, so j/k are also scroll keys.
+        None => match input {
+            KeyCode::Esc => browser.close_workshop_comments(),
+            KeyCode::Down | KeyCode::Char('j') => browser.workshop_comments_scroll_down(),
+            KeyCode::Up | KeyCode::Char('k') => browser.workshop_comments_scroll_up(),
+            KeyCode::Char('c') => browser.begin_workshop_comment(),
+            _ => {}
+        },
     }
 }

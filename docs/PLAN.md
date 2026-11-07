@@ -1821,9 +1821,37 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `run_install_request`.
   - Help line, `docs/GAKI-TUI.md` ("Installs"), `docs/GAKI-CLI.md` (the
     lock) and `docs/FEATURES.md`.
-- [ ] **8.6** TUI Workshop parity: download (`workshop install`, collections
+- [x] **8.6** TUI Workshop parity: download (`workshop install`, collections
   expanding), uninstall, `status` with update detection, and posting a
   comment.
+  *Done.* One step, all TUI wiring (the ops existed):
+  - **The status list.** `W` now opens on `workshop::status` rows
+    (installed `●` / subscribed-only `○`, `update available`, `not
+    subscribed`), loaded in the background (`job::Load`) instead of the
+    blocking subscribed fetch. The list has a highlight that stays on
+    screen (`ui::workshop::workshop` takes the row count, like the market
+    search). `i` installs or updates the highlighted item, `u` uninstalls
+    it after a `y`/`n`, `U` updates every outdated item in turn, `r`
+    reloads. The post-subscribe refresh reloads status rows too.
+    `steam::WorkshopItem` gained `update_available`; `steam::workshop_list`
+    became `workshop_status`.
+  - **Install from browse.** `F4` installs the highlighted result; a
+    collection installs its items (`resolve` with recursion).
+  - **Jobs.** `app/browser/workshop/manage.rs` (the module moved into a
+    directory) holds `WorkshopTasks`: the list load, one `WorkshopJob` at a
+    time (install/update/uninstall on a thread, its progress line written
+    by `steam::drive_workshop` from the download stream), the uninstall
+    confirm and the comment draft. A job outlives the overlay; reopening
+    shows its progress, and finishing reloads the list if the overlay is on
+    that game.
+  - **Comments.** In the comments sub-pane `c` opens a prompt; `Enter`
+    asks "Post …? It is public." and `y` posts in the background
+    (`steam::workshop_post_comment`), then reloads the comments; `n` goes
+    back to editing with the text kept.
+  - New `steam::workshop_install` / `workshop_uninstall` /
+    `workshop_post_comment`, covered by the offline test; view tests in
+    `tests/browse_view.rs`. Help lines, `docs/GAKI-TUI.md` ("Workshop"),
+    `docs/FEATURES.md`.
 - [ ] **8.7** Open a game's **SteamDB** page (`https://steamdb.info/app/<id>/`)
   from the library, next to the Steam store (`E`) and ProtonDB (`B`) links.
   Add `steam_urls::steamdb_url` (and `steamdb_depot_url`, then use it for
