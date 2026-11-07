@@ -1232,6 +1232,71 @@ pub fn download_depot_file(
     })
 }
 
+/// The store country of the signed-in account (its IP country), else
+/// libgaki's default.
+#[cfg(feature = "store")]
+async fn account_country(client: &libgaki::steam_client::SteamClient) -> String {
+    let country = client.get_account_data().await.country;
+    libgaki::ops::store::resolve_country(Some(&country))
+        .unwrap_or_else(|_| libgaki::ops::store::DEFAULT_COUNTRY.to_string())
+}
+
+/// A game's price in each of `regions` (country codes; empty means the
+/// account's own country).
+#[cfg(feature = "store")]
+pub fn store_prices(
+    app_id: i32,
+    regions: &[String],
+) -> Result<libgaki::ops::store::Prices, TuiError> {
+    use libgaki::ops::store;
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let mut regions = store::parse_regions(regions)?;
+        if regions.is_empty() {
+            regions.push(account_country(&client).await);
+        }
+        store::prices(&client, app_id as u32, &regions).await
+    })
+}
+
+/// Players in-game right now.
+#[cfg(feature = "store")]
+pub fn store_players(app_id: i32) -> Result<i32, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::store::players(&client, app_id as u32).await
+    })
+}
+
+/// A game's latest announcements.
+#[cfg(feature = "store")]
+pub fn store_news(app_id: i32) -> Result<Vec<libgaki::web::discovery::NewsItem>, TuiError> {
+    in_process(libgaki::ops::store::news(app_id as u32, 10, 600))
+}
+
+/// A game's review summary and its most helpful recent reviews.
+#[cfg(feature = "store")]
+pub fn store_reviews(app_id: i32) -> Result<libgaki::web::discovery::ReviewPage, TuiError> {
+    let query = libgaki::web::discovery::ReviewQuery {
+        filter: "all".to_string(),
+        review_type: "all".to_string(),
+        purchase_type: "all".to_string(),
+        count: 10,
+        cursor: None,
+    };
+    in_process(async move { libgaki::ops::store::reviews(app_id as u32, &query).await })
+}
+
+/// Games the store relates to this one, priced for the account's country.
+#[cfg(feature = "store")]
+pub fn store_similar(app_id: i32) -> Result<libgaki::ops::store::Listing, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let country = account_country(&client).await;
+        libgaki::ops::store::similar(&client, app_id as u32, 15, &country).await
+    })
+}
+
 /// A game's launch options, as listed in its app info.
 pub fn launch_options(app_id: i32) -> Result<Vec<LaunchOption>, TuiError> {
     in_process(async {

@@ -217,6 +217,12 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
                 browser.open_depots(game.id);
             }
         }
+        #[cfg(feature = "store")]
+        KeyCode::Char('Y') => {
+            if let Some(game) = browser.selected() {
+                browser.open_store(game.id, &game.name);
+            }
+        }
         KeyCode::Char('E') => {
             if let Some(game) = browser.selected() {
                 browser.open_link(Link::Steam, game.id);

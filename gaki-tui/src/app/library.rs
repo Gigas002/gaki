@@ -124,6 +124,8 @@ impl Library {
         #[cfg(feature = "workshop")]
         browser.poll_workshop();
         browser.poll_depots();
+        #[cfg(feature = "store")]
+        browser.poll_store();
 
         // Reconcile a game's install state once its install finishes, and adopt
         // any targeted single-game refresh that landed — so `installed` (which

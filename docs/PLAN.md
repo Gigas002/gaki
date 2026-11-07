@@ -1743,9 +1743,34 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     unit tests read the written files back with them), and the
     `#[cfg(test)]` helpers `parse_last_owner_from_acf` and
     `manifest_update_pending`.
-- [ ] **8.4** TUI store views (`store`): search, price (with region compare),
-  deals, news, reviews, events, player count, similar games, and the wishlist
-  with add/remove.
+- [x] **8.4a** TUI store views, per game. Split at the user's request:
+  8.4a is the selected game's views, 8.4b the store-wide ones.
+  *Done.*
+  - **The Store overlay.** `Y`, or **Store** in the Actions menu, opens
+    the selected game's store data in five sections: Price, Players, News,
+    Reviews, Similar. `Tab`/`Shift-Tab` (and `h`/`l`, `←`/`→`) switch
+    sections; `j`/`k` and `PgUp`/`PgDn` scroll, clamped to the wrapped body
+    height (ratatui's `unstable-rendered-line-info` feature gives
+    `Paragraph::line_count`). Gated on `store`.
+  - **Loading.** Each section loads on a thread the first time it is shown
+    and stays loaded until the overlay closes. `app/browser/job` now holds
+    the `Load<T>` background-load helper (moved out of the depots overlay),
+    and `poll_store` adopts results on every tick. The overlay counts in
+    `overlay_open`, so the detail pane stops loading behind it.
+  - **Price.** Region compare from a new `store_regions` key in
+    `tui/config.toml`. Empty (the default) means the account's IP country
+    (`get_account_data`), else `US`. `r` edits the list for the session.
+    Each region shows price, discount, full price and sale end; a failed
+    region shows why instead of failing the section.
+  - **The others.** Players: the live count. News: the latest ten, bodies
+    capped at 600 characters, with their URLs. Reviews: the summary and the
+    ten most helpful. Similar: fifteen related games with price, discount
+    and review summary.
+  - Help line, `docs/GAKI-TUI.md` ("Store" and the config table) and
+    `docs/FEATURES.md`.
+- [ ] **8.4b** TUI store views, store-wide: search, deals, events, and the
+  wishlist with add/remove, as more sections of the Store overlay (or its
+  own view; decide at the start of the step).
 - [ ] **8.5** TUI install backlog view: list running and backlog installs,
   including interrupted ones from earlier runs or from `gaki-cli`, and
   resume, resume all, stop and forget them.

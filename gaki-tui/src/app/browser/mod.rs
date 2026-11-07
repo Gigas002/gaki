@@ -26,6 +26,7 @@ mod help;
 mod install;
 #[cfg(feature = "inventory")]
 mod inventory;
+pub mod job;
 mod launch;
 mod launch_targets;
 mod library;
@@ -36,6 +37,8 @@ mod proton;
 #[cfg(feature = "install")]
 mod relocate;
 mod running;
+#[cfg(feature = "store")]
+pub mod store;
 #[cfg(feature = "versioning")]
 mod versions;
 #[cfg(feature = "workshop")]
@@ -273,6 +276,9 @@ pub struct Browser {
     pub show_depots: bool,
     /// The depots overlay's list (and, with `depot`, its file view).
     pub depots: depots::DepotsView,
+    /// The Store overlay (`Y`), when open.
+    #[cfg(feature = "store")]
+    pub store: Option<store::StoreView>,
     /// Whether the launch-options overlay is open.
     pub show_launch: bool,
     /// The selected game's launch options (loaded when the overlay opens).
@@ -561,6 +567,8 @@ impl Browser {
             branch_app_id: 0,
             show_depots: false,
             depots: depots::DepotsView::default(),
+            #[cfg(feature = "store")]
+            store: None,
             show_launch: false,
             launch_options: Vec::new(),
             launch_scroll: 0,

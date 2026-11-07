@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 
 use libgaki::ops::depot::{DepotFiles, EntryKind, ManifestFileEntry, glob_match};
 
-use super::{Load, spawn, take};
 use crate::app::browser::Browser;
+use crate::app::browser::job::{Load, spawn, take};
 use crate::app::steam;
 
 /// What the file view's one-line prompt is editing.

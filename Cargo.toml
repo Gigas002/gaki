@@ -36,7 +36,9 @@ protobuf = "3.5" # rust-protobuf runtime; matches steam-vent-proto's MessageFiel
 protobuf-codegen = "3.5" # Pure-Rust codegen (no protoc); tracks the `protobuf` runtime
 qrcode = { version = "0.14", default-features = false } # Terminal QR rendering for `login --qr`
 # Crossterm comes re-exported as `ratatui::crossterm`, which keeps the two in step.
-ratatui = { version = "0.30", features = ["serde"] }
+# `unstable-rendered-line-info`: `Paragraph::line_count`, the wrapped height
+# the Store overlay clamps its scroll to.
+ratatui = { version = "0.30", features = ["serde", "unstable-rendered-line-info"] }
 ratatui-image = { version = "11", default-features = false, features = ["crossterm"] }
 rand = "0.10" # Match steam-vent's rand version so only one copy is linked
 regex = "1"

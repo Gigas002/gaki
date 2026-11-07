@@ -186,6 +186,14 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
         frame.render_widget(ui::branches::branches(browser), area);
     }
 
+    // Store overlay floats above everything.
+    #[cfg(feature = "store")]
+    if let Some(view) = &browser.store {
+        let area = ui::centered_rect(80, 85, frame.area());
+        frame.render_widget(Clear, area);
+        ui::store::draw(frame, area, view);
+    }
+
     // Depots overlay floats above everything.
     if browser.show_depots {
         let area = ui::centered_rect(70, 80, frame.area());

@@ -479,6 +479,11 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         }
         return Ok(true);
     }
+    #[cfg(feature = "store")]
+    if browser.store.is_some() {
+        store_key(browser, input);
+        return Ok(true);
+    }
     if browser.show_depots {
         #[cfg(feature = "depot")]
         if browser.depots.files.is_some() {
@@ -646,6 +651,33 @@ fn depot_files_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         KeyCode::Char('/') => browser.begin_depot_filter(),
         KeyCode::Char('b') => browser.begin_depot_branch(),
         KeyCode::Char('d') => browser.begin_depot_download(),
+        _ => {}
+    }
+}
+
+/// Keys in the Store overlay. With the regions prompt open they type into
+/// it.
+#[cfg(feature = "store")]
+fn store_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+    if browser.store_input_open() {
+        match input {
+            KeyCode::Esc => browser.cancel_store_input(),
+            KeyCode::Char('\n') | KeyCode::Enter => browser.submit_store_input(),
+            KeyCode::Backspace => browser.store_input_pop(),
+            KeyCode::Char(c) => browser.store_input_push(c),
+            _ => {}
+        }
+        return;
+    }
+    match input {
+        KeyCode::Esc | KeyCode::Char('q') => browser.close_store(),
+        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => browser.store_cycle(1),
+        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => browser.store_cycle(-1),
+        KeyCode::Down | KeyCode::Char('j') => browser.store_scroll(1),
+        KeyCode::Up | KeyCode::Char('k') => browser.store_scroll(-1),
+        KeyCode::PageDown => browser.store_scroll(10),
+        KeyCode::PageUp => browser.store_scroll(-10),
+        KeyCode::Char('r') => browser.begin_store_regions(),
         _ => {}
     }
 }

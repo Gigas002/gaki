@@ -50,6 +50,8 @@ pub mod proton;
 pub mod relink;
 pub mod running;
 pub mod status;
+#[cfg(feature = "store")]
+pub mod store;
 pub mod tabs;
 pub mod theme;
 #[cfg(feature = "versioning")]

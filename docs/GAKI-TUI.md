@@ -75,6 +75,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `m` / `S`             | Market listings, market search                           |
 | `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes) |
 | `R`                   | Running games                                            |
+| `Y`                   | Store: price, players, news, reviews, similar games      |
 | `f` / `H`             | Toggle a favourite, hide the game                        |
 | `A` / `p`             | Account (`o` logs out), settings (presence, proxy)       |
 | `r`                   | Refresh the library from Steam                           |
@@ -95,6 +96,28 @@ game: type to narrow it, `Enter` to run. Two entries live only here:
   profile, the platform (auto, windows, linux) and the Steam integration (the
   profile's, auto, host, none). Wrappers are shown read-only; change them with
   `gaki-cli config game <id> --wrapper …`.
+
+### Store
+
+With the `store` feature, `Y` (or **Store** in the Actions menu) opens the
+selected game's store data in five sections: **Price**, **Players**,
+**News**, **Reviews** and **Similar**. `Tab` / `Shift-Tab` (or `h` / `l`)
+switch sections, and `j` / `k` and `PgUp` / `PgDn` scroll. A section loads in
+the background the first time you show it, and stays loaded until you close
+the overlay with `Esc`.
+
+- **Price** shows the price, discount, full price and sale end in each
+  region. Set the regions with `store_regions` in `tui/config.toml`;
+  with none set, it uses your account's country. `r` edits the list for this
+  session (codes separated by commas or spaces).
+- **Players** is the number of people in-game right now.
+- **News** shows the latest ten announcements, with their links.
+- **Reviews** shows the overall score and the ten most helpful reviews.
+- **Similar** lists related games, priced for your country.
+
+This is `gaki-cli price --compare`, `players`, `news`, `reviews` and
+`similar`. The store-wide views (search, deals, events, the wishlist) aren't
+in the TUI yet.
 
 ### Depot files
 
@@ -135,6 +158,7 @@ everything about the session, installs and launches. Its own settings are in
 | `allowed_games`  | the app types listed: any of `Game`, `DLC`, `Driver`, `Application`, `Config`, `Demo`, `Tool`, `Unknown`. The default is `Game` and `DLC` |
 | `highlight`      | the highlight color                                           |
 | `check_updates`  | check the installed games for updates after the library loads (`true`) |
+| `store_regions`  | the regions the Store overlay compares prices in, e.g. `["US", "DE", "JP"]`; empty (the default) means your account's country |
 
 The cached library (`games.toml`) and cover art (`icons/`) are in
 `$XDG_CACHE_HOME/gaki/tui/`, and the log is

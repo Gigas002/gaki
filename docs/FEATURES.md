@@ -89,7 +89,7 @@ A TUI without a library has nothing to show, so `gaki-tui` always builds
 | `social`      | the Friends tab (`5`, `F`, the Tab ring), chat, add/remove friend, `--chat` window |
 | `inventory`   | inventory `I`, wallet `w`                                                          |
 | `market`      | market listings `m`, market search `S`                                             |
-| `store`       | none yet                                                                           |
+| `store`       | the Store overlay `Y`: price (region compare), players, news, reviews, similar     |
 | `depot`       | the depot file view (`Enter` in depots `o`): filter, branch, single-file download  |
 
 The help overlay, the status-bar hints and the Proton overlay's title list only

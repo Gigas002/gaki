@@ -35,6 +35,9 @@ pub struct Config {
     /// Check the installed games for updates in the background after the
     /// library loads.
     pub check_updates: bool,
+    /// Regions the Store overlay's price section compares (two-letter
+    /// country codes). Empty: the account's own country.
+    pub store_regions: Vec<String>,
 }
 
 impl Default for Config {
@@ -46,6 +49,7 @@ impl Default for Config {
             allowed_games: vec![GameType::Game, GameType::DLC],
             highlight: theme::ACCENT,
             check_updates: true,
+            store_regions: Vec::new(),
         }
     }
 }

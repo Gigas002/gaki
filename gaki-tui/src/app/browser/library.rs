@@ -258,6 +258,19 @@ impl Browser {
             || self.show_game_config
             || self.show_launch_targets
             || self.show_collections
+            || self.store_open()
+    }
+
+    /// Whether the Store overlay is open (never, without `store`).
+    pub fn store_open(&self) -> bool {
+        #[cfg(feature = "store")]
+        {
+            self.store.is_some()
+        }
+        #[cfg(not(feature = "store"))]
+        {
+            false
+        }
     }
 
     pub fn selected(&self) -> Option<Game> {

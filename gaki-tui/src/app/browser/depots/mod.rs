@@ -3,88 +3,11 @@
 //! downloads. Every fetch runs on a thread; the tick adopts the results
 //! ([`Browser::poll_depots`]), so the UI never waits on Steam.
 
-use std::sync::{Arc, Mutex};
-use std::thread;
-
 use super::Browser;
+pub use super::job::Load;
+#[cfg(feature = "depot")]
+use super::job::Slot;
 use crate::app::steam;
-use crate::utils::error::TuiError;
-
-/// A background job's result, filled in by its thread.
-type Slot<T> = Arc<Mutex<Option<Result<T, String>>>>;
-
-/// Run `job` on a thread; its result lands in the returned slot.
-fn spawn<T: Send + 'static>(job: impl FnOnce() -> Result<T, TuiError> + Send + 'static) -> Slot<T> {
-    let slot: Slot<T> = Arc::new(Mutex::new(None));
-    let out = Arc::clone(&slot);
-    thread::spawn(move || {
-        let result = job().map_err(|e| e.to_string());
-        if let Ok(mut guard) = out.lock() {
-            *guard = Some(result);
-        }
-    });
-    slot
-}
-
-/// Take a finished job's result, if it has finished.
-fn take<T>(slot: &Slot<T>) -> Option<Result<T, String>> {
-    match slot.lock() {
-        Ok(mut guard) => guard.take(),
-        Err(_) => Some(Err("the background job crashed".to_string())),
-    }
-}
-
-/// Data that is loading in the background, loaded, or failed to load.
-pub enum Load<T> {
-    Loading(Slot<T>),
-    Ready(T),
-    Failed(String),
-}
-
-impl<T: Default> Default for Load<T> {
-    fn default() -> Self {
-        Self::Ready(T::default())
-    }
-}
-
-impl<T: Send + 'static> Load<T> {
-    fn start(job: impl FnOnce() -> Result<T, TuiError> + Send + 'static) -> Self {
-        Self::Loading(spawn(job))
-    }
-}
-
-impl<T> Load<T> {
-    /// Adopt a finished job. Returns whether anything changed.
-    fn poll(&mut self) -> bool {
-        let Self::Loading(slot) = self else {
-            return false;
-        };
-        match take(slot) {
-            Some(Ok(value)) => *self = Self::Ready(value),
-            Some(Err(e)) => *self = Self::Failed(e),
-            None => return false,
-        }
-        true
-    }
-
-    pub fn ready(&self) -> Option<&T> {
-        match self {
-            Self::Ready(value) => Some(value),
-            _ => None,
-        }
-    }
-
-    pub fn is_loading(&self) -> bool {
-        matches!(self, Self::Loading(_))
-    }
-
-    pub fn error(&self) -> Option<&str> {
-        match self {
-            Self::Failed(e) => Some(e),
-            _ => None,
-        }
-    }
-}
 
 /// The depots overlay's state.
 #[derive(Default)]

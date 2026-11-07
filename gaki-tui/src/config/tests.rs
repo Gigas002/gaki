@@ -30,3 +30,10 @@ fn missing_keys_take_the_defaults() {
     assert!(Config::parse("").is_ok(), "an empty file is the defaults");
     assert!(Config::parse("favorite_games = 3").is_err());
 }
+
+#[test]
+fn store_regions_default_to_none_and_parse() {
+    assert!(Config::default().store_regions.is_empty());
+    let config = Config::parse("store_regions = [\"US\", \"DE\"]\n").unwrap();
+    assert_eq!(config.store_regions, ["US", "DE"]);
+}

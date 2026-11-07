@@ -47,6 +47,8 @@ pub enum Action {
     Import,
     #[cfg(feature = "collections")]
     Collections,
+    #[cfg(feature = "store")]
+    Store,
     SteamPage,
     ProtonDb,
     ProtonIssues,
@@ -217,6 +219,14 @@ impl Browser {
             category: CONTENT,
             label: "Inventory",
             key: "I",
+        });
+
+        #[cfg(feature = "store")]
+        rows.push(ActionRow {
+            action: Action::Store,
+            category: CONTENT,
+            label: "Store: price, players, news, reviews, similar",
+            key: "Y",
         });
 
         const LINKS: &str = "Links";
