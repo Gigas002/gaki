@@ -104,6 +104,13 @@ gaki-cli enable 2001                  # enable an installed DLC
 gaki-cli disable 2001                 # disable it
 ```
 
+Each running install, update or verify holds a lock on
+`$XDG_STATE_HOME/gaki/installs/<app_id>.lock`, which the OS releases when its
+process exits (crashes included). So `gaki-cli` and `gaki-tui` never run the
+same game's download twice. `install list` shows a game another gaki
+process is downloading as `running elsewhere`, and `install resume`,
+`forget` and `stop` refuse it there; stop it from the process that runs it.
+
 A game installed in two libraries reports an update forever. `duplicates`
 prints the copies to delete and removes nothing itself.
 

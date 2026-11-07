@@ -259,6 +259,19 @@ impl Browser {
             || self.show_launch_targets
             || self.show_collections
             || self.store_open()
+            || self.installs_open()
+    }
+
+    /// Whether the Installs overlay is open (never, without `install`).
+    pub fn installs_open(&self) -> bool {
+        #[cfg(feature = "install")]
+        {
+            self.installs.is_some()
+        }
+        #[cfg(not(feature = "install"))]
+        {
+            false
+        }
     }
 
     /// Whether a Store overlay (`Y` or `J`) is open (never, without

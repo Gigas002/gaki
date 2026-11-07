@@ -1790,9 +1790,37 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   - The overlay counts in `overlay_open`. Help line, `docs/GAKI-TUI.md`
     ("Store") and `docs/FEATURES.md`. No Actions-menu row, since the menu
     is per game.
-- [ ] **8.5** TUI install backlog view: list running and backlog installs,
+- [x] **8.5** TUI install backlog view: list running and backlog installs,
   including interrupted ones from earlier runs or from `gaki-cli`, and
   resume, resume all, stop and forget them.
+  *Done.*
+  - **Cross-process lock (found at the start).** "Running" lived only in
+    each process's registry, and the TUI installs in-process while
+    `gaki-cli` installs in its daemon. So a CLI install looked
+    *interrupted* to the TUI, which could resume it a second time or
+    forget-and-delete its folder mid-download. Now `InstallGuard` also
+    takes an OS file lock (`File::try_lock`) on
+    `$XDG_STATE_HOME/gaki/installs/<app>.lock`, released when the process
+    exits, crashes included. Every install, update, verify, downgrade
+    and launch-time update goes through the guard. A lock held elsewhere
+    makes `register` fail, `list` show `running elsewhere`,
+    `resume_request` and `forget` fail, and `signal` return the new
+    `Signalled::Elsewhere` (the CLI reports it). Unit tests cover it, and
+    it was checked by hand against a lock held by `flock(1)` from another
+    process.
+  - **The Installs overlay.** `X` lists this TUI's running installs, then
+    the backlog, with state, progress and reason. It re-reads the list
+    every second (local only). `r`/`Enter` resume the highlighted entry with
+    its own library and platform; `R` resumes every waiting entry one after
+    another (a new `Command::Resume`, running `steam::resume_installs` on
+    one thread); `p`/`s` pause or stop (through the library's control when
+    the TUI tracks it, else `signal`, which relabels a waiting entry); `f`
+    forgets and `F` forgets and deletes the partial files, both after a
+    `y`/`n` confirm. Resumed games get an install control, so the library
+    badge and `Space`/`c` follow them. `steam::install` and resumes share
+    `run_install_request`.
+  - Help line, `docs/GAKI-TUI.md` ("Installs"), `docs/GAKI-CLI.md` (the
+    lock) and `docs/FEATURES.md`.
 - [ ] **8.6** TUI Workshop parity: download (`workshop install`, collections
   expanding), uninstall, `status` with update detection, and posting a
   comment.

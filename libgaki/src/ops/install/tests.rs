@@ -19,6 +19,39 @@ fn drop_unregisters_and_raises_abort() {
     assert!(InstallGuard::begin(9_000_002).is_ok());
 }
 
+// --- Cross-process lock. A lock taken through `lock::try_acquire` stands
+// in for another process: it is a separate open file, which `flock` treats
+// as a different holder even within one process. ---
+
+#[test]
+fn an_install_locked_elsewhere_cannot_start() {
+    let app = 9_000_010;
+    let _other = lock::try_acquire(app).unwrap().unwrap();
+    let err = InstallGuard::begin(app).err().unwrap();
+    assert!(err.to_string().contains("another gaki process"), "{err}");
+    assert!(!active_installs().lock().unwrap().contains_key(&app));
+    assert!(is_running_elsewhere(app));
+}
+
+#[test]
+fn a_running_install_holds_its_lock_until_dropped() {
+    let app = 9_000_011;
+    let (guard, _) = InstallGuard::begin(app).unwrap();
+    // Running here is not "elsewhere", though the lock is held.
+    assert!(!is_running_elsewhere(app));
+    assert!(lock::try_acquire(app).unwrap().is_none());
+    drop(guard);
+    assert!(lock::try_acquire(app).unwrap().is_some());
+}
+
+#[test]
+fn signalling_an_install_locked_elsewhere_is_refused() {
+    let app = 9_000_012;
+    let _other = lock::try_acquire(app).unwrap().unwrap();
+    assert_eq!(signal(app, false).unwrap(), Signalled::Elsewhere);
+    assert_eq!(signal(app, true).unwrap(), Signalled::Elsewhere);
+}
+
 // --- Manifest overrides (downgrade) ---
 
 #[test]

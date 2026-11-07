@@ -219,6 +219,8 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
         }
         #[cfg(feature = "store")]
         KeyCode::Char('J') => browser.open_shop(),
+        #[cfg(feature = "install")]
+        KeyCode::Char('X') => browser.open_installs(),
         #[cfg(feature = "store")]
         KeyCode::Char('Y') => {
             if let Some(game) = browser.selected() {

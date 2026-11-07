@@ -24,6 +24,8 @@ mod game_config;
 mod help;
 #[cfg(feature = "install")]
 mod install;
+#[cfg(feature = "install")]
+pub mod installs;
 #[cfg(feature = "inventory")]
 mod inventory;
 pub mod job;
@@ -281,6 +283,9 @@ pub struct Browser {
     /// The Store overlay (`Y`), when open.
     #[cfg(feature = "store")]
     pub store: Option<store::StoreView>,
+    /// The Installs overlay (`X`), when open.
+    #[cfg(feature = "install")]
+    pub installs: Option<installs::InstallsView>,
     /// The Steam Store overlay (`J`), when open.
     #[cfg(feature = "store")]
     pub shop: Option<shop::ShopView>,
@@ -576,6 +581,8 @@ impl Browser {
             store: None,
             #[cfg(feature = "store")]
             shop: None,
+            #[cfg(feature = "install")]
+            installs: None,
             show_launch: false,
             launch_options: Vec::new(),
             launch_scroll: 0,

@@ -31,6 +31,8 @@ pub mod help;
 pub mod import;
 #[cfg(feature = "install")]
 pub mod install_picker;
+#[cfg(feature = "install")]
+pub mod installs;
 #[cfg(feature = "inventory")]
 pub mod inventory;
 pub mod launch;

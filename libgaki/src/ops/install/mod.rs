@@ -31,12 +31,16 @@ pub fn active_installs() -> &'static Mutex<HashMap<u32, SharedDownloadState>> {
     ACTIVE_INSTALLS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
+mod lock;
+
 /// RAII registration of a running operation: added on construction, removed on
 /// drop (success, error, `?` or abort alike). Dropping it also raises the
-/// operation's abort flag.
+/// operation's abort flag. It holds the app's cross-process lock too, so no
+/// other gaki process starts, resumes or forgets the same install meanwhile.
 pub struct InstallGuard {
     app_id: u32,
     state: SharedDownloadState,
+    _lock: lock::InstallLock,
 }
 
 impl InstallGuard {
@@ -48,7 +52,7 @@ impl InstallGuard {
     }
 
     /// Register `state` as `app_id`'s running operation. Fails if one is
-    /// already running for that app.
+    /// already running for that app, here or in another gaki process.
     pub fn register(app_id: u32, state: SharedDownloadState) -> Result<Self> {
         let mut map = active_installs()
             .lock()
@@ -56,8 +60,15 @@ impl InstallGuard {
         if map.contains_key(&app_id) {
             bail!("an install/update/verify for app {app_id} is already running");
         }
+        let Some(lock) = lock::try_acquire(app_id)? else {
+            return Err(running_elsewhere(app_id));
+        };
         map.insert(app_id, Arc::clone(&state));
-        Ok(Self { app_id, state })
+        Ok(Self {
+            app_id,
+            state,
+            _lock: lock,
+        })
     }
 }
 
@@ -398,6 +409,8 @@ fn classify_outcome(
 pub enum Signalled {
     /// The running install was asked to stop or pause.
     Running,
+    /// Running in another gaki process, which has to stop it.
+    Elsewhere,
     /// Not running; its backlog entry was relabelled to this state.
     Relabelled(BacklogState),
     /// Neither running nor in the backlog.
@@ -411,6 +424,9 @@ pub fn signal(app_id: u32, pause: bool) -> Result<Signalled> {
         .ok()
         .and_then(|map| map.get(&app_id).cloned());
     let Some(state) = state else {
+        if lock::is_held(app_id) {
+            return Ok(Signalled::Elsewhere);
+        }
         let target = if pause {
             BacklogState::Paused
         } else {
@@ -430,11 +446,28 @@ pub fn signal(app_id: u32, pause: bool) -> Result<Signalled> {
     Ok(Signalled::Running)
 }
 
-/// Whether an install, update or verify is running for `app_id`.
+/// Whether an install, update or verify is running for `app_id` in this
+/// process.
 pub fn is_running(app_id: u32) -> bool {
     active_installs()
         .lock()
         .is_ok_and(|m| m.contains_key(&app_id))
+}
+
+/// Whether another gaki process (the session daemon, another TUI) is
+/// running an install, update or verify for `app_id`.
+pub fn is_running_elsewhere(app_id: u32) -> bool {
+    !is_running(app_id) && lock::is_held(app_id)
+}
+
+fn running_elsewhere(app_id: u32) -> anyhow::Error {
+    TypedError::new(
+        ErrorKind::InvalidInput,
+        format!(
+            "app {app_id} is downloading in another gaki process; stop it there              (`gaki-cli install stop {app_id}` for one gaki-cli started)"
+        ),
+    )
+    .into()
 }
 
 /// One install, running or in the backlog.
@@ -447,11 +480,15 @@ pub struct InstallRow {
     /// Live status text, or the backlog's reason.
     pub status: String,
     pub is_downloading: bool,
-    /// `running`, or the backlog state.
+    /// `running`, `running elsewhere` (another gaki process), or the
+    /// backlog state.
     pub state: &'static str,
     /// The backlog entry, for rows that are not running.
     pub entry: Option<BacklogEntry>,
 }
+
+/// [`InstallRow::state`] of a backlog entry another gaki process is running.
+pub const RUNNING_ELSEWHERE: &str = "running elsewhere";
 
 /// Running installs (by app id), then the backlog.
 pub fn list() -> Result<Vec<InstallRow>> {
@@ -486,7 +523,11 @@ pub fn list() -> Result<Vec<InstallRow>> {
             downloaded_bytes: entry.downloaded_bytes,
             status: entry.reason.clone().unwrap_or_default(),
             is_downloading: false,
-            state: entry.state.as_str(),
+            state: if lock::is_held(entry.app_id) {
+                RUNNING_ELSEWHERE
+            } else {
+                entry.state.as_str()
+            },
             entry: Some(entry),
         });
     }
@@ -512,15 +553,18 @@ pub fn resume_targets(app_id: Option<u32>, all: bool) -> Result<Vec<u32>> {
 }
 
 /// The install request that resumes `app_id`'s backlog entry, with the entry.
-/// `None` when the entry is gone, already running, or (with `auto`) its
+/// `None` when the entry is gone, already running here, or (with `auto`) its
 /// attempt count could not be bumped. `auto` counts the attempt; a manual
-/// resume resets it.
+/// resume resets it. Running in another gaki process is an error.
 pub fn resume_request(app_id: u32, auto: bool) -> Result<Option<(InstallRequest, BacklogEntry)>> {
     let Some(entry) = backlog::get(app_id)? else {
         return Ok(None);
     };
     if is_running(app_id) {
         return Ok(None);
+    }
+    if lock::is_held(app_id) {
+        return Err(running_elsewhere(app_id));
     }
     // Counted now, so early failures count.
     let auto_attempts = if auto {
@@ -613,6 +657,9 @@ pub fn forget(app_id: u32, delete_files: bool) -> Result<Option<PathBuf>> {
             format!("app {app_id} is downloading; stop it first"),
         )
         .into());
+    }
+    if lock::is_held(app_id) {
+        return Err(running_elsewhere(app_id));
     }
     let Some(entry) = backlog::get(app_id)? else {
         return Err(TypedError::new(

@@ -77,6 +77,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `R`                   | Running games                                            |
 | `Y`                   | Store: price, players, news, reviews, similar games      |
 | `J`                   | Steam Store: search, deals, events, your wishlist        |
+| `X`                   | Installs: running installs and the backlog               |
 | `f` / `H`             | Toggle a favourite, hide the game                        |
 | `A` / `p`             | Account (`o` logs out), settings (presence, proxy)       |
 | `r`                   | Refresh the library from Steam                           |
@@ -97,6 +98,26 @@ game: type to narrow it, `Enter` to run. Two entries live only here:
   profile, the platform (auto, windows, linux) and the Steam integration (the
   profile's, auto, host, none). Wrappers are shown read-only; change them with
   `gaki-cli config game <id> --wrapper …`.
+
+### Installs
+
+`X` lists the installs running in this TUI, then the install backlog, which
+`gaki-cli` shares: paused, interrupted and stopped installs, and imports
+still queued. Each row shows its state, progress, and why it stopped. The
+list refreshes every second.
+
+| Key           | Action                                                         |
+| ------------- | -------------------------------------------------------------- |
+| `r` / `Enter` | Resume the highlighted entry into the library and platform it started with |
+| `R`           | Resume every waiting entry, one after another                  |
+| `p` / `s`     | Pause or stop it (a waiting entry is just relabelled)          |
+| `f`           | Forget it; its files stay                                      |
+| `F`           | Forget it and delete its partial files, when that's provably safe |
+
+Both forgets ask first. A game another gaki process (`gaki-cli`, its
+session daemon, another TUI) is downloading shows as `running elsewhere`,
+and the keys leave it to that process. See `gaki-cli install` in
+[GAKI-CLI.md](GAKI-CLI.md) for the lock behind this.
 
 ### Store
 

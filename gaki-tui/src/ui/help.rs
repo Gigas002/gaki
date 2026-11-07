@@ -121,6 +121,11 @@ fn entries() -> Vec<Entry> {
         Entry::Binding("Y", "store (price, players, news, reviews, similar)"),
         #[cfg(feature = "store")]
         Entry::Binding("J", "steam store (search, deals, events, wishlist)"),
+        #[cfg(feature = "install")]
+        Entry::Binding(
+            "X",
+            "installs and backlog (r/R resume, p pause, s stop, f/F forget)",
+        ),
         #[cfg(feature = "workshop")]
         Entry::Binding("W", "workshop items"),
         #[cfg(feature = "workshop")]

@@ -52,6 +52,9 @@ pub enum Command {
         steam::InstallControl,
         Option<String>,
     ),
+    /// Resume backlog entries one after another (the Installs overlay).
+    #[cfg(feature = "install")]
+    Resume(Vec<steam::ResumeJob>),
     /// Verify a game's integrity, streaming progress into the shared status cell.
     #[cfg(feature = "install")]
     Verify(i32, Arc<Mutex<Option<GameStatus>>>),
@@ -245,6 +248,10 @@ fn execute(
                 thread::spawn(move || steam::install(id, status, control, library));
             }
             #[cfg(feature = "install")]
+            Command::Resume(jobs) => {
+                thread::spawn(move || steam::resume_installs(jobs));
+            }
+            #[cfg(feature = "install")]
             Command::Verify(id, status) => {
                 thread::spawn(move || steam::verify(id, status));
             }
@@ -420,6 +427,14 @@ impl Client {
             control,
             library,
         ))?;
+        Ok(())
+    }
+
+    /// Resumes backlog entries, one after another, on a worker thread.
+    #[cfg(feature = "install")]
+    pub fn resume(&self, jobs: Vec<steam::ResumeJob>) -> Result<(), TuiError> {
+        let sender = self.sender.lock()?;
+        sender.send(Command::Resume(jobs))?;
         Ok(())
     }
 

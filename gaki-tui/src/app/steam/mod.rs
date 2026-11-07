@@ -1792,6 +1792,34 @@ impl Default for InstallControl {
     }
 }
 
+/// Running installs here, then the install backlog (local; no network).
+#[cfg(feature = "install")]
+pub fn install_rows() -> Result<Vec<libgaki::ops::install::InstallRow>, TuiError> {
+    libgaki::ops::install::list().map_err(|e| TuiError::Problem(format!("{e:#}")))
+}
+
+/// Drop a backlog entry; with `delete_files`, its partial install folder
+/// too, when that is provably safe. Returns the deleted folder.
+#[cfg(feature = "install")]
+pub fn install_forget(
+    app_id: u32,
+    delete_files: bool,
+) -> Result<Option<std::path::PathBuf>, TuiError> {
+    libgaki::ops::install::forget(app_id, delete_files)
+        .map_err(|e| TuiError::Problem(format!("{e:#}")))
+}
+
+/// Stop or pause an install that may not be tracked by this UI: one in
+/// this process, a backlog entry (relabelled), or one another gaki process
+/// runs (refused).
+#[cfg(feature = "install")]
+pub fn install_signal(
+    app_id: u32,
+    pause: bool,
+) -> Result<libgaki::ops::install::Signalled, TuiError> {
+    libgaki::ops::install::signal(app_id, pause).map_err(|e| TuiError::Problem(format!("{e:#}")))
+}
+
 /// Stop a running install. The download loop aborts and the partial download
 /// stays on disk, so a later `install` resumes it. A no-op (Ok) if no such
 /// install is in flight.
@@ -1842,8 +1870,7 @@ pub fn install(
     control: InstallControl,
     library: Option<String>,
 ) {
-    use libgaki::ops::install::{InstallRequest, prepare};
-    set_status(&status, "processing...");
+    use libgaki::ops::install::InstallRequest;
     let request = InstallRequest {
         app_id: id as u32,
         platform: None,
@@ -1852,12 +1879,53 @@ pub fn install(
         on_disk: 0,
         auto_attempts: 0,
     };
+    run_install_request(request, &status, &control);
+}
+
+/// One install (or resume) the Installs overlay hands over: the app, its
+/// status cell and its control.
+#[cfg(feature = "install")]
+pub struct ResumeJob {
+    pub app_id: i32,
+    pub status: Arc<Mutex<Option<GameStatus>>>,
+    pub control: InstallControl,
+}
+
+/// Resume backlog entries one after another, each with the options it was
+/// started with (library, platform), as `gaki-cli install resume` does. An
+/// entry that is gone or running here is skipped; one running in another
+/// gaki process fails into its status cell. A stopped job doesn't stop the
+/// rest. Blocks; run it on its own thread.
+#[cfg(feature = "install")]
+pub fn resume_installs(jobs: Vec<ResumeJob>) {
+    for job in jobs {
+        if job.control.get() == InstallAction::Stopped {
+            continue;
+        }
+        match libgaki::ops::install::resume_request(job.app_id as u32, false) {
+            Ok(Some((request, _entry))) => run_install_request(request, &job.status, &job.control),
+            Ok(None) => {}
+            Err(e) => finish(&job.status, Err(e), "Installed!"),
+        }
+    }
+}
+
+/// Run one install request, streaming progress into `status` and finishing
+/// on the user's pause/stop intent.
+#[cfg(feature = "install")]
+fn run_install_request(
+    request: libgaki::ops::install::InstallRequest,
+    status: &Arc<Mutex<Option<GameStatus>>>,
+    control: &InstallControl,
+) {
+    use libgaki::ops::install::prepare;
+    set_status(status, "processing...");
     let outcome = worker::global().block_on(async {
         let mut client = worker::global().session().authed().await?;
         let prepared = prepare(&mut client, request).await?;
         prepared
             .run(&client, |rx| {
-                drive_progress(rx, &status, ProgressLabel::Install)
+                drive_progress(rx, status, ProgressLabel::Install)
             })
             .await
     });
@@ -1866,7 +1934,7 @@ pub fn install(
     // finalise on the user's intent, not the aborted result.
     match control.get() {
         InstallAction::Paused => {
-            set_status_paused(&status);
+            set_status_paused(status);
             return;
         }
         InstallAction::Stopped => {
@@ -1877,7 +1945,7 @@ pub fn install(
         }
         InstallAction::Running => {}
     }
-    finish(&status, outcome, "Installed!");
+    finish(status, outcome, "Installed!");
 }
 
 /// Which operation [`drive_progress`] is reporting, for its status label.

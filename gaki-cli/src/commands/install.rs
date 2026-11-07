@@ -154,6 +154,16 @@ pub(crate) async fn cmd_install_pause(app_id: u32, json: bool) -> Result<()> {
 fn signal_install(app_id: u32, pause: bool, json: bool) -> Result<()> {
     match install::signal(app_id, pause)? {
         Signalled::Running => {}
+        Signalled::Elsewhere => {
+            return Err(TypedError::new(
+                ErrorKind::InvalidInput,
+                format!(
+                    "app {app_id} is downloading in another gaki process (another \
+                     session daemon, or gaki-tui); stop it there"
+                ),
+            )
+            .into());
+        }
         Signalled::Relabelled(target) => {
             if json {
                 print_result_line(serde_json::json!({

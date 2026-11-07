@@ -479,6 +479,38 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         }
         return Ok(true);
     }
+    #[cfg(feature = "install")]
+    if browser.installs.is_some() {
+        if browser.installs_confirm_open() {
+            match input {
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                    browser.answer_installs_confirm(true)
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                    browser.answer_installs_confirm(false)
+                }
+                _ => {}
+            }
+            return Ok(true);
+        }
+        match input {
+            KeyCode::Esc | KeyCode::Char('q') => browser.close_installs(),
+            KeyCode::Down | KeyCode::Char('j') => browser.installs_move(1),
+            KeyCode::Up | KeyCode::Char('k') => browser.installs_move(-1),
+            KeyCode::PageDown => browser.installs_move(10),
+            KeyCode::PageUp => browser.installs_move(-10),
+            KeyCode::Char('\n') | KeyCode::Enter | KeyCode::Char('r') => {
+                browser.installs_resume(client, false)?
+            }
+            KeyCode::Char('R') => browser.installs_resume(client, true)?,
+            KeyCode::Char('p') => browser.installs_signal(true),
+            KeyCode::Char('s') => browser.installs_signal(false),
+            KeyCode::Char('f') => browser.begin_installs_forget(false),
+            KeyCode::Char('F') => browser.begin_installs_forget(true),
+            _ => {}
+        }
+        return Ok(true);
+    }
     // The per-game Store overlay can sit on top of the Steam Store one.
     #[cfg(feature = "store")]
     if browser.store.is_some() {
