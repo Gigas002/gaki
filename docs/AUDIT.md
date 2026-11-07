@@ -138,3 +138,121 @@ depots `D`, branches `b`, user profile `V`, Workshop `W`, Store `Y`, installs
 | ------- | ------ |
 | Move, relink, import and uninstall ran on the UI thread. The TUI froze for the whole copy or delete, which for a large game is minutes. They now run as one background disk job. Its outcome goes to the prompt that started it, or to the status bar once that prompt is closed, and it refreshes that game's install state. Only one runs at a time; starting a second one says so. Uninstall used to reload the whole library afterwards; it now refreshes just that game. | Fixed |
 | Toggling a DLC still calls Steam on the UI thread: 0.3 s cold (one PICS request), instant while the PICS reply is reused. Switching branch, stopping a game, choosing the default Proton and logging out are local or one short call. | Accepted (short) |
+
+## 3. Supported features (8.14c, 2026-11-08)
+
+What the official Steam client does, and what gaki has of it: `libgaki`
+(the library), `gaki-cli` and `gaki-tui`. Checked against the code, the
+help and the docs, not only the docs. **✓** means it's there, **part** that
+some of it is (the note says which), **—** that it isn't. Every gap has a
+reason:
+
+- **non-goal**: one of the PLAN's non-goals (money and items with money
+  value, localization, third-party runtimes, lootrs' `wine`/`umu`).
+- **needs Steam**: the official client has to be running (R21). gaki
+  launches with `play --steam` (or a profile's Steam integration), so the
+  running client provides it.
+- **not done**: possible with what gaki has, not built yet.
+- **not possible**: no protocol a third-party client can use for it.
+
+The pure GUI parts of the official client (Big Picture, the in-game
+overlay's own UI, broadcasting, themes) aren't listed. A terminal client has
+no counterpart to them.
+
+### 3.1 Account
+
+| Official client | libgaki | gaki-cli | gaki-tui | Gap |
+| --------------- | :-----: | :------: | :------: | --- |
+| Sign in with password and Steam Guard (email or mobile code) | ✓ | ✓ `login` | ✓ sign-in page | |
+| Sign in with a QR code | ✓ | ✓ `login --qr` | ✓ `y` | |
+| Stay signed in; sign out (revoking the token) | ✓ | ✓ `logout` | ✓ `A` → `o` | |
+| Account details | ✓ | ✓ `account` | ✓ `A` | |
+| Offline mode | part | part | part | Automatic: when Steam can't be reached, the library is served from the cache. There's no switch to go offline on purpose. not done |
+| Steam Guard authenticator, account security settings, family management | — | — | — | not done (gaki shows family-shared games in the library, but can't manage the family) |
+
+### 3.2 Library
+
+| Official client | libgaki | gaki-cli | gaki-tui | Gap |
+| --------------- | :-----: | :------: | :------: | --- |
+| Owned and family-shared games | ✓ | ✓ `list` | ✓ library | |
+| Store details, DLC, tags, requirements | ✓ | ✓ `info`, `dlc` | ✓ detail pane, `n`, `D` | |
+| Artwork | ✓ | ✓ `image` | ✓ art pane, `n` → Artwork | |
+| Achievements (view) | ✓ | ✓ `achievements` | ✓ `a` | |
+| Playtime | part | — | — | Fetched with the owned games, never shown. not done |
+| Collections, synced with Steam | ✓ | ✓ `collections` | ✓ `O` | |
+| Favourites and hidden games | ✓ (Steam's built-in collections) | ✓ `collections` | part | The TUI's `f`/`H` keep their own lists in `tui/config.toml`, separate from Steam's favourite and hidden collections. not done (follow-up 8.18) |
+| Add a non-Steam game, activate a product key | — | — | — | not done |
+| Screenshots, recordings, notes | — | — | — | not done |
+
+### 3.3 Install and manage
+
+| Official client | libgaki | gaki-cli | gaki-tui | Gap |
+| --------------- | :-----: | :------: | :------: | --- |
+| Install, update, verify, uninstall | ✓ | ✓ | ✓ `d`, `U`, `v`, `x` | |
+| Download queue: pause, resume, cancel | ✓ | ✓ `install …` | ✓ `Space`, `c`, `X` | |
+| Choose a library folder; see free space | ✓ | ✓ `--library`, `libraries` | ✓ install picker | |
+| Move an install; add an existing install | ✓ | ✓ `move`, `relink`, `import` | ✓ `M`, `K`, `N` | |
+| Create a new library folder | — | — | — | not done (a target needs a `steamapps` folder already; gaki says to add the drive in Steam's Storage settings) |
+| Download bandwidth limit, download schedule, auto-update windows | — | — | — | not done. The TUI checks for updates after each library load; the daemon can resume interrupted installs (`install-resume auto`) |
+| Enable or disable DLC | ✓ | ✓ `enable`, `disable` | ✓ `D` | |
+| Beta branches | ✓ | ✓ `branches`, `set-branch` | ✓ `b` | |
+| Older builds (Steam: only through the console's `download_depot`) | ✓ | ✓ `manifests`, `downgrade`, `pin` | ✓ `V` | |
+| Depot file browser | ✓ | ✓ `depots files`, `depots download` | ✓ `o` → `Enter` | |
+| Move a library to another machine | ✓ | ✓ `library export`, `library import` | — | not done (CLI only) |
+| Shader pre-caching | — | — | — | not done |
+
+### 3.4 Play
+
+| Official client | libgaki | gaki-cli | gaki-tui | Gap |
+| --------------- | :-----: | :------: | :------: | --- |
+| Launch native and Windows (Proton) builds | ✓ | ✓ `play` | ✓ Play, **Play as…** | |
+| Launch options | ✓ | ✓ `launch-options`, `launch-targets` | ✓ `L`, **Play as…** | |
+| Per-game compatibility tool, launch arguments, environment | ✓ | part | part | `config game` sets the profile, platform, wrappers and Steam integration; the TUI's **Game settings** all but the wrappers. Arguments and environment are set by hand in `games.toml`. not done |
+| Install official Proton builds | ✓ | ✓ `proton` | ✓ `P` | Third-party builds: non-goal (gaki finds the installed ones) |
+| Running games; stop one | ✓ | ✓ `running`, `stop` | ✓ `R` | |
+| Steam Cloud saves, with conflict choice | ✓ | ✓ `cloud` | ✓ `C` | |
+| Steamworks in games, DRM, overlay, Steam Input, Remote Play | — | part | part | needs Steam: `play --steam` bridges the game to the running client. `drm` checks the tickets headlessly |
+| Unlock achievements, game stats | — | — | — | Only a running game reports these, through Steamworks. needs Steam |
+
+### 3.5 Store
+
+| Official client | libgaki | gaki-cli | gaki-tui | Gap |
+| --------------- | :-----: | :------: | :------: | --- |
+| Search, deals, events | ✓ | ✓ `search`, `deals`, `events` | ✓ `J` | |
+| A game's price (any region), players, news, reviews, similar games | ✓ | ✓ | ✓ `Y` | |
+| Wishlist: view, add, remove | ✓ | ✓ `wishlist` | ✓ `J` → Wishlist | |
+| A friend's wishlist | ✓ | ✓ `wishlist <user>` | — | not done (CLI only) |
+| Buy, gift, refund, wallet top-up, points shop | — | — | — | non-goal |
+| Write a review | — | — | — | not done |
+| Localized store | — | — | — | non-goal |
+
+### 3.6 Community
+
+| Official client | libgaki | gaki-cli | gaki-tui | Gap |
+| --------------- | :-----: | :------: | :------: | --- |
+| Friends list, add, remove | ✓ | ✓ `friends` | ✓ Friends tab | |
+| One-to-one chat | ✓ | ✓ `chat` | ✓ `c`, `t` | |
+| Online status | ✓ | ✓ `config presence` | ✓ settings | Online or invisible only; no away/busy. not done |
+| Group chats, voice chat | — | — | — | not done |
+| View a profile | ✓ | ✓ `user` | ✓ `v`, `/` | |
+| Edit your profile | — | — | — | not done |
+| Workshop: browse, subscribe, install, update, rate, comment | ✓ | ✓ `workshop` | ✓ `W` | |
+| Inventory, wallet balance | ✓ | ✓ `inventory`, `wallet` | ✓ `I`, `w` | |
+| Community Market: prices, search, your listings | ✓ | ✓ `market` | ✓ `m`, `S` | |
+| Market buying and selling, trading, crafting | — | — | — | non-goal |
+| Discussions, groups, guides, broadcasts | — | — | — | not done |
+
+### 3.7 Only in gaki
+
+Not in the official client: a scriptable CLI (`--json` everywhere,
+`capabilities` for drivers, a session daemon), Proton profiles shared with
+lootrs, per-game wrappers, pinning a build against updates, the
+`duplicates` scan, `available`, and SteamDB, ProtonDB and Proton-issue links.
+
+### 3.8 Docs against the code
+
+| Finding | Status |
+| ------- | ------ |
+| `docs/GAKI-CLI.md` left out `config get`, `unset`, `info-cache-ttl`, `proxy`, `experimental` and `clear-games`, `collections delete` and `rename`, and `workshop list`, `uninstall` and `unsubscribe`. All are now listed. (`appinfo` stays undocumented: it's a hidden maintainer tool.) | Fixed |
+| `docs/FEATURES.md` didn't list `library export`/`import` for the CLI, or game info `n`, SteamDB `Z`, the settings tabs, the Installs Duplicates tab and the user profile `v` / `/` for the TUI. Added under the features that gate them. | Fixed |
+| `--help`, `capabilities` and the TUI help come from the same definitions the code uses (clap and the keymap), so they can't drift from the commands. | OK |

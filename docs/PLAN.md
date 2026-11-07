@@ -2127,7 +2127,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
       (`https://github.com/Gigas002/lootrs`, `branch = "master"`, locked
       to the 8.15a commit `cbb22ee`) and `deny.toml` allows that source; a
       crates.io version replaces it before gaki is published.
-- [ ] **8.14** Final audit, after 8.1–8.13 and 8.15. Write the findings to
+- [x] **8.14** Final audit, after 8.1–8.13 and 8.15. Write the findings to
   `docs/AUDIT.md`, fix what's small within this step, and add a step for
   anything bigger. Three parts:
   - **Security.** Secrets and the session: keyring and memory store, the
@@ -2171,7 +2171,14 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     native launches skip the Wine runner lookup; `config` runs in-process
     instead of starting a daemon; the TUI's move, relink, import and
     uninstall run as a background disk job instead of freezing the UI.
-  - [ ] **8.14c** Supported features: `docs/AUDIT.md` §3.
+  - [x] **8.14c** Supported features: `docs/AUDIT.md` §3. A matrix of
+    the official client's features against `libgaki`, `gaki-cli` and
+    `gaki-tui`, each gap with its reason, checked against the code. Fixed:
+    `docs/GAKI-CLI.md` now lists the ten subcommands it left out, and
+    `docs/FEATURES.md` the CLI's `library export`/`import` and the TUI's
+    game info, SteamDB link, settings tabs, Duplicates tab and user
+    profiles. The TUI's favourites and hidden games, kept apart from
+    Steam's, became 8.18. The §8 gates pass.
 - [ ] **8.16** Verify depot manifest signatures (8.14a follow-up). Find
   the scheme `ContentManifestSignature` uses and Valve's public key, then
   refuse a manifest whose signature doesn't verify. If neither can be
@@ -2179,6 +2186,12 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 - [ ] **8.17** Replace `lzma-rs` (unmaintained) for VZ chunks with a
   maintained decoder (8.14a follow-up), keeping the bounded output and the
   CRC check.
+- [ ] **8.18** TUI favourites and hidden games as Steam's own (8.14c
+  follow-up). `f` and `H` keep lists in `tui/config.toml`, while
+  `libgaki`'s collections, and `gaki-cli collections`, have Steam's
+  built-in favourite and hidden collections. Make the keys and the
+  Favourites tab use those collections, and move any existing local lists
+  into them once.
 
 ### Phase 9 — Steam rules audit
 

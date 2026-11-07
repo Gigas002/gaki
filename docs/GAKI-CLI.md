@@ -203,6 +203,8 @@ gaki-cli collections create "RPGs"    # a new static collection
 gaki-cli collections add "RPGs" 570 730
 gaki-cli collections remove "RPGs" 730
 gaki-cli collections show "RPGs"
+gaki-cli collections rename "RPGs" "Role-playing"
+gaki-cli collections delete "Role-playing"  # favourite and hidden can't be deleted
 gaki-cli list --collection "RPGs"     # filter the library to one collection
 gaki-cli collections pull             # fetch Steam's collections and merge them in
 gaki-cli collections push --yes       # upload local collections to your account
@@ -217,6 +219,9 @@ gaki-cli workshop info 1234567890     # item or collection metadata
 gaki-cli workshop install 1234567890  # download an item (collections expand to members)
 gaki-cli workshop subscribe 1234567890 --install  # subscribe, then download
 gaki-cli workshop status 1245620      # installed vs subscribed, with update detection
+gaki-cli workshop list 1245620        # the items you're subscribed to
+gaki-cli workshop uninstall 1234567890  # remove an installed item
+gaki-cli workshop unsubscribe 1234567890
 gaki-cli workshop rate 1234567890 up  # thumbs up (or down)
 gaki-cli workshop comments 1234567890 # read an item's comments
 gaki-cli workshop comment 1234567890 "Nice mod!"
@@ -256,12 +261,18 @@ sign-in first ([CONFIG.md](CONFIG.md#session-and-security)).
 ```bash
 gaki-cli config show                  # the resolved configuration
 gaki-cli config check                 # validate config.toml, the profiles and games.toml
+gaki-cli config get default_profile   # one config.toml key, as written (nothing when unset)
 gaki-cli config set default_profile proton  # set a config.toml key
+gaki-cli config unset default_profile # back to its default
+gaki-cli config proxy socks5://127.0.0.1:1080  # proxy for web, CDN and Proton lookups (not the CM)
+gaki-cli config info-cache-ttl 3600   # how long `info` results are cached (0 turns it off)
+gaki-cli config experimental true     # unlock `login --openid` and `login --web-token`
 gaki-cli config presence online       # appear online for chat (default: offline)
 gaki-cli config install-resume auto   # resume interrupted installs when the daemon starts
 gaki-cli config game 292030 --profile proton-cachyos  # one game's games.toml entry
 gaki-cli config game 292030 --wrapper mangohud --wrapper ~/bin/wrap.sh
 gaki-cli config game 292030 --steam none
+gaki-cli config clear-games           # remove every games.toml entry (asks first)
 gaki-cli profiles list
 gaki-cli profiles show proton
 ```
