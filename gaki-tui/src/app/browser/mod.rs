@@ -468,6 +468,10 @@ pub struct Browser {
     /// The inline text-entry buffer for creating a collection (None = not
     /// prompting).
     pub collections_input: Option<String>,
+    /// While `collections_input` renames a collection: its current name.
+    pub collections_renaming: Option<String>,
+    /// A collection waiting for its delete y/n.
+    pub collections_delete: Option<String>,
 
     // --- Launch targets overlay ("Play as…") ---
     /// Whether the launch-targets overlay is open.
@@ -664,6 +668,8 @@ impl Browser {
             #[cfg(feature = "collections")]
             collections_app_id: 0,
             collections_input: None,
+            collections_renaming: None,
+            collections_delete: None,
             show_launch_targets: false,
             launch_targets: Vec::new(),
             launch_targets_index: 0,

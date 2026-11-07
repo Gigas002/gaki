@@ -69,7 +69,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `P`                   | Proton builds (`d` sets the default, `i` installs, `u` uninstalls) |
 | `C` / `W` / `a`       | Cloud saves, Workshop (see below), achievements          |
 | `M` / `K` / `N`       | Move, relink, import an install                          |
-| `O`                   | Collections                                              |
+| `O`                   | Collections: `a`/`r` add or remove the game, `n` new, `e` rename, `x` delete (asks), `P`/`U`/`S` cloud pull/push/sync |
 | `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it |
 | `Z`                   | Open the game's SteamDB page (in Depots and Versions: the highlighted depot's manifest history) |
 | `I` / `w`             | Inventory, wallet                                        |

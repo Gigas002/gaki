@@ -12,6 +12,8 @@ impl Browser {
         self.collections_index = 0;
         self.collections_status.clear();
         self.collections_input = None;
+        self.collections_renaming = None;
+        self.collections_delete = None;
         self.show_collections = true;
     }
 
@@ -20,6 +22,8 @@ impl Browser {
         self.collections.clear();
         self.collections_index = 0;
         self.collections_input = None;
+        self.collections_renaming = None;
+        self.collections_delete = None;
     }
 
     pub fn selected_collection(&self) -> Option<&steam::Collection> {
@@ -77,10 +81,19 @@ impl Browser {
         self.refresh_collections();
     }
 
-    pub fn delete_selected_collection(&mut self) {
-        let Some(name) = self.selected_collection().map(|c| c.name.clone()) else {
+    /// Ask to delete the highlighted collection (`x`).
+    pub fn begin_collection_delete(&mut self) {
+        self.collections_delete = self.selected_collection().map(|c| c.name.clone());
+    }
+
+    /// Answer the delete confirm: `yes` deletes it (its games stay).
+    pub fn answer_collection_delete(&mut self, yes: bool) {
+        let Some(name) = self.collections_delete.take() else {
             return;
         };
+        if !yes {
+            return;
+        }
         self.collections_status = match steam::collection_delete(&name) {
             Ok(()) => format!("Deleted \"{name}\"."),
             Err(e) => format!("Failed: {e}"),
@@ -113,7 +126,18 @@ impl Browser {
 
     /// Start the inline "new collection" prompt.
     pub fn begin_collection_create(&mut self) {
+        self.collections_renaming = None;
         self.collections_input = Some(String::new());
+    }
+
+    /// Start renaming the highlighted collection (`e`), the prompt
+    /// prefilled with its name.
+    pub fn begin_collection_rename(&mut self) {
+        let Some(name) = self.selected_collection().map(|c| c.name.clone()) else {
+            return;
+        };
+        self.collections_input = Some(name.clone());
+        self.collections_renaming = Some(name);
     }
 
     pub fn collections_input_push(&mut self, c: char) {
@@ -128,22 +152,40 @@ impl Browser {
         }
     }
 
-    pub fn cancel_collection_create(&mut self) {
+    /// Cancel the create or rename prompt.
+    pub fn cancel_collection_input(&mut self) {
         self.collections_input = None;
+        self.collections_renaming = None;
     }
 
-    pub fn commit_collection_create(&mut self) {
-        let Some(name) = self.collections_input.take() else {
+    /// Enter in the prompt: create the collection, or rename the one being
+    /// renamed. An empty name is refused and keeps the prompt open; an
+    /// unchanged one just closes it.
+    pub fn commit_collection_input(&mut self) {
+        let Some(text) = &self.collections_input else {
             return;
         };
-        let name = name.trim().to_string();
+        let name = text.trim().to_string();
         if name.is_empty() {
+            self.collections_status = "The name can't be empty.".to_string();
             return;
         }
-        self.collections_status = match steam::collection_create(&name) {
-            Ok(()) => format!("Created \"{name}\"."),
-            Err(e) => format!("Failed: {e}"),
+        self.collections_input = None;
+        let renaming = self.collections_renaming.take();
+        self.collections_status = match renaming {
+            Some(old) if old == name => String::new(),
+            Some(old) => match steam::collection_rename(&old, &name) {
+                Ok(()) => format!("Renamed \"{old}\" to \"{name}\"."),
+                Err(e) => format!("Failed: {e}"),
+            },
+            None => match steam::collection_create(&name) {
+                Ok(()) => format!("Created \"{name}\"."),
+                Err(e) => format!("Failed: {e}"),
+            },
         };
         self.refresh_collections();
+        if let Some(i) = self.collections.iter().position(|c| c.name == name) {
+            self.collections_index = i;
+        }
     }
 }

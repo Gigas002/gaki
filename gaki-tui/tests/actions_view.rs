@@ -339,6 +339,89 @@ fn collections_overlay_renders_list() {
     assert!(text.contains("7 games"), "collection count renders");
 }
 
+#[cfg(feature = "collections")]
+fn favourites() -> Collection {
+    Collection {
+        id: "uc-1".to_string(),
+        name: "Favourites".to_string(),
+        kind: "static".to_string(),
+        dynamic: false,
+        count: Some(7),
+        app_ids: vec![1, 2, 3],
+    }
+}
+
+/// `e` opens a rename prompt prefilled with the name; an empty name is
+/// refused and keeps the prompt; Esc drops it. (Committing a real rename
+/// would write the collections store, so it stays out of this test.)
+#[cfg(feature = "collections")]
+#[test]
+fn collection_rename_prompt() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
+    browser.show_collections = true;
+    browser.collections = vec![favourites()];
+
+    browser.begin_collection_rename();
+    assert_eq!(browser.collections_input.as_deref(), Some("Favourites"));
+    assert_eq!(browser.collections_renaming.as_deref(), Some("Favourites"));
+    let draw = |browser: &Browser| {
+        render(80, 12, |f| {
+            f.render_widget(
+                ui::collections::collections(browser),
+                Rect::new(0, 0, 80, 12),
+            );
+        })
+    };
+    let text = draw(&browser);
+    assert!(
+        text.contains("Rename \"Favourites\" to: Favourites_"),
+        "{text}"
+    );
+
+    for _ in 0.."Favourites".len() {
+        browser.collections_input_pop();
+    }
+    browser.commit_collection_input();
+    assert!(
+        browser.collections_input.is_some(),
+        "empty name keeps the prompt"
+    );
+    assert!(draw(&browser).contains("can't be empty"));
+
+    browser.cancel_collection_input();
+    assert!(browser.collections_input.is_none());
+    assert!(browser.collections_renaming.is_none());
+}
+
+/// `x` asks before deleting; "no" leaves the collection alone.
+#[cfg(feature = "collections")]
+#[test]
+fn collection_delete_asks_first() {
+    isolate_config();
+    let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
+    browser.show_collections = true;
+    browser.collections = vec![favourites()];
+
+    browser.begin_collection_delete();
+    assert_eq!(browser.collections_delete.as_deref(), Some("Favourites"));
+    let text = render(90, 12, |f| {
+        f.render_widget(
+            ui::collections::collections(&browser),
+            Rect::new(0, 0, 90, 12),
+        );
+    });
+    assert!(
+        text.contains("Delete the collection \"Favourites\"?"),
+        "{text}"
+    );
+
+    browser.answer_collection_delete(false);
+    assert!(browser.collections_delete.is_none());
+    assert_eq!(browser.collections.len(), 1, "nothing deleted");
+    assert!(browser.collections_status.is_empty());
+}
+
 #[test]
 fn settings_overlay_renders_proxy() {
     isolate_config();

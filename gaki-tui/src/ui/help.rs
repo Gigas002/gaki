@@ -76,7 +76,10 @@ fn entries() -> Vec<Entry> {
         #[cfg(feature = "versioning")]
         Entry::Binding("V", "versions & pinning"),
         #[cfg(feature = "collections")]
-        Entry::Binding("O", "collections"),
+        Entry::Binding(
+            "O",
+            "collections (a/r add/remove game, n new, e rename, x delete)",
+        ),
         Entry::Binding("a", "achievements"),
         #[cfg(feature = "inventory")]
         Entry::Binding("I", "inventory"),

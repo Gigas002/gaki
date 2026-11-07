@@ -1870,8 +1870,16 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   the highlighted depot's manifest history (`Link::SteamDbDepot`, whose id
   is the depot's), and the Versions downgrade prompt prints that depot's
   URL. Help line, key hints, `docs/GAKI-TUI.md`, `docs/GAKI-CLI.md`.
-- [ ] **8.8** TUI collection rename. The worker already has
+- [x] **8.8** TUI collection rename. The worker already has
   `steam::collection_rename`; only a key and a prompt are missing.
+  *Done.* `e` in the Collections overlay opens a prompt prefilled with the
+  highlighted collection's name (`collections_renaming` holds the old
+  name; create and rename share `commit_collection_input` /
+  `cancel_collection_input`). An empty name is refused and keeps the
+  prompt; an unchanged one just closes it; the highlight follows the
+  renamed collection. Also, as agreed, `x` now asks before deleting
+  (`collections_delete`, "its games stay"). Tests in
+  `tests/actions_view.rs`; help line and `docs/GAKI-TUI.md`.
 - [ ] **8.9** TUI Cloud conflict resolution. A sync with diverged saves only
   tells you to run `gaki-cli cloud sync --resolve`; offer "keep cloud" and
   "keep local" in the Cloud overlay.

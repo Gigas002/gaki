@@ -80,11 +80,14 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
     }
     #[cfg(feature = "collections")]
     if browser.show_collections {
-        // Collections overlay. In create mode, keys edit the name.
-        if browser.collections_input.is_some() {
+        // Collections overlay. In the create/rename prompt, keys edit
+        // the name; the delete confirm takes y/n.
+        if browser.collections_delete.is_some() {
+            browser.answer_collection_delete(matches!(input, KeyCode::Char('y' | 'Y')));
+        } else if browser.collections_input.is_some() {
             match input {
-                KeyCode::Esc => browser.cancel_collection_create(),
-                KeyCode::Char('\n') | KeyCode::Enter => browser.commit_collection_create(),
+                KeyCode::Esc => browser.cancel_collection_input(),
+                KeyCode::Char('\n') | KeyCode::Enter => browser.commit_collection_input(),
                 KeyCode::Backspace => browser.collections_input_pop(),
                 KeyCode::Char(c) => browser.collections_input_push(c),
                 _ => {}
@@ -97,7 +100,8 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 KeyCode::Char('a') => browser.add_game_to_selected_collection(),
                 KeyCode::Char('r') => browser.remove_game_from_selected_collection(),
                 KeyCode::Char('n') => browser.begin_collection_create(),
-                KeyCode::Char('x') => browser.delete_selected_collection(),
+                KeyCode::Char('e') => browser.begin_collection_rename(),
+                KeyCode::Char('x') => browser.begin_collection_delete(),
                 KeyCode::Char('P') => browser.collections_pull(),
                 KeyCode::Char('U') => browser.collections_push(),
                 KeyCode::Char('S') => browser.collections_sync(),

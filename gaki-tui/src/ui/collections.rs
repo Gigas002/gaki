@@ -1,7 +1,7 @@
 //! The collections overlay (modal popup): the account's Steam library
 //! collections, with the highlighted row for adding/removing the current game,
-//! plus create/delete and cloud pull/push/sync. Shows an inline name prompt
-//! while creating.
+//! plus create/rename/delete and cloud pull/push/sync. Shows an inline name
+//! prompt while creating or renaming, and a y/n before deleting.
 
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
@@ -18,16 +18,29 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
     let mut lines: Vec<Line<'static>> = Vec::new();
 
     if let Some(input) = &browser.collections_input {
+        let (label, hint) = match &browser.collections_renaming {
+            Some(old) => (
+                format!("Rename \"{old}\" to: "),
+                "Enter to rename · Esc to cancel",
+            ),
+            None => (
+                "New collection name: ".to_string(),
+                "Enter to create · Esc to cancel",
+            ),
+        };
         lines.push(Line::from(vec![
-            Span::styled("New collection name: ".to_string(), theme::label()),
+            Span::styled(label, theme::label()),
             Span::styled(input.clone(), theme::accent()),
             Span::styled("_".to_string(), theme::key()),
         ]));
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Enter to create · Esc to cancel".to_string(),
-            theme::dim(),
-        )));
+        if !browser.collections_status.is_empty() {
+            lines.push(Line::from(Span::styled(
+                browser.collections_status.clone(),
+                theme::value().fg(theme::WARN),
+            )));
+        }
+        lines.push(Line::from(Span::styled(hint.to_string(), theme::dim())));
         return paneled_paragraph(lines, "Collections".to_string());
     }
 
@@ -59,10 +72,21 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
     }
 
     lines.push(Line::from(""));
+    if let Some(name) = &browser.collections_delete {
+        lines.push(Line::from(Span::styled(
+            format!("Delete the collection \"{name}\"? Its games stay in your library."),
+            theme::value().fg(theme::WARN),
+        )));
+        lines.push(Line::from(Span::styled(
+            "[y] yes  [n] no".to_string(),
+            theme::dim(),
+        )));
+        return paneled_paragraph(lines, "Collections".to_string());
+    }
     let status = if !browser.collections_status.is_empty() {
         browser.collections_status.clone()
     } else {
-        "[a] add game  [r] remove game  [n] new  [x] delete  [P] pull [U] push [S] sync  [Esc] close"
+        "[a] add game  [r] remove game  [n] new  [e] rename  [x] delete  [P] pull [U] push [S] sync  [Esc] close"
             .to_string()
     };
     lines.push(Line::from(Span::styled(status, theme::dim())));
