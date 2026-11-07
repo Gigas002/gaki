@@ -258,6 +258,7 @@ impl Browser {
             || self.show_game_config
             || self.show_launch_targets
             || self.show_collections
+            || self.game_info.is_some()
             || self.store_open()
             || self.installs_open()
     }

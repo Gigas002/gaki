@@ -519,6 +519,10 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
         return Ok(true);
     }
     // The per-game Store overlay can sit on top of the Steam Store one.
+    if browser.game_info.is_some() {
+        game_info_key(browser, input);
+        return Ok(true);
+    }
     #[cfg(feature = "store")]
     if browser.store.is_some() {
         store_key(browser, input);
@@ -819,5 +823,38 @@ fn workshop_comments_key(browser: &mut crate::app::browser::Browser, input: KeyC
             KeyCode::Char('c') => browser.begin_workshop_comment(),
             _ => {}
         },
+    }
+}
+
+/// The Game info overlay: `Tab` switches tabs, `j`/`k` and `PgUp`/`PgDn`
+/// scroll, `r` re-runs the checks, `s` saves the artwork and `o` edits its
+/// folder (a prompt).
+fn game_info_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+    use crate::app::browser::game_info::InfoTab;
+    let Some(view) = &browser.game_info else {
+        return;
+    };
+    if view.dir_input.is_some() {
+        match input {
+            KeyCode::Esc => browser.cancel_artwork_dir(),
+            KeyCode::Char('\n') | KeyCode::Enter => browser.commit_artwork_dir(),
+            KeyCode::Backspace => browser.artwork_dir_pop(),
+            KeyCode::Char(c) => browser.artwork_dir_push(c),
+            _ => {}
+        }
+        return;
+    }
+    match (view.tab, input) {
+        (_, KeyCode::Esc | KeyCode::Char('q')) => browser.close_game_info(),
+        (_, KeyCode::Tab) => browser.game_info_tab(true),
+        (_, KeyCode::BackTab) => browser.game_info_tab(false),
+        (_, KeyCode::Down | KeyCode::Char('j')) => browser.game_info_scroll(1),
+        (_, KeyCode::Up | KeyCode::Char('k')) => browser.game_info_scroll(-1),
+        (_, KeyCode::PageDown) => browser.game_info_scroll(10),
+        (_, KeyCode::PageUp) => browser.game_info_scroll(-10),
+        (InfoTab::Checks, KeyCode::Char('r')) => browser.rerun_game_checks(),
+        (InfoTab::Artwork, KeyCode::Char('s')) => browser.save_game_artwork(),
+        (InfoTab::Artwork, KeyCode::Char('o')) => browser.begin_artwork_dir(),
+        _ => {}
     }
 }

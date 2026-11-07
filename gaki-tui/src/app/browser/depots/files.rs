@@ -1,13 +1,14 @@
 //! The depot file view: one depot's manifest entries, opened from the
 //! depots overlay with Enter.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use libgaki::ops::depot::{DepotFiles, EntryKind, ManifestFileEntry, glob_match};
 
 use crate::app::browser::Browser;
 use crate::app::browser::job::{Load, spawn, take};
 use crate::app::steam;
+use crate::utils::xdg;
 
 /// What the file view's one-line prompt is editing.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -84,51 +85,6 @@ impl FilesView {
     }
 }
 
-/// Where downloads go when nothing else was picked this session:
-/// `XDG_DOWNLOAD_DIR` from `user-dirs.dirs`, else `~/Downloads`.
-pub(crate) fn default_save_dir() -> String {
-    let home = libgaki::core::config::home_dir().unwrap_or_else(|_| PathBuf::from("/"));
-    let config = std::env::var_os("XDG_CONFIG_HOME")
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| home.join(".config"));
-    std::fs::read_to_string(config.join("user-dirs.dirs"))
-        .ok()
-        .and_then(|text| xdg_download_dir(&text, &home))
-        .unwrap_or_else(|| home.join("Downloads"))
-        .display()
-        .to_string()
-}
-
-/// `XDG_DOWNLOAD_DIR` from the text of a `user-dirs.dirs` file, with
-/// `$HOME` expanded. Only `$HOME/...` and absolute paths are valid there.
-pub(crate) fn xdg_download_dir(text: &str, home: &Path) -> Option<PathBuf> {
-    let value = text.lines().find_map(|line| {
-        line.trim()
-            .strip_prefix("XDG_DOWNLOAD_DIR=")
-            .map(|v| v.trim().trim_matches('"').to_string())
-    })?;
-    if let Some(rest) = value.strip_prefix("$HOME") {
-        Some(home.join(rest.trim_start_matches('/')))
-    } else if value.starts_with('/') {
-        Some(PathBuf::from(value))
-    } else {
-        None
-    }
-}
-
-/// A typed directory with `~` expanded.
-pub(crate) fn expand_dir(input: &str, home: &Path) -> PathBuf {
-    let input = input.trim();
-    if input == "~" {
-        home.to_path_buf()
-    } else if let Some(rest) = input.strip_prefix("~/") {
-        home.join(rest)
-    } else {
-        PathBuf::from(input)
-    }
-}
-
 impl Browser {
     /// Open the file view for the highlighted depot; its public manifest
     /// loads in the background.
@@ -190,7 +146,9 @@ impl Browser {
         } else if entry.kind != EntryKind::File {
             "Only files can be downloaded.".to_string()
         } else {
-            view.input = Some(FilesInput::SaveTo(last.unwrap_or_else(default_save_dir)));
+            view.input = Some(FilesInput::SaveTo(
+                last.unwrap_or_else(|| xdg::user_dir("DOWNLOAD", "Downloads")),
+            ));
             String::new()
         };
     }
@@ -263,7 +221,7 @@ impl Browser {
                     return;
                 };
                 let home = libgaki::core::config::home_dir().unwrap_or_else(|_| PathBuf::from("/"));
-                let out_dir = expand_dir(&dir, &home);
+                let out_dir = xdg::expand_dir(&dir, &home);
                 if out_dir.as_os_str().is_empty() {
                     view.status = "Type a directory to save into.".to_string();
                     return;

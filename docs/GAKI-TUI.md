@@ -77,6 +77,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes) |
 | `R`                   | Running games                                            |
 | `Y`                   | Store: price, players, news, reviews, similar games      |
+| `n`                   | Game info: details, DRM and files checks, save artwork (see below) |
 | `J`                   | Steam Store: search, deals, events, your wishlist        |
 | `X`                   | Installs: running installs and the backlog               |
 | `f` / `H`             | Toggle a favourite, hide the game                        |
@@ -180,6 +181,26 @@ collection installs its items). In the comments, `c` writes a comment:
 One install or uninstall runs at a time. It keeps going if you close the
 overlay, and its progress shows again when you reopen it. This is
 `gaki-cli workshop status`, `install`, `uninstall` and `comment`.
+
+### Game info
+
+`n` (or **Game info** in the Actions menu) shows the selected game in three
+tabs, switched with `Tab`. Each loads in the background; `j` / `k` and
+`PgUp` / `PgDn` scroll.
+
+- **Details** is the whole store record, as `gaki-cli info --extended`
+  shows it: developers and publishers, release date, price in your
+  country, platforms, reviews, age rating, tags, genres and categories,
+  Metacritic, links, what it's sold as, system requirements and the full
+  description.
+- **Checks** asks Steam for the game's DRM tickets (`gaki-cli drm`: the
+  ownership ticket and the encrypted app ticket) and looks at its files on
+  disk (`gaki-cli available`: installed, where, pinned). They run the first
+  time you show the tab; `r` runs them again.
+- **Artwork** lists the store and library images and saves them with `s`
+  as `<app id>_<kind>.<ext>`, into your Pictures folder by default (`o`
+  changes it for this session). A file that already exists is never
+  overwritten; that image is reported and the others still save.
 
 ### Store
 

@@ -6,3 +6,4 @@ pub mod http;
 pub mod image;
 pub mod paths;
 pub mod stateful;
+pub mod xdg;

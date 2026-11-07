@@ -528,6 +528,84 @@ pub async fn probe_assets(assets: &mut [Asset]) {
     }
 }
 
+/// The artwork kinds [`save_artwork`] saves: the store and library images,
+/// not screenshots or trailers.
+pub const ARTWORK_KINDS: &[&str] = &["header", "capsule", "hero", "background", "logo"];
+
+/// One image [`save_artwork`] tried to save.
+#[derive(Debug)]
+pub struct SavedArtwork {
+    pub kind: &'static str,
+    /// Where it was written, or why not.
+    pub result: Result<PathBuf>,
+}
+
+/// The file an asset is saved as: `<app id>_<kind>.<ext>`, the extension
+/// taken from the URL's path (`jpg` when it has none).
+pub fn artwork_file_name(app_id: u32, kind: &str, url: &str) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let ext = path
+        .rsplit('/')
+        .next()
+        .and_then(|name| name.rsplit_once('.'))
+        .map(|(_, ext)| ext.to_ascii_lowercase())
+        .filter(|ext| {
+            !ext.is_empty() && ext.len() <= 5 && ext.chars().all(|c| c.is_ascii_alphanumeric())
+        })
+        .unwrap_or_else(|| "jpg".to_string());
+    format!("{app_id}_{kind}.{ext}")
+}
+
+/// Download `info`'s [`ARTWORK_KINDS`] images into `dir` (created if
+/// missing). An existing file is never overwritten: that image is reported
+/// as an error and the others still save.
+pub async fn save_artwork(info: &StoreAppInfo, dir: &Path) -> Result<Vec<SavedArtwork>> {
+    tokio::fs::create_dir_all(dir)
+        .await
+        .with_context(|| format!("failed creating {}", dir.display()))?;
+    let client = crate::core::net::http_client(std::time::Duration::from_secs(30))?;
+    let mut saved = Vec::new();
+    for asset in assets(info)
+        .into_iter()
+        .filter(|a| ARTWORK_KINDS.contains(&a.kind))
+    {
+        let path = dir.join(artwork_file_name(info.app_id, asset.kind, &asset.url));
+        let result = save_one(&client, &asset.url, &path).await.map(|()| path);
+        saved.push(SavedArtwork {
+            kind: asset.kind,
+            result,
+        });
+    }
+    Ok(saved)
+}
+
+async fn save_one(client: &reqwest::Client, url: &str, path: &Path) -> Result<()> {
+    use tokio::io::AsyncWriteExt;
+    if tokio::fs::try_exists(path).await.unwrap_or(false) {
+        bail!("{} already exists", path.display());
+    }
+    let response = crate::core::net::send_with_retry(client, client.get(url)).await?;
+    if !response.status().is_success() {
+        bail!("{url}: HTTP {}", response.status());
+    }
+    let bytes = response
+        .bytes()
+        .await
+        .context("failed reading image bytes")?;
+    let mut file = tokio::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(path)
+        .await
+        .with_context(|| format!("failed creating {}", path.display()))?;
+    if let Err(e) = file.write_all(&bytes).await {
+        drop(file);
+        let _ = tokio::fs::remove_file(path).await;
+        return Err(e).with_context(|| format!("failed writing {}", path.display()));
+    }
+    Ok(())
+}
+
 /// The store tag vocabulary, `(id, name)` sorted by id.
 pub async fn tags(client: &SteamClient) -> Result<Vec<(u32, String)>> {
     client.fetch_tag_list().await

@@ -141,6 +141,10 @@ fn entries() -> Vec<Entry> {
         ),
         #[cfg(feature = "workshop")]
         Entry::Binding("W, b, F3, c", "post a workshop comment"),
+        Entry::Binding(
+            "n",
+            "game info (Tab: details, DRM/files checks, save artwork)",
+        ),
         Entry::Binding("Z", "SteamDB page (in Depots / Versions: the depot's)"),
         Entry::Binding("f", "toggle favourite"),
         Entry::Binding("H", "hide game"),

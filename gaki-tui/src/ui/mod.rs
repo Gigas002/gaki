@@ -26,6 +26,7 @@ pub mod friend_add;
 #[cfg(feature = "social")]
 pub mod friends;
 pub mod game_config;
+pub mod game_info;
 pub mod help;
 #[cfg(feature = "install")]
 pub mod import;

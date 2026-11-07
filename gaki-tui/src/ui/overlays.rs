@@ -210,6 +210,13 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
         ui::store::draw(frame, area, view);
     }
 
+    // Game info overlay.
+    if let Some(view) = &browser.game_info {
+        let area = ui::centered_rect(80, 85, frame.area());
+        frame.render_widget(Clear, area);
+        ui::game_info::draw(frame, area, view);
+    }
+
     // Depots overlay floats above everything.
     if browser.show_depots {
         let area = ui::centered_rect(70, 80, frame.area());

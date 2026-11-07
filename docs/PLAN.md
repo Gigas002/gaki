@@ -53,6 +53,10 @@ Request items are referenced as **R<n>** (the numbered "Agent request" list) and
   own listings stay **read-only**. Don't propose it, don't stub it, don't add
   a feature flag for it. (User decision, 2026-11-07; 8.12 was dropped for
   this.)
+- Launching through lootrs' `wine` or `umu` runners. Profiles share one
+  model with lootrs (8.15), so those profiles load and `config check`
+  explains that gaki can't launch them, but gaki runs games only through
+  Proton or natively. (User decision, 2026-11-07.)
 
 ---
 
@@ -70,7 +74,7 @@ Each item has a default. The plan follows the default unless you say otherwise.
 | D6 | **Sync TUI vs async lib.** `libgaki` is tokio-async, while the TUI loop is synchronous. | The TUI owns a tokio runtime. It sends requests to `libgaki` tasks and receives results over channels, so the UI thread never blocks. |
 | D7 | **Binary names.** R7 calls the TUI `gaki`, while R13 calls its crate `gaki-tui`. | **Decided (plans2):** crate, directory and binary are all `gaki-tui` (step 4.6). The CLI crate and binary are both `gaki-cli`. |
 | D8 | **Store/wishlist/news/reviews/deals** commands. R24 doesn't list them. | Add a `store` feature (off). Also add `achievements` (on), unless you'd rather fold it into `library`. |
-| D9 | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings. | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). |
+| D9 | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings. | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). **Revised 2026-11-07 (user decision): share the model by depending on `liblootrs`, but not its runners; see 8.15.** The profile file format had already drifted (lootrs' `Runner` has no `proton`, so gaki's profiles don't load there), and one model crate ends the field-for-field copying. The launch side stays split: gaki's Proton launch is Steam's `proton run` and stays in gaki, and lootrs' wine and umu runners don't come to gaki (Non-goals). |
 | D10 | **Credential storage.** See "Authentication and session security" below. | **The refresh token lives only in the OS keyring, or only in memory.** It's never in a file and never stored as plaintext. Re-authenticating for every action isn't the default (see that section for why). Sensitive actions can opt into a fresh login. |
 
 ---
@@ -1934,7 +1938,26 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 - [ ] **8.11** TUI odds and ends that only the CLI has: `drm` check,
   `duplicates`, `available`, saving artwork (`image -o`), user profiles
   (`user`), the extended `info` fields, and daemon management
-  (`daemon list/stop`, `kill`).
+  (`daemon list/stop`, `kill`). Split in two:
+  - [x] **8.11a** Per game. *Done.* A Game info overlay on `n` (and a
+    **Game info** Actions row under Content) with three tabs
+    (`browser/game_info`, `ui/game_info.rs`), each a `job::Load`:
+    Details (`steam::game_info`: `app_info` with `extended`, the whole
+    `StoreAppInfo` and `ExtendedInfo`; prices stay read-only), Checks
+    (`steam::drm_check` and, with `install`, `steam::files_check`, run the
+    first time the tab is shown and on `r`), and Artwork (the asset URLs;
+    `s` saves them through the new `ops::info::save_artwork`, which writes
+    `<app id>_<kind>.<ext>` with `create_new` and never overwrites; `o`
+    edits the folder, prefilled with XDG Pictures). The XDG folder lookup
+    moved from the depot file view into `utils/xdg` (`user_dir`,
+    `parse_user_dir`, `expand_dir`) so both use it. Tests:
+    `tests/game_info_view.rs`, `ops/info/tests.rs` (file names),
+    `utils/xdg/tests.rs`, the offline test; help line, `docs/GAKI-TUI.md`
+    ("Game info").
+  - [ ] **8.11b** The rest: `duplicates`, user profiles (`v` on a friend,
+    plus a lookup prompt for a SteamID64, profile URL or `me`), and a
+    Daemons tab in Settings (list, `s` stop one, `S` stop all, after a
+    y/n; no `kill`).
 - **8.12** ~~Market buying and selling.~~ **Dropped, never to be done.**
   gaki doesn't move real money or items (see Non-goals). Inventory and
   market stay read-only.
@@ -1954,7 +1977,54 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   syntax (`"E"`, `"ctrl+r"`, `"PageDown"`), whether one action may have
   several keys, and which bindings stay fixed (`q`, `?` and `Esc` are
   candidates, so a bad file can't lock anyone out).
-- [ ] **8.14** Final audit, after 8.1–8.13. Write the findings to
+- [ ] **8.15** Share the profile model with lootrs (D9 revised). libgaki
+  depends on `liblootrs` for the profile model and its validation only;
+  the runners and launch code stay in each tool. Done before 8.14, so the
+  audit covers it. Two commits, one in each repo (the user commits both):
+  - [ ] **8.15a** (`../lootrs`) Teach `liblootrs::model` gaki's parts as
+    "parsed, not launched by lootrs", mirroring how gaki treats `wine` and
+    `umu` today:
+    - `Runner::Proton`, a `[proton]` section (gaki's `ProtonSection`:
+      `build`, and the rest of its fields) and a `[steam]` section
+      (`SteamIntegration`: `auto`, `host`, `none`) on `Profile`. lootrs
+      ignores `[proton]`/`[steam]`, and its validation reports a `proton`
+      profile as "gaki's runner; lootrs can't launch it" without the other
+      warnings (as gaki's 7.x fix did for lootrs-only runners).
+    - `runner::command` refuses `Proton` with that message, so a launch
+      fails cleanly instead of panicking or falling through.
+    - Document that `prefix` is runner-specific: the Wine prefix for
+      `wine`/`umu`, `STEAM_COMPAT_DATA_PATH` (whose `pfx/` is the Wine
+      prefix) for `proton`.
+    - Anti-cheat checks: lootrs' `ValidationContext` asks whether
+      `battleye_runtime`/`eac_runtime` are set. For `proton` the runtimes
+      come from Steam, so skip those checks for that runner.
+    - Test: every profile in gaki's `examples/profiles` parses and
+      validates in liblootrs (copy them into lootrs' tests, or read
+      `../gaki/examples` only when present).
+    - Check the `model`, `paths` and `diag` modules build with
+      `default-features = false` (no `wine`/`umu`), since that is what gaki
+      will use.
+  - [ ] **8.15b** (gaki) Depend on `liblootrs` (`default-features =
+    false`; a path dependency `../lootrs/liblootrs` while both are
+    unpublished, a git or crates.io version before gaki is published,
+    noted in `docs/ARCHITECTURE.md`). Then:
+    - Replace `libgaki/src/config/profile.rs`'s types with re-exports of
+      `liblootrs::model::{Profile, Runner, Anticheat, ...}` and
+      `liblootrs::paths::expand_tilde`; keep `Runner::is_supported` (true
+      for `proton` and `native`) as a gaki-side helper.
+    - Keep gaki's own `Issue`/`Subject`: gaki's `Subject` has `Config` and
+      `Game { app_id, name }`, lootrs' has `Game(String)`. Re-export
+      lootrs' `Severity` and `validate_name`; convert a profile's lootrs
+      `Issue`s to gaki's (`Subject::Profile` maps one to one). gaki-only
+      checks (Steam Proton builds, `[steam]` against the platform) stay in
+      gaki and run after lootrs' checks.
+    - The profile examples, `docs/CONFIG.md` (the runner list, `prefix`
+      per runner, and that lootrs and gaki read the same files) and D9.
+    - Gates as usual, plus `cargo deny` with the new dependency (GPL-3.0
+      on both sides). Fix the license mismatch on the way:
+      `gaki-tui/Cargo.toml` says `GPL-3.0-only`, the workspace
+      `GPL-3.0-or-later`.
+- [ ] **8.14** Final audit, after 8.1–8.13 and 8.15. Write the findings to
   `docs/AUDIT.md`, fix what's small within this step, and add a step for
   anything bigger. Three parts:
   - **Security.** Secrets and the session: keyring and memory store, the

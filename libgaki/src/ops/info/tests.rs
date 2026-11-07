@@ -62,3 +62,24 @@ fn assets_list_artwork_then_media() {
     let kinds: Vec<&str> = assets(&info).iter().map(|a| a.kind).collect();
     assert_eq!(kinds, vec!["header", "logo", "screenshot"]);
 }
+
+#[test]
+fn artwork_file_names_take_the_url_extension() {
+    assert_eq!(
+        artwork_file_name(10, "header", "https://cdn/x/header.jpg?t=1"),
+        "10_header.jpg"
+    );
+    assert_eq!(
+        artwork_file_name(10, "logo", "https://cdn/x/logo.PNG"),
+        "10_logo.png"
+    );
+    assert_eq!(
+        artwork_file_name(10, "hero", "https://cdn/x/hero"),
+        "10_hero.jpg"
+    );
+    assert_eq!(
+        artwork_file_name(10, "hero", "https://cdn/x.y/hero"),
+        "10_hero.jpg",
+        "a dot in a directory isn't an extension"
+    );
+}

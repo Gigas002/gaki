@@ -21,6 +21,7 @@ mod dlc;
 #[cfg(feature = "social")]
 mod friends;
 mod game_config;
+pub mod game_info;
 mod help;
 #[cfg(feature = "install")]
 mod install;
@@ -282,6 +283,8 @@ pub struct Browser {
     pub show_depots: bool,
     /// The depots overlay's list (and, with `depot`, its file view).
     pub depots: depots::DepotsView,
+    /// The Game info overlay (`n`), when open.
+    pub game_info: Option<game_info::GameInfoView>,
     /// The Store overlay (`Y`), when open.
     #[cfg(feature = "store")]
     pub store: Option<store::StoreView>,
@@ -585,6 +588,7 @@ impl Browser {
             branch_app_id: 0,
             show_depots: false,
             depots: depots::DepotsView::default(),
+            game_info: None,
             #[cfg(feature = "store")]
             store: None,
             #[cfg(feature = "store")]

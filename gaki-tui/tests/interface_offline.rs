@@ -203,7 +203,10 @@ fn pinning_reads_local_state() {
 fn social_needs_a_session() {
     type Outcome = Result<(), gaki_tui::utils::error::TuiError>;
     #[allow(unused_mut)]
-    let mut needs_login: Vec<(&str, Outcome)> = Vec::new();
+    let mut needs_login: Vec<(&str, Outcome)> = vec![
+        ("game info", steam::game_info(945360).map(drop)),
+        ("drm check", steam::drm_check(945360).map(drop)),
+    ];
     #[cfg(feature = "social")]
     needs_login.extend([
         ("friends", steam::friends().map(drop)),

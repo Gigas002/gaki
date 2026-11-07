@@ -45,11 +45,9 @@ fn closing_drops_the_list() {
 #[cfg(feature = "depot")]
 mod file_view {
     use super::*;
-    use crate::app::browser::depots::files::{
-        FilesInput, FilesView, expand_dir, passes, xdg_download_dir,
-    };
+    use crate::app::browser::depots::files::{FilesInput, FilesView, passes};
     use libgaki::ops::depot::{DepotFiles, EntryKind, ManifestFileEntry};
-    use std::path::{Path, PathBuf};
+    use std::path::PathBuf;
 
     fn entry(path: &str, kind: EntryKind) -> ManifestFileEntry {
         ManifestFileEntry {
@@ -209,34 +207,5 @@ mod file_view {
         browser.close_depot_files();
         assert!(browser.depots.files.is_none());
         assert!(browser.show_depots);
-    }
-
-    #[test]
-    fn xdg_download_dir_parsing() {
-        let home = Path::new("/home/me");
-        let text =
-            "# comment\nXDG_DESKTOP_DIR=\"$HOME/Desktop\"\nXDG_DOWNLOAD_DIR=\"$HOME/Загрузки\"\n";
-        assert_eq!(
-            xdg_download_dir(text, home),
-            Some(PathBuf::from("/home/me/Загрузки"))
-        );
-        assert_eq!(
-            xdg_download_dir("XDG_DOWNLOAD_DIR=\"/data/dl\"", home),
-            Some(PathBuf::from("/data/dl"))
-        );
-        assert_eq!(
-            xdg_download_dir("XDG_DOWNLOAD_DIR=\"relative\"", home),
-            None
-        );
-        assert_eq!(xdg_download_dir("", home), None);
-    }
-
-    #[test]
-    fn expand_dir_handles_tilde() {
-        let home = Path::new("/home/me");
-        assert_eq!(expand_dir("~", home), PathBuf::from("/home/me"));
-        assert_eq!(expand_dir(" ~/dl ", home), PathBuf::from("/home/me/dl"));
-        assert_eq!(expand_dir("/abs", home), PathBuf::from("/abs"));
-        assert_eq!(expand_dir("~user/x", home), PathBuf::from("~user/x"));
     }
 }

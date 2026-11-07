@@ -1007,6 +1007,145 @@ pub fn fetch_info(id: i32) -> Result<StoreInfo, TuiError> {
     })
 }
 
+/// Everything the Game info overlay's Details tab shows: the store record,
+/// its extended (storefront web) data, and how many DLC the game has.
+#[derive(Debug, Clone)]
+pub struct GameInfo {
+    pub details: libgaki::steam_client::StoreAppInfo,
+    pub extended: Option<libgaki::ops::info::ExtendedInfo>,
+    pub dlc_count: usize,
+}
+
+/// A game's full store record, with the extended fields.
+pub fn game_info(id: i32) -> Result<GameInfo, TuiError> {
+    use libgaki::ops::info::{InfoRequest, app_info};
+    in_process(async {
+        let request = InfoRequest {
+            app_ids: vec![id as u32],
+            extended: true,
+            no_cache: false,
+            country: libgaki::ops::info::resolve_country(None)?,
+        };
+        let session = worker::global().session();
+        let info = app_info(&request, async || session.authed().await)
+            .await?
+            .pop()
+            .ok_or_else(|| anyhow::anyhow!("no store data for app {id}"))?;
+        Ok(GameInfo {
+            dlc_count: info.dlc.len(),
+            details: info.details,
+            extended: info.extended,
+        })
+    })
+}
+
+/// One line of a check: whether it passed, and what it found.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckLine {
+    pub ok: bool,
+    pub text: String,
+}
+
+/// `gaki-cli drm`: whether Steam issues the game's ownership ticket and its
+/// encrypted app ticket.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DrmResult {
+    pub ownership: CheckLine,
+    pub encrypted: CheckLine,
+}
+
+/// Ask Steam for the game's DRM tickets (headless, like `gaki-cli drm`).
+pub fn drm_check(id: i32) -> Result<DrmResult, TuiError> {
+    use libgaki::steam_client::EncryptedTicketOutcome;
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let report = libgaki::ops::info::drm_check(&client, id as u32).await;
+        let ownership = match &report.ownership {
+            Ok(len) => CheckLine {
+                ok: true,
+                text: format!("issued ({len} bytes): the account holds a license"),
+            },
+            Err(e) => CheckLine {
+                ok: false,
+                text: format!("not issued: {e:#}"),
+            },
+        };
+        let encrypted = match &report.encrypted {
+            Ok(EncryptedTicketOutcome::Issued(t)) => CheckLine {
+                ok: true,
+                text: format!("issued ({} bytes)", t.len()),
+            },
+            Ok(EncryptedTicketOutcome::Refused(r)) => CheckLine {
+                ok: false,
+                text: match r {
+                    2 => "refused (eresult 2): the app likely has no encrypted-ticket key"
+                        .to_string(),
+                    25 => "refused (eresult 25): rate limited, retry in a minute".to_string(),
+                    r => format!("refused (eresult {r})"),
+                },
+            },
+            Err(e) => CheckLine {
+                ok: false,
+                text: format!("error: {e:#}"),
+            },
+        };
+        Ok(DrmResult {
+            ownership,
+            encrypted,
+        })
+    })
+}
+
+/// `gaki-cli available`: whether the game is installed with its files on
+/// disk, where, and whether it's pinned. Local files only.
+#[cfg(feature = "install")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesCheck {
+    pub available: bool,
+    pub install_path: Option<String>,
+    pub pinned: bool,
+    pub pinned_depots: usize,
+}
+
+#[cfg(feature = "install")]
+pub fn files_check(id: i32) -> Result<FilesCheck, TuiError> {
+    let a = in_process(libgaki::ops::install::availability(id as u32))?;
+    Ok(FilesCheck {
+        available: a.available,
+        install_path: a.install_path,
+        pinned: a.pinned,
+        pinned_depots: a.pinned_manifests.len(),
+    })
+}
+
+/// What saving one artwork image did: its kind, and the file or the error.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SavedImage {
+    pub kind: &'static str,
+    pub result: Result<String, String>,
+}
+
+/// Save the game's store and library artwork into `dir`, never overwriting.
+pub fn save_artwork(id: i32, dir: std::path::PathBuf) -> Result<Vec<SavedImage>, TuiError> {
+    in_process(async move {
+        let session = worker::global().session();
+        let info =
+            libgaki::ops::info::record_with_media(id as u32, async || session.authed().await)
+                .await?;
+        let saved = libgaki::ops::info::save_artwork(&info, &dir).await?;
+        Ok(saved
+            .into_iter()
+            .map(|s| SavedImage {
+                kind: s.kind,
+                result: s
+                    .result
+                    .map(|p| p.display().to_string())
+                    .map_err(|e| format!("{e:#}")),
+            })
+            .collect())
+    })
+}
+
 /// List a game's Steam Cloud files, sorted by name.
 #[cfg(feature = "cloud")]
 pub fn cloud_list(app_id: i32) -> Result<Vec<CloudFile>, TuiError> {

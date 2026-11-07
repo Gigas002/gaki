@@ -49,6 +49,7 @@ pub enum Action {
     Collections,
     #[cfg(feature = "store")]
     Store,
+    GameInfo,
     SteamPage,
     ProtonDb,
     ProtonIssues,
@@ -228,6 +229,12 @@ impl Browser {
             category: CONTENT,
             label: "Store: price, players, news, reviews, similar",
             key: "Y",
+        });
+        rows.push(ActionRow {
+            action: Action::GameInfo,
+            category: CONTENT,
+            label: "Game info: details, DRM and files checks, save artwork",
+            key: "n",
         });
 
         const LINKS: &str = "Links";

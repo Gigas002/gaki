@@ -97,6 +97,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
                         Action::Collections => browser.open_collections(game.id),
                         #[cfg(feature = "store")]
                         Action::Store => browser.open_store(game.id, &game.name),
+                        Action::GameInfo => browser.open_game_info(game.id, &game.name),
                         Action::SteamPage => browser.open_link(Link::Steam, game.id),
                         Action::ProtonDb => browser.open_link(Link::ProtonDb, game.id),
                         Action::ProtonIssues => browser.open_link(Link::ProtonIssues, game.id),
