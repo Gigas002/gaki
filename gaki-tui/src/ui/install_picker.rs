@@ -3,6 +3,7 @@
 //! space, plus the game's estimated on-disk size. Drives without room are
 //! marked and can't be chosen.
 
+use crate::keymap::{InstallPickerAction as Ip, hints, key_of};
 use crate::utils::bytes::convert;
 
 use ratatui::style::Style;
@@ -76,9 +77,13 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
     }
 
     Paragraph::new(Text::from(lines))
-        .block(theme::panel(
-            "Install into which library?  ([↑/↓] choose · [Enter] install · [Esc] cancel)"
-                .to_string(),
-        ))
+        .block(theme::panel(format!(
+            "Install into which library?  ({})",
+            hints(&[
+                ("\u{2191}/\u{2193}".to_string(), "choose"),
+                (key_of(Ip::Install), "install"),
+                ("Esc".to_string(), "cancel"),
+            ])
+        )))
         .style(theme::base())
 }

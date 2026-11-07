@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{ActionsMenuAction, key_of};
 use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
@@ -20,7 +21,10 @@ pub fn actions(browser: &Browser) -> Paragraph<'static> {
 
     // Filter / hint line.
     let header = if browser.actions_filter.is_empty() {
-        "type to filter · ↑↓ move · Enter select · Esc close".to_string()
+        match key_of(ActionsMenuAction::Run) {
+            key if key.is_empty() => "type to filter · ↑↓ move · Esc close".to_string(),
+            key => format!("type to filter · ↑↓ move · {key} select · Esc close"),
+        }
     } else {
         format!("filter: {}", browser.actions_filter)
     };

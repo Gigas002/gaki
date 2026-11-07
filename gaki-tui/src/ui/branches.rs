@@ -5,6 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
+use crate::keymap::{BranchesAction as Br, hints, key_of};
 use crate::ui::theme;
 
 /// Build the branches overlay list from the browser's open branches state. Each
@@ -55,6 +56,9 @@ pub fn branches(browser: &Browser) -> List<'static> {
     };
 
     List::new(items)
-        .block(theme::panel("Branches ([Enter] switch)".to_string()))
+        .block(theme::panel(format!(
+            "Branches ({})",
+            hints(&[(key_of(Br::Switch), "switch")])
+        )))
         .style(theme::base())
 }

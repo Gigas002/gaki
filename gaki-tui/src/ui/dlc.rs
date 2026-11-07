@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
+use crate::keymap::{DlcAction as Dl, hints, key_of};
 use crate::ui::theme;
 
 /// Build the DLC overlay list from the browser's open DLC state. Each row shows
@@ -54,6 +55,12 @@ pub fn dlc(browser: &Browser) -> List<'static> {
     };
 
     List::new(items)
-        .block(theme::panel("DLC ([e] enable [x] disable)".to_string()))
+        .block(theme::panel(format!(
+            "DLC ({})",
+            hints(&[
+                (key_of(Dl::Enable), "enable"),
+                (key_of(Dl::Disable), "disable")
+            ])
+        )))
         .style(theme::base())
 }

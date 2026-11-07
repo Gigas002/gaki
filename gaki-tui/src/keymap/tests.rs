@@ -218,6 +218,19 @@ fn the_example_file_lists_every_default() {
     example_section::<GameInfoAction>(&table);
     example_section::<CloudAction>(&table);
     example_section::<CollectionsAction>(&table);
+    example_section::<VersionsAction>(&table);
+    example_section::<LaunchTargetsAction>(&table);
+    example_section::<GameSettingsAction>(&table);
+    example_section::<InstallPickerAction>(&table);
+    example_section::<DlcAction>(&table);
+    example_section::<BranchesAction>(&table);
+    example_section::<RunningAction>(&table);
+    example_section::<ProtonAction>(&table);
+    example_section::<AccountAction>(&table);
+    example_section::<MarketSearchAction>(&table);
+    example_section::<FriendsAction>(&table);
+    example_section::<UserProfileAction>(&table);
+    example_section::<ActionsMenuAction>(&table);
 }
 
 /// `name = …`: a commented binding line, not prose.
@@ -287,8 +300,19 @@ fn an_overlay_key_mustnt_clash_with_overlay_keys() {
 #[test]
 fn the_search_pane_takes_only_keys_that_dont_type() {
     let e = Keymap::parse("[workshop_browse]\nsubscribe = \"s\"\n").unwrap_err();
-    assert!(e.message.contains("types into the search"), "{}", e.message);
-    assert!(Keymap::parse("[workshop_browse]\nsubscribe = \"Enter\"\n").is_err());
+    assert!(e.message.contains("types into the text"), "{}", e.message);
+    let e = Keymap::parse("[workshop_browse]\nsubscribe = \"Enter\"\n").unwrap_err();
+    assert!(
+        e.message.contains("is fixed in [workshop_browse]"),
+        "{}",
+        e.message
+    );
+    // The Actions menu keeps only Backspace: Enter is its `run`.
+    assert!(
+        Keymap::parse("[actions_menu]\nrun = [\"Enter\", \"ctrl+j\"]\nnext = \"ctrl+n\"\n").is_ok()
+    );
+    assert!(Keymap::parse("[actions_menu]\nnext = \"n\"\n").is_err());
+    assert!(Keymap::parse("[actions_menu]\nnext = \"Backspace\"\n").is_err());
     let map = Keymap::parse("[workshop_browse]\nsubscribe = \"ctrl+s\"\n").unwrap();
     assert_eq!(
         map.find::<WorkshopBrowseAction>(key("ctrl+s"), None),

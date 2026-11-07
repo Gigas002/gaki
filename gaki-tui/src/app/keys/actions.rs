@@ -11,8 +11,10 @@ use crate::app::SensitiveView;
 use crate::app::browser::Browser;
 use crate::app::browser::{Action, Link};
 use crate::app::library::Library;
+use crate::keymap::{self, Key};
 
-pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
+pub(super) fn key(lib: &mut Library, key: Key) -> AppResult {
+    let input = key.code;
     let Library {
         #[cfg(feature = "inventory")]
         app,
@@ -21,12 +23,13 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
         config,
         ..
     } = lib;
-    match input {
-        KeyCode::Esc => browser.close_actions(),
-        KeyCode::Down => browser.actions_next(),
-        KeyCode::Up => browser.actions_previous(),
-        KeyCode::Backspace => browser.actions_filter_pop(),
-        KeyCode::Char('\n') | KeyCode::Enter => {
+    use crate::keymap::ActionsMenuAction as M;
+    match (keymap::get().find::<M>(key, None), input) {
+        (_, KeyCode::Esc) => browser.close_actions(),
+        (Some(M::Next), _) | (None, KeyCode::Down) => browser.actions_next(),
+        (Some(M::Previous), _) | (None, KeyCode::Up) => browser.actions_previous(),
+        (None, KeyCode::Backspace) => browser.actions_filter_pop(),
+        (Some(M::Run), _) => {
             if let Some(action) = browser.selected_action() {
                 browser.close_actions();
                 if let Some(game) = browser.selected() {
@@ -108,7 +111,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
                 }
             }
         }
-        KeyCode::Char(c) => browser.actions_filter_push(c),
+        (None, KeyCode::Char(c)) if !key.ctrl && !key.alt => browser.actions_filter_push(c),
         _ => {}
     }
     Ok(())

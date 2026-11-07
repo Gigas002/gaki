@@ -32,7 +32,7 @@ fn a_custom_keymap_shows_everywhere() {
     }
     keymap::install(
         Keymap::parse(
-            "[library]\nfilter = \"ctrl+f\"\nfavourite = \"*\"\nhide = []\nsteam_page = [\"e\", \"F5\"]\nachievements = \"alt+a\"\n[installs]\npause = \"z\"\n[overlay]\ndown = [\"j\", \"ctrl+n\"]\n",
+            "[library]\nfilter = \"ctrl+f\"\nfavourite = \"*\"\nhide = []\nsteam_page = [\"e\", \"F5\"]\nachievements = \"alt+a\"\n[installs]\npause = \"z\"\n[overlay]\ndown = [\"j\", \"ctrl+n\"]\n[friends]\nprofile = \"alt+v\"\n[dlc]\nenable = \"+\"\n",
         )
         .unwrap(),
     );
@@ -42,6 +42,14 @@ fn a_custom_keymap_shows_everywhere() {
     assert!(help.contains("ctrl+f"), "{help}");
     assert!(help.contains("e / F5"), "{help}");
     assert!(help.contains("alt+a"), "{help}");
+    #[cfg(feature = "social")]
+    assert!(help.contains("alt+v"), "{help}");
+
+    let dlc = render(80, 10, |f| {
+        let browser = Browser::new(Vec::new());
+        f.render_widget(ui::dlc::dlc(&browser), f.area())
+    });
+    assert!(dlc.contains("[+] enable"), "{dlc}");
 
     let browser = Browser::new(vec![Game::from_library(LibraryGame {
         app_id: 1,

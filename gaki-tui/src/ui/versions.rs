@@ -2,6 +2,7 @@
 //! current manifests, its pin state, and a prompt to downgrade the highlighted
 //! depot to a specific (usually older) manifest id.
 
+use crate::keymap::{VersionsAction as V, hints, key_of};
 use crate::utils::bytes::convert;
 
 use ratatui::style::Modifier;
@@ -118,7 +119,13 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
         } else if let Some(busy) = browser.downgrade_busy_text() {
             busy
         } else {
-            "[p] pin  [u] unpin  [d] downgrade selected  [Z] SteamDB  [Esc] close".to_string()
+            hints(&[
+                (key_of(V::Pin), "pin"),
+                (key_of(V::Unpin), "unpin"),
+                (key_of(V::Downgrade), "downgrade selected"),
+                (key_of(V::SteamDb), "SteamDB"),
+                ("Esc".to_string(), "close"),
+            ])
         };
         lines.push(Line::from(Span::styled(status, theme::dim())));
     }

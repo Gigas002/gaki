@@ -5,6 +5,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
+use crate::keymap::{RunningAction as Ru, hints, key_of};
 use crate::ui::theme;
 
 /// Build the running overlay list from the browser's open running state. Each
@@ -42,6 +43,9 @@ pub fn running(browser: &Browser) -> List<'static> {
     };
 
     List::new(items)
-        .block(theme::panel("Running ([s] stop)".to_string()))
+        .block(theme::panel(format!(
+            "Running ({})",
+            hints(&[(key_of(Ru::Stop), "stop")])
+        )))
         .style(theme::base())
 }

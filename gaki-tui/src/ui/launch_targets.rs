@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{LaunchTargetsAction as Lt, hints, key_of};
 use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
@@ -53,7 +54,7 @@ pub fn launch_targets(browser: &Browser) -> Paragraph<'static> {
     let status = if !browser.launch_targets_status.is_empty() {
         browser.launch_targets_status.clone()
     } else {
-        "[Enter] launch  [Esc] close".to_string()
+        hints(&[(key_of(Lt::Launch), "launch"), ("Esc".to_string(), "close")])
     };
     lines.push(Line::from(Span::styled(status, theme::dim())));
 

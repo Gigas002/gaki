@@ -13,6 +13,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{MarketSearchAction as Ms, hints, key_of};
 use crate::ui::theme;
 
 /// Build the market search overlay content from the browse state: a query input
@@ -97,8 +98,13 @@ pub fn market_search(browser: &Browser, visible_rows: usize) -> Paragraph<'stati
     }
 
     Paragraph::new(Text::from(lines))
-        .block(theme::panel(
-            "Market search ([Enter] search, [Tab] price, [Esc] close)".to_string(),
-        ))
+        .block(theme::panel(format!(
+            "Market search ({})",
+            hints(&[
+                ("Enter".to_string(), "search"),
+                (key_of(Ms::Price), "price"),
+                ("Esc".to_string(), "close"),
+            ])
+        )))
         .style(theme::base())
 }

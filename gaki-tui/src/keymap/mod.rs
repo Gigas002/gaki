@@ -34,8 +34,8 @@ pub use key::Key;
 pub trait Actions: Copy + Eq + Ord + std::hash::Hash + fmt::Debug + Send + Sync + 'static {
     /// The section name, `[library]`.
     const SECTION: &'static str;
-    /// Whether the context takes typed text, so plain characters, `Enter`
-    /// and `Backspace` can't be bound.
+    /// Whether the context takes typed text, so plain characters can't be
+    /// bound.
     const TEXT: bool = false;
     /// Whether the `[overlay]` keys work here too, so they mustn't clash.
     const SHARES_OVERLAY: bool = false;
@@ -51,6 +51,10 @@ pub trait Actions: Copy + Eq + Ord + std::hash::Hash + fmt::Debug + Send + Sync 
     fn group(self) -> Option<&'static str>;
     /// A fixed key shown after the bound ones (`↓` for the arrow).
     fn alias(self) -> Option<&'static str>;
+    /// Keys the context keeps for itself (a prompt's `Enter`).
+    fn taken() -> &'static [&'static str] {
+        &[]
+    }
     fn bindings(map: &Keymap) -> &Bindings<Self>;
     fn bindings_mut(map: &mut Keymap) -> &mut Bindings<Self>;
 }
@@ -58,7 +62,8 @@ pub trait Actions: Copy + Eq + Ord + std::hash::Hash + fmt::Debug + Send + Sync 
 macro_rules! actions {
     (
         $(#[$meta:meta])*
-        $ty:ident, $section:literal, $field:ident $(, $flag:ident)* {
+        $ty:ident, $section:literal, $field:ident $(, $flag:ident)*
+            $(; taken [$($taken:literal),*])? {
             $($variant:ident => $name:literal [$($key:literal),*]
                 $(in $group:literal)? $(alias $alias:literal)?,)*
         }
@@ -100,6 +105,10 @@ macro_rules! actions {
                     $($ty::$variant => None::<&'static str> $(.or(Some($alias)))?),*
                 }
             }
+
+            $(fn taken() -> &'static [&'static str] {
+                &[$($taken),*]
+            })?
 
             fn bindings(map: &Keymap) -> &Bindings<Self> {
                 &map.$field
@@ -228,7 +237,8 @@ actions! {
 actions! {
     /// The Workshop browse pane. It takes the search text, so only
     /// non-character keys can be bound.
-    WorkshopBrowseAction, "workshop_browse", workshop_browse, TEXT {
+    WorkshopBrowseAction, "workshop_browse", workshop_browse, TEXT;
+        taken ["Enter", "Backspace"] {
         Subscribe => "subscribe" ["Tab"],
         RateUp => "rate_up" ["F1"],
         RateDown => "rate_down" ["F2"],
@@ -315,6 +325,116 @@ actions! {
         Pull => "pull" ["P"],
         Push => "push" ["U"],
         Sync => "sync" ["S"],
+    }
+}
+
+actions! {
+    /// The Versions overlay (`V`).
+    VersionsAction, "versions", versions, SHARES_OVERLAY {
+        Pin => "pin" ["p"],
+        Unpin => "unpin" ["u"],
+        Downgrade => "downgrade" ["d"],
+        SteamDb => "steamdb" ["Z"],
+    }
+}
+
+actions! {
+    /// The launch target picker (Play as).
+    LaunchTargetsAction, "launch_targets", launch_targets, SHARES_OVERLAY {
+        Launch => "launch" ["Enter"],
+    }
+}
+
+actions! {
+    /// The per-game settings overlay.
+    GameSettingsAction, "game_settings", game_settings, SHARES_OVERLAY {
+        Edit => "edit" ["Enter"],
+    }
+}
+
+actions! {
+    /// The install location picker.
+    InstallPickerAction, "install_picker", install_picker, SHARES_OVERLAY {
+        Install => "install" ["Enter"],
+    }
+}
+
+actions! {
+    /// The DLC overlay (`D`).
+    DlcAction, "dlc", dlc, SHARES_OVERLAY {
+        Enable => "enable" ["e"],
+        Disable => "disable" ["x"],
+    }
+}
+
+actions! {
+    /// The beta branches overlay (`b`).
+    BranchesAction, "branches", branches, SHARES_OVERLAY {
+        Switch => "switch" ["Enter", "s"],
+    }
+}
+
+actions! {
+    /// The running games overlay (`R`).
+    RunningAction, "running", running, SHARES_OVERLAY {
+        Stop => "stop" ["s", "x"],
+    }
+}
+
+actions! {
+    /// The Proton overlay (`P`).
+    ProtonAction, "proton", proton, SHARES_OVERLAY {
+        MakeDefault => "make_default" ["d"],
+        Install => "install" ["i"],
+        Uninstall => "uninstall" ["u"],
+    }
+}
+
+actions! {
+    /// The account overlay (`A`); any other key closes it.
+    AccountAction, "account", account {
+        LogOut => "log_out" ["o"],
+    }
+}
+
+actions! {
+    /// The market search overlay (`S`). It takes the query, so only keys
+    /// that don't type can be bound.
+    MarketSearchAction, "market_search", market_search, TEXT;
+        taken ["Enter", "Backspace"] {
+        Price => "price" ["Tab"],
+    }
+}
+
+actions! {
+    /// The Friends tab. Moving and leaving (`close`) come from
+    /// `[overlay]`; `Tab` cycles the library's tabs.
+    FriendsAction, "friends", friends, SHARES_OVERLAY {
+        Chat => "chat" ["Enter", "c"],
+        ChatWindow => "chat_window" ["t"],
+        Add => "add" ["a"],
+        Profile => "profile" ["v"],
+        Lookup => "lookup" ["/"],
+        Remove => "remove" ["x"],
+        Leave => "leave" ["F"],
+    }
+}
+
+actions! {
+    /// A user's profile (`v` in the Friends tab).
+    UserProfileAction, "user_profile", user_profile, SHARES_OVERLAY {
+        Lookup => "lookup" ["/"],
+        ProfilePage => "profile_page" ["E"],
+    }
+}
+
+actions! {
+    /// The Actions menu (`Enter`). It filters as you type, so only keys
+    /// that don't type can be bound; the arrows always move.
+    ActionsMenuAction, "actions_menu", actions_menu, TEXT; taken ["Backspace"] {
+        Run => "run" ["Enter"],
+        Next => "next" [],
+        Previous => "previous" [],
     }
 }
 
@@ -421,6 +541,19 @@ pub struct Keymap {
     game_info: Bindings<GameInfoAction>,
     cloud: Bindings<CloudAction>,
     collections: Bindings<CollectionsAction>,
+    versions: Bindings<VersionsAction>,
+    launch_targets: Bindings<LaunchTargetsAction>,
+    game_settings: Bindings<GameSettingsAction>,
+    install_picker: Bindings<InstallPickerAction>,
+    dlc: Bindings<DlcAction>,
+    branches: Bindings<BranchesAction>,
+    running: Bindings<RunningAction>,
+    proton: Bindings<ProtonAction>,
+    account: Bindings<AccountAction>,
+    market_search: Bindings<MarketSearchAction>,
+    friends: Bindings<FriendsAction>,
+    user_profile: Bindings<UserProfileAction>,
+    actions_menu: Bindings<ActionsMenuAction>,
 }
 
 type Section = BTreeMap<String, toml::Spanned<toml::Value>>;
@@ -441,7 +574,7 @@ fn kind<A: Actions>() -> SectionKind {
 }
 
 /// Every section, `[library]` first.
-fn sections() -> [SectionKind; 14] {
+fn sections() -> [SectionKind; 27] {
     [
         kind::<LibraryAction>(),
         kind::<OverlayAction>(),
@@ -457,6 +590,19 @@ fn sections() -> [SectionKind; 14] {
         kind::<GameInfoAction>(),
         kind::<CloudAction>(),
         kind::<CollectionsAction>(),
+        kind::<VersionsAction>(),
+        kind::<LaunchTargetsAction>(),
+        kind::<GameSettingsAction>(),
+        kind::<InstallPickerAction>(),
+        kind::<DlcAction>(),
+        kind::<BranchesAction>(),
+        kind::<RunningAction>(),
+        kind::<ProtonAction>(),
+        kind::<AccountAction>(),
+        kind::<MarketSearchAction>(),
+        kind::<FriendsAction>(),
+        kind::<UserProfileAction>(),
+        kind::<ActionsMenuAction>(),
     ]
 }
 
@@ -488,12 +634,7 @@ fn keys_of(value: &toml::Value) -> Option<Vec<&str>> {
 
 /// Whether `key` would type into a text context.
 fn types_text(key: Key) -> bool {
-    !key.ctrl
-        && !key.alt
-        && matches!(
-            key.code,
-            KeyCode::Char(_) | KeyCode::Enter | KeyCode::Backspace
-        )
+    !key.ctrl && !key.alt && matches!(key.code, KeyCode::Char(_))
 }
 
 fn apply<A: Actions>(map: &mut Keymap, section: &Section, text: &str) -> Result<(), KeymapError> {
@@ -522,11 +663,23 @@ fn apply<A: Actions>(map: &mut Keymap, section: &Section, text: &str) -> Result<
                     format!("`{key}` is reserved and can't be bound (`{action_name}`)"),
                 ));
             }
+            if A::taken()
+                .iter()
+                .any(|t| Key::parse(t).is_ok_and(|t| t == key))
+            {
+                return Err(error(
+                    line,
+                    format!(
+                        "`{key}` is fixed in [{}] and can't be bound (`{action_name}`)",
+                        A::SECTION
+                    ),
+                ));
+            }
             if A::TEXT && types_text(key) {
                 return Err(error(
                     line,
                     format!(
-                        "`{key}` types into the search in [{}]; use a key that doesn't, like F5 or ctrl+{key}",
+                        "`{key}` types into the text in [{}]; use a key that doesn't, like F5 or ctrl+{key}",
                         A::SECTION
                     ),
                 ));

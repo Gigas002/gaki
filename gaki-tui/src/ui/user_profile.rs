@@ -12,6 +12,7 @@ use libgaki::steam_client::{UserProfile, unix_to_ymd};
 
 use crate::app::browser::job::Load;
 use crate::app::browser::user_profile::ProfileView;
+use crate::keymap::{OverlayAction as O, UserProfileAction as Up, hints, key_of, pair};
 use crate::ui::theme;
 
 fn dim(text: impl Into<String>) -> Line<'static> {
@@ -106,12 +107,15 @@ fn footer(view: &ProfileView) -> Vec<Line<'static>> {
             dim("SteamID64, profile URL, friend name or `me` · Enter look up · Esc cancel"),
         ];
     }
-    let mut hint = String::from("[j/k] scroll  [/] look someone up  ");
+    let mut parts = vec![
+        (pair(O::Down, O::Up), "scroll"),
+        (key_of(Up::Lookup), "look someone up"),
+    ];
     if view.loaded().is_some_and(|p| !p.profile_url.is_empty()) {
-        hint.push_str("[E] profile page  ");
+        parts.push((key_of(Up::ProfilePage), "profile page"));
     }
-    hint.push_str("[Esc] close");
-    vec![dim(hint)]
+    parts.push(("Esc".to_string(), "close"));
+    vec![dim(hints(&parts))]
 }
 
 /// Draw the overlay into `area`.

@@ -7,6 +7,7 @@ use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
 use crate::app::steam::GameSettings;
+use crate::keymap::{GameSettingsAction as Gs, hints, key_of};
 use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
@@ -80,7 +81,7 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     let status = if !browser.game_config_status.is_empty() {
         browser.game_config_status.clone()
     } else {
-        "[Enter] change  [Esc] close".to_string()
+        hints(&[(key_of(Gs::Edit), "change"), ("Esc".to_string(), "close")])
     };
     lines.push(Line::from(Span::styled(status, theme::dim())));
 

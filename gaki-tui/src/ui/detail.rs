@@ -170,10 +170,10 @@ fn build_content(
                         last.push('…');
                     }
                 }
-                let label = if expand {
-                    "Description ([i] collapse)"
-                } else {
-                    "Description ([i] expand)"
+                let what = if expand { "collapse" } else { "expand" };
+                let label = match crate::keymap::key_of(crate::keymap::LibraryAction::Description) {
+                    key if key.is_empty() => "Description".to_string(),
+                    key => format!("Description ([{key}] {what})"),
                 };
                 let lines_h = lines.len() as u16;
                 let text = Text::from(

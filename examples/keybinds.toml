@@ -195,3 +195,70 @@
 # pull = "P"
 # push = "U"
 # sync = "S"
+
+# The Versions overlay (`V`).
+[versions]
+# pin = "p"
+# unpin = "u"
+# downgrade = "d"
+# steamdb = "Z"
+
+# The launch target picker (Play as).
+[launch_targets]
+# launch = "Enter"
+
+# The per-game settings overlay.
+[game_settings]
+# edit = "Enter"
+
+# The install location picker.
+[install_picker]
+# install = "Enter"
+
+# The DLC overlay (`D`).
+[dlc]
+# enable = "e"
+# disable = "x"
+
+# The beta branches overlay (`b`).
+[branches]
+# switch = ["Enter", "s"]
+
+# The running games overlay (`R`).
+[running]
+# stop = ["s", "x"]
+
+# The Proton overlay (`P`).
+[proton]
+# make_default = "d"
+# install = "i"
+# uninstall = "u"
+
+# The account overlay (`A`); any other key closes it.
+[account]
+# log_out = "o"
+
+# The market search overlay (`S`). It takes the query, so only keys that don't type can be bound.
+[market_search]
+# price = "Tab"
+
+# The Friends tab. Moving and leaving (`close`) come from `[overlay]`; `Tab` cycles the library's tabs.
+[friends]
+# chat = ["Enter", "c"]
+# chat_window = "t"
+# add = "a"
+# profile = "v"
+# lookup = "/"
+# remove = "x"
+# leave = "F"
+
+# A user's profile (`v` in the Friends tab).
+[user_profile]
+# lookup = "/"
+# profile_page = "E"
+
+# The Actions menu (`Enter`). It filters as you type, so only keys that don't type can be bound; the arrows always move.
+[actions_menu]
+# run = "Enter"
+# next = []
+# previous = []

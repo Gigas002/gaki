@@ -5,6 +5,7 @@ use ratatui::text::Span;
 use ratatui::widgets::{Cell, Row, Table};
 
 use crate::app::browser::Browser;
+use crate::keymap::{AccountAction, hints, key_of};
 use crate::ui::theme;
 
 /// One key-value row in the account table.
@@ -46,9 +47,10 @@ pub fn account(browser: &Browser) -> Table<'static> {
 
     Table::default()
         .rows(rows)
-        .block(theme::panel(
-            "Account ([o] log out — any other key closes)".to_string(),
-        ))
+        .block(theme::panel(format!(
+            "Account ({} — any other key closes)",
+            hints(&[(key_of(AccountAction::LogOut), "log out")])
+        )))
         .style(theme::base())
         .widths([Constraint::Percentage(28), Constraint::Percentage(72)])
         .column_spacing(1)

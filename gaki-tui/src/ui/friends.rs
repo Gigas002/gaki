@@ -18,6 +18,7 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{FriendsAction as Fr, LibraryAction, key_of};
 use crate::ui::theme;
 
 /// Build the Friends panel content from the browse state.
@@ -32,9 +33,15 @@ pub fn friends(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
 
     // Title: louder and action-hinting while focused, calmer otherwise.
     let title = if focused {
-        format!("● Friends ({}) · chat [t] window", len)
+        match key_of(Fr::ChatWindow) {
+            key if key.is_empty() => format!("● Friends ({len})"),
+            key => format!("● Friends ({len}) · chat [{key}] window"),
+        }
     } else {
-        format!("Friends ({}) — [F] focus", len)
+        match key_of(LibraryAction::Friends) {
+            key if key.is_empty() => format!("Friends ({len})"),
+            key => format!("Friends ({len}) — [{key}] focus"),
+        }
     };
 
     // Empty state: while the lazy load is in flight show a loading line so the
@@ -42,9 +49,12 @@ pub fn friends(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
     // not-yet-opened panel).
     if items.is_empty() {
         let line = if browser.friends_loading {
-            "Loading friends…"
+            "Loading friends…".to_string()
         } else {
-            "Press [F] to load friends."
+            match key_of(LibraryAction::Friends) {
+                key if key.is_empty() => "Open the Friends tab to load friends.".to_string(),
+                key => format!("Press [{key}] to load friends."),
+            }
         };
         return Paragraph::new(Text::from(line))
             .block(theme::panel(title))

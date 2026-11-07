@@ -1977,7 +1977,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 - **8.12** ~~Market buying and selling.~~ **Dropped, never to be done.**
   gaki doesn't move real money or items (see Non-goals). Inventory and
   market stay read-only.
-- [ ] **8.13** Configurable key bindings in gaki-tui. Today every binding is
+- [x] **8.13** Configurable key bindings in gaki-tui. Today every binding is
   hard-coded (mostly `gaki-tui/src/app/keys/browse.rs`, plus each overlay's
   handler), and the help, status-bar hints and Actions-menu key column are
   fixed strings. Bindings go in their **own file**,
@@ -2032,11 +2032,22 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     section; the test checks each against its `Actions`. Tests:
     `keymap/tests.rs` (tabs, `[overlay]` clashes, text sections),
     `tests/keymap_live.rs` (a rebound Installs key in its footer).
-  - [ ] **8.13c** The rest: achievements, DLC, branches, versions, launch
-    options/targets, game settings, Proton, running, inventory, market,
-    move/relink/import, account, help, the Friends panel (`[friends]`)
-    and the Actions menu (`[actions_menu]`), and the help's overlay
-    lines.
+  - [x] **8.13c** The rest. *Done.* Sections `[versions]`,
+    `[launch_targets]`, `[game_settings]`, `[install_picker]`, `[dlc]`,
+    `[branches]`, `[running]`, `[proton]`, `[account]`,
+    `[market_search]` (text), `[friends]` (shares `[overlay]` for moving
+    and leaving, `[library]`'s tab keys cycle tabs), `[user_profile]` and
+    `[actions_menu]` (text; `run` Enter, `next`/`previous` unbound).
+    `Actions::taken` lists keys a section keeps (a text pane's Enter and
+    Backspace; the menu keeps only Backspace), and `TEXT` now refuses
+    only plain characters. Achievements, inventory, launch options,
+    market listings and the help use `[overlay]` alone; prompts, y/n,
+    the filter and the wallet stay fixed. Every overlay title/footer hint
+    and the Friends panel title read the map; the help drops inline
+    overlay keys (each footer has them) and builds the Friends lines and
+    its own title from the map. Tests: `keymap/tests.rs` (taken keys,
+    the menu), the example covering all 27 sections,
+    `tests/keymap_live.rs` (`[friends]`, `[dlc]`).
 - [ ] **8.15** Share the profile model with lootrs (D9 revised). libgaki
   depends on `liblootrs` for the profile model and its validation only;
   the runners and launch code stay in each tool. Done before 8.14, so the

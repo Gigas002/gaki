@@ -317,9 +317,16 @@ overlay shares (`close`, `down`, `up`, `page_down`, `page_up`, `next_tab`,
 `previous_tab`), and a section for each overlay with its own keys:
 `[installs]`, `[settings]`, `[workshop]`, `[workshop_browse]`,
 `[workshop_comments]`, `[store]`, `[steam_store]`, `[depots]`,
-`[depot_files]`, `[game_info]`, `[cloud]` and `[collections]`. Each line
-binds an action to a key or a list of keys; an empty list leaves it without
-one (the Actions menu still has the library's):
+`[depot_files]`, `[game_info]`, `[cloud]`, `[collections]`, `[versions]`,
+`[launch_targets]`, `[game_settings]`, `[install_picker]`, `[dlc]`,
+`[branches]`, `[running]`, `[proton]`, `[account]`, `[market_search]`,
+`[user_profile]`, plus `[friends]` for the Friends tab (its moving and
+leaving come from `[overlay]`, its `Tab` from `[library]`) and
+`[actions_menu]` (`run`, and `next` / `previous`, unbound by default).
+Overlays with nothing of their own (achievements, inventory, launch
+options, market listings, the help) use `[overlay]` alone. Each line binds
+an action to a key or a list of keys; an empty list leaves it without one
+(the Actions menu still has the library's):
 
 ```toml
 [library]
@@ -345,9 +352,11 @@ and action with its default key.
 
 An overlay's own keys can't clash with `[overlay]`'s. Some belong to one tab
 (the example marks them), and actions on different tabs may share a key:
-`r` resumes in the Installs queue and rescans in Duplicates. The Workshop
-search pane takes typed text, so `[workshop_browse]` only takes keys that
-don't type (`F5`, `ctrl+s`, `Tab`), and `[overlay]` doesn't apply there.
+`r` resumes in the Installs queue and rescans in Duplicates. The sections
+that take typed text, `[workshop_browse]`, `[market_search]` and
+`[actions_menu]`, only take keys that don't type (`F5`, `ctrl+s`, `Tab`),
+and `[overlay]` doesn't apply there; their `Enter` and `Backspace` stay
+put, except the menu's `Enter`, which is `run`.
 
 The file is read once at startup. On an unknown section or action, a key it
 can't read, or two actions on one key, gaki-tui doesn't start and prints the
@@ -355,7 +364,8 @@ file and line, e.g.
 ``keybinds.toml:3: `x` is bound to both `sort` and `uninstall` in [library]``.
 `Esc`, `?` (help), the arrow keys and Ctrl+C (quit, from anywhere) can't be
 rebound, so a bad file can't lock you out; text prompts and y/n questions
-keep their keys too. The help (`?`), the status-bar hints, the Actions menu
-and the overlays' footers show the keys in effect. The overlays not listed
-above (achievements, DLC, branches, Proton, the Friends panel, the Actions
-menu and the rest) keep fixed keys for now.
+keep their keys too, as do the add-friend, move, relink and import prompts
+and the library's text filter. The help (`?`), the status-bar hints, the
+Actions menu and the overlays' footers and titles show the keys in effect;
+the help lists what each library key opens, and each overlay's footer its
+own keys.

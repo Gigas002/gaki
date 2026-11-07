@@ -13,12 +13,11 @@ use crate::app::{AppResult, Mode};
 use crate::keymap::{self, Key, LibraryAction as A};
 
 pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<Flow> {
-    let input = key.code;
     // Any keypress dismisses the previous action's notice (this action sets
     // it again if it fails too).
     lib.browser.notice = None;
     if lib.browser.show_actions {
-        actions::key(lib, input)?;
+        actions::key(lib, key)?;
     } else if !overlays::key(lib, key)? {
         return base(lib, key);
     }

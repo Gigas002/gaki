@@ -6,6 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
 use crate::app::browser::Browser;
+use crate::keymap::{ProtonAction as Pr, hints, key_of};
 use crate::ui::theme;
 
 /// Build the Proton overlay list from the browser's open runtime state. Each row
@@ -65,16 +66,21 @@ pub fn proton(browser: &Browser) -> List<'static> {
     // Title carries the key hints, plus the live install/uninstall status (if
     // any) and an [u] uninstall hint when the highlighted runtime qualifies.
     let mut title = match browser.proton_status_line() {
-        Some(status) => format!("Proton runtimes — {} ([d] default", status),
-        None => "Proton runtimes ([d] default".to_string(),
+        Some(status) => format!("Proton runtimes — {status} ("),
+        None => "Proton runtimes (".to_string(),
     };
     // Downloading or removing a runtime needs `install`.
-    #[cfg(feature = "install")]
-    title.push_str(" · [i] install");
-    #[cfg(feature = "install")]
-    if browser.selected_proton_uninstallable() {
-        title.push_str(" · [u] uninstall");
-    }
+    let install = cfg!(feature = "install");
+    let parts: Vec<(String, &str)> = [
+        Some((key_of(Pr::MakeDefault), "default")),
+        install.then(|| (key_of(Pr::Install), "install")),
+        (install && browser.selected_proton_uninstallable())
+            .then(|| (key_of(Pr::Uninstall), "uninstall")),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    title.push_str(&hints(&parts));
     title.push(')');
 
     List::new(items)
