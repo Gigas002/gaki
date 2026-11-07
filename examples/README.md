@@ -8,7 +8,7 @@ Example configuration for gaki. Copy what you need into `~/.config/gaki/`
 | [`config.toml`](config.toml) | global settings |
 | [`games.toml`](games.toml) | per-game overrides, one `[[game]]` per game |
 | [`profiles/`](profiles) | one runner, prefix and environment per file; the file name must match `name` |
-| [`keybinds.toml`](keybinds.toml) | gaki-tui's key bindings; goes in `tui/keybinds.toml` |
+| [`keybinds.toml`](keybinds.toml) | gaki-tui's key bindings, every section and default; goes in `tui/keybinds.toml` |
 
 [`library.toml`](library.toml) isn't configuration. `gaki-cli library export`
 writes this format, and `gaki-cli library import` reads it.

@@ -32,7 +32,7 @@ fn a_custom_keymap_shows_everywhere() {
     }
     keymap::install(
         Keymap::parse(
-            "[library]\nfilter = \"ctrl+f\"\nfavourite = \"*\"\nhide = []\nsteam_page = [\"e\", \"F5\"]\nachievements = \"alt+a\"\n",
+            "[library]\nfilter = \"ctrl+f\"\nfavourite = \"*\"\nhide = []\nsteam_page = [\"e\", \"F5\"]\nachievements = \"alt+a\"\n[installs]\npause = \"z\"\n[overlay]\ndown = [\"j\", \"ctrl+n\"]\n",
         )
         .unwrap(),
     );
@@ -61,6 +61,18 @@ fn a_custom_keymap_shows_everywhere() {
     });
     assert!(footer.contains("[ctrl+f] filter"), "{footer}");
     assert!(footer.contains("[*] fav"), "{footer}");
+
+    #[cfg(feature = "install")]
+    {
+        let view = gaki_tui::app::browser::installs::InstallsView::with_rows(Vec::new());
+        let installs = render(160, 10, |f| ui::installs::draw(f, f.area(), &view));
+        assert!(installs.contains("[z] pause"), "{installs}");
+        assert!(!installs.contains("[p] pause"), "{installs}");
+    }
+    assert_eq!(
+        keymap::get().overlay_action(gaki_tui::keymap::Key::ctrl('n')),
+        Some(gaki_tui::keymap::OverlayAction::Down)
+    );
 
     let rows = browser.action_candidates();
     let key = |action| rows.iter().find(|r| r.action == action).unwrap().key();

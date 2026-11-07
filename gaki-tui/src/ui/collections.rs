@@ -7,6 +7,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{CollectionsAction as C, hints, key_of};
 use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
@@ -46,7 +47,10 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
 
     if browser.collections.is_empty() {
         lines.push(Line::from(Span::styled(
-            "No collections. [n] to create one.".to_string(),
+            match key_of(C::New) {
+                key if key.is_empty() => "No collections.".to_string(),
+                key => format!("No collections. [{key}] to create one."),
+            },
             theme::dim(),
         )));
     } else {
@@ -86,8 +90,17 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
     let status = if !browser.collections_status.is_empty() {
         browser.collections_status.clone()
     } else {
-        "[a] add game  [r] remove game  [n] new  [e] rename  [x] delete  [P] pull [U] push [S] sync  [Esc] close"
-            .to_string()
+        hints(&[
+            (key_of(C::Add), "add game"),
+            (key_of(C::Remove), "remove game"),
+            (key_of(C::New), "new"),
+            (key_of(C::Rename), "rename"),
+            (key_of(C::Delete), "delete"),
+            (key_of(C::Pull), "pull"),
+            (key_of(C::Push), "push"),
+            (key_of(C::Sync), "sync"),
+            ("Esc".to_string(), "close"),
+        ])
     };
     lines.push(Line::from(Span::styled(status, theme::dim())));
 

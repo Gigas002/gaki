@@ -13,6 +13,7 @@ use ratatui::widgets::{Cell, Paragraph, Row, Table, Wrap};
 
 use crate::app::browser::Browser;
 use crate::app::steam::CloudResolve;
+use crate::keymap::{CloudAction as C, hints, key_of};
 use crate::ui::{date_time, theme};
 
 /// The lines above the file table: the status, then the conflicts with the
@@ -55,7 +56,10 @@ fn header_lines(browser: &Browser) -> Vec<Line<'static>> {
         }
         _ if state.sync.is_some() => Line::from(""),
         _ => Line::from(Span::styled(
-            "[c] keep the cloud copies  [l] keep the local copies",
+            hints(&[
+                (key_of(C::KeepCloud), "keep the cloud copies"),
+                (key_of(C::KeepLocal), "keep the local copies"),
+            ]),
             theme::dim(),
         )),
     });
@@ -89,7 +93,15 @@ fn side(label: &str, size: u64, time: u64, newer: bool) -> Line<'static> {
 
 /// Draw the overlay into `area`: the header lines, then the file table.
 pub fn draw(frame: &mut Frame, area: Rect, browser: &Browser) {
-    let block = theme::panel("Steam Cloud ([s] sync  [d] down  [u] up  [Esc] close)".to_string());
+    let block = theme::panel(format!(
+        "Steam Cloud ({})",
+        hints(&[
+            (key_of(C::Sync), "sync"),
+            (key_of(C::Download), "down"),
+            (key_of(C::Upload), "up"),
+            ("Esc".to_string(), "close"),
+        ])
+    ));
     let inner = block.inner(area);
     frame.render_widget(Paragraph::new("").block(block).style(theme::base()), area);
 

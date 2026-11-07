@@ -13,6 +13,7 @@ use libgaki::web::discovery::{NewsItem, ReviewPage};
 
 use crate::app::browser::job::Load;
 use crate::app::browser::store::{Section, StoreView};
+use crate::keymap::{OverlayAction as O, StoreAction as St, hints, key_of, pair};
 use crate::ui::theme;
 
 /// Draw the overlay into `area`.
@@ -71,12 +72,15 @@ fn footer_lines(view: &StoreView) -> Vec<Line<'static>> {
             dim("two-letter codes, e.g. US,DE,JP (empty: your own) · Enter load · Esc cancel"),
         ];
     }
-    let mut hint = String::from("[Tab/S-Tab] section  [j/k PgUp/PgDn] scroll");
+    let mut parts = vec![
+        (pair(O::NextTab, O::PreviousTab), "section"),
+        (pair(O::Down, O::Up), "scroll"),
+    ];
     if view.section == Section::Price {
-        hint.push_str("  [r] regions");
+        parts.push((key_of(St::Regions), "regions"));
     }
-    hint.push_str("  [Esc] close");
-    vec![Line::from(""), dim(hint)]
+    parts.push(("Esc".to_string(), "close"));
+    vec![Line::from(""), dim(hints(&parts))]
 }
 
 fn dim(text: impl Into<String>) -> Line<'static> {

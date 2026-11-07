@@ -11,6 +11,7 @@ use ratatui::widgets::{Paragraph, Wrap};
 use crate::app::browser::game_info::{GameInfoView, InfoTab};
 use crate::app::browser::job::Load;
 use crate::app::steam::{CheckLine, GameInfo};
+use crate::keymap::{GameInfoAction as G, OverlayAction as O, hints, key_of, pair};
 use crate::ui::theme;
 
 fn dim(text: impl Into<String>) -> Line<'static> {
@@ -104,14 +105,20 @@ fn footer_lines(view: &GameInfoView) -> Vec<Line<'static>> {
             dim("Enter keep · Esc cancel"),
         ];
     }
-    let mut hint = String::from("[Tab] tab  [j/k PgUp/PgDn] scroll  ");
+    let mut parts = vec![
+        (key_of(O::NextTab), "tab"),
+        (pair(O::Down, O::Up), "scroll"),
+    ];
     match view.tab {
-        InfoTab::Checks => hint.push_str("[r] check again  "),
-        InfoTab::Artwork => hint.push_str("[s] save  [o] folder  "),
+        InfoTab::Checks => parts.push((key_of(G::CheckAgain), "check again")),
+        InfoTab::Artwork => {
+            parts.push((key_of(G::SaveArtwork), "save"));
+            parts.push((key_of(G::ArtworkFolder), "folder"));
+        }
         InfoTab::Details => {}
     }
-    hint.push_str("[Esc] close");
-    vec![Line::from(""), dim(hint)]
+    parts.push(("Esc".to_string(), "close"));
+    vec![Line::from(""), dim(hints(&parts))]
 }
 
 fn loaded<T>(

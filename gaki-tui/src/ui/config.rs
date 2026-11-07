@@ -17,6 +17,7 @@ use ratatui::widgets::{Paragraph, Wrap};
 use crate::app::browser::settings::{
     CheckTab, DaemonsTab, Edit, ProfilesTab, SPECS, SettingsView, Tab,
 };
+use crate::keymap::{OverlayAction as O, SettingsAction as S, hints, key_of, pair};
 use crate::ui::{selection_marker, theme};
 
 fn dim(text: impl Into<String>) -> Line<'static> {
@@ -93,9 +94,12 @@ fn footer(view: &SettingsView) -> Vec<Line<'static>> {
             theme::accent(),
         )));
     }
-    lines.push(dim(
-        "[j/k] move  [Enter] edit  [x] back to the default  [Esc] close",
-    ));
+    lines.push(dim(hints(&[
+        (pair(O::Down, O::Up), "move"),
+        (key_of(S::Edit), "edit"),
+        (key_of(S::Unset), "back to the default"),
+        ("Esc".to_string(), "close"),
+    ])));
     lines
 }
 
@@ -110,7 +114,10 @@ fn tab_bar(current: Tab) -> Line<'static> {
         });
         spans.push(Span::raw(" "));
     }
-    spans.push(Span::styled("[Tab] switch".to_string(), theme::dim()));
+    spans.push(Span::styled(
+        hints(&[(key_of(O::NextTab), "switch")]),
+        theme::dim(),
+    ));
     Line::from(spans)
 }
 
@@ -175,7 +182,12 @@ fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
         area,
         status_and_hint(
             view,
-            "[j/k] move  [PgUp/PgDn] scroll  [d] make default  [Esc] close",
+            &hints(&[
+                (pair(O::Down, O::Up), "move"),
+                (pair(O::PageUp, O::PageDown), "scroll"),
+                (key_of(S::MakeDefault), "make default"),
+                ("Esc".to_string(), "close"),
+            ]),
         ),
     );
     let Some(tab) = &view.profiles_tab else {
@@ -278,7 +290,11 @@ fn draw_check(frame: &mut Frame, area: Rect, check: Option<&CheckTab>) {
     let body = with_footer(
         frame,
         area,
-        vec![dim("[r] check again  [j/k] scroll  [Esc] close")],
+        vec![dim(hints(&[
+            (key_of(S::CheckAgain), "check again"),
+            (pair(O::Down, O::Up), "scroll"),
+            ("Esc".to_string(), "close"),
+        ]))],
     );
     let lines: Vec<Line<'static>> = match check {
         None => vec![dim("Checking…")],
@@ -329,7 +345,13 @@ fn daemons_footer(view: &SettingsView, tab: Option<&DaemonsTab>) -> Vec<Line<'st
     }
     status_and_hint(
         view,
-        "[j/k] move  [s] stop  [S] stop all  [r] refresh  [Esc] close",
+        &hints(&[
+            (pair(O::Down, O::Up), "move"),
+            (key_of(S::StopDaemon), "stop"),
+            (key_of(S::StopAllDaemons), "stop all"),
+            (key_of(S::RefreshDaemons), "refresh"),
+            ("Esc".to_string(), "close"),
+        ]),
     )
 }
 

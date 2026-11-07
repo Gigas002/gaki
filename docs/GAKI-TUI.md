@@ -310,11 +310,16 @@ isn't read and can be deleted.
 
 ### Key bindings
 
-The library's keys (with no overlay open) can be changed in
-`$XDG_CONFIG_HOME/gaki/tui/keybinds.toml`, a file of its own, never
-`config.toml`. Under `[library]`, each line binds an action to a key or a
-list of keys; an empty list leaves it without one (the Actions menu still
-has it):
+Keys can be changed in `$XDG_CONFIG_HOME/gaki/tui/keybinds.toml`, a file
+of its own, never `config.toml`. It has one section per context: `[library]`
+for the game list with no overlay open, `[overlay]` for the keys every
+overlay shares (`close`, `down`, `up`, `page_down`, `page_up`, `next_tab`,
+`previous_tab`), and a section for each overlay with its own keys:
+`[installs]`, `[settings]`, `[workshop]`, `[workshop_browse]`,
+`[workshop_comments]`, `[store]`, `[steam_store]`, `[depots]`,
+`[depot_files]`, `[game_info]`, `[cloud]` and `[collections]`. Each line
+binds an action to a key or a list of keys; an empty list leaves it without
+one (the Actions menu still has the library's):
 
 ```toml
 [library]
@@ -322,6 +327,12 @@ install = "i"
 description = "d"
 sort = ["s", "ctrl+s"]
 hide = []
+
+[overlay]
+close = ["q", "ctrl+w"]
+
+[installs]
+pause = "z"
 ```
 
 Keys are one character, case-sensitive (`"E"` is Shift+e), or a name:
@@ -329,14 +340,22 @@ Keys are one character, case-sensitive (`"E"` is Shift+e), or a name:
 `Insert`, `Home`, `End`, `PageUp`, `PageDown`, the arrows, `Space`,
 `F1`–`F24`, each optionally after `ctrl+` and/or `alt+`. An action left out
 keeps its default, so a missing or empty file changes nothing.
-[`examples/keybinds.toml`](../examples/keybinds.toml) lists every action
-with its default key.
+[`examples/keybinds.toml`](../examples/keybinds.toml) lists every section
+and action with its default key.
+
+An overlay's own keys can't clash with `[overlay]`'s. Some belong to one tab
+(the example marks them), and actions on different tabs may share a key:
+`r` resumes in the Installs queue and rescans in Duplicates. The Workshop
+search pane takes typed text, so `[workshop_browse]` only takes keys that
+don't type (`F5`, `ctrl+s`, `Tab`), and `[overlay]` doesn't apply there.
 
 The file is read once at startup. On an unknown section or action, a key it
 can't read, or two actions on one key, gaki-tui doesn't start and prints the
 file and line, e.g.
 ``keybinds.toml:3: `x` is bound to both `sort` and `uninstall` in [library]``.
 `Esc`, `?` (help), the arrow keys and Ctrl+C (quit, from anywhere) can't be
-rebound, so a bad file can't lock you out. The help (`?`), the status-bar
-hints and the Actions menu show the keys in effect. Overlay keys are fixed
-for now.
+rebound, so a bad file can't lock you out; text prompts and y/n questions
+keep their keys too. The help (`?`), the status-bar hints, the Actions menu
+and the overlays' footers show the keys in effect. The overlays not listed
+above (achievements, DLC, branches, Proton, the Friends panel, the Actions
+menu and the rest) keep fixed keys for now.

@@ -16,6 +16,10 @@ use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::keymap::{
+    OverlayAction as O, WorkshopAction as W, WorkshopBrowseAction as B,
+    WorkshopCommentsAction as Wc, hints, key_of, pair,
+};
 use crate::ui::theme;
 
 /// Build the Workshop overlay content, `rows` tall inside its border.
@@ -81,7 +85,11 @@ fn comments(browser: &Browser) -> Paragraph<'static> {
             )));
         }
         None => lines.push(Line::from(Span::styled(
-            "[c] write a comment  [j/k] scroll  [Esc] back",
+            hints(&[
+                (key_of(Wc::Write), "write a comment"),
+                (pair(O::Down, O::Up), "scroll"),
+                ("Esc".to_string(), "back"),
+            ]),
             theme::dim(),
         ))),
     }
@@ -145,7 +153,14 @@ fn status_list(browser: &Browser, rows: usize) -> Paragraph<'static> {
             Line::from(Span::styled("[y] yes  [n] no", theme::dim())),
         ],
         None => vec![Line::from(Span::styled(
-            "[i] install/update  [u] uninstall  [U] update all  [r] reload  [b] browse  [Esc] close",
+            hints(&[
+                (key_of(W::Install), "install/update"),
+                (key_of(W::Uninstall), "uninstall"),
+                (key_of(W::UpdateAll), "update all"),
+                (key_of(W::Reload), "reload"),
+                (key_of(W::Browse), "browse"),
+                ("Esc".to_string(), "close"),
+            ]),
             theme::dim(),
         ))],
     };
@@ -206,9 +221,19 @@ fn status_list(browser: &Browser, rows: usize) -> Paragraph<'static> {
 /// The browse/search pane: a query input line, a status/hint line, then the
 /// result rows with the highlight marked and each row tagged subscribed/not.
 fn browse(browser: &Browser) -> Paragraph<'static> {
-    let title =
-        "Workshop browse — Enter: search, Tab: sub, F1/F2: rate, F3: comments, F4: install, Esc: back"
-            .to_string();
+    let mut parts = vec!["Enter: search".to_string()];
+    for (key, what) in [
+        (key_of(B::Subscribe), "sub"),
+        (pair(B::RateUp, B::RateDown), "rate"),
+        (key_of(B::Comments), "comments"),
+        (key_of(B::Install), "install"),
+    ] {
+        if !key.is_empty() {
+            parts.push(format!("{key}: {what}"));
+        }
+    }
+    parts.push("Esc: back".to_string());
+    let title = format!("Workshop browse — {}", parts.join(", "));
     let mut lines: Vec<Line<'static>> = Vec::new();
 
     // Query input line.

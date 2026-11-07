@@ -64,7 +64,7 @@ fn terminal_events_normalise() {
 #[test]
 fn the_defaults_parse_and_never_clash() {
     let map = Keymap::defaults();
-    for &action in LibraryAction::ALL {
+    for &action in LibraryAction::all() {
         for &k in map.keys(action) {
             assert_eq!(map.library_action(k), Some(action), "{k}");
             assert!(!RESERVED.contains(&k), "{k} is reserved");
@@ -76,7 +76,7 @@ fn the_defaults_parse_and_never_clash() {
 
 #[test]
 fn action_names_are_unique_snake_case() {
-    let mut names: Vec<&str> = LibraryAction::ALL.iter().map(|a| a.name()).collect();
+    let mut names: Vec<&str> = LibraryAction::all().iter().map(|a| a.name()).collect();
     assert!(
         names
             .iter()
@@ -84,7 +84,7 @@ fn action_names_are_unique_snake_case() {
     );
     names.sort_unstable();
     names.dedup();
-    assert_eq!(names.len(), LibraryAction::ALL.len());
+    assert_eq!(names.len(), LibraryAction::all().len());
 }
 
 #[test]
@@ -168,8 +168,28 @@ fn errors_name_the_file_and_line() {
     );
 }
 
-/// `examples/keybinds.toml` lists every action with its default keys,
-/// commented out; uncommented, it is exactly the defaults.
+fn example_section<A: Actions>(table: &toml::Table) {
+    let section = table
+        .get(A::SECTION)
+        .and_then(toml::Value::as_table)
+        .unwrap_or_else(|| panic!("[{}] missing from the example", A::SECTION));
+    for &action in A::all() {
+        let value = section
+            .get(action.name())
+            .unwrap_or_else(|| panic!("{} missing from [{}]", action.name(), A::SECTION));
+        assert_eq!(
+            keys_of(value).unwrap(),
+            action.default_keys().to_vec(),
+            "[{}] {}",
+            A::SECTION,
+            action.name()
+        );
+    }
+    assert_eq!(section.len(), A::all().len(), "[{}] has extras", A::SECTION);
+}
+
+/// `examples/keybinds.toml` lists every action of every section with its
+/// default keys, commented out; as shipped it is exactly the defaults.
 #[test]
 fn the_example_file_lists_every_default() {
     let text = include_str!("../../../examples/keybinds.toml");
@@ -177,28 +197,123 @@ fn the_example_file_lists_every_default() {
     let uncommented: String = text
         .lines()
         .map(|l| match l.strip_prefix("# ") {
-            Some(rest)
-                if rest.split_once(" = ").is_some_and(|(n, _)| {
-                    LibraryAction::ALL.iter().any(|a| a.name() == n.trim())
-                }) =>
-            {
-                rest
-            }
+            Some(rest) if is_binding_line(rest) => rest,
             _ => l,
         })
         .collect::<Vec<_>>()
         .join("\n");
     let table: toml::Table = toml::from_str(&uncommented).unwrap();
-    let library = table["library"].as_table().unwrap();
-    for &action in LibraryAction::ALL {
-        let value = library
-            .get(action.name())
-            .unwrap_or_else(|| panic!("{} missing from the example", action.name()));
-        assert_eq!(
-            keys_of(value).unwrap(),
-            action.default_keys().to_vec(),
-            "{}",
-            action.name()
-        );
+    assert_eq!(table.len(), section_names().len());
+    example_section::<LibraryAction>(&table);
+    example_section::<OverlayAction>(&table);
+    example_section::<InstallsAction>(&table);
+    example_section::<SettingsAction>(&table);
+    example_section::<WorkshopAction>(&table);
+    example_section::<WorkshopBrowseAction>(&table);
+    example_section::<WorkshopCommentsAction>(&table);
+    example_section::<StoreAction>(&table);
+    example_section::<SteamStoreAction>(&table);
+    example_section::<DepotsAction>(&table);
+    example_section::<DepotFilesAction>(&table);
+    example_section::<GameInfoAction>(&table);
+    example_section::<CloudAction>(&table);
+    example_section::<CollectionsAction>(&table);
+}
+
+/// `name = …`: a commented binding line, not prose.
+fn is_binding_line(line: &str) -> bool {
+    line.split_once(" = ").is_some_and(|(name, _)| {
+        !name.is_empty() && name.chars().all(|c| c.is_ascii_lowercase() || c == '_')
+    })
+}
+
+#[test]
+fn section_names_are_unique() {
+    let mut names = section_names();
+    let n = names.len();
+    names.sort_unstable();
+    names.dedup();
+    assert_eq!(names.len(), n);
+}
+
+#[test]
+fn tabs_may_share_a_key_but_one_tab_may_not() {
+    let map = Keymap::defaults();
+    // `r` resumes in the queue and rescans in Duplicates.
+    assert_eq!(
+        map.find::<InstallsAction>(key("r"), Some("queue")),
+        Some(InstallsAction::Resume)
+    );
+    assert_eq!(
+        map.find::<InstallsAction>(key("r"), Some("duplicates")),
+        Some(InstallsAction::Rescan)
+    );
+    assert_eq!(
+        map.find::<InstallsAction>(key("p"), Some("duplicates")),
+        None
+    );
+
+    let e = Keymap::parse("[installs]\npause = \"f\"\n").unwrap_err();
+    assert_eq!(e.line, Some(2));
+    assert!(e.message.contains("`pause`"), "{}", e.message);
+    assert!(e.message.contains("`forget`"), "{}", e.message);
+    // Another tab's key is fine.
+    assert!(Keymap::parse("[installs]\nrescan = \"p\"\n").is_ok());
+}
+
+#[test]
+fn an_overlay_key_mustnt_clash_with_overlay_keys() {
+    let e = Keymap::parse("[cloud]\nsync = \"j\"\n").unwrap_err();
+    assert_eq!(e.line, Some(2));
+    assert!(e.message.contains("`down` in [overlay]"), "{}", e.message);
+    assert!(e.message.contains("`sync` in [cloud]"), "{}", e.message);
+
+    // Moving `down` off `j` frees it for the overlay.
+    let map = Keymap::parse("[overlay]\ndown = \"n\"\n[cloud]\nsync = \"j\"\n").unwrap_err();
+    // …but `n` is Collections' `new`.
+    assert!(
+        map.message.contains("`new` in [collections]"),
+        "{}",
+        map.message
+    );
+    let map = Keymap::parse("[overlay]\ndown = \"ctrl+n\"\n[cloud]\nsync = \"j\"\n").unwrap();
+    assert_eq!(
+        map.find::<CloudAction>(key("j"), None),
+        Some(CloudAction::Sync)
+    );
+    assert_eq!(map.overlay_action(key("ctrl+n")), Some(OverlayAction::Down));
+}
+
+#[test]
+fn the_search_pane_takes_only_keys_that_dont_type() {
+    let e = Keymap::parse("[workshop_browse]\nsubscribe = \"s\"\n").unwrap_err();
+    assert!(e.message.contains("types into the search"), "{}", e.message);
+    assert!(Keymap::parse("[workshop_browse]\nsubscribe = \"Enter\"\n").is_err());
+    let map = Keymap::parse("[workshop_browse]\nsubscribe = \"ctrl+s\"\n").unwrap();
+    assert_eq!(
+        map.find::<WorkshopBrowseAction>(key("ctrl+s"), None),
+        Some(WorkshopBrowseAction::Subscribe)
+    );
+    // Its Tab default doesn't clash with [overlay]'s next_tab: [overlay]
+    // doesn't apply while typing.
+    assert!(Keymap::defaults().keys(WorkshopBrowseAction::Subscribe) == [key("Tab")]);
+}
+
+#[test]
+fn hints_skip_unbound_actions() {
+    assert_eq!(
+        hints(&[
+            ("a".into(), "add"),
+            (String::new(), "gone"),
+            ("Esc".into(), "close")
+        ]),
+        "[a] add  [Esc] close"
+    );
+}
+
+#[test]
+fn every_section_parses_with_its_defaults_written_out() {
+    for name in section_names() {
+        assert!(Keymap::parse(&format!("[{name}]\n")).is_ok(), "[{name}]");
     }
 }

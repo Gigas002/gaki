@@ -13,11 +13,14 @@
 # "alt+" for modifiers ("ctrl+r", "alt+PageDown").
 #
 # An action left out keeps its default. gaki-tui refuses to start, naming
-# the line, on an unknown action, a key it can't read, or two actions on one
-# key. Esc, ?, the arrow keys and Ctrl+C can't be rebound.
+# the line, on an unknown section or action, a key it can't read, or two
+# actions on one key. Esc, ?, the arrow keys and Ctrl+C can't be rebound;
+# text prompts and y/n questions keep their keys too.
 #
-# This file sets the library's keys (no overlay open); each overlay keeps
-# its own for now.
+# [library] is the game list with no overlay open. [overlay] holds the keys
+# every overlay shares; each overlay below adds its own, which mustn't
+# clash with [overlay]. Actions marked with a tab only work there, so two
+# tabs may share a key. Overlays not listed here keep fixed keys for now.
 
 [library]
 
@@ -89,3 +92,106 @@
 # settings = "p"
 # wallet = "w"
 # sign_in = "l"
+
+# Keys every overlay shares: moving, scrolling, tabs, closing.
+[overlay]
+# close = "q"
+# down = "j"
+# up = "k"
+# page_down = "PageDown"
+# page_up = "PageUp"
+# next_tab = "Tab"
+# previous_tab = "BackTab"
+
+# The Installs overlay (`X`): the queue and the Duplicates tab.
+[installs]
+# resume = ["r", "Enter"]         # queue tab
+# resume_all = "R"                # queue tab
+# pause = "p"                     # queue tab
+# stop = "s"                      # queue tab
+# forget = "f"                    # queue tab
+# forget_and_delete = "F"         # queue tab
+# rescan = "r"                    # duplicates tab
+
+# The Settings overlay (`p`), by tab.
+[settings]
+# edit = "Enter"                  # settings tab
+# unset = "x"                     # settings tab
+# make_default = "d"              # profiles tab
+# check_again = "r"               # check tab
+# stop_daemon = "s"               # daemons tab
+# stop_all_daemons = "S"          # daemons tab
+# refresh_daemons = "r"           # daemons tab
+
+# The Workshop overlay's status list (`W`).
+[workshop]
+# browse = "b"
+# install = "i"
+# uninstall = "u"
+# update_all = "U"
+# reload = "r"
+
+# The Workshop browse pane. It takes the search text, so only non-character keys can be bound.
+[workshop_browse]
+# subscribe = "Tab"
+# rate_up = "F1"
+# rate_down = "F2"
+# comments = "F3"
+# install = "F4"
+
+# The Workshop comments sub-pane.
+[workshop_comments]
+# write = "c"
+
+# The per-game Store overlay (`Y`).
+[store]
+# next_section = "l"
+# previous_section = "h"
+# regions = "r"
+
+# The Steam Store overlay (`J`).
+[steam_store]
+# next_section = "l"
+# previous_section = "h"
+# details = "Enter"
+# search = "/"
+# wishlist = "w"
+# store_page = "E"
+# next_deals = "s"
+# reload = "r"
+
+# The Depots overlay (`o`).
+[depots]
+# files = "Enter"
+# steamdb = "Z"
+
+# The depot file view.
+[depot_files]
+# filter = "/"
+# branch = "b"
+# download = "d"
+
+# The Game info overlay (`n`), by tab.
+[game_info]
+# check_again = "r"               # checks tab
+# save_artwork = "s"              # artwork tab
+# artwork_folder = "o"            # artwork tab
+
+# The Cloud saves overlay (`C`).
+[cloud]
+# sync = "s"
+# download = "d"
+# upload = "u"
+# keep_cloud = "c"
+# keep_local = "l"
+
+# The Collections overlay (`O`).
+[collections]
+# add = "a"
+# remove = "r"
+# new = "n"
+# rename = "e"
+# delete = "x"
+# pull = "P"
+# push = "U"
+# sync = "S"

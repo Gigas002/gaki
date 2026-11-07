@@ -12,6 +12,7 @@ use ratatui::widgets::{List, ListItem, ListState, Paragraph};
 
 use crate::app::browser::Browser;
 use crate::app::browser::depots::Load;
+use crate::keymap::{DepotsAction as D, hints, key_of};
 use crate::ui::theme;
 use crate::ui::{empty_list_rows, selection_marker};
 
@@ -23,11 +24,20 @@ pub fn draw(frame: &mut Frame, area: Rect, browser: &Browser) {
         return;
     }
     let (title, items, selected) = depot_rows(browser);
-    #[cfg(feature = "depot")]
-    let hint = "[Enter] files  [Z] SteamDB  [Esc] close";
-    #[cfg(not(feature = "depot"))]
-    let hint = "[Z] SteamDB  [Esc] close";
-    draw_list(frame, area, title, items, selected, vec![dim(hint)]);
+    let mut parts = Vec::new();
+    if cfg!(feature = "depot") {
+        parts.push((key_of(D::Files), "files"));
+    }
+    parts.push((key_of(D::SteamDb), "SteamDB"));
+    parts.push(("Esc".to_string(), "close"));
+    draw_list(
+        frame,
+        area,
+        title,
+        items,
+        selected,
+        vec![dim(hints(&parts))],
+    );
 }
 
 fn depot_rows(browser: &Browser) -> (String, Vec<ListItem<'static>>, Option<usize>) {
@@ -230,9 +240,16 @@ mod files {
                         theme::value().fg(theme::WARN),
                     )));
                 }
-                lines.push(dim(
-                    "[d] download  [/] filter  [b] branch  [PgUp/PgDn] page  [Esc] back",
-                ));
+                {
+                    use crate::keymap::{DepotFilesAction as F, OverlayAction as O, pair};
+                    lines.push(dim(hints(&[
+                        (key_of(F::Download), "download"),
+                        (key_of(F::Filter), "filter"),
+                        (key_of(F::Branch), "branch"),
+                        (pair(O::PageUp, O::PageDown), "page"),
+                        ("Esc".to_string(), "back"),
+                    ])));
+                }
                 lines
             }
         }

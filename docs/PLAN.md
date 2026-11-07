@@ -2013,8 +2013,30 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     checks it against `LibraryAction`. Tests: `keymap/tests.rs`,
     `tests/keymap_live.rs` (a custom map in the help, hints and menu);
     `docs/GAKI-TUI.md` ("Key bindings"), `examples/README.md`.
-  - [ ] **8.13b** One table per overlay (`[installs]`, `[settings]`, …),
-    each overlay's handler and footer hints reading the map.
+  - [x] **8.13b** The overlay framework and half the overlays. *Done.*
+    The keymap is generic over an `Actions` trait (section, all, name,
+    default keys, optional tab `group`, fixed `alias`, `TEXT` and
+    `SHARES_OVERLAY` flags), each context declared with the `actions!`
+    macro; `Bindings<A>` per section, `Keymap::find::<A>(key, group)`.
+    Clash checks: within a section among actions on the same tab, and
+    against `[overlay]` for overlay sections; `TEXT` sections refuse keys
+    that type (plain characters, `Enter`, `Backspace`). New sections:
+    `[overlay]` (close, down, up, page_down, page_up, next_tab,
+    previous_tab), `[installs]`, `[settings]`, `[workshop]`,
+    `[workshop_browse]`, `[workshop_comments]`, `[store]`,
+    `[steam_store]`, `[depots]`, `[depot_files]`, `[game_info]`,
+    `[cloud]`, `[collections]`. Their handlers in `keys/overlays.rs` look
+    up their own section, then `[overlay]` (`common`, `own`); Esc, the
+    arrows, prompts and y/n stay fixed. Their footers build hints with
+    `keymap::{hints, key_of, pair}`. `examples/keybinds.toml` lists every
+    section; the test checks each against its `Actions`. Tests:
+    `keymap/tests.rs` (tabs, `[overlay]` clashes, text sections),
+    `tests/keymap_live.rs` (a rebound Installs key in its footer).
+  - [ ] **8.13c** The rest: achievements, DLC, branches, versions, launch
+    options/targets, game settings, Proton, running, inventory, market,
+    move/relink/import, account, help, the Friends panel (`[friends]`)
+    and the Actions menu (`[actions_menu]`), and the help's overlay
+    lines.
 - [ ] **8.15** Share the profile model with lootrs (D9 revised). libgaki
   depends on `liblootrs` for the profile model and its validation only;
   the runners and launch code stay in each tool. Done before 8.14, so the

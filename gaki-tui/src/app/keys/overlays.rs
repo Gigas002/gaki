@@ -1,7 +1,11 @@
 //! Keys in the library's overlays and prompts. The first open one, in the
-//! order below, takes the key.
+//! order below, takes the key. Overlays with a `keybinds.toml` section look
+//! their keys up in [`keymap`]: their own section first, then `[overlay]`.
+//! Text prompts and y/n confirms keep fixed keys.
 
 use ratatui::crossterm::event::KeyCode;
+
+use crate::keymap::{self, Actions, Key, OverlayAction as O};
 
 #[cfg(feature = "install")]
 use super::shared;
@@ -11,7 +15,8 @@ use crate::app::{AppResult, Mode};
 
 /// Handle `input` in the open overlay; overlays a build leaves out are
 /// skipped. Returns `false` when none is open.
-pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
+pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
+    let input = key.code;
     let Library {
         app,
         browser,
@@ -92,20 +97,25 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 KeyCode::Char(c) => browser.collections_input_push(c),
                 _ => {}
             }
+        } else if input == KeyCode::Esc {
+            browser.close_collections();
         } else {
-            match input {
-                KeyCode::Esc | KeyCode::Char('q') => browser.close_collections(),
-                KeyCode::Down | KeyCode::Char('j') => browser.collections_next(),
-                KeyCode::Up | KeyCode::Char('k') => browser.collections_previous(),
-                KeyCode::Char('a') => browser.add_game_to_selected_collection(),
-                KeyCode::Char('r') => browser.remove_game_from_selected_collection(),
-                KeyCode::Char('n') => browser.begin_collection_create(),
-                KeyCode::Char('e') => browser.begin_collection_rename(),
-                KeyCode::Char('x') => browser.begin_collection_delete(),
-                KeyCode::Char('P') => browser.collections_pull(),
-                KeyCode::Char('U') => browser.collections_push(),
-                KeyCode::Char('S') => browser.collections_sync(),
-                _ => {}
+            use crate::keymap::CollectionsAction as C;
+            match own::<C>(key, None) {
+                Some(C::Add) => browser.add_game_to_selected_collection(),
+                Some(C::Remove) => browser.remove_game_from_selected_collection(),
+                Some(C::New) => browser.begin_collection_create(),
+                Some(C::Rename) => browser.begin_collection_rename(),
+                Some(C::Delete) => browser.begin_collection_delete(),
+                Some(C::Pull) => browser.collections_pull(),
+                Some(C::Push) => browser.collections_push(),
+                Some(C::Sync) => browser.collections_sync(),
+                None => match common(key) {
+                    Some(O::Close) => browser.close_collections(),
+                    Some(O::Down) => browser.collections_next(),
+                    Some(O::Up) => browser.collections_previous(),
+                    _ => {}
+                },
             }
         }
         return Ok(true);
@@ -120,14 +130,19 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             browser.answer_cloud_resolve(matches!(input, KeyCode::Char('y' | 'Y')));
             return Ok(true);
         }
-        match input {
-            KeyCode::Esc | KeyCode::Char('q') => browser.close_cloud(),
-            KeyCode::Char('s') => browser.sync_cloud(steam::CloudDirection::Both),
-            KeyCode::Char('d') => browser.sync_cloud(steam::CloudDirection::Down),
-            KeyCode::Char('u') => browser.sync_cloud(steam::CloudDirection::Up),
-            KeyCode::Char('c') => browser.begin_cloud_resolve(steam::CloudResolve::KeepCloud),
-            KeyCode::Char('l') => browser.begin_cloud_resolve(steam::CloudResolve::KeepLocal),
-            _ => {}
+        if input == KeyCode::Esc {
+            browser.close_cloud();
+            return Ok(true);
+        }
+        use crate::keymap::CloudAction as C;
+        match own::<C>(key, None) {
+            Some(C::Sync) => browser.sync_cloud(steam::CloudDirection::Both),
+            Some(C::Download) => browser.sync_cloud(steam::CloudDirection::Down),
+            Some(C::Upload) => browser.sync_cloud(steam::CloudDirection::Up),
+            Some(C::KeepCloud) => browser.begin_cloud_resolve(steam::CloudResolve::KeepCloud),
+            Some(C::KeepLocal) => browser.begin_cloud_resolve(steam::CloudResolve::KeepLocal),
+            None if common(key) == Some(O::Close) => browser.close_cloud(),
+            None => {}
         }
         return Ok(true);
     }
@@ -294,7 +309,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
     #[cfg(feature = "workshop")]
     if browser.show_workshop {
         if browser.workshop_comments_open {
-            workshop_comments_key(browser, input);
+            workshop_comments_key(browser, key);
         } else if browser.workshop_browse {
             // Browse/search pane: the query line takes typed
             // text (Enter searches off-thread). Navigation/action
@@ -304,18 +319,19 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             // rate it up/down off-thread, F3 opens its comments
             // sub-pane, F4 installs it, and Esc returns to the
             // status list.
-            match input {
-                KeyCode::Esc => browser.workshop_exit_browse(),
-                KeyCode::Char('\n') | KeyCode::Enter => browser.start_workshop_search(),
-                KeyCode::Down => browser.workshop_next(),
-                KeyCode::Up => browser.workshop_previous(),
-                KeyCode::Tab => browser.workshop_toggle_subscribe_selected(),
-                KeyCode::F(1) => browser.workshop_rate_selected(true),
-                KeyCode::F(2) => browser.workshop_rate_selected(false),
-                KeyCode::F(3) => browser.workshop_open_comments(),
-                KeyCode::F(4) => browser.workshop_install_result(),
-                KeyCode::Backspace => browser.workshop_pop_query(),
-                KeyCode::Char(c) => browser.workshop_push_query(c),
+            use crate::keymap::WorkshopBrowseAction as B;
+            match (own::<B>(key, None), input) {
+                (Some(B::Subscribe), _) => browser.workshop_toggle_subscribe_selected(),
+                (Some(B::RateUp), _) => browser.workshop_rate_selected(true),
+                (Some(B::RateDown), _) => browser.workshop_rate_selected(false),
+                (Some(B::Comments), _) => browser.workshop_open_comments(),
+                (Some(B::Install), _) => browser.workshop_install_result(),
+                (None, KeyCode::Esc) => browser.workshop_exit_browse(),
+                (None, KeyCode::Enter) => browser.start_workshop_search(),
+                (None, KeyCode::Down) => browser.workshop_next(),
+                (None, KeyCode::Up) => browser.workshop_previous(),
+                (None, KeyCode::Backspace) => browser.workshop_pop_query(),
+                (None, KeyCode::Char(c)) if !key.ctrl && !key.alt => browser.workshop_push_query(c),
                 _ => {}
             }
         } else if browser.workshop_confirm_open() {
@@ -324,16 +340,20 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             // Status list: Esc/q close, j/k move, b browse, i
             // install/update, u uninstall (asks), U update all
             // outdated, r reload.
-            match input {
-                KeyCode::Esc | KeyCode::Char('q') => browser.close_workshop(),
-                KeyCode::Char('b') => browser.workshop_enter_browse(),
-                KeyCode::Down | KeyCode::Char('j') => browser.workshop_select_next(),
-                KeyCode::Up | KeyCode::Char('k') => browser.workshop_select_previous(),
-                KeyCode::Char('i') => browser.workshop_install_selected(),
-                KeyCode::Char('u') => browser.begin_workshop_uninstall(),
-                KeyCode::Char('U') => browser.workshop_update_all(),
-                KeyCode::Char('r') => browser.reload_workshop_status(),
-                _ => {}
+            use crate::keymap::WorkshopAction as W;
+            match own::<W>(key, None) {
+                _ if input == KeyCode::Esc => browser.close_workshop(),
+                Some(W::Browse) => browser.workshop_enter_browse(),
+                Some(W::Install) => browser.workshop_install_selected(),
+                Some(W::Uninstall) => browser.begin_workshop_uninstall(),
+                Some(W::UpdateAll) => browser.workshop_update_all(),
+                Some(W::Reload) => browser.reload_workshop_status(),
+                None => match common(key) {
+                    Some(O::Close) => browser.close_workshop(),
+                    Some(O::Down) => browser.workshop_select_next(),
+                    Some(O::Up) => browser.workshop_select_previous(),
+                    _ => {}
+                },
             }
         }
         return Ok(true);
@@ -529,78 +549,75 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
             return Ok(true);
         }
-        let duplicates = browser
-            .installs
-            .as_ref()
-            .is_some_and(|v| v.tab == crate::app::browser::installs::InstallsTab::Duplicates);
-        if duplicates {
-            match input {
-                KeyCode::Esc | KeyCode::Char('q') => browser.close_installs(),
-                KeyCode::Tab | KeyCode::BackTab => browser.installs_tab(),
-                KeyCode::Down | KeyCode::Char('j') => browser.installs_move(1),
-                KeyCode::Up | KeyCode::Char('k') => browser.installs_move(-1),
-                KeyCode::PageDown => browser.installs_move(10),
-                KeyCode::PageUp => browser.installs_move(-10),
-                KeyCode::Char('r') => browser.rescan_duplicates(),
-                _ => {}
-            }
-            return Ok(true);
-        }
-        match input {
-            KeyCode::Esc | KeyCode::Char('q') => browser.close_installs(),
-            KeyCode::Tab | KeyCode::BackTab => browser.installs_tab(),
-            KeyCode::Down | KeyCode::Char('j') => browser.installs_move(1),
-            KeyCode::Up | KeyCode::Char('k') => browser.installs_move(-1),
-            KeyCode::PageDown => browser.installs_move(10),
-            KeyCode::PageUp => browser.installs_move(-10),
-            KeyCode::Char('\n') | KeyCode::Enter | KeyCode::Char('r') => {
-                browser.installs_resume(client, false)?
-            }
-            KeyCode::Char('R') => browser.installs_resume(client, true)?,
-            KeyCode::Char('p') => browser.installs_signal(true),
-            KeyCode::Char('s') => browser.installs_signal(false),
-            KeyCode::Char('f') => browser.begin_installs_forget(false),
-            KeyCode::Char('F') => browser.begin_installs_forget(true),
-            _ => {}
+        use crate::app::browser::installs::InstallsTab;
+        use crate::keymap::InstallsAction as I;
+        let group = match browser.installs.as_ref().map(|v| v.tab) {
+            Some(InstallsTab::Duplicates) => "duplicates",
+            _ => "queue",
+        };
+        match own::<I>(key, Some(group)) {
+            _ if input == KeyCode::Esc => browser.close_installs(),
+            Some(I::Resume) => browser.installs_resume(client, false)?,
+            Some(I::ResumeAll) => browser.installs_resume(client, true)?,
+            Some(I::Pause) => browser.installs_signal(true),
+            Some(I::Stop) => browser.installs_signal(false),
+            Some(I::Forget) => browser.begin_installs_forget(false),
+            Some(I::ForgetAndDelete) => browser.begin_installs_forget(true),
+            Some(I::Rescan) => browser.rescan_duplicates(),
+            None => match common(key) {
+                Some(O::Close) => browser.close_installs(),
+                Some(O::NextTab | O::PreviousTab) => browser.installs_tab(),
+                Some(O::Down) => browser.installs_move(1),
+                Some(O::Up) => browser.installs_move(-1),
+                Some(O::PageDown) => browser.installs_move(10),
+                Some(O::PageUp) => browser.installs_move(-10),
+                None => {}
+            },
         }
         return Ok(true);
     }
     // The per-game Store overlay can sit on top of the Steam Store one.
     if browser.game_info.is_some() {
-        game_info_key(browser, input);
+        game_info_key(browser, key);
         return Ok(true);
     }
     #[cfg(feature = "store")]
     if browser.store.is_some() {
-        store_key(browser, input);
+        store_key(browser, key);
         return Ok(true);
     }
     #[cfg(feature = "store")]
     if browser.shop.is_some() {
-        shop_key(browser, input);
+        shop_key(browser, key);
         return Ok(true);
     }
     if browser.show_depots {
         #[cfg(feature = "depot")]
         if browser.depots.files.is_some() {
-            depot_files_key(browser, input);
+            depot_files_key(browser, key);
             return Ok(true);
         }
         // Depots overlay: Esc/q close, j/k move, Enter opens the files,
         // Z opens the depot's manifest history on SteamDB.
-        match input {
-            KeyCode::Esc | KeyCode::Char('q') => browser.close_depots(),
-            KeyCode::Down | KeyCode::Char('j') => browser.depots_next(),
-            KeyCode::Up | KeyCode::Char('k') => browser.depots_previous(),
-            KeyCode::Char('Z') => {
+        use crate::keymap::DepotsAction as D;
+        match own::<D>(key, None) {
+            _ if input == KeyCode::Esc => browser.close_depots(),
+            Some(D::SteamDb) => {
                 if let Some(depot) = browser.depots.selected_depot() {
                     let id = depot.id as i32;
                     browser.open_link(crate::app::browser::Link::SteamDbDepot, id);
                 }
             }
             #[cfg(feature = "depot")]
-            KeyCode::Char('\n') | KeyCode::Enter => browser.open_depot_files(),
-            _ => {}
+            Some(D::Files) => browser.open_depot_files(),
+            #[cfg(not(feature = "depot"))]
+            Some(D::Files) => {}
+            None => match common(key) {
+                Some(O::Close) => browser.close_depots(),
+                Some(O::Down) => browser.depots_next(),
+                Some(O::Up) => browser.depots_previous(),
+                _ => {}
+            },
         }
         return Ok(true);
     }
@@ -691,32 +708,41 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             }
         } else {
             use crate::app::browser::settings::Tab;
-            match (browser.settings.tab, input) {
-                (_, KeyCode::Esc | KeyCode::Char('q')) => browser.close_config(),
-                (_, KeyCode::Tab) => browser.settings_tab(true),
-                (_, KeyCode::BackTab) => browser.settings_tab(false),
-                (Tab::Settings, KeyCode::Down | KeyCode::Char('j')) => browser.settings_move(1),
-                (Tab::Settings, KeyCode::Up | KeyCode::Char('k')) => browser.settings_move(-1),
-                (Tab::Settings, KeyCode::Char('\n') | KeyCode::Enter) => {
-                    browser.settings_activate()
-                }
-                (Tab::Settings, KeyCode::Char('x')) => browser.settings_unset(),
-                (Tab::Profiles, KeyCode::Down | KeyCode::Char('j')) => browser.profiles_move(1),
-                (Tab::Profiles, KeyCode::Up | KeyCode::Char('k')) => browser.profiles_move(-1),
-                (Tab::Profiles, KeyCode::PageDown) => browser.settings_scroll(10),
-                (Tab::Profiles, KeyCode::PageUp) => browser.settings_scroll(-10),
-                (Tab::Profiles, KeyCode::Char('d')) => browser.make_profile_default(),
-                (Tab::Check, KeyCode::Down | KeyCode::Char('j')) => browser.settings_scroll(1),
-                (Tab::Check, KeyCode::Up | KeyCode::Char('k')) => browser.settings_scroll(-1),
-                (Tab::Check, KeyCode::PageDown) => browser.settings_scroll(10),
-                (Tab::Check, KeyCode::PageUp) => browser.settings_scroll(-10),
-                (Tab::Check, KeyCode::Char('r')) => browser.rerun_check(),
-                (Tab::Daemons, KeyCode::Down | KeyCode::Char('j')) => browser.daemons_move(1),
-                (Tab::Daemons, KeyCode::Up | KeyCode::Char('k')) => browser.daemons_move(-1),
-                (Tab::Daemons, KeyCode::Char('s')) => browser.begin_daemon_stop(false),
-                (Tab::Daemons, KeyCode::Char('S')) => browser.begin_daemon_stop(true),
-                (Tab::Daemons, KeyCode::Char('r')) => browser.reload_daemons(),
-                _ => {}
+            use crate::keymap::SettingsAction as S;
+            let tab = browser.settings.tab;
+            let group = match tab {
+                Tab::Settings => "settings",
+                Tab::Profiles => "profiles",
+                Tab::Check => "check",
+                Tab::Daemons => "daemons",
+            };
+            match own::<S>(key, Some(group)) {
+                _ if input == KeyCode::Esc => browser.close_config(),
+                Some(S::Edit) => browser.settings_activate(),
+                Some(S::Unset) => browser.settings_unset(),
+                Some(S::MakeDefault) => browser.make_profile_default(),
+                Some(S::CheckAgain) => browser.rerun_check(),
+                Some(S::StopDaemon) => browser.begin_daemon_stop(false),
+                Some(S::StopAllDaemons) => browser.begin_daemon_stop(true),
+                Some(S::RefreshDaemons) => browser.reload_daemons(),
+                None => match (tab, common(key)) {
+                    (_, Some(O::Close)) => browser.close_config(),
+                    (_, Some(O::NextTab)) => browser.settings_tab(true),
+                    (_, Some(O::PreviousTab)) => browser.settings_tab(false),
+                    (Tab::Settings, Some(O::Down)) => browser.settings_move(1),
+                    (Tab::Settings, Some(O::Up)) => browser.settings_move(-1),
+                    (Tab::Profiles, Some(O::Down)) => browser.profiles_move(1),
+                    (Tab::Profiles, Some(O::Up)) => browser.profiles_move(-1),
+                    (Tab::Profiles, Some(O::PageDown)) => browser.settings_scroll(10),
+                    (Tab::Profiles, Some(O::PageUp)) => browser.settings_scroll(-10),
+                    (Tab::Check, Some(O::Down)) => browser.settings_scroll(1),
+                    (Tab::Check, Some(O::Up)) => browser.settings_scroll(-1),
+                    (Tab::Check, Some(O::PageDown)) => browser.settings_scroll(10),
+                    (Tab::Check, Some(O::PageUp)) => browser.settings_scroll(-10),
+                    (Tab::Daemons, Some(O::Down)) => browser.daemons_move(1),
+                    (Tab::Daemons, Some(O::Up)) => browser.daemons_move(-1),
+                    _ => {}
+                },
             }
         }
         return Ok(true);
@@ -748,7 +774,8 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
 /// Keys in the depot file view. With a prompt open they type into it;
 /// otherwise Esc/q go back to the depot list.
 #[cfg(feature = "depot")]
-fn depot_files_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+fn depot_files_key(browser: &mut crate::app::browser::Browser, key: Key) {
+    let input = key.code;
     if browser.depot_input_open() {
         match input {
             KeyCode::Esc => browser.cancel_depot_input(),
@@ -759,23 +786,28 @@ fn depot_files_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         }
         return;
     }
-    match input {
-        KeyCode::Esc | KeyCode::Char('q') => browser.close_depot_files(),
-        KeyCode::Down | KeyCode::Char('j') => browser.depot_files_move(1),
-        KeyCode::Up | KeyCode::Char('k') => browser.depot_files_move(-1),
-        KeyCode::PageDown => browser.depot_files_move(10),
-        KeyCode::PageUp => browser.depot_files_move(-10),
-        KeyCode::Char('/') => browser.begin_depot_filter(),
-        KeyCode::Char('b') => browser.begin_depot_branch(),
-        KeyCode::Char('d') => browser.begin_depot_download(),
-        _ => {}
+    use crate::keymap::DepotFilesAction as F;
+    match own::<F>(key, None) {
+        _ if input == KeyCode::Esc => browser.close_depot_files(),
+        Some(F::Filter) => browser.begin_depot_filter(),
+        Some(F::Branch) => browser.begin_depot_branch(),
+        Some(F::Download) => browser.begin_depot_download(),
+        None => match common(key) {
+            Some(O::Close) => browser.close_depot_files(),
+            Some(O::Down) => browser.depot_files_move(1),
+            Some(O::Up) => browser.depot_files_move(-1),
+            Some(O::PageDown) => browser.depot_files_move(10),
+            Some(O::PageUp) => browser.depot_files_move(-10),
+            _ => {}
+        },
     }
 }
 
 /// Keys in the Store overlay. With the regions prompt open they type into
 /// it.
 #[cfg(feature = "store")]
-fn store_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+fn store_key(browser: &mut crate::app::browser::Browser, key: Key) {
+    let input = key.code;
     if browser.store_input_open() {
         match input {
             KeyCode::Esc => browser.cancel_store_input(),
@@ -786,23 +818,32 @@ fn store_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         }
         return;
     }
-    match input {
-        KeyCode::Esc | KeyCode::Char('q') => browser.close_store(),
-        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => browser.store_cycle(1),
-        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => browser.store_cycle(-1),
-        KeyCode::Down | KeyCode::Char('j') => browser.store_scroll(1),
-        KeyCode::Up | KeyCode::Char('k') => browser.store_scroll(-1),
-        KeyCode::PageDown => browser.store_scroll(10),
-        KeyCode::PageUp => browser.store_scroll(-10),
-        KeyCode::Char('r') => browser.begin_store_regions(),
-        _ => {}
+    use crate::keymap::StoreAction as St;
+    match own::<St>(key, None) {
+        _ if input == KeyCode::Esc => browser.close_store(),
+        _ if key == Key::plain(KeyCode::Right) => browser.store_cycle(1),
+        _ if key == Key::plain(KeyCode::Left) => browser.store_cycle(-1),
+        Some(St::NextSection) => browser.store_cycle(1),
+        Some(St::PreviousSection) => browser.store_cycle(-1),
+        Some(St::Regions) => browser.begin_store_regions(),
+        None => match common(key) {
+            Some(O::Close) => browser.close_store(),
+            Some(O::NextTab) => browser.store_cycle(1),
+            Some(O::PreviousTab) => browser.store_cycle(-1),
+            Some(O::Down) => browser.store_scroll(1),
+            Some(O::Up) => browser.store_scroll(-1),
+            Some(O::PageDown) => browser.store_scroll(10),
+            Some(O::PageUp) => browser.store_scroll(-10),
+            None => {}
+        },
     }
 }
 
 /// Keys in the Steam Store overlay: the search prompt and the wishlist
 /// confirm take them first.
 #[cfg(feature = "store")]
-fn shop_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+fn shop_key(browser: &mut crate::app::browser::Browser, key: Key) {
+    let input = key.code;
     if browser.shop_confirm_open() {
         match input {
             KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
@@ -833,28 +874,37 @@ fn shop_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         }
         return;
     }
-    match input {
-        KeyCode::Esc | KeyCode::Char('q') => browser.close_shop(),
-        KeyCode::Tab | KeyCode::Right | KeyCode::Char('l') => browser.shop_cycle(1),
-        KeyCode::BackTab | KeyCode::Left | KeyCode::Char('h') => browser.shop_cycle(-1),
-        KeyCode::Down | KeyCode::Char('j') => browser.shop_move(1),
-        KeyCode::Up | KeyCode::Char('k') => browser.shop_move(-1),
-        KeyCode::PageDown => browser.shop_move(10),
-        KeyCode::PageUp => browser.shop_move(-10),
-        KeyCode::Char('\n') | KeyCode::Enter => browser.shop_open_game(),
-        KeyCode::Char('/') => browser.begin_shop_search(),
-        KeyCode::Char('w') => browser.begin_shop_wish(),
-        KeyCode::Char('E') => browser.shop_open_page(),
-        KeyCode::Char('s') => browser.shop_next_deals(),
-        KeyCode::Char('r') => browser.shop_reload(),
-        _ => {}
+    use crate::keymap::SteamStoreAction as Sh;
+    match own::<Sh>(key, None) {
+        _ if input == KeyCode::Esc => browser.close_shop(),
+        _ if key == Key::plain(KeyCode::Right) => browser.shop_cycle(1),
+        _ if key == Key::plain(KeyCode::Left) => browser.shop_cycle(-1),
+        Some(Sh::NextSection) => browser.shop_cycle(1),
+        Some(Sh::PreviousSection) => browser.shop_cycle(-1),
+        Some(Sh::Details) => browser.shop_open_game(),
+        Some(Sh::Search) => browser.begin_shop_search(),
+        Some(Sh::Wishlist) => browser.begin_shop_wish(),
+        Some(Sh::StorePage) => browser.shop_open_page(),
+        Some(Sh::NextDeals) => browser.shop_next_deals(),
+        Some(Sh::Reload) => browser.shop_reload(),
+        None => match common(key) {
+            Some(O::Close) => browser.close_shop(),
+            Some(O::NextTab) => browser.shop_cycle(1),
+            Some(O::PreviousTab) => browser.shop_cycle(-1),
+            Some(O::Down) => browser.shop_move(1),
+            Some(O::Up) => browser.shop_move(-1),
+            Some(O::PageDown) => browser.shop_move(10),
+            Some(O::PageUp) => browser.shop_move(-10),
+            None => {}
+        },
     }
 }
 
 /// The Workshop comments sub-pane: scroll, or write a comment (`c`), which
 /// asks before it posts.
 #[cfg(feature = "workshop")]
-fn workshop_comments_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+fn workshop_comments_key(browser: &mut crate::app::browser::Browser, key: Key) {
+    let input = key.code;
     match browser
         .workshop_tasks
         .comment
@@ -870,21 +920,29 @@ fn workshop_comments_key(browser: &mut crate::app::browser::Browser, input: KeyC
             _ => {}
         },
         // No text is edited here, so j/k are also scroll keys.
-        None => match input {
-            KeyCode::Esc => browser.close_workshop_comments(),
-            KeyCode::Down | KeyCode::Char('j') => browser.workshop_comments_scroll_down(),
-            KeyCode::Up | KeyCode::Char('k') => browser.workshop_comments_scroll_up(),
-            KeyCode::Char('c') => browser.begin_workshop_comment(),
-            _ => {}
-        },
+        None => {
+            use crate::keymap::WorkshopCommentsAction as Wc;
+            match own::<Wc>(key, None) {
+                _ if input == KeyCode::Esc => browser.close_workshop_comments(),
+                Some(Wc::Write) => browser.begin_workshop_comment(),
+                None => match common(key) {
+                    Some(O::Close) => browser.close_workshop_comments(),
+                    Some(O::Down) => browser.workshop_comments_scroll_down(),
+                    Some(O::Up) => browser.workshop_comments_scroll_up(),
+                    _ => {}
+                },
+            }
+        }
     }
 }
 
 /// The Game info overlay: `Tab` switches tabs, `j`/`k` and `PgUp`/`PgDn`
 /// scroll, `r` re-runs the checks, `s` saves the artwork and `o` edits its
 /// folder (a prompt).
-fn game_info_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
+fn game_info_key(browser: &mut crate::app::browser::Browser, key: Key) {
     use crate::app::browser::game_info::InfoTab;
+    use crate::keymap::GameInfoAction as G;
+    let input = key.code;
     let Some(view) = &browser.game_info else {
         return;
     };
@@ -898,17 +956,39 @@ fn game_info_key(browser: &mut crate::app::browser::Browser, input: KeyCode) {
         }
         return;
     }
-    match (view.tab, input) {
-        (_, KeyCode::Esc | KeyCode::Char('q')) => browser.close_game_info(),
-        (_, KeyCode::Tab) => browser.game_info_tab(true),
-        (_, KeyCode::BackTab) => browser.game_info_tab(false),
-        (_, KeyCode::Down | KeyCode::Char('j')) => browser.game_info_scroll(1),
-        (_, KeyCode::Up | KeyCode::Char('k')) => browser.game_info_scroll(-1),
-        (_, KeyCode::PageDown) => browser.game_info_scroll(10),
-        (_, KeyCode::PageUp) => browser.game_info_scroll(-10),
-        (InfoTab::Checks, KeyCode::Char('r')) => browser.rerun_game_checks(),
-        (InfoTab::Artwork, KeyCode::Char('s')) => browser.save_game_artwork(),
-        (InfoTab::Artwork, KeyCode::Char('o')) => browser.begin_artwork_dir(),
-        _ => {}
+    let group = match view.tab {
+        InfoTab::Details => "details",
+        InfoTab::Checks => "checks",
+        InfoTab::Artwork => "artwork",
+    };
+    match own::<G>(key, Some(group)) {
+        _ if input == KeyCode::Esc => browser.close_game_info(),
+        Some(G::CheckAgain) => browser.rerun_game_checks(),
+        Some(G::SaveArtwork) => browser.save_game_artwork(),
+        Some(G::ArtworkFolder) => browser.begin_artwork_dir(),
+        None => match common(key) {
+            Some(O::Close) => browser.close_game_info(),
+            Some(O::NextTab) => browser.game_info_tab(true),
+            Some(O::PreviousTab) => browser.game_info_tab(false),
+            Some(O::Down) => browser.game_info_scroll(1),
+            Some(O::Up) => browser.game_info_scroll(-1),
+            Some(O::PageDown) => browser.game_info_scroll(10),
+            Some(O::PageUp) => browser.game_info_scroll(-10),
+            None => {}
+        },
     }
+}
+
+/// The `[overlay]` action `key` runs; the arrow keys always move.
+fn common(key: Key) -> Option<O> {
+    match key {
+        k if k == Key::plain(KeyCode::Down) => Some(O::Down),
+        k if k == Key::plain(KeyCode::Up) => Some(O::Up),
+        k => keymap::get().overlay_action(k),
+    }
+}
+
+/// The action `key` runs in overlay context `A`, in tab `group`.
+fn own<A: Actions>(key: Key, group: Option<&str>) -> Option<A> {
+    keymap::get().find(key, group)
 }

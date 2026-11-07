@@ -12,6 +12,7 @@ use libgaki::ops::install::InstallRow;
 use crate::app::browser::installs::{DuplicatesTab, InstallsTab, InstallsView, RowKind, row_kind};
 use crate::app::browser::job::Load;
 use crate::app::steam::DuplicateRow;
+use crate::keymap::{self, InstallsAction as I, OverlayAction as O, hints, key_of, pair};
 use crate::ui::depots::draw_list;
 use crate::ui::theme;
 use crate::ui::{date_time, empty_list_rows, selection_marker};
@@ -133,9 +134,16 @@ fn footer(view: &InstallsView) -> Vec<Line<'static>> {
             theme::value().fg(theme::WARN),
         )));
     }
-    lines.push(dim(
-        "[r/Enter] resume  [R] resume all  [p] pause  [s] stop  [f] forget  [F] forget + delete files  [Tab] duplicates  [Esc] close",
-    ));
+    lines.push(dim(hints(&[
+        (keymap::get().label(I::Resume).replace(" / ", "/"), "resume"),
+        (key_of(I::ResumeAll), "resume all"),
+        (key_of(I::Pause), "pause"),
+        (key_of(I::Stop), "stop"),
+        (key_of(I::Forget), "forget"),
+        (key_of(I::ForgetAndDelete), "forget + delete files"),
+        (key_of(O::NextTab), "duplicates"),
+        ("Esc".to_string(), "close"),
+    ])));
     lines
 }
 
@@ -181,7 +189,12 @@ fn duplicate_row(row: &DuplicateRow, selected: bool) -> ListItem<'static> {
 
 fn draw_duplicates(frame: &mut Frame, area: Rect, view: &InstallsView) {
     let tab: Option<&DuplicatesTab> = view.duplicates.as_ref();
-    let hint = dim("[j/k] move  [r] scan again  [Tab] installs  [Esc] close");
+    let hint = dim(hints(&[
+        (pair(O::Down, O::Up), "move"),
+        (key_of(I::Rescan), "scan again"),
+        (key_of(O::NextTab), "installs"),
+        ("Esc".to_string(), "close"),
+    ]));
     let (count, items, selected, mut footer) = match tab.map(|t| &t.scan) {
         None | Some(Load::Loading(_)) => (
             None,

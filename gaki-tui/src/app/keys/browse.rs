@@ -19,7 +19,7 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<Flow> {
     lib.browser.notice = None;
     if lib.browser.show_actions {
         actions::key(lib, input)?;
-    } else if !overlays::key(lib, input)? {
+    } else if !overlays::key(lib, key)? {
         return base(lib, key);
     }
     Ok(Flow::Continue)

@@ -11,6 +11,7 @@ use libgaki::steam_client::{StoreEvent, unix_to_ymd};
 
 use crate::app::browser::job::Load;
 use crate::app::browser::shop::{GameRow, ShopSection, ShopView, scope_label};
+use crate::keymap::{OverlayAction as O, SteamStoreAction as Sh, hints, key_of};
 use crate::ui::depots::draw_list;
 use crate::ui::theme;
 use crate::ui::{empty_list_rows, selection_marker};
@@ -45,8 +46,9 @@ fn rows(view: &ShopView) -> (Vec<ListItem<'static>>, Option<usize>) {
         }
         ShopSection::Deals => {
             header.push(ListItem::new(dim(format!(
-                "Showing {} ([s] next list)",
-                scope_label(view.deals_scope)
+                "Showing {} ({})",
+                scope_label(view.deals_scope),
+                hints(&[(key_of(Sh::NextDeals), "next list")])
             ))));
             view.deals.as_ref().map(load_state)
         }
@@ -204,16 +206,19 @@ fn footer(view: &ShopView) -> Vec<Line<'static>> {
             theme::value().fg(theme::WARN),
         )));
     }
-    let mut hint = String::from("[Tab] section  ");
+    let mut parts = vec![(key_of(O::NextTab), "section")];
     match view.section {
-        ShopSection::Search => hint.push_str("[/] search  "),
-        ShopSection::Deals => hint.push_str("[s] next list  "),
+        ShopSection::Search => parts.push((key_of(Sh::Search), "search")),
+        ShopSection::Deals => parts.push((key_of(Sh::NextDeals), "next list")),
         _ => {}
     }
     if view.section != ShopSection::Events {
-        hint.push_str("[Enter] details  [w] wishlist  [E] store page  ");
+        parts.push((key_of(Sh::Details), "details"));
+        parts.push((key_of(Sh::Wishlist), "wishlist"));
+        parts.push((key_of(Sh::StorePage), "store page"));
     }
-    hint.push_str("[r] reload  [Esc] close");
-    lines.push(dim(hint));
+    parts.push((key_of(Sh::Reload), "reload"));
+    parts.push(("Esc".to_string(), "close"));
+    lines.push(dim(hints(&parts)));
     lines
 }
