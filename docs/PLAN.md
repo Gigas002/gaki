@@ -1852,7 +1852,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `workshop_post_comment`, covered by the offline test; view tests in
     `tests/browse_view.rs`. Help lines, `docs/GAKI-TUI.md` ("Workshop"),
     `docs/FEATURES.md`.
-- [ ] **8.7** Open a game's **SteamDB** page (`https://steamdb.info/app/<id>/`)
+- [x] **8.7** Open a game's **SteamDB** page (`https://steamdb.info/app/<id>/`)
   from the library, next to the Steam store (`E`) and ProtonDB (`B`) links.
   Add `steam_urls::steamdb_url` (and `steamdb_depot_url`, then use it for
   the depot manifest hints the CLI and TUI print today), a TUI key, an
@@ -1861,6 +1861,15 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   links. Opening it is just a link the user follows: gaki never scrapes
   SteamDB. Pick the key at the start of the step (it has to be free in the
   library and the Actions menu).
+  *Done.* `steam_urls::steamdb_url` (`/app/<id>/`) and `steamdb_depot_url`
+  (`/depot/<id>/manifests/`), tested. The CLI `manifests` hint uses the
+  depot URL; `list --json`, `info --json` and its DLC entries gained
+  `steamdb_url` (additive, so the schema number stays). TUI: `Z` in the
+  library and a **SteamDB page** Actions row (Links, `Z`) open
+  `Link::SteamDb`; `Z` in the Depots overlay and the Versions overlay opens
+  the highlighted depot's manifest history (`Link::SteamDbDepot`, whose id
+  is the depot's), and the Versions downgrade prompt prints that depot's
+  URL. Help line, key hints, `docs/GAKI-TUI.md`, `docs/GAKI-CLI.md`.
 - [ ] **8.8** TUI collection rename. The worker already has
   `steam::collection_rename`; only a key and a prompt are missing.
 - [ ] **8.9** TUI Cloud conflict resolution. A sync with diverged saves only

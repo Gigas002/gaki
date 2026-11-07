@@ -48,6 +48,10 @@ pub(crate) async fn cmd_list(
                         serde_json::json!(steam_urls::store_url(g.app_id)),
                     );
                     obj.insert(
+                        "steamdb_url".into(),
+                        serde_json::json!(steam_urls::steamdb_url(g.app_id)),
+                    );
+                    obj.insert(
                         "collections".into(),
                         serde_json::json!(game_collections(g.app_id)),
                     );

@@ -71,6 +71,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `M` / `K` / `N`       | Move, relink, import an install                          |
 | `O`                   | Collections                                              |
 | `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it |
+| `Z`                   | Open the game's SteamDB page (in Depots and Versions: the highlighted depot's manifest history) |
 | `I` / `w`             | Inventory, wallet                                        |
 | `m` / `S`             | Market listings, market search                           |
 | `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes) |

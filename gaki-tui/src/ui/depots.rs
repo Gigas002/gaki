@@ -24,9 +24,9 @@ pub fn draw(frame: &mut Frame, area: Rect, browser: &Browser) {
     }
     let (title, items, selected) = depot_rows(browser);
     #[cfg(feature = "depot")]
-    let hint = "[Enter] files  [Esc] close";
+    let hint = "[Enter] files  [Z] SteamDB  [Esc] close";
     #[cfg(not(feature = "depot"))]
-    let hint = "[Esc] close";
+    let hint = "[Z] SteamDB  [Esc] close";
     draw_list(frame, area, title, items, selected, vec![dim(hint)]);
 }
 

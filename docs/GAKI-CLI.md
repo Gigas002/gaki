@@ -126,7 +126,9 @@ gaki-cli unpin 1245620                # release the pin
 ```
 
 Steam doesn't list older manifest ids. SteamDB does:
-`https://steamdb.info/depot/<depot_id>/manifests/`.
+`https://steamdb.info/depot/<depot_id>/manifests/` (`manifests` prints the
+link for each depot). gaki never fetches SteamDB itself; the links are only
+for you to follow.
 
 ### Depot browser (`depot` feature)
 
@@ -279,6 +281,10 @@ every error `type` with its exit code and hint, and behavior `features` that
 flags don't reveal. Add a command path (`gaki-cli capabilities config game`) for
 one command's arguments, subcommands and flags in detail. It runs offline and
 never starts the daemon.
+
+`list --json` and `info --json` (and each DLC in it) carry ready-made links
+next to the artwork: `store_url` (the Steam store page) and `steamdb_url`
+(the SteamDB page).
 
 Every `{"event":"result",...}` line also carries `"schema"`. It goes up only
 when an existing field changes meaning or is removed; new fields don't change

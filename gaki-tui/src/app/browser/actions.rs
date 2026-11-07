@@ -52,6 +52,7 @@ pub enum Action {
     SteamPage,
     ProtonDb,
     ProtonIssues,
+    SteamDb,
     Favourite,
     Hide,
 }
@@ -247,6 +248,12 @@ impl Browser {
             category: LINKS,
             label: "Proton issues on GitHub",
             key: "T",
+        });
+        rows.push(ActionRow {
+            action: Action::SteamDb,
+            category: LINKS,
+            label: "SteamDB page",
+            key: "Z",
         });
 
         const LIB: &str = "Library";

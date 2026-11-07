@@ -40,6 +40,12 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
                 KeyCode::Char('p') => browser.pin_current(),
                 KeyCode::Char('u') => browser.unpin_current(),
                 KeyCode::Char('d') => browser.begin_downgrade_input(),
+                KeyCode::Char('Z') => {
+                    if let Some(m) = browser.selected_manifest() {
+                        let id = m.depot_id as i32;
+                        browser.open_link(crate::app::browser::Link::SteamDbDepot, id);
+                    }
+                }
                 _ => {}
             }
         }
@@ -529,11 +535,18 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult<bool> {
             depot_files_key(browser, input);
             return Ok(true);
         }
-        // Depots overlay: Esc/q close, j/k move, Enter opens the files.
+        // Depots overlay: Esc/q close, j/k move, Enter opens the files,
+        // Z opens the depot's manifest history on SteamDB.
         match input {
             KeyCode::Esc | KeyCode::Char('q') => browser.close_depots(),
             KeyCode::Down | KeyCode::Char('j') => browser.depots_next(),
             KeyCode::Up | KeyCode::Char('k') => browser.depots_previous(),
+            KeyCode::Char('Z') => {
+                if let Some(depot) = browser.depots.selected_depot() {
+                    let id = depot.id as i32;
+                    browser.open_link(crate::app::browser::Link::SteamDbDepot, id);
+                }
+            }
             #[cfg(feature = "depot")]
             KeyCode::Char('\n') | KeyCode::Enter => browser.open_depot_files(),
             _ => {}

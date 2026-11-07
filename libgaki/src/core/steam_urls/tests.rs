@@ -33,3 +33,12 @@ fn builds_proton_compatibility_urls() {
         "https://github.com/ValveSoftware/Proton/issues?q=is%3Aissue+8850"
     );
 }
+
+#[test]
+fn builds_steamdb_urls() {
+    assert_eq!(steamdb_url(8850), "https://steamdb.info/app/8850/");
+    assert_eq!(
+        steamdb_depot_url(8851),
+        "https://steamdb.info/depot/8851/manifests/"
+    );
+}

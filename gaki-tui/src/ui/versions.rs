@@ -100,16 +100,25 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
             Span::styled("_".to_string(), theme::key()),
         ]));
         lines.push(Line::from(Span::styled(
-            "Enter to start · Esc to cancel · (find older ids on SteamDB)".to_string(),
+            "Enter to start · Esc to cancel".to_string(),
             theme::dim(),
         )));
+        if let Some(m) = browser.selected_manifest() {
+            lines.push(Line::from(Span::styled(
+                format!(
+                    "Older ids: {}",
+                    libgaki::core::steam_urls::steamdb_depot_url(m.depot_id)
+                ),
+                theme::dim(),
+            )));
+        }
     } else {
         let status = if !browser.versions_status.is_empty() {
             browser.versions_status.clone()
         } else if let Some(busy) = browser.downgrade_busy_text() {
             busy
         } else {
-            "[p] pin  [u] unpin  [d] downgrade selected  [Esc] close".to_string()
+            "[p] pin  [u] unpin  [d] downgrade selected  [Z] SteamDB  [Esc] close".to_string()
         };
         lines.push(Line::from(Span::styled(status, theme::dim())));
     }

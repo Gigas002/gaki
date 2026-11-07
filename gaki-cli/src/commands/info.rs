@@ -162,6 +162,7 @@ pub(crate) fn info_json_value(app: &AppInfo) -> serde_json::Value {
         "platforms": details.platforms,
         "reviews": details.review_summary,
         "store_url": steam_urls::store_url(details.app_id),
+        "steamdb_url": steam_urls::steamdb_url(details.app_id),
         "assets": {
             "header": details.assets.header,
             "capsule": details.assets.capsule,
@@ -381,6 +382,7 @@ pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
                     "image_url": steam_urls::header_url(*id),
                     "image_fallback_url": steam_urls::small_capsule_url(*id),
                     "store_url": steam_urls::store_url(*id),
+                    "steamdb_url": steam_urls::steamdb_url(*id),
                 })
             }).collect::<Vec<_>>(),
         });

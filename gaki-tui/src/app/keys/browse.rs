@@ -242,6 +242,11 @@ fn base(lib: &mut Library, input: KeyCode) -> AppResult<Flow> {
                 browser.open_link(Link::ProtonIssues, game.id);
             }
         }
+        KeyCode::Char('Z') => {
+            if let Some(game) = browser.selected() {
+                browser.open_link(Link::SteamDb, game.id);
+            }
+        }
         KeyCode::Char('L') => {
             if let Some(game) = browser.selected() {
                 browser.open_launch(game.id);

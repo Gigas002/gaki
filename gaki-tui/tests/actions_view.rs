@@ -369,7 +369,7 @@ fn settings_overlay_renders_proxy() {
 }
 
 #[test]
-fn every_game_links_to_steam_protondb_and_the_proton_tracker() {
+fn every_game_links_to_steam_protondb_steamdb_and_the_proton_tracker() {
     isolate_config();
     for installed in [true, false] {
         let browser = Browser::new(vec![game(1, "Alpha", installed)]);
@@ -378,6 +378,7 @@ fn every_game_links_to_steam_protondb_and_the_proton_tracker() {
             (Action::SteamPage, "E"),
             (Action::ProtonDb, "B"),
             (Action::ProtonIssues, "T"),
+            (Action::SteamDb, "Z"),
         ] {
             let row = rows.iter().find(|r| r.action == action).expect("link row");
             assert_eq!(row.category, "Links");
@@ -393,4 +394,12 @@ fn every_game_links_to_steam_protondb_and_the_proton_tracker() {
         "https://www.protondb.com/app/945360"
     );
     assert!(Link::ProtonIssues.url(945360).ends_with("+945360"));
+    assert_eq!(
+        Link::SteamDb.url(945360),
+        "https://steamdb.info/app/945360/"
+    );
+    assert_eq!(
+        Link::SteamDbDepot.url(945361),
+        "https://steamdb.info/depot/945361/manifests/"
+    );
 }

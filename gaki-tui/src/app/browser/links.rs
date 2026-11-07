@@ -1,4 +1,5 @@
-//! Web pages about the selected game, opened in the default browser.
+//! Web pages about the selected game (or one of its depots), opened in the
+//! default browser.
 
 use std::thread;
 
@@ -16,6 +17,10 @@ pub enum Link {
     ProtonDb,
     /// A search of Valve's Proton issue tracker for its app id.
     ProtonIssues,
+    /// Its SteamDB page.
+    SteamDb,
+    /// A depot's manifest history on SteamDB; the id is the depot's.
+    SteamDbDepot,
 }
 
 impl Link {
@@ -25,22 +30,28 @@ impl Link {
             Link::Steam => "the Steam page",
             Link::ProtonDb => "ProtonDB",
             Link::ProtonIssues => "Proton issues",
+            Link::SteamDb => "SteamDB",
+            Link::SteamDbDepot => "the depot on SteamDB",
         }
     }
 
-    /// The page's URL for `app_id`.
-    pub fn url(self, app_id: i32) -> String {
-        let app_id = app_id as u32;
+    /// The page's URL for `id`: an app id, or a depot id for
+    /// [`Link::SteamDbDepot`].
+    pub fn url(self, id: i32) -> String {
+        let id = id as u32;
         match self {
-            Link::Steam => steam_urls::store_url(app_id),
-            Link::ProtonDb => steam_urls::protondb_url(app_id),
-            Link::ProtonIssues => steam_urls::proton_issues_url(app_id),
+            Link::Steam => steam_urls::store_url(id),
+            Link::ProtonDb => steam_urls::protondb_url(id),
+            Link::ProtonIssues => steam_urls::proton_issues_url(id),
+            Link::SteamDb => steam_urls::steamdb_url(id),
+            Link::SteamDbDepot => steam_urls::steamdb_depot_url(id),
         }
     }
 }
 
 impl Browser {
-    /// Open `link` for `app_id` in the default browser. The launcher can
+    /// Open `link` for `app_id` (a depot id for [`Link::SteamDbDepot`]) in
+    /// the default browser. The launcher can
     /// block, so it runs on its own thread; a failure comes back through
     /// [`Browser::poll_links`].
     pub fn open_link(&mut self, link: Link, app_id: i32) {

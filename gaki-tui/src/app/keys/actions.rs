@@ -100,6 +100,7 @@ pub(super) fn key(lib: &mut Library, input: KeyCode) -> AppResult {
                         Action::SteamPage => browser.open_link(Link::Steam, game.id),
                         Action::ProtonDb => browser.open_link(Link::ProtonDb, game.id),
                         Action::ProtonIssues => browser.open_link(Link::ProtonIssues, game.id),
+                        Action::SteamDb => browser.open_link(Link::SteamDb, game.id),
                         Action::Favourite => shared::toggle_favourite(browser, config, &game)?,
                         Action::Hide => shared::hide(browser, config, &game)?,
                     }

@@ -679,7 +679,7 @@ pub(crate) async fn cmd_manifests(app_id: u32, depot: Option<u32>, json: bool) -
     cli_println!("\nOnly current manifest ids are shown (Steam does not expose older ones).");
     cli_println!("Find historical manifest ids for a downgrade on SteamDB:");
     for d in depot_ids {
-        cli_println!("  https://steamdb.info/depot/{d}/manifests/");
+        cli_println!("  {}", libgaki::core::steam_urls::steamdb_depot_url(d));
     }
     Ok(())
 }
