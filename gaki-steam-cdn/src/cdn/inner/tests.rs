@@ -42,3 +42,21 @@ fn only_transfer_errors_retry() {
     assert!(!retryable(&Error::Io(full)));
     assert!(!retryable(&Error::Unexpected("x".into())));
 }
+
+#[test]
+fn chunks_must_match_the_manifest() {
+    use sha1::Digest;
+    let data = b"chunk bytes".to_vec();
+    let sha = sha1::Sha1::digest(&data).to_vec();
+    let chunk = ChunkData::for_test(sha.clone(), data.len() as u32);
+    assert_eq!(check_chunk(&chunk, data.clone()).unwrap(), data);
+
+    let short = ChunkData::for_test(sha, data.len() as u32 + 1);
+    assert!(matches!(
+        check_chunk(&short, data.clone()),
+        Err(Error::Decompress(_))
+    ));
+    let forged = ChunkData::for_test(vec![0; 20], data.len() as u32);
+    let err = check_chunk(&forged, data).unwrap_err();
+    assert!(retryable(&err), "{err}");
+}

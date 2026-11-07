@@ -32,8 +32,22 @@ pub fn is_vsz(data: &[u8]) -> bool {
     data.len() >= 4 && data[0..3] == VSZ_HEADER && data[3] == VSZ_VERSION
 }
 
-/// Decompress a Steam "VSZ" (Zstandard) chunk container.
-pub fn decompress_vsz(data: &[u8]) -> Result<Vec<u8>, Error> {
+/// Read all of `reader`, refusing more than `max_len` bytes: a container
+/// can claim or expand to far more than the chunk it stands for.
+pub(crate) fn read_bounded(reader: impl std::io::Read, max_len: usize) -> Result<Vec<u8>, Error> {
+    let mut out = Vec::new();
+    std::io::Read::read_to_end(&mut reader.take(max_len as u64 + 1), &mut out)?;
+    if out.len() > max_len {
+        return Err(Error::Decompress(format!(
+            "chunk expands past its {max_len} bytes"
+        )));
+    }
+    Ok(out)
+}
+
+/// Decompress a Steam "VSZ" (Zstandard) chunk container of at most
+/// `max_len` bytes.
+pub fn decompress_vsz(data: &[u8], max_len: usize) -> Result<Vec<u8>, Error> {
     if !is_vsz(data) {
         return Err(Error::Decompress("expecting VSZ header".to_string()));
     }
@@ -52,12 +66,14 @@ pub fn decompress_vsz(data: &[u8]) -> Result<Vec<u8>, Error> {
     let frame = &data[VSZ_HEADER_LENGTH..data.len() - VSZ_FOOTER_LENGTH];
     let mut decoder = ruzstd::decoding::StreamingDecoder::new(std::io::Cursor::new(frame))
         .map_err(|e| Error::Decompress(format!("zstd frame: {e}")))?;
-    let mut out = Vec::new();
-    std::io::Read::read_to_end(&mut decoder, &mut out)?;
-    Ok(out)
+    read_bounded(&mut decoder, max_len)
 }
 
-pub async fn decompress(data: &[u8]) -> Result<Vec<u8>, Error> {
+/// Decompress a Steam "VZ" (LZMA) chunk container of at most `max_len` bytes.
+pub async fn decompress(data: &[u8], max_len: usize) -> Result<Vec<u8>, Error> {
+    if data.len() < VZ_HEADER_LENGTH + 5 + VZ_FOOTER_LENGTH {
+        return Err(Error::Eof("VZ chunk too small".to_string()));
+    }
     let mut cursor = Cursor::new(data);
     if cursor.read_u16_le().await? != VZ_HEADER {
         return Err(Error::Eof("expecting VZ header".to_string()));
@@ -81,6 +97,11 @@ pub async fn decompress(data: &[u8]) -> Result<Vec<u8>, Error> {
 
     if cursor.read_u16_le().await? != VZ_FOOTER {
         return Err(Error::Eof("expecting VZ at end of stream".to_string()));
+    }
+    if decompressed_size as usize > max_len {
+        return Err(Error::Decompress(format!(
+            "VZ chunk claims {decompressed_size} bytes, more than its {max_len}"
+        )));
     }
 
     let decompressed_data = task::spawn_blocking(move || -> Result<Vec<u8>, Error> {

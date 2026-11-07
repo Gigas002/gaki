@@ -39,7 +39,7 @@ fn mock_context() -> LaunchContext {
         target_architecture: crate::core::models::ExecutableArchitecture::X86_64,
         dll_resolutions: Vec::new(),
         game_fixups: Default::default(),
-        verification_ptr: std::ptr::null_mut(),
+        verification: Default::default(),
     }
 }
 
@@ -124,7 +124,7 @@ async fn test_wine_tkg_runner_graphics_policy_autodetect() {
         target_architecture: crate::core::models::ExecutableArchitecture::X86_64,
         dll_resolutions: Vec::new(),
         game_fixups: Default::default(),
-        verification_ptr: std::ptr::null_mut(),
+        verification: Default::default(),
     };
 
     let runner = WineTkgRunner;
@@ -388,4 +388,25 @@ async fn command_needs_a_runner_and_an_install() {
     ctx.app.install_path = None;
     let err = WineTkgRunner.build_command(&ctx).await.unwrap_err();
     assert_eq!(err.kind, LaunchErrorKind::GameData);
+}
+
+#[test]
+fn runner_diagnostics_reach_the_pipeline() {
+    let ctx = mock_context();
+    ctx.with_verification(|v| v.steam_client_install_path_source = Some("real_host".into()));
+    // The record is shared, not copied with the context, and safe to send.
+    let moved = std::thread::spawn({
+        let ctx = ctx.clone();
+        move || ctx.take_verification()
+    })
+    .join()
+    .unwrap();
+    assert_eq!(
+        moved.steam_client_install_path_source.as_deref(),
+        Some("real_host")
+    );
+    assert_eq!(
+        ctx.take_verification().steam_client_install_path_source,
+        moved.steam_client_install_path_source
+    );
 }

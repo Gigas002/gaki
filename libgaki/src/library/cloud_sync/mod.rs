@@ -980,8 +980,12 @@ impl CloudClient {
 /// A ZIP local-file-header magic — how a compressed Steam Cloud transfer starts.
 const ZIP_MAGIC: &[u8; 4] = b"PK\x03\x04";
 
+/// Largest unzipped Cloud file read. Steam's size fields aren't reliable, so
+/// this is a fixed bound against an archive that expands without end.
+const MAX_CLOUD_FILE: u64 = 1024 * 1024 * 1024;
+
 /// Pull the single archived entry out of a ZIP container, or `None` if the bytes
-/// aren't a readable one-entry archive.
+/// aren't a readable one-entry archive or expand past [`MAX_CLOUD_FILE`].
 fn unzip_single_entry(body: &[u8], expected_len: Option<u32>) -> Option<Vec<u8>> {
     if !body.starts_with(ZIP_MAGIC) {
         return None;
@@ -990,9 +994,15 @@ fn unzip_single_entry(body: &[u8], expected_len: Option<u32>) -> Option<Vec<u8>>
     if archive.is_empty() {
         return None;
     }
-    let mut entry = archive.by_index(0).ok()?;
-    let mut out = Vec::with_capacity(expected_len.unwrap_or(0) as usize);
-    std::io::Read::read_to_end(&mut entry, &mut out).ok()?;
+    let entry = archive.by_index(0).ok()?;
+    let limit = MAX_CLOUD_FILE;
+    // A size hint only: the archive (and Steam's field) can claim anything.
+    let mut out = Vec::with_capacity(expected_len.map_or(0, |len| len.min(1 << 26) as usize));
+    std::io::Read::read_to_end(&mut std::io::Read::take(entry, limit + 1), &mut out).ok()?;
+    if out.len() as u64 > limit {
+        tracing::warn!("cloud archive expands past {limit} bytes; keeping the raw body");
+        return None;
+    }
     Some(out)
 }
 

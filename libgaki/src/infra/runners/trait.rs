@@ -3,6 +3,7 @@ use crate::core::models::LaunchInfo;
 use crate::core::models::{LibraryGame, UserAppConfig};
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Clone)]
 pub struct LaunchContext {
@@ -20,11 +21,10 @@ pub struct LaunchContext {
     /// Auto-resolved per-game fixups (env + DLL overrides) merged into the launch
     /// environment. Explicit user/per-game settings win over these on conflict.
     pub game_fixups: crate::launch::fixups::GameFixups,
-    pub verification_ptr: *mut crate::infra::logging::LaunchVerification, // HACK: for Runner to write diagnostics
+    /// Diagnostics the runner records for the launch; the pipeline copies
+    /// them back with [`LaunchContext::take_verification`].
+    pub verification: Arc<Mutex<crate::infra::logging::LaunchVerification>>,
 }
-
-unsafe impl Send for LaunchContext {}
-unsafe impl Sync for LaunchContext {}
 
 impl LaunchContext {
     /// `STEAM_COMPAT_DATA_PATH` for this launch.
@@ -41,10 +41,19 @@ impl LaunchContext {
         &self,
         f: impl FnOnce(&mut crate::infra::logging::LaunchVerification),
     ) {
-        if self.verification_ptr.is_null() {
-            return;
-        }
-        unsafe { f(&mut *self.verification_ptr) }
+        let mut verification = self
+            .verification
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        f(&mut verification);
+    }
+
+    /// The verification record as the runner left it.
+    pub fn take_verification(&self) -> crate::infra::logging::LaunchVerification {
+        self.verification
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
     }
 
     /// Resolve install dir, executable, workingdir.

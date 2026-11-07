@@ -20,7 +20,7 @@ fn zipped(plain: &[u8]) -> Vec<u8> {
 async fn reads_a_zipped_chunk() {
     let mut data = encrypt_for_test(&zipped(b"zip chunk"), KEY, [1; 16]);
     assert_eq!(
-        decrypt_and_decompress(&mut data, KEY).await.unwrap(),
+        decrypt_and_decompress(&mut data, KEY, 9).await.unwrap(),
         b"zip chunk"
     );
 }
@@ -29,13 +29,33 @@ async fn reads_a_zipped_chunk() {
 async fn reads_a_vsz_chunk() {
     let plain = b"zstd chunk".repeat(50);
     let mut data = encrypt_for_test(&crate::utils::lzma::tests::vsz(&plain), KEY, [2; 16]);
-    assert_eq!(decrypt_and_decompress(&mut data, KEY).await.unwrap(), plain);
+    assert_eq!(
+        decrypt_and_decompress(&mut data, KEY, plain.len())
+            .await
+            .unwrap(),
+        plain
+    );
 }
 
 #[tokio::test]
 async fn rejects_short_data() {
     assert!(matches!(
-        decrypt_and_decompress(&mut [0u8; 8], KEY).await,
+        decrypt_and_decompress(&mut [0u8; 8], KEY, 8).await,
         Err(Error::Eof(_))
+    ));
+}
+
+#[tokio::test]
+async fn refuses_a_chunk_that_expands_past_its_size() {
+    let mut zip = encrypt_for_test(&zipped(&[0u8; 4096]), KEY, [3; 16]);
+    assert!(matches!(
+        decrypt_and_decompress(&mut zip, KEY, 1024).await,
+        Err(Error::Decompress(_))
+    ));
+    let plain = [7u8; 4096];
+    let mut vsz = encrypt_for_test(&crate::utils::lzma::tests::vsz(&plain), KEY, [4; 16]);
+    assert!(matches!(
+        decrypt_and_decompress(&mut vsz, KEY, 1024).await,
+        Err(Error::Decompress(_))
     ));
 }

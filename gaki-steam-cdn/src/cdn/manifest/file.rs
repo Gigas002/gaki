@@ -21,7 +21,7 @@ pub const FLAG_DIRECTORY: u32 = 64;
 /// Steam EDepotFileFlag::Symlink bit.
 pub const FLAG_SYMLINK: u32 = 512;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ChunkData {
     pub(super) sha: Vec<u8>,
     pub(super) crc: u32,
@@ -31,6 +31,18 @@ pub struct ChunkData {
 }
 
 impl ChunkData {
+    /// A chunk of `original_size` bytes with SHA-1 `sha`, for tests.
+    #[cfg(test)]
+    pub(crate) fn for_test(sha: Vec<u8>, original_size: u32) -> Self {
+        Self {
+            sha,
+            crc: 0,
+            offset: 0,
+            original_size,
+            compressed_size: 0,
+        }
+    }
+
     pub fn sha(&self) -> Vec<u8> {
         self.sha.clone()
     }
@@ -133,7 +145,7 @@ impl ManifestFile {
         {
             let data = self
                 .inner
-                .get_chunk(self.app_id, self.depot_id, depot_key, chunk.id())
+                .get_chunk(self.app_id, self.depot_id, depot_key, chunk)
                 .await?;
             let offset = chunk.offset as usize;
             let end = offset.saturating_add(data.len()).min(buffer.len());
@@ -186,10 +198,7 @@ impl ManifestFile {
                     app_id: self.app_id,
                     depot_id: self.depot_id,
                     depot_key,
-                    id: chunk_data.id(),
-                    sha: chunk_data.sha.clone(),
-                    offset: chunk_data.offset,
-                    size: chunk_data.original_size,
+                    chunk: chunk_data.clone(),
                     target_path: target_path.to_path_buf(),
                     // Only existing files hold chunks.
                     check_disk: file_exists_before,
@@ -284,10 +293,7 @@ struct ChunkJob {
     app_id: u32,
     depot_id: u32,
     depot_key: [u8; 32],
-    id: String,
-    sha: Vec<u8>,
-    offset: u64,
-    size: u32,
+    chunk: ChunkData,
     target_path: std::path::PathBuf,
     check_disk: bool,
 }
@@ -306,28 +312,28 @@ impl ChunkJob {
                 .is_some_and(|s| s.load(Ordering::Relaxed))
         };
         if aborted() {
-            return Ok((self.offset, None));
+            return Ok((self.chunk.offset, None));
         }
         let _permit = semaphore.acquire_owned().await?;
         if aborted() {
-            return Ok((self.offset, None));
+            return Ok((self.chunk.offset, None));
         }
         if self.check_disk && self.on_disk().await? {
-            tracing::debug!("Verified chunk {}", self.id);
+            tracing::debug!("Verified chunk {}", self.chunk.id());
             if let Some(cb) = &on_progress {
-                cb(self.size as u64, true);
+                cb(self.chunk.original_size as u64, true);
             }
-            return Ok((self.offset, None));
+            return Ok((self.chunk.offset, None));
         }
         let data = self
             .inner
-            .get_chunk(self.app_id, self.depot_id, self.depot_key, self.id.clone())
+            .get_chunk(self.app_id, self.depot_id, self.depot_key, &self.chunk)
             .await?;
         // On arrival, not in file order.
         if let Some(cb) = &on_progress {
             cb(data.len() as u64, false);
         }
-        Ok((self.offset, Some(data)))
+        Ok((self.chunk.offset, Some(data)))
     }
 
     /// Whether the bytes on disk match.
@@ -336,19 +342,19 @@ impl ChunkJob {
             return Ok(false);
         };
         let len = file.metadata().await.map(|m| m.len()).unwrap_or(0);
-        if len < self.offset + self.size as u64 {
+        if len < self.chunk.offset + self.chunk.original_size as u64 {
             return Ok(false);
         }
-        file.seek(tokio::io::SeekFrom::Start(self.offset))
+        file.seek(tokio::io::SeekFrom::Start(self.chunk.offset))
             .await
             .map_err(Error::Io)?;
-        let mut buffer = vec![0u8; self.size as usize];
+        let mut buffer = vec![0u8; self.chunk.original_size as usize];
         if file.read_exact(&mut buffer).await.is_err() {
             return Ok(false);
         }
-        let matches = sha1::Sha1::digest(&buffer).as_slice() == self.sha.as_slice();
+        let matches = sha1::Sha1::digest(&buffer).as_slice() == self.chunk.sha.as_slice();
         if !matches {
-            tracing::warn!("Corruption detected in chunk {}", self.id);
+            tracing::warn!("Corruption detected in chunk {}", self.chunk.id());
         }
         Ok(matches)
     }

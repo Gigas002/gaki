@@ -354,3 +354,21 @@ fn a_clean_run_has_no_failures_or_skips() {
     assert!(!outcome.has_skips());
     assert!(!outcome.has_failures());
 }
+
+#[test]
+fn unzips_one_entry_and_ignores_a_huge_size_hint() {
+    use std::io::Write;
+    let mut buf = std::io::Cursor::new(Vec::new());
+    let mut w = zip::ZipWriter::new(&mut buf);
+    w.start_file::<_, ()>("save", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    w.write_all(b"save data").unwrap();
+    w.finish().unwrap();
+    let body = buf.into_inner();
+    // A size field claiming 4 GiB must not be allocated up front.
+    assert_eq!(
+        unzip_single_entry(&body, Some(u32::MAX)).as_deref(),
+        Some(&b"save data"[..])
+    );
+    assert_eq!(unzip_single_entry(b"not a zip", None), None);
+}

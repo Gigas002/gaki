@@ -111,6 +111,9 @@ where
 /// Best-effort: open `url` in the user's default browser. Returns whether a
 /// launcher process could be spawned (the URL is always also printed).
 pub fn open_in_browser(url: &str) -> bool {
+    if !crate::core::steam_urls::is_web_url(url) {
+        return false;
+    }
     std::process::Command::new("xdg-open")
         .arg(url)
         .spawn()

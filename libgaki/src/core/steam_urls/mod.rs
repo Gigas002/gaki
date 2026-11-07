@@ -10,6 +10,20 @@ const PROTONDB_APP_BASE: &str = "https://www.protondb.com/app";
 const PROTON_ISSUES: &str = "https://github.com/ValveSoftware/Proton/issues";
 const STEAMDB_BASE: &str = "https://steamdb.info";
 
+/// Whether `url` is a web page a browser launcher may be handed: `http://` or
+/// `https://` with a host. Anything else (`file:`, a local path, an option
+/// such as `--help`) could make `xdg-open` run a program or open a file.
+pub fn is_web_url(url: &str) -> bool {
+    let lower = url.trim_start().to_ascii_lowercase();
+    ["https://", "http://"].iter().any(|scheme| {
+        lower.strip_prefix(scheme).is_some_and(|rest| {
+            rest.chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_alphanumeric())
+        })
+    })
+}
+
 /// Store page for an app (or DLC) id.
 pub fn store_url(app_id: u32) -> String {
     format!("{STORE_APP_BASE}/{app_id}")

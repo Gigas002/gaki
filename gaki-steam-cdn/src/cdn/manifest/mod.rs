@@ -3,10 +3,7 @@ use bytes::{Buf, Bytes};
 use error::ManifestError;
 use file::{ChunkData, ManifestFile};
 use std::sync::Arc;
-use std::{
-    io::{Cursor, Read},
-    str,
-};
+use std::{io::Cursor, str};
 use steam_vent_proto::{
     content_manifest::{ContentManifestMetadata, ContentManifestPayload},
     protobuf::Message,
@@ -15,6 +12,9 @@ use zip::ZipArchive;
 
 use super::inner::InnerClient;
 use crate::{crypto::aes256, utils::base64::base64_decode};
+
+/// Largest unzipped manifest read. The biggest real ones are tens of MB.
+const MAX_MANIFEST: usize = 512 * 1024 * 1024;
 
 pub mod error;
 pub mod file;
@@ -148,18 +148,21 @@ impl DepotManifest {
 pub(crate) fn parse_sections(
     data: &[u8],
 ) -> Result<(ContentManifestPayload, Option<ContentManifestMetadata>), ManifestError> {
-    let mut buffer = Vec::new();
+    let buffer;
     let is_zip = data.len() > 2 && data[0] == 0x50 && data[1] == 0x4B;
 
     let raw_data = if is_zip {
         let cursor = Cursor::new(data);
         match ZipArchive::new(cursor) {
             Ok(mut archive) if !archive.is_empty() => {
-                if let Ok(mut file) = archive.by_index(0) {
-                    if file.read_to_end(&mut buffer).is_ok() {
-                        &buffer[..]
-                    } else {
-                        data
+                // The archive can claim any size: read at most MAX_MANIFEST.
+                if let Ok(file) = archive.by_index(0) {
+                    match crate::utils::lzma::read_bounded(file, MAX_MANIFEST) {
+                        Ok(read) => {
+                            buffer = read;
+                            &buffer[..]
+                        }
+                        Err(_) => data,
                     }
                 } else {
                     data

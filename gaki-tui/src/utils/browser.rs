@@ -4,6 +4,9 @@ use crate::utils::error::TuiError;
 use std::process::{Command, Stdio};
 
 pub fn open(url: &str) -> Result<(), TuiError> {
+    if !libgaki::core::steam_urls::is_web_url(url) {
+        return Err(TuiError::Problem(format!("not a web address: {url}")));
+    }
     let status = Command::new("xdg-open")
         .arg(url)
         .stdin(Stdio::null())

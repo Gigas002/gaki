@@ -23,6 +23,7 @@ impl PipelineStage for PreparePrefixStage {
             return Ok(());
         };
         runner.prepare_prefix(&runner_ctx).await?;
+        ctx.verification = runner_ctx.take_verification();
 
         // Post-runner prefix preparation: handle symlinks
         let prefix_path = runner_ctx.compat_data().join("pfx");

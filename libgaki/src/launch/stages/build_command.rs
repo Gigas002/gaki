@@ -16,6 +16,7 @@ impl PipelineStage for BuildCommandStage {
         if let Some(runner) = &ctx.runner {
             let spec = runner.build_command(&runner_ctx).await?;
             ctx.command_spec = Some(spec);
+            ctx.verification = runner_ctx.take_verification();
         }
         Ok(())
     }

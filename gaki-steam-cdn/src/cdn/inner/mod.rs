@@ -13,6 +13,7 @@ use steam_vent_proto::steammessages_clientserver_appinfo::{
 use crate::{Error, web_api::content_service::CDNServer};
 
 use super::depot_chunk;
+use super::manifest::file::ChunkData;
 
 /// Tries per chunk, across the pool.
 pub(crate) const CHUNK_ATTEMPTS: u32 = 5;
@@ -49,6 +50,27 @@ pub(crate) fn backoff(attempt: u32) -> Duration {
 }
 
 /// Whether another try may succeed.
+/// `data` if it is the chunk the manifest describes: its size and SHA-1.
+/// A mismatch is a corrupt (or forged) transfer, retried like one.
+pub(crate) fn check_chunk(chunk: &ChunkData, data: Vec<u8>) -> Result<Vec<u8>, Error> {
+    use sha1::Digest;
+    if data.len() != chunk.original_size() as usize {
+        return Err(Error::Decompress(format!(
+            "chunk {} is {} bytes, the manifest says {}",
+            chunk.id(),
+            data.len(),
+            chunk.original_size()
+        )));
+    }
+    if sha1::Sha1::digest(&data).as_slice() != chunk.sha().as_slice() {
+        return Err(Error::Decompress(format!(
+            "chunk {} doesn't match its SHA-1",
+            chunk.id()
+        )));
+    }
+    Ok(data)
+}
+
 pub(crate) fn retryable(err: &Error) -> bool {
     matches!(
         err,
@@ -243,9 +265,9 @@ impl InnerClient {
         _app_id: u32,
         depot_id: u32,
         depot_key: [u8; 32],
-        chunk_id: String,
+        chunk: &ChunkData,
     ) -> Result<Vec<u8>, Error> {
-        let args = format!("{depot_id}/chunk/{chunk_id}");
+        let args = format!("{depot_id}/chunk/{}", chunk.id());
         let mut last = Error::Network("no available cdn servers".to_string());
         for attempt in 0..CHUNK_ATTEMPTS {
             let bytes = self.get_with_failover("depot", &args, None, 1).await;
@@ -253,7 +275,10 @@ impl InnerClient {
             let result = match bytes {
                 Ok(bytes) => {
                     let mut bytes = bytes.to_vec();
-                    depot_chunk::decrypt_and_decompress(&mut bytes[..], depot_key).await
+                    let size = chunk.original_size() as usize;
+                    depot_chunk::decrypt_and_decompress(&mut bytes[..], depot_key, size)
+                        .await
+                        .and_then(|data| check_chunk(chunk, data))
                 }
                 Err(e) => Err(e),
             };

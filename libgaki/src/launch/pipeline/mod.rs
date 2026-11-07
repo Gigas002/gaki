@@ -156,7 +156,7 @@ impl PipelineContext {
 
     /// Snapshot pipeline state for a runner.
     pub fn to_runner_context(
-        &mut self,
+        &self,
     ) -> std::result::Result<crate::infra::runners::LaunchContext, LaunchError> {
         let missing =
             |field: &str| LaunchError::new(LaunchErrorKind::Validation, format!("{field} missing"));
@@ -179,7 +179,7 @@ impl PipelineContext {
             target_architecture: self.target_architecture,
             dll_resolutions: self.dll_resolutions.clone(),
             game_fixups: self.game_fixups.clone(),
-            verification_ptr: &mut self.verification as *mut _,
+            verification: std::sync::Arc::new(std::sync::Mutex::new(self.verification.clone())),
         })
     }
 

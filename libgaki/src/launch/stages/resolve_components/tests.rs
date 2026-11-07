@@ -42,7 +42,7 @@ async fn native_runner_appends_user_launch_options() {
         target_architecture: Default::default(),
         dll_resolutions: Vec::new(),
         game_fixups: Default::default(),
-        verification_ptr: std::ptr::null_mut(),
+        verification: Default::default(),
     };
 
     let spec = NativeRunner.build_command(&ctx).await.unwrap();

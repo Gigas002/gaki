@@ -26,7 +26,7 @@ fn detects_containers() {
 #[test]
 fn decompresses_vsz() {
     let plain = b"chunk content ".repeat(100);
-    assert_eq!(decompress_vsz(&vsz(&plain)).unwrap(), plain);
+    assert_eq!(decompress_vsz(&vsz(&plain), plain.len()).unwrap(), plain);
 }
 
 #[test]
@@ -34,12 +34,26 @@ fn rejects_bad_vsz() {
     let mut data = vsz(b"abc");
     let n = data.len();
     data[n - 1] = b'x';
-    assert!(matches!(decompress_vsz(&data), Err(Error::Decompress(_))));
-    assert!(matches!(decompress_vsz(b"VSZa"), Err(Error::Eof(_))));
-    assert!(decompress_vsz(b"nope").is_err());
+    assert!(matches!(
+        decompress_vsz(&data, 3),
+        Err(Error::Decompress(_))
+    ));
+    assert!(matches!(decompress_vsz(b"VSZa", 3), Err(Error::Eof(_))));
+    assert!(decompress_vsz(b"nope", 3).is_err());
 }
 
 #[tokio::test]
 async fn vz_needs_its_header() {
-    assert!(decompress(b"XXa").await.is_err());
+    assert!(decompress(b"XXa", 64).await.is_err());
+    // Too short to hold a header and footer: an error, not an underflow.
+    assert!(matches!(decompress(b"VZa", 64).await, Err(Error::Eof(_))));
+}
+
+#[test]
+fn bounded_read_refuses_more() {
+    assert_eq!(read_bounded(&b"abcd"[..], 4).unwrap(), b"abcd");
+    assert!(matches!(
+        read_bounded(&b"abcde"[..], 4),
+        Err(Error::Decompress(_))
+    ));
 }

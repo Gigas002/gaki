@@ -2150,6 +2150,27 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     see Non-goals), not possible, or needs official Steam running (R21).
     Check that `docs/FEATURES.md` and the help match the matrix.
   Rerun the §8 gates afterwards.
+  Split into one commit per part (user decision, 2026-11-08). Findings too
+  big for the audit become steps 8.16 onward, done before Phase 9. For the
+  performance runs the user only logs in; the account is a test account,
+  so installs, updates and launches on it need no asking.
+  - [x] **8.14a** Security: `docs/AUDIT.md` §1. Fixed: downloaded chunks
+    are checked against the manifest's SHA-1 and size before they're
+    written; chunk, manifest and Cloud decompression are bounded (and the
+    VZ length underflow is gone); `LaunchContext`'s raw
+    `verification_ptr` and its `unsafe impl Send`/`Sync` are replaced by
+    an `Arc<Mutex<_>>`; the browser launchers accept only `http(s)` URLs;
+    `import_install` checks the PICS `installdir`; the protobuf note in
+    `deny.toml` now says CDN manifests are parsed with it too.
+  - [ ] **8.14b** Performance: `docs/AUDIT.md` §2.
+  - [ ] **8.14c** Supported features: `docs/AUDIT.md` §3.
+- [ ] **8.16** Verify depot manifest signatures (8.14a follow-up). Find
+  the scheme `ContentManifestSignature` uses and Valve's public key, then
+  refuse a manifest whose signature doesn't verify. If neither can be
+  established, record why in `docs/AUDIT.md` and close the step.
+- [ ] **8.17** Replace `lzma-rs` (unmaintained) for VZ chunks with a
+  maintained decoder (8.14a follow-up), keeping the bounded output and the
+  CRC check.
 
 ### Phase 9 — Steam rules audit
 

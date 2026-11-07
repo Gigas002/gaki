@@ -42,3 +42,20 @@ fn builds_steamdb_urls() {
         "https://steamdb.info/depot/8851/manifests/"
     );
 }
+
+#[test]
+fn only_web_urls_reach_the_browser() {
+    assert!(is_web_url("https://steamcommunity.com/id/someone"));
+    assert!(is_web_url("HTTP://example.com"));
+    for bad in [
+        "file:///etc/passwd",
+        "/usr/share/applications/evil.desktop",
+        "--help",
+        "https://",
+        "https:///path",
+        "javascript:alert(1)",
+        "",
+    ] {
+        assert!(!is_web_url(bad), "{bad}");
+    }
+}
