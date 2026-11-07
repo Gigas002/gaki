@@ -62,21 +62,6 @@ async fn test_pipeline_returned_error_context() {
     assert!(err.inner.to_string().contains("failure"));
 }
 
-#[test]
-fn test_map_anyhow_error() {
-    let err = anyhow::anyhow!("Permission denied: /tmp/pfx");
-    let mapped = map_anyhow_error(err);
-    assert_eq!(mapped.kind, LaunchErrorKind::Permission);
-
-    let err = anyhow::anyhow!("file not found");
-    let mapped = map_anyhow_error(err);
-    assert_eq!(mapped.kind, LaunchErrorKind::GameData);
-
-    let err = anyhow::anyhow!("random error");
-    let mapped = map_anyhow_error(err);
-    assert_eq!(mapped.kind, LaunchErrorKind::Unknown);
-}
-
 #[tokio::test]
 async fn test_pipeline_logging() {
     let mut pipeline = LaunchPipeline::new();

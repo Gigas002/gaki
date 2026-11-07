@@ -671,18 +671,6 @@ pub fn sanitize_install_dir(name: &str) -> String {
     }
 }
 
-/// Steam wraps the entire VDF in a top-level key that is the numeric app ID.
-/// This wrapper accepts that outer key transparently.
-#[derive(Debug, serde::Deserialize)]
-pub struct AppInfoEnvelope(pub HashMap<String, crate::core::models::AppInfoRoot>);
-
-impl AppInfoEnvelope {
-    /// Extract the inner AppInfoRoot regardless of the outer key name.
-    pub fn into_inner(self) -> Option<crate::core::models::AppInfoRoot> {
-        self.0.into_values().next()
-    }
-}
-
 /// Collect the DLC appids whose content is recorded as installed in an appmanifest.
 /// Steam tags each DLC depot under `InstalledDepots` with a `"dlcappid" "<id>"` line.
 #[cfg(feature = "library")]
@@ -1119,17 +1107,6 @@ pub fn unix_to_ymd(secs: i64) -> String {
     let month = if mp < 10 { mp + 3 } else { mp - 9 }; // [1, 12]
     let year = if month <= 2 { year + 1 } else { year };
     format!("{year:04}-{month:02}-{day:02}")
-}
-
-pub fn parse_appinfo(vdf: &str) -> Result<crate::core::models::AppInfoRoot> {
-    // Try direct parse first (in case steam-vent already strips the wrapper)
-    if let Ok(parsed) = keyvalues_serde::from_str::<crate::core::models::AppInfoRoot>(vdf) {
-        return Ok(parsed);
-    }
-    // Fall back to envelope parse
-    let envelope: AppInfoEnvelope =
-        keyvalues_serde::from_str(vdf).context("failed parsing appinfo VDF (envelope)")?;
-    envelope.into_inner().context("appinfo envelope was empty")
 }
 
 /// Steam store category IDs that denote *online* multiplayer (as opposed to

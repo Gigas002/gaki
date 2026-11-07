@@ -15,11 +15,6 @@ impl SteamClient {
         crate::core::utils::shutdown_steam(std::time::Duration::from_secs(30))
     }
 
-    /// Start the official Steam client in the tray, detached from this process.
-    pub fn start_steam() -> Result<()> {
-        crate::core::utils::start_steam_detached()
-    }
-
     /// Stop a game previously launched by `gaki-cli play`. Looks up the launch
     /// record gaki wrote (PID + start time, and for a per-game Proton/Wine
     /// launch the WINEPREFIX) and terminates the process tree, then clears the

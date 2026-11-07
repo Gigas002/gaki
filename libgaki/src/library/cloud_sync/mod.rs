@@ -109,12 +109,6 @@ impl SyncOutcome {
         !self.failed.is_empty()
     }
 
-    /// True when some file did not end up in the state the sync intended — the
-    /// transfer counts alone can't be read as success.
-    pub fn is_incomplete(&self) -> bool {
-        self.has_failures() || self.has_skips()
-    }
-
     fn record_failure(&mut self, filename: &str, direction: &str, error: &anyhow::Error) {
         tracing::warn!("cloud sync {direction} failed for '{filename}': {error:#}");
         self.failed.push(SyncFailure {

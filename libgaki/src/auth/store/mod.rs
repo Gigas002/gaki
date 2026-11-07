@@ -113,14 +113,7 @@ impl Memory {
 
 static STORE: OnceLock<Box<dyn SecretStore>> = OnceLock::new();
 
-/// Use `store` for the rest of the process. Call before anything reads a
-/// secret; a later call is ignored and returns `false`.
-pub fn set_session_store(store: Box<dyn SecretStore>) -> bool {
-    STORE.set(store).is_ok()
-}
-
-/// The process's secret store: the one set with [`set_session_store`], else
-/// [`Memory`] when `GAKI_SECRET_STORE=memory`, `secret_store = "memory"` in
+/// The process's secret store: [`Memory`] when `GAKI_SECRET_STORE=memory`, `secret_store = "memory"` in
 /// `config.toml` (or in unit tests), else the [`Keyring`].
 pub fn session_store() -> &'static dyn SecretStore {
     STORE

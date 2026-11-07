@@ -21,11 +21,10 @@ pub const ECON_IMAGE_BASE: &str = "https://community.cloudflare.steamstatic.com/
 pub struct WebSession {
     http: reqwest::Client,
     steam_id: u64,
-    /// The `sessionid` CSRF token. Steam only checks that this cookie matches the
-    /// `sessionid` form field on POSTs, so a client-generated value is accepted.
-    sessionid: String,
-    /// Pre-rendered `Cookie:` header value; holds the `steamLoginSecure`
-    /// token, so it is redacted in `Debug` and zeroed on drop.
+    /// Pre-rendered `Cookie:` header value: `steamLoginSecure` (so it is
+    /// redacted in `Debug` and zeroed on drop), a client-generated
+    /// `sessionid` and `steamCountry`. gaki never POSTs, so the `sessionid`
+    /// CSRF token isn't kept apart.
     cookie: secrecy::SecretString,
 }
 
@@ -66,7 +65,6 @@ impl WebSession {
         Ok(Self {
             http,
             steam_id,
-            sessionid,
             cookie: cookie.into(),
         })
     }
@@ -74,11 +72,6 @@ impl WebSession {
     /// SteamID64 this session is authenticated as.
     pub fn steam_id(&self) -> u64 {
         self.steam_id
-    }
-
-    /// The `sessionid` CSRF token (echoed in POST bodies for write actions).
-    pub fn sessionid(&self) -> &str {
-        &self.sessionid
     }
 
     /// Perform an authenticated GET and return the response body text. Maps Steam's

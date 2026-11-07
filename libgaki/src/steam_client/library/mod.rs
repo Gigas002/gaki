@@ -192,8 +192,8 @@ impl SteamClient {
             .await?;
 
         // PICS product-info buffers are usually *binary* VDF (text only for some
-        // apps), so parse via `find_vdf_in_pics` rather than the text-only
-        // `parse_appinfo` — otherwise binary appinfo silently yields no DLC/depots.
+        // apps), so parse via `find_vdf_in_pics`, which reads both; a text-only
+        // parse silently yields no DLC/depots on binary appinfo.
         // Extract everything in a block so the borrowed VDF tree is dropped before
         // the later `.await`.
         let (name, dlcs, depots, launch_options, store_meta) = {
@@ -279,8 +279,8 @@ impl SteamClient {
             .await?;
 
         // PICS product-info buffers are usually *binary* VDF (text only for some
-        // apps), so go through `find_vdf_in_pics` rather than the text-only
-        // `parse_appinfo`. `pics_app_section` descends past the `appinfo`/numeric
+        // apps), so go through `find_vdf_in_pics`, which reads both.
+        // `pics_app_section` descends past the `appinfo`/numeric
         // wrapper so the category map can be read directly at `common/category`.
         let vdf = find_vdf_in_pics(&buffer).context("failed to parse product info VDF")?;
         let section = pics_app_section(vdf.value());

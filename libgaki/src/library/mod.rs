@@ -146,11 +146,6 @@ async fn steam_data_roots() -> Vec<PathBuf> {
     roots
 }
 
-pub async fn scan_library_info(root_path: &Path) -> Result<HashMap<u32, InstalledAppInfo>> {
-    let libraries = expand_library_roots(std::slice::from_ref(&root_path.to_path_buf())).await;
-    Ok(scan_libraries(&libraries).await)
-}
-
 /// Expand Steam data roots into the full set of library folders to scan: each
 /// root itself, every library its `libraryfolders.vdf` files register, and a
 /// probe of the connected drives for libraries Steam never registered.

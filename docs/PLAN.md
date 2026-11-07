@@ -1718,8 +1718,31 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     the overlay was closed.
   - Help line, `docs/GAKI-TUI.md` ("Depot files") and `docs/FEATURES.md`.
     No Actions-menu row: the menu already opens the depots overlay.
-- [ ] **8.3** Remove dead code: `ops::library::cached_game_name` has no
+- [x] **8.3** Remove dead code: `ops::library::cached_game_name` had no
   callers. Sweep for other unused `pub` items in `libgaki` while there.
+  *Done.* Scope (the user's choice): delete only what nothing in the
+  workspace uses, leave the visibility of everything else alone, and leave
+  `gaki-steam-cdn` close to upstream. Found two ways: a name scan of every
+  `pub` item against all workspace sources, and the compiler's dead-code
+  lint on a scratch copy where every `pub` item the binaries never name was
+  made crate-private. Removed:
+  - `ops::library::cached_game_name`, `auth::store::set_session_store`,
+    `SteamClient::start_steam`, `SteamClient::active_cm` (the field stays;
+    it is still read internally), `library::scan_library_info` and the
+    `UserConfigStore` alias.
+  - The old text-VDF appinfo parse: `steam_client::parse_appinfo`,
+    `AppInfoEnvelope`, and the `AppInfoRoot` tree in `core::models`
+    (`AppInfoNode`, `CommonNode`, `DepotNode`, `BranchNode`, `ConfigNode`,
+    `ExtendedNode`, `ProductLaunchEntry`, `DepotConfig`, `DepotManifests`).
+    Appinfo is parsed with `steam_vdf_parser` and the `pics_*` helpers.
+  - `WebSession::sessionid` and the stored copy: the cookie still carries
+    it, and gaki never POSTs (Non-goals).
+  - Two functions only their own tests used: `SyncOutcome::is_incomplete`
+    and `launch::pipeline::map_anyhow_error`, with those tests.
+  - Kept on purpose: `load_launch_summary` and `EventLog` (integration and
+    unit tests read the written files back with them), and the
+    `#[cfg(test)]` helpers `parse_last_owner_from_acf` and
+    `manifest_update_pending`.
 - [ ] **8.4** TUI store views (`store`): search, price (with region compare),
   deals, news, reviews, events, player count, similar games, and the wishlist
   with add/remove.

@@ -94,16 +94,6 @@ pub async fn find_game(client: &mut SteamClient, app_id: u32) -> Result<LibraryG
         })
 }
 
-/// Best-effort game name from the offline library cache; `None` on a miss.
-pub async fn cached_game_name(app_id: u32) -> Option<String> {
-    load_library_cache().await.ok().and_then(|games| {
-        games
-            .into_iter()
-            .find(|g| g.app_id == app_id)
-            .map(|g| g.name)
-    })
-}
-
 /// What [`list`] returns.
 #[derive(Debug, Clone, Default)]
 pub struct ListOptions {
