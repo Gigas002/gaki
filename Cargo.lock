@@ -1903,6 +1903,7 @@ dependencies = [
  "keyring-core",
  "keyvalues-serde",
  "libc",
+ "liblootrs",
  "protobuf",
  "protobuf-codegen",
  "rand 0.10.3",
@@ -1928,6 +1929,18 @@ dependencies = [
  "tracing-subscriber",
  "walkdir",
  "zip",
+]
+
+[[package]]
+name = "liblootrs"
+version = "0.1.0"
+source = "git+https://github.com/Gigas002/lootrs?branch=master#cbb22ee6f329d89ad1aa461fcb3749cb6702a86a"
+dependencies = [
+ "rustix 1.1.6",
+ "serde",
+ "thiserror 2.0.21",
+ "toml",
+ "tracing",
 ]
 
 [[package]]

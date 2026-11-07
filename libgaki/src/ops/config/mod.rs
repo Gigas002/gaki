@@ -344,7 +344,7 @@ pub fn profiles() -> Result<(PathBuf, Vec<ProfileInfo>, Vec<String>)> {
                     name: game.name.clone(),
                 })
                 .collect(),
-            issues: profile.validate(&ctx),
+            issues: crate::config::validate_profile(profile, &ctx),
             profile: profile.clone(),
         })
         .collect();

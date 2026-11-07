@@ -324,7 +324,7 @@ layout is tracked in [`PLAN.md`](PLAN.md).
 | Crate      | Kind | Binary     | Depends on | Responsibility |
 | ---------- | ---- | ---------- | ---------- | -------------- |
 | `gaki-steam-cdn` | lib | — | — | Steam content delivery: content-server pool, depot keys, manifests, chunk download and decompression (adopted from `aurelia-steam-cdn`) |
-| `libgaki`  | lib  | —          | `gaki-steam-cdn` (with `install`) | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config/profile model and resolver |
+| `libgaki`  | lib  | —          | `gaki-steam-cdn` (with `install`), `liblootrs` | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config model and resolver |
 | `gaki-cli` | bin  | `gaki-cli` | `libgaki`  | Argument parsing, output formatting, session daemon |
 | `gaki-tui` | bin  | `gaki-tui` | `libgaki`  | Terminal UI (ratatui) |
 
@@ -333,6 +333,14 @@ layout is tracked in [`PLAN.md`](PLAN.md).
 - `gaki-steam-cdn` knows only the CDN protocol. It never reads gaki's config;
   `libgaki` hands it servers, keys and callbacks.
 - `gaki-cli` and `gaki-tui` must not depend on each other.
+- `liblootrs` (the [lootrs](https://github.com/Gigas002/lootrs) library) is
+  used for the profile model only: `Profile` and its parts, `Severity`,
+  `validate_name` and `expand_tilde`, so both tools read one set of profile
+  files. Its runner features (`wine`, `umu`) stay off and gaki uses none of
+  its launch code. Each tool validates a profile for its own launches
+  (`config::validate_profile` here). It is a git dependency on lootrs'
+  `master` (pinned by `Cargo.lock`, allowed in `deny.toml`) while it is
+  unpublished, and becomes a crates.io version before gaki is published.
 
 ### 11.2 Shared configuration model (deviation from §3)
 

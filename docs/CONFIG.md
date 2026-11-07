@@ -83,7 +83,7 @@ winhttp = "n,b"
 | --------------- | ------------------------------------------------------------------------- |
 | `name`          | the profile's name, the same as its file name                             |
 | `runner`        | `proton` or `native`. `wine` and `umu` parse, so lootrs profiles load, but gaki can't launch them and `config check` says so |
-| `prefix`        | the Wine prefix (`STEAM_COMPAT_DATA_PATH`). Leave it out to give each game its own Steam `compatdata/<app id>` |
+| `prefix`        | for `proton`, the `STEAM_COMPAT_DATA_PATH` (its `pfx/` is the Wine prefix). Leave it out to give each game its own Steam `compatdata/<app id>`. For lootrs' `wine` and `umu` it is the Wine prefix itself |
 | `runner_args`   | extra arguments for the runner, before the game's own                     |
 | `wrappers`      | commands the launch is wrapped in, outermost first                        |
 | `debug`         | turn on the runner's own logging                                          |
@@ -93,7 +93,10 @@ winhttp = "n,b"
 | `steam`         | the Steam integration for games using the profile (see below)             |
 | `anticheat`     | `battleye` and `eac` (booleans): anti-cheat runtimes to make available    |
 
-The format is lootrs', so one profile directory can serve both tools.
+The format is lootrs': gaki reads profiles through lootrs' own model, so one
+profile directory can serve both tools. lootrs' fields (`dxvk`, `vkd3d`,
+`[wine]`, `[umu]`) load and gaki ignores them. lootrs in turn loads `proton` profiles, `[proton]` and `steam`, but
+can't launch a `proton` profile.
 `gaki-cli profiles list` and `gaki-cli profiles show <name>` show what gaki
 loaded, which games use each profile, and any problems.
 

@@ -1,199 +1,84 @@
 //! `profiles/<name>.toml`: one runner, one prefix, and their environment.
 //!
-//! The schema follows lootrs' `Profile` field for field (D9), so one set of
-//! profile files can serve both tools. Fields only lootrs uses (`dxvk`,
-//! `vkd3d`, `[wine]`, `[umu]`) are accepted and ignored.
+//! The schema is lootrs' (D9): [`Profile`] and its parts come from
+//! `liblootrs`, so one set of profile files serves both tools. gaki launches
+//! `proton` and `native`; the lootrs-only fields (`dxvk`, `vkd3d`, `[wine]`,
+//! `[umu]`) load, and gaki ignores them.
+//! Each tool validates a profile for its own launches: gaki with
+//! [`validate_profile`], lootrs with `Profile::validate`.
 
-use std::{collections::BTreeMap, fmt, path::PathBuf};
+pub use liblootrs::model::{Anticheat, Profile, ProtonSection, Runner, SteamIntegration};
 
-use serde::{Deserialize, Serialize};
+use super::issue::{Issue, Issues, Subject, ValidationContext};
 
-use super::{
-    SteamIntegration,
-    issue::{Issue, Issues, Subject, ValidationContext},
-};
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Profile {
-    /// Must match the file stem.
-    pub name: String,
-    pub runner: Runner,
-    /// The Wine prefix (`STEAM_COMPAT_DATA_PATH`), shared by every game using
-    /// this profile. `None` gives each game its own Steam `compatdata/<app id>`.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub prefix: Option<PathBuf>,
-    /// Extra arguments for the runner itself, before the game's own.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub runner_args: Vec<String>,
-    /// Commands the launch is wrapped in, outermost first (`mangohud`,
-    /// `gamemoderun`, ...).
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub wrappers: Vec<String>,
-    /// Turn on the runner's own logging.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub debug: bool,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub env: BTreeMap<String, String>,
-    /// DLL name to Wine override mode (`n`, `b`, `n,b`, ... or `""` to disable).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub dll_overrides: BTreeMap<String, String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub proton: Option<ProtonSection>,
-    /// Steam integration for games using this profile (gaki only).
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub steam: Option<SteamIntegration>,
-    #[serde(default, skip_serializing_if = "Anticheat::is_off")]
-    pub anticheat: Anticheat,
+/// Whether gaki can launch games with `runner`: `wine` and `umu` are lootrs'.
+pub fn is_supported(runner: Runner) -> bool {
+    matches!(runner, Runner::Proton | Runner::Native)
 }
 
-/// How a profile runs the game. `wine` and `umu` are lootrs runners: they
-/// parse, so shared profile directories load, but gaki can't launch them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Runner {
-    Proton,
-    Native,
-    Wine,
-    Umu,
-}
+/// What's wrong with `profile` for a gaki launch. A lootrs runner gets one
+/// error and nothing else: its fields mean other things there.
+pub fn validate_profile(profile: &Profile, ctx: &ValidationContext) -> Vec<Issue> {
+    let mut issues = Issues::new(Subject::Profile(profile.name.clone()));
+    let runner = profile.runner;
+    let ignored = |field: &str| format!("`{field}` is ignored for runner `{runner}`");
+    issues.name(&profile.name);
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProtonSection {
-    /// A Steam-installed build name (`experimental`, `9.0`, ...) or the path of
-    /// a Proton directory. `None` is the default build.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub build: Option<String>,
-}
-
-/// Anti-cheat runtimes to make available to the game.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Anticheat {
-    #[serde(default)]
-    pub battleye: bool,
-    #[serde(default)]
-    pub eac: bool,
-}
-
-impl Anticheat {
-    pub fn is_off(&self) -> bool {
-        !self.battleye && !self.eac
+    if !is_supported(runner) {
+        issues.error(format!(
+            "runner `{runner}` is a lootrs runner; gaki supports `proton` and `native`"
+        ));
+        // The rest is lootrs' to judge: its fields mean other things there.
+        return issues.finish();
     }
-}
 
-fn is_false(value: &bool) -> bool {
-    !value
-}
-
-impl Runner {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Proton => "proton",
-            Self::Native => "native",
-            Self::Wine => "wine",
-            Self::Umu => "umu",
+    let proton = runner == Runner::Proton;
+    if let Some(prefix) = &profile.prefix {
+        if proton {
+            issues.absolute("prefix", prefix, ctx.home);
+        } else {
+            issues.warn(ignored("prefix"));
+        }
+    }
+    match &profile.proton {
+        Some(section) if proton => {
+            if section.build.as_deref() == Some("") {
+                issues.error("`proton.build` must not be empty");
+            } else if section.build_is_path() {
+                let build = section.build.as_deref().unwrap_or_default();
+                issues.absolute("proton.build", build.as_ref(), ctx.home);
+            }
+        }
+        Some(_) => issues.warn(ignored("[proton]")),
+        None => {}
+    }
+    if runner == Runner::Native && !profile.runner_args.is_empty() {
+        issues.warn(ignored("runner_args"));
+    }
+    if !proton {
+        if !profile.dll_overrides.is_empty() {
+            issues.warn(ignored("dll_overrides"));
+        }
+        if !profile.anticheat.is_off() {
+            issues.warn(ignored("[anticheat]"));
         }
     }
 
-    /// Whether gaki can launch games with this runner.
-    pub fn is_supported(self) -> bool {
-        matches!(self, Self::Proton | Self::Native)
-    }
-}
-
-impl fmt::Display for Runner {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl ProtonSection {
-    /// Whether `build` names a directory rather than a Steam build.
-    pub fn build_is_path(&self) -> bool {
-        self.build
-            .as_deref()
-            .is_some_and(|build| build.starts_with(['/', '~']) || build.contains('/'))
-    }
-}
-
-impl Profile {
-    pub fn new(name: impl Into<String>, runner: Runner) -> Self {
-        Self {
-            name: name.into(),
-            runner,
-            prefix: None,
-            runner_args: Vec::new(),
-            wrappers: Vec::new(),
-            debug: false,
-            env: BTreeMap::new(),
-            dll_overrides: BTreeMap::new(),
-            proton: None,
-            steam: None,
-            anticheat: Anticheat::default(),
+    for (dll, mode) in &profile.dll_overrides {
+        if dll.is_empty() || dll.contains(['=', ';', ',']) {
+            issues.error(format!("`dll_overrides` key `{dll}` is not a DLL name"));
+        }
+        if let Err(message) = validate_dll_override(mode) {
+            issues.error(format!("`dll_overrides.{dll}`: {message}"));
         }
     }
-
-    pub fn validate(&self, ctx: &ValidationContext) -> Vec<Issue> {
-        let mut issues = Issues::new(Subject::Profile(self.name.clone()));
-        let runner = self.runner;
-        let ignored = |field: &str| format!("`{field}` is ignored for runner `{runner}`");
-        issues.name(&self.name);
-
-        if !runner.is_supported() {
-            issues.error(format!(
-                "runner `{runner}` is a lootrs runner; gaki supports `proton` and `native`"
-            ));
-            // The rest is lootrs' to judge: its fields mean other things there.
-            return issues.finish();
+    for wrapper in &profile.wrappers {
+        if wrapper.trim().is_empty() {
+            issues.error("`wrappers` must not contain empty commands");
         }
-
-        let proton = runner == Runner::Proton;
-        if let Some(prefix) = &self.prefix {
-            if proton {
-                issues.absolute("prefix", prefix, ctx.home);
-            } else {
-                issues.warn(ignored("prefix"));
-            }
-        }
-        match &self.proton {
-            Some(section) if proton => {
-                if section.build.as_deref() == Some("") {
-                    issues.error("`proton.build` must not be empty");
-                } else if section.build_is_path() {
-                    let build = section.build.as_deref().unwrap_or_default();
-                    issues.absolute("proton.build", build.as_ref(), ctx.home);
-                }
-            }
-            Some(_) => issues.warn(ignored("[proton]")),
-            None => {}
-        }
-        if runner == Runner::Native && !self.runner_args.is_empty() {
-            issues.warn(ignored("runner_args"));
-        }
-        if !proton {
-            if !self.dll_overrides.is_empty() {
-                issues.warn(ignored("dll_overrides"));
-            }
-            if !self.anticheat.is_off() {
-                issues.warn(ignored("[anticheat]"));
-            }
-        }
-
-        for (dll, mode) in &self.dll_overrides {
-            if dll.is_empty() || dll.contains(['=', ';', ',']) {
-                issues.error(format!("`dll_overrides` key `{dll}` is not a DLL name"));
-            }
-            if let Err(message) = validate_dll_override(mode) {
-                issues.error(format!("`dll_overrides.{dll}`: {message}"));
-            }
-        }
-        for wrapper in &self.wrappers {
-            if wrapper.trim().is_empty() {
-                issues.error("`wrappers` must not contain empty commands");
-            }
-        }
-        issues.env(&self.env);
-        issues.finish()
     }
+    issues.env(&profile.env);
+    issues.finish()
 }
 
 /// A Wine override mode: comma-separated `n`/`native`/`b`/`builtin`, or `""`

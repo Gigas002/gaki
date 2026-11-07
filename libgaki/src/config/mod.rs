@@ -29,7 +29,10 @@ use serde::{Deserialize, Serialize};
 pub use game::{Game, GamesFile};
 pub use global::{Config, SecretStoreKind};
 pub use issue::{Issue, Severity, Subject, ValidationContext, expand_tilde, validate_name};
-pub use profile::{Anticheat, Profile, ProtonSection, Runner, validate_dll_override};
+pub use profile::{
+    Anticheat, Profile, ProtonSection, Runner, SteamIntegration, is_supported,
+    validate_dll_override, validate_profile,
+};
 
 pub const CONFIG_FILE: &str = "config.toml";
 pub const GAMES_FILE: &str = "games.toml";
@@ -71,36 +74,6 @@ impl From<Platform> for crate::core::models::DepotPlatform {
 }
 
 impl fmt::Display for Platform {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-/// Whether a Proton launch talks to the host Steam client.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum SteamIntegration {
-    /// Bridge to the host Steam client when it is running.
-    #[default]
-    Auto,
-    /// Always bridge; start the host Steam client when needed. Needed for
-    /// Steamworks DRM and Family-Shared games.
-    Host,
-    /// Never bridge: the game sees no Steam client.
-    None,
-}
-
-impl SteamIntegration {
-    pub fn as_str(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Host => "host",
-            Self::None => "none",
-        }
-    }
-}
-
-impl fmt::Display for SteamIntegration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
     }
@@ -223,7 +196,7 @@ impl Catalog {
             issues.push(missing(Subject::Config, "default_profile", name));
         }
         for profile in &self.profiles {
-            issues.extend(profile.validate(ctx));
+            issues.extend(validate_profile(profile, ctx));
         }
 
         let mut app_ids = HashSet::new();

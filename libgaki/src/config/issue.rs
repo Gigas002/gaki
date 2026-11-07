@@ -1,4 +1,6 @@
-//! Validation findings, and the checks the config files share.
+//! Validation findings, and the checks the config files share. The name rule,
+//! `~` expansion and [`Severity`] are lootrs', so profile files mean the same
+//! to both tools.
 
 use std::{
     collections::BTreeMap,
@@ -6,17 +8,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
+pub use liblootrs::{
+    model::{Severity, validate_name},
+    paths::expand_tilde,
+};
+
 /// What validation needs from the environment.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidationContext<'a> {
     /// Expands a leading `~` in paths.
     pub home: &'a Path,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Severity {
-    Warning,
-    Error,
 }
 
 /// What an [`Issue`] is about.
@@ -41,15 +42,6 @@ pub struct Issue {
     pub message: String,
 }
 
-impl fmt::Display for Severity {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Warning => "warning",
-            Self::Error => "error",
-        })
-    }
-}
-
 impl fmt::Display for Subject {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -68,34 +60,6 @@ impl fmt::Display for Subject {
 impl fmt::Display for Issue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}: {}: {}", self.severity, self.subject, self.message)
-    }
-}
-
-/// Checks a profile name or game alias: `[A-Za-z0-9._-]+`, not `.`/`..`, not
-/// starting with `-`. The same rule as lootrs, so profile files are shared.
-pub fn validate_name(name: &str) -> Result<(), String> {
-    if name.is_empty() {
-        return Err("name must not be empty".into());
-    }
-    if name == "." || name == ".." || name.starts_with('-') {
-        return Err(format!("name `{name}` is not allowed"));
-    }
-    if let Some(c) = name
-        .chars()
-        .find(|c| !(c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')))
-    {
-        return Err(format!(
-            "name `{name}` contains `{c}`; use only letters, digits, `.`, `_` and `-`"
-        ));
-    }
-    Ok(())
-}
-
-/// `path` with a leading `~` replaced by `home`.
-pub fn expand_tilde(path: &Path, home: &Path) -> PathBuf {
-    match path.strip_prefix("~") {
-        Ok(rest) => home.join(rest),
-        Err(_) => path.to_path_buf(),
     }
 }
 

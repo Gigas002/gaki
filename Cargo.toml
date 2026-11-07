@@ -11,6 +11,9 @@ repository = "https://github.com/Gigas002/gaki"
 [workspace.dependencies]
 gaki-steam-cdn = { path = "gaki-steam-cdn", version = "0.1.41" }
 libgaki = { path = "libgaki", default-features = false }
+# The profile schema and its shared checks (D9). Only the model is used: no
+# wine/umu runner code, so the runner features stay off.
+liblootrs = { git = "https://github.com/Gigas002/lootrs", branch = "master", default-features = false }
 
 aes = "0.9" # gaki-steam-cdn: AES-256 for depot chunks and encrypted manifest file names
 anyhow = "1"

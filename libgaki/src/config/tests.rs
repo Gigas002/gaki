@@ -101,7 +101,7 @@ fn proton_profile_parses_and_validates() {
     .unwrap();
     assert_eq!(profile.runner, Runner::Proton);
     assert!(!profile.proton.as_ref().unwrap().build_is_path());
-    assert!(profile.validate(&ctx()).is_empty());
+    assert!(validate_profile(&profile, &ctx()).is_empty());
 }
 
 #[test]
@@ -111,14 +111,14 @@ fn proton_build_path_must_be_absolute() {
         build: Some("compat/proton-ge".into()),
     });
     assert!(has(
-        &profile.validate(&ctx()),
+        &validate_profile(&profile, &ctx()),
         Severity::Error,
         "`proton.build`"
     ));
     profile.proton = Some(ProtonSection {
         build: Some("~/compat/proton-ge".into()),
     });
-    assert!(profile.validate(&ctx()).is_empty());
+    assert!(validate_profile(&profile, &ctx()).is_empty());
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn lootrs_profiles_load_and_lootrs_runners_are_reported() {
         "#,
     )
     .unwrap();
-    let issues = profile.validate(&ctx());
+    let issues = validate_profile(&profile, &ctx());
     assert!(
         has(&issues, Severity::Error, "lootrs runner"),
         "{:?}",
@@ -147,9 +147,14 @@ fn lootrs_profiles_load_and_lootrs_runners_are_reported() {
         "only the runner is reported: {:?}",
         messages(&issues)
     );
+    // The model is lootrs' own, so serializing keeps lootrs' fields.
+    let back: Profile = toml::from_str(&toml::to_string(&profile).unwrap()).unwrap();
+    assert_eq!(back, profile);
+    assert_eq!(back.dxvk.as_deref(), Some(Path::new("/opt/dxvk")));
+    assert!(!is_supported(back.runner));
 
     let native: Profile = toml::from_str("name = \"native\"\nrunner = \"native\"").unwrap();
-    assert!(native.validate(&ctx()).is_empty());
+    assert!(validate_profile(&native, &ctx()).is_empty());
 }
 
 #[test]
@@ -157,7 +162,7 @@ fn native_profile_warns_about_wine_only_fields() {
     let mut profile = Profile::new("n", Runner::Native);
     profile.dll_overrides.insert("d3d11".into(), "n".into());
     profile.anticheat.eac = true;
-    let issues = profile.validate(&ctx());
+    let issues = validate_profile(&profile, &ctx());
     assert!(has(
         &issues,
         Severity::Warning,

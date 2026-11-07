@@ -179,7 +179,7 @@ pub fn resolve(
             let profile = catalog
                 .profile(name)
                 .ok_or_else(|| SettingsError::UnknownProfile(name.to_owned()))?;
-            if !profile.runner.is_supported() {
+            if !crate::config::is_supported(profile.runner) {
                 return Err(SettingsError::UnsupportedRunner {
                     profile: profile.name.clone(),
                     runner: profile.runner,

@@ -74,7 +74,7 @@ Each item has a default. The plan follows the default unless you say otherwise.
 | D6 | **Sync TUI vs async lib.** `libgaki` is tokio-async, while the TUI loop is synchronous. | The TUI owns a tokio runtime. It sends requests to `libgaki` tasks and receives results over channels, so the UI thread never blocks. |
 | D7 | **Binary names.** R7 calls the TUI `gaki`, while R13 calls its crate `gaki-tui`. | **Decided (plans2):** crate, directory and binary are all `gaki-tui` (step 4.6). The CLI crate and binary are both `gaki-cli`. |
 | D8 | **Store/wishlist/news/reviews/deals** commands. R24 doesn't list them. | Add a `store` feature (off). Also add `achievements` (on), unless you'd rather fold it into `library`. |
-| D9 | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings. | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). **Revised 2026-11-07 (user decision): share the model by depending on `liblootrs`, but not its runners; see 8.15.** The profile file format had already drifted (lootrs' `Runner` has no `proton`, so gaki's profiles don't load there), and one model crate ends the field-for-field copying. The launch side stays split: gaki's Proton launch is Steam's `proton run` and stays in gaki, and lootrs' wine and umu runners don't come to gaki (Non-goals). |
+| D9 | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings. | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). **Revised 2026-11-07 (user decision): share the model by depending on `liblootrs`, but not its runners; see 8.15.** The profile file format had already drifted (lootrs' `Runner` has no `proton`, so gaki's profiles don't load there), and one model crate ends the field-for-field copying. The launch side stays split: gaki's Proton launch is Steam's `proton run` and stays in gaki, and lootrs' wine and umu runners don't come to gaki (Non-goals). **Done in 8.15:** libgaki re-exports `liblootrs::model`'s `Profile` and parts (lootrs gained `runner = "proton"`, `[proton]` and `steam`); each tool keeps its own profile validation. |
 | D10 | **Credential storage.** See "Authentication and session security" below. | **The refresh token lives only in the OS keyring, or only in memory.** It's never in a file and never stored as plaintext. Re-authenticating for every action isn't the default (see that section for why). Sensitive actions can opt into a fresh login. |
 
 ---
@@ -2048,11 +2048,11 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     its own title from the map. Tests: `keymap/tests.rs` (taken keys,
     the menu), the example covering all 27 sections,
     `tests/keymap_live.rs` (`[friends]`, `[dlc]`).
-- [ ] **8.15** Share the profile model with lootrs (D9 revised). libgaki
+- [x] **8.15** Share the profile model with lootrs (D9 revised). libgaki
   depends on `liblootrs` for the profile model and its validation only;
   the runners and launch code stay in each tool. Done before 8.14, so the
   audit covers it. Two commits, one in each repo (the user commits both):
-  - [ ] **8.15a** (`../lootrs`) Teach `liblootrs::model` gaki's parts as
+  - [x] **8.15a** (`../lootrs`) Teach `liblootrs::model` gaki's parts as
     "parsed, not launched by lootrs", mirroring how gaki treats `wine` and
     `umu` today:
     - `Runner::Proton`, a `[proton]` section (gaki's `ProtonSection`:
@@ -2075,7 +2075,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     - Check the `model`, `paths` and `diag` modules build with
       `default-features = false` (no `wine`/`umu`), since that is what gaki
       will use.
-  - [ ] **8.15b** (gaki) Depend on `liblootrs` (`default-features =
+  - [x] **8.15b** (gaki) Depend on `liblootrs` (`default-features =
     false`; a path dependency `../lootrs/liblootrs` while both are
     unpublished, a git or crates.io version before gaki is published,
     noted in `docs/ARCHITECTURE.md`). Then:
@@ -2095,6 +2095,38 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
       on both sides). Fix the license mismatch on the way:
       `gaki-tui/Cargo.toml` says `GPL-3.0-only`, the workspace
       `GPL-3.0-or-later`.
+  - Done, with these changes to the plan:
+    - **Validation stays per tool.** A profile's problems depend on who
+      launches it, so lootrs' `Profile::validate` judges lootrs launches
+      and gaki's `config::validate_profile` (a free function: the
+      inherent lootrs method would shadow a gaki one) judges gaki's.
+      Nothing converts lootrs `Issue`s. lootrs reports a `proton` profile
+      with the single error "runner `proton` runs through Steam; lootrs
+      can't launch it" and stops there, so its anti-cheat runtime checks never
+      run for `proton`. `[proton]`/`steam` on other runners are kept
+      quietly. `Runner::Proton.is_available()` is false;
+      `launch::prepare`/`preflight` and `runner::command` refuse it with
+      the same message. lootrs' TUI won't open a `proton` profile for
+      editing (it would turn it into `wine`) and keeps `[proton]`/`steam`
+      when saving any other profile.
+    - Shared from lootrs: `Profile`, `Runner`, `Anticheat`,
+      `ProtonSection` (with `build_is_path`), `SteamIntegration` (moved
+      from gaki's `config`), `Severity`, `validate_name`,
+      `paths::expand_tilde`. gaki keeps `Issue`, `Subject`,
+      `ValidationContext` and `validate_dll_override`;
+      `Runner::is_supported` is now `config::is_supported(runner)`.
+    - The license "mismatch" is deliberate: `gaki-tui` stays
+      `GPL-3.0-only` (Aurelia-TUI's license, allowed in `deny.toml`).
+    - Fixtures: gaki's `examples/profiles/*.toml` are copied into
+      `liblootrs/tests/fixtures/profiles/` (`liblootrs/tests/proton.rs`).
+    - liblootrs never names gaki: it's a library for any client, and
+      `proton`/`[proton]`/`steam` are documented there as the schema for
+      clients that launch through Steam's Proton.
+    - `liblootrs` builds and tests pass with `--no-default-features`;
+      deny shows no new duplicate crates. The dependency is git
+      (`https://github.com/Gigas002/lootrs`, `branch = "master"`, locked
+      to the 8.15a commit `cbb22ee`) and `deny.toml` allows that source; a
+      crates.io version replaces it before gaki is published.
 - [ ] **8.14** Final audit, after 8.1–8.13 and 8.15. Write the findings to
   `docs/AUDIT.md`, fix what's small within this step, and add a step for
   anything bigger. Three parts:
@@ -2174,7 +2206,7 @@ user whether to do this phase and how.
 | Q8 named scripts | Steps 5.5, 5.7c (scripts became per-game `wrappers`) |
 | Q9 ProtonDB/GitHub hotkey | Step 7.1 |
 | Profiles / shared prefixes | Phase 5 |
-| plans2: reuse liblootrs profiles | D9: shared file format, no dependency (5.1) |
+| plans2: reuse liblootrs profiles | D9: shared file format (5.1); revised: `liblootrs` model dependency (8.15) |
 | plans2: rename binary to `gaki-tui` | Step 4.6 |
 | plans2: pure GPLv3 `LICENSE` | Step 0.7 |
 | plans2: HLTB link by app id | Not possible; stays a non-goal (7.1) |
