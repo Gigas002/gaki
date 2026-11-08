@@ -41,7 +41,9 @@ impl SteamClient {
             })
             .collect();
 
-        save_library_cache(&owned).await.ok();
+        save_library_cache(&owned, u64::from(connection.steam_id()))
+            .await
+            .ok();
         Ok(owned)
     }
 

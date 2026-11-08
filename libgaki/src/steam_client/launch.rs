@@ -225,7 +225,9 @@ fn pick_launch_entry(
 pub type TargetResolvedHook<'a> = dyn Fn(Option<&str>) + Send + Sync + 'a;
 
 impl SteamClient {
-    pub async fn play_game(
+    /// Use [`crate::ops::launch::play`], which checks the account may run
+    /// the game first.
+    pub(crate) async fn play_game(
         &mut self,
         app: &LibraryGame,
         proton_path: Option<&str>,

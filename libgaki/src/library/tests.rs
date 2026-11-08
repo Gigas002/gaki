@@ -42,7 +42,7 @@ fn build_game_library_filters_tooling() {
             update_available: false,
         },
     ];
-    let lib = build_game_library(owned, HashMap::new(), None);
+    let lib = build_game_library(owned, HashMap::new());
     assert_eq!(lib.games.len(), 1);
     assert_eq!(lib.games[0].app_id, 620);
 }

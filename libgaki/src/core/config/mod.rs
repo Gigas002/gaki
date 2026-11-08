@@ -430,19 +430,37 @@ pub fn library_cache_path() -> Result<PathBuf> {
     Ok(data_dir()?.join("library_cache.toml"))
 }
 
-/// `library_cache.toml`: the owned games, under `[[games]]`.
+/// `library_cache.toml`: the owned games, under `[[games]]`, and the account
+/// Steam listed them for.
 #[derive(Serialize, Deserialize)]
 struct LibraryCache {
+    /// The account the list is for. Missing in caches from before it was
+    /// recorded, which [`load_library_cache_for`] then doesn't trust.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    steam_id: Option<u64>,
     games: Vec<OwnedGame>,
 }
 
-pub async fn save_library_cache(owned_games: &[OwnedGame]) -> Result<()> {
+/// Save `owned_games`, the list Steam gave for account `steam_id`.
+pub async fn save_library_cache(owned_games: &[OwnedGame], steam_id: u64) -> Result<()> {
     crate::core::store::write(
         &library_cache_path()?,
         &LibraryCache {
+            steam_id: Some(steam_id),
             games: owned_games.to_vec(),
         },
     )
+}
+
+/// The cached owned games, if the cache is account `steam_id`'s. For
+/// decisions about what the account may do, such as launching a game
+/// offline: a cache left by another account, or one that doesn't say whose
+/// it is, gives `None`.
+pub async fn load_library_cache_for(steam_id: u64) -> Option<Vec<OwnedGame>> {
+    let cache = crate::core::store::read::<LibraryCache>(&library_cache_path().ok()?)
+        .ok()
+        .flatten()?;
+    (cache.steam_id == Some(steam_id)).then_some(cache.games)
 }
 
 pub async fn load_library_cache() -> Result<Vec<OwnedGame>> {

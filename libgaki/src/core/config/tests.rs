@@ -50,9 +50,16 @@ fn library_cache_keeps_large_manifest_ids() {
         local_manifest_ids: HashMap::from([(573, u64::MAX)]),
         update_available: true,
     };
-    let text = toml::to_string(&LibraryCache { games: vec![game] }).unwrap();
+    let text = toml::to_string(&LibraryCache {
+        steam_id: Some(7),
+        games: vec![game],
+    })
+    .unwrap();
     let back: LibraryCache = toml::from_str(&text).unwrap();
     assert_eq!(back.games[0].local_manifest_ids[&573], u64::MAX);
+    assert_eq!(back.steam_id, Some(7));
+    let old: LibraryCache = toml::from_str("games = []\n").unwrap();
+    assert_eq!(old.steam_id, None, "an old cache says no account");
 }
 
 #[test]
@@ -103,3 +110,38 @@ fn xdg_dir_ignores_an_empty_value() {
 }
 
 mod runtime_settings;
+
+#[tokio::test]
+async fn the_library_cache_is_only_trusted_for_its_own_account() {
+    let game = OwnedGame {
+        app_id: 1030300,
+        name: "Some Game".into(),
+        playtime_forever_minutes: 0,
+        local_manifest_ids: HashMap::new(),
+        update_available: false,
+    };
+    save_library_cache(std::slice::from_ref(&game), 1)
+        .await
+        .unwrap();
+    let mine = load_library_cache_for(1).await.unwrap();
+    assert_eq!(mine.len(), 1);
+    assert!(
+        load_library_cache_for(2).await.is_none(),
+        "another account's cache"
+    );
+    // Display still reads it, whoever it's for.
+    assert_eq!(load_library_cache().await.unwrap().len(), 1);
+
+    crate::core::store::write(
+        &library_cache_path().unwrap(),
+        &LibraryCache {
+            steam_id: None,
+            games: vec![game],
+        },
+    )
+    .unwrap();
+    assert!(
+        load_library_cache_for(1).await.is_none(),
+        "an old cache says no account"
+    );
+}

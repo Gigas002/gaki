@@ -18,7 +18,9 @@ use std::path::PathBuf;
 ///
 /// Owned games come from Steam when `client` is logged in, falling back to the
 /// on-disk cache, then to the official Steam client's local caches (which hold
-/// the whole library on a machine where Steam is signed in).
+/// the whole library on a machine where Steam is signed in). Logged in, the
+/// apps Steam Family shares with the account are merged in too. For display:
+/// what the account may launch is [`crate::ops::launch::licence`]'s call.
 pub async fn load_library(client: &mut SteamClient) -> Vec<LibraryGame> {
     let cached = load_library_cache().await.unwrap_or_default();
     let owned = if client.is_authenticated() {
@@ -39,7 +41,19 @@ pub async fn load_library(client: &mut SteamClient) -> Vec<LibraryGame> {
         crate::library::local_library::discover_local_owned_games().await
     };
     let installed = scan_installed_app_info().await.unwrap_or_default();
-    build_game_library(owned, installed, client.steam_id()).games
+    let mut games = build_game_library(owned, installed).games;
+    if client.is_authenticated() {
+        tracing::info!("Fetching Family Sharing library from Steam ...");
+        match client.fetch_family_shared_apps().await {
+            Ok(shared) => {
+                tracing::info!("Fetched {} Family-Shared apps", shared.len());
+                merge_family_shared(&mut games, shared);
+            }
+            Err(e) => tracing::warn!("could not fetch family shared apps: {e:#}"),
+        }
+        games.sort_by(|a, b| a.name.cmp(&b.name));
+    }
+    games
 }
 
 /// Merge Family-Shared apps into the library. Apps already present (e.g.
@@ -134,17 +148,6 @@ pub async fn list(client: &mut SteamClient, options: &ListOptions) -> Result<Lis
     // Only static collections have a membership list to resolve offline.
     #[cfg(feature = "collections")]
     let store = CollectionsStore::load().ok();
-
-    if client.is_authenticated() {
-        tracing::info!("Fetching Family Sharing library from Steam ...");
-        match client.fetch_family_shared_apps().await {
-            Ok(shared) => {
-                tracing::info!("Fetched {} Family-Shared apps", shared.len());
-                merge_family_shared(&mut games, shared);
-            }
-            Err(e) => tracing::warn!("could not fetch family shared apps: {e:#}"),
-        }
-    }
 
     if options.installed {
         games.retain(|g| g.is_installed);

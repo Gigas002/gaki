@@ -18,6 +18,90 @@ use tokio::sync::mpsc::Receiver;
 /// How long the DRM preflight waits for an ownership ticket.
 const DRM_PREFLIGHT_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// What lets the signed-in account run a game.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Licence {
+    /// The account owns it (free-to-play included).
+    Owned,
+    /// Another member of the account's Steam Family shares it.
+    FamilyShared,
+}
+
+/// Whether the signed-in account may run `game`, asking Steam: the owned
+/// list, then the Steam Family list, then an ownership ticket (which also
+/// covers free-to-play games never played, missing from the owned list).
+/// Offline, or when Steam's owned list can't be fetched, gaki's own cache of
+/// this account's owned list decides; it's only trusted when it records this
+/// account. Never the files on disk, the appmanifest's `LastOwner` or the
+/// official client's caches: they also hold other accounts' games.
+pub async fn licence(client: &mut SteamClient, game: &LibraryGame) -> Result<Licence> {
+    let app_id = game.app_id;
+    if client.is_authenticated() && !client.is_offline() {
+        match client.fetch_owned_games().await {
+            Ok(owned) if owned.iter().any(|g| g.app_id == app_id) => return Ok(Licence::Owned),
+            Ok(_) => {}
+            Err(e) => {
+                tracing::warn!("could not fetch owned games ({e:#}); checking the cached list");
+                if cached_owned(app_id).await {
+                    return Ok(Licence::Owned);
+                }
+            }
+        }
+        match client.fetch_family_shared_apps().await {
+            Ok(shared) if shared.iter().any(|a| a.app_id == app_id) => {
+                return Ok(Licence::FamilyShared);
+            }
+            Ok(_) => {}
+            Err(e) => tracing::warn!("could not fetch Family-Shared apps: {e:#}"),
+        }
+        if let Ok(Ok(_)) =
+            tokio::time::timeout(DRM_PREFLIGHT_TIMEOUT, client.get_app_ticket(app_id)).await
+        {
+            return Ok(Licence::Owned);
+        }
+        return Err(not_licensed(
+            game,
+            "it isn't in the account's library, shared with it through Steam Family, or \
+             licensed to it",
+        ));
+    }
+    if cached_owned(app_id).await {
+        return Ok(Licence::Owned);
+    }
+    Err(not_licensed(
+        game,
+        "gaki is offline and its cached library for this account doesn't have it \
+         (Family-Shared games need Steam online)",
+    ))
+}
+
+/// Whether gaki's cached owned list, if it is the saved session's account's,
+/// has `app_id`.
+async fn cached_owned(app_id: u32) -> bool {
+    let Some(me) = crate::auth::session::load_session()
+        .await
+        .ok()
+        .and_then(|session| session.steam_id)
+    else {
+        return false;
+    };
+    crate::core::config::load_library_cache_for(me)
+        .await
+        .is_some_and(|games| games.iter().any(|g| g.app_id == app_id))
+}
+
+fn not_licensed(game: &LibraryGame, why: &str) -> anyhow::Error {
+    TypedError::new(
+        ErrorKind::AccessDenied,
+        format!(
+            "{} ({}) isn't licensed to the signed-in Steam account: {why}. gaki only \
+             launches games the account owns or has through Steam Family",
+            game.name, game.app_id
+        ),
+    )
+    .into()
+}
+
 fn require_installed(game: &LibraryGame) -> Result<()> {
     if game.is_installed {
         return Ok(());
@@ -117,12 +201,16 @@ pub enum LaunchEvent<'a> {
 /// Launch an installed game (found with [`crate::ops::library::find_game`])
 /// and wait for it to exit.
 ///
+/// It's refused (`AccessDenied`) unless the signed-in account owns the game
+/// or has it through Steam Family ([`licence`]): an install on disk can be
+/// another account's.
+///
 /// Before launching, the game is updated: best-effort for owned games, but
 /// required for Family-Shared ones, which only run on the owner's current
 /// build. `drive` consumes the update's progress.
 pub async fn play<Fut: Future<Output = Result<bool>>>(
     client: &mut SteamClient,
-    #[cfg_attr(not(feature = "install"), allow(unused_mut))] mut game: LibraryGame,
+    mut game: LibraryGame,
     request: &PlayRequest,
     on_event: &(dyn Fn(LaunchEvent<'_>) + Send + Sync),
     drive: impl FnOnce(Receiver<DownloadProgress>) -> Fut,
@@ -137,6 +225,10 @@ pub async fn play<Fut: Future<Output = Result<bool>>>(
         .into());
     }
     require_installed(&game)?;
+    // Steam's word, not the library's flags, which come partly from disk.
+    let licence = licence(client, &game).await?;
+    game.is_owned = licence == Licence::Owned;
+    game.is_family_shared = licence == Licence::FamilyShared;
 
     let launcher_config = load_launcher_config().await?;
     let overrides = Overrides {

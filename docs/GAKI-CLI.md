@@ -170,6 +170,12 @@ How a game runs (its runner, prefix, environment, wrappers and Steam
 integration) comes from its profile; see [CONFIG.md](CONFIG.md). `play`
 flags override it for one launch.
 
+`play` (and gaki-tui's play) first asks Steam whether the signed-in account
+owns the game or has it through Steam Family, and refuses it otherwise
+(`access_denied` with `--json`). Installed games of other accounts on this
+machine are listed, as not owned, but don't launch. Offline, gaki's cached
+library for the account decides, and Family-Shared games need Steam online.
+
 ### Proton
 
 ```bash

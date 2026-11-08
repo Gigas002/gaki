@@ -705,7 +705,6 @@ async fn parse_app_manifest_info(path: &Path) -> Result<Option<(u32, InstalledAp
 pub fn build_game_library(
     owned: Vec<OwnedGame>,
     installed_info: HashMap<u32, InstalledAppInfo>,
-    steam_id: Option<u64>,
 ) -> GameLibrary {
     let mut games = Vec::new();
     // App ids already emitted from the owned list, so the installed-only pass
@@ -742,7 +741,10 @@ pub fn build_game_library(
     }
 
     // Anything installed but absent from the owned list is not licensed to this
-    // account. If its appmanifest records a different owner, it's Family-Shared.
+    // account: another account's install (Steam's libraries hold every account's
+    // games), or one shared through Steam Family, which only Steam's Family
+    // Groups list can say (`ops::library::merge_family_shared`). A different
+    // `LastOwner` in the appmanifest only means another account installed it.
     for (app_id, info) in installed_info {
         if owned_app_ids.contains(&app_id) {
             continue;
@@ -752,12 +754,6 @@ pub fn build_game_library(
         if is_ignored_steam_app(app_id, candidate_name) {
             continue;
         }
-
-        // Only claim Family Sharing when we positively know the install belongs to
-        // a different account. If we can't determine the owner (e.g. not logged in,
-        // or the manifest has no LastOwner), don't guess — avoid false positives.
-        let family_shared =
-            matches!((info.last_owner, steam_id), (Some(owner), Some(me)) if owner != me);
 
         games.push(LibraryGame {
             app_id,
@@ -770,7 +766,7 @@ pub fn build_game_library(
             update_queued: false,
             active_branch: info.active_branch,
             is_owned: false,
-            is_family_shared: family_shared,
+            is_family_shared: false,
             online_required: None,
             platform: None,
         });
