@@ -162,7 +162,7 @@ impl SteamClient {
 
         let mut data = AccountData {
             steam_id: u64::from(connection.steam_id()),
-            country: connection.ip_country_code().unwrap_or_default(),
+            country: connection.ip_country_code().to_string(),
             ..Default::default()
         };
 
@@ -337,7 +337,6 @@ impl SteamClient {
         let server_list = self.resolve_server_list().await?;
         let connection = access_with_retry(
             &server_list,
-            &account_name,
             secrecy::ExposeSecret::expose_secret(&refresh_token),
         )
         .await?;
@@ -387,12 +386,14 @@ impl SteamClient {
             password: &str,
             handler: H,
         ) -> std::result::Result<Connection, ConnectionError> {
-            Connection::login(
+            Connection::login_with_logon_id(
                 server_list,
                 account_name,
                 password,
                 FileGuardDataStore::user_cache(),
                 handler,
+                &ClientInfo::default(),
+                logon_id(),
             )
             .await
         }
@@ -405,17 +406,20 @@ impl SteamClient {
                 .context("failed to prepare guard code input")?;
             drop(writer);
 
-            let handler = UserProvidedAuthConfirmationHandler::new(reader, sink())
-                .or(DeviceConfirmationHandler);
+            let handler = (
+                UserProvidedAuthConfirmationHandler::new(reader, sink()),
+                DeviceConfirmationHandler,
+            );
 
             login_with(&server_list, &account_name, &password, handler).await
         } else if interactive_pin {
             // Read the Steam Guard code from stdin when Steam asks for it; fall back
             // to mobile-app approval if the account only allows that.
             tracing::info!("Login method awaited: Steam Guard code — enter it when prompted below");
-            let handler =
-                UserProvidedAuthConfirmationHandler::new(tokio::io::stdin(), tokio::io::stderr())
-                    .or(DeviceConfirmationHandler);
+            let handler = (
+                UserProvidedAuthConfirmationHandler::new(tokio::io::stdin(), tokio::io::stderr()),
+                DeviceConfirmationHandler,
+            );
 
             login_with(&server_list, &account_name, &password, handler).await
         } else {
@@ -593,8 +597,7 @@ impl SteamClient {
                     tracing::info!(account = %account_name, "QR login approved");
 
                     // Exchange the issued refresh token for a live connection.
-                    let connection =
-                        access_with_retry(&server_list, &account_name, refresh_token).await?;
+                    let connection = access_with_retry(&server_list, refresh_token).await?;
                     let steam_id = Some(u64::from(connection.steam_id()));
                     self.connection = Some(connection);
 
@@ -624,7 +627,9 @@ impl SteamClient {
             account_name: Some(account_name),
             persona_name: None,
             steam_id: Some(steam_id),
-            refresh_token: connection.access_token().map(Into::into),
+            refresh_token: Some(connection.refresh_token().token())
+                .filter(|t| !t.is_empty())
+                .map(Into::into),
             client_instance_id: None,
             web_token: None,
         })
@@ -689,17 +694,16 @@ pub(crate) fn extract_encrypted_ticket(
 impl SteamClient {
     /// Mint a Steam web session from the current CM session.
     ///
-    /// Exchanges the session's refresh token (held by the live connection as its
-    /// "access token") for a fresh, web-scoped access token via
+    /// Exchanges the session's refresh token (held by the live connection) for a fresh, web-scoped access token via
     /// `Authentication.GenerateAccessTokenForApp`, then builds the cookie set. This
     /// reuses the one shared connection — no extra logon.
     pub async fn web_session(&self) -> Result<WebSession> {
         let connection = self.require_connection()?;
         let steam_id = u64::from(connection.steam_id());
-        let refresh_token = connection
-            .access_token()
-            .context("no Steam token available for a web session; run `gaki-cli login`")?
-            .to_string();
+        let refresh_token = connection.refresh_token().token().to_string();
+        if refresh_token.is_empty() {
+            bail!("no Steam token available for a web session; run `gaki-cli login`");
+        }
 
         let mut req = CAuthentication_AccessToken_GenerateForApp_Request::new();
         req.set_refresh_token(refresh_token);
@@ -713,6 +717,7 @@ impl SteamClient {
         if token.is_empty() {
             bail!("Steam returned an empty web access token");
         }
-        WebSession::new(steam_id, token, connection.ip_country_code().as_deref())
+        let country = Some(connection.ip_country_code()).filter(|c| !c.is_empty());
+        WebSession::new(steam_id, token, country)
     }
 }

@@ -53,8 +53,8 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.11"
 steam-vdf-parser = "0.1.1" # Raw binary PICS VDF parsing (not supported by keyvalues-serde or steam-vent)
-steam-vent = "0.5"
-steam-vent-chat = { package = "aurelia-steam-vent-chat", version = "0.5.0" } # Fork ported to steam-vent 0.5
+steam-vent = { package = "aurelia-steam-vent", version = "0.7.1" } # Aurelia fork: per-session logon IDs, upstream 0.6 API
+steam-vent-chat = { package = "aurelia-steam-vent-chat", version = "0.8.0" } # Aurelia fork, built on aurelia-steam-vent 0.7
 steam-vent-proto = "=0.5.2" # Not re-exported as steam_vent::proto since 0.5
 steam-vent-proto-common = "0.5.1" # RpcMethod/RpcMessage traits for the hand-wired CloudConfigStore RPC
 steamid-ng = "3" # Matches steam-vent's steamid-ng

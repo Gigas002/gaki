@@ -34,8 +34,8 @@ use protobuf::Message;
 #[cfg(feature = "library")]
 use protobuf::MessageField;
 use steam_vent::auth::{
-    AuthConfirmationHandler, ConfirmationMethod, DeviceConfirmationHandler, FileGuardDataStore,
-    UserProvidedAuthConfirmationHandler,
+    AuthConfirmationHandler, ClientInfo, ConfirmationMethod, DeviceConfirmationHandler,
+    FileGuardDataStore, RefreshToken, UserProvidedAuthConfirmationHandler,
 };
 use steam_vent::connection::Connection;
 use steam_vent::{ConnectionError, ConnectionTrait, LoginError, ServerList};
@@ -99,18 +99,28 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 /// round-robin, so each attempt hits a different server.
 const CM_CONNECT_ATTEMPTS: usize = 3;
 
+/// The logon ID this process sends with every CM logon.
+///
+/// Steam ends an older session when a new logon arrives with the same
+/// account and the same ID. A fixed ID (steam-vent sends 0 by default) makes
+/// the TUI, the daemon and one-off commands kick each other off; a random
+/// nonzero ID per process lets them stay online side by side, as several
+/// Steam clients can.
+pub(crate) fn logon_id() -> u32 {
+    static ID: std::sync::OnceLock<u32> = std::sync::OnceLock::new();
+    *ID.get_or_init(|| rand::random::<u32>().max(1))
+}
+
 /// Authenticate with a stored refresh token, with a per-attempt timeout and
 /// automatic failover to the next CM server.
 ///
-/// `Connection::access` connects to a single WebSocket CM server and performs
-/// the refresh-token logon, but it never times out — a stalled CM leaves the
-/// whole command hanging (the reported symptom). Each call re-picks a server
-/// round-robin, so on timeout/error we simply retry, advancing to the next one.
-async fn access_with_retry(
-    server_list: &ServerList,
-    account: &str,
-    refresh_token: &str,
-) -> Result<Connection> {
+/// The refresh-token logon connects to a single WebSocket CM server but never
+/// times out — a stalled CM leaves the whole command hanging. Each call
+/// re-picks a server round-robin, so on timeout/error we simply retry,
+/// advancing to the next one.
+async fn access_with_retry(server_list: &ServerList, refresh_token: &str) -> Result<Connection> {
+    let token = RefreshToken::new(refresh_token.to_string())
+        .context("the saved Steam session is not a valid refresh token; run `gaki-cli login`")?;
     let mut last_err: Option<anyhow::Error> = None;
 
     for attempt in 1..=CM_CONNECT_ATTEMPTS {
@@ -121,7 +131,7 @@ async fn access_with_retry(
         );
         match tokio::time::timeout(
             CM_CONNECT_TIMEOUT,
-            Connection::access(server_list, account, refresh_token),
+            Connection::login_with_refresh_token_and_logon_id(server_list, &token, logon_id()),
         )
         .await
         {

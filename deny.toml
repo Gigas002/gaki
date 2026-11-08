@@ -25,11 +25,11 @@ db-urls = ["https://github.com/rustsec/advisory-db"]
 # Each ignore is for a version pinned by a dependency gaki doesn't own, and
 # names why the advisory can't be reached. Revisit when the pin moves.
 ignore = [
-    # protobuf: stack overflow on deeply nested messages. steam-vent pins
-    # `=3.5.1`. Most messages come from Valve's CM servers over an encrypted,
+    # protobuf: stack overflow on deeply nested messages. steam-vent-proto-common
+    # (under steam-vent) pins `=3.5.1`. Most messages come from Valve's CM servers over an encrypted,
     # authenticated channel; depot manifests come from CDN servers (HTTPS when
     # any server offers it). The worst case is a crash, not code execution.
-    { id = "RUSTSEC-2024-0437", reason = "pinned =3.5.1 by steam-vent; CM traffic and CDN manifests, crash only" },
+    { id = "RUSTSEC-2024-0437", reason = "pinned =3.5.1 by steam-vent-proto-common; CM traffic and CDN manifests, crash only" },
     # rsa: Marvin timing attack on private-key operations. No fixed release
     # exists. steam-vent only encrypts the password with Steam's public key,
     # so no private key is ever used.

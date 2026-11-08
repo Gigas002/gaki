@@ -2318,6 +2318,31 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   directories. Docs: GAKI-CLI.md ("Cleaning up"), GAKI-TUI.md,
   FEATURES.md, examples/keybinds.toml.
 
+- [x] **8.21** Switch `steam-vent` 0.5 and `aurelia-steam-vent-chat` 0.5 to
+  the Aurelia fork, `aurelia-steam-vent` 0.7 and `aurelia-steam-vent-chat` 0.8
+  (user request, 2026-11-08). The fork gives each session its own logon ID
+  (0.5 always sends 0, so two sessions of one account may replace each
+  other), carries upstream's unreleased 0.6 work (Steam Guard retries,
+  anonymous logons fixed, the core traits split off), and chat 0.8 adds game
+  invites, other chat entries and the BBCode flag. It doesn't unpin
+  `protobuf` 3.5.1 or `generic-array` 0.14.7: both still come through
+  `steam-vent-proto-common` 0.5.1 and `rsa` 0.9. Port login, auth and the
+  message-trait uses; all §8 gates; test on the test account.
+  *Done:* the `steam-vent` and `steam-vent-chat` names in Cargo.toml now
+  point at the fork packages, so no `use` changed. Logons go through
+  `login_with_logon_id` and `login_with_refresh_token_and_logon_id` with
+  `steam_client::logon_id()`, a random nonzero ID per process; the stored
+  token is checked by `RefreshToken::new` first, so a bad one says to log in
+  again. `ClientInfo::default()` keeps the old device name. Guard handlers
+  are tuples now (`.or` is gone); the session token is
+  `refresh_token().token()`; `ip_country_code()` is a `&str`, empty when
+  unknown. Chat: `event_partner` returns `Option` (`ChatEvent` is
+  non-exhaustive), and `chat open` prints game invites (JSON `invite`, added
+  to `capabilities`). Gates green (539/681/808 tests). On the test account,
+  a `chat open` connection stayed online while three `--no-daemon` commands
+  logged in beside it. Not tried by hand: password and QR logins, which
+  need the user.
+
 ### Phase 9 — Steam rules audit
 
 gaki talks to Steam as an unofficial client, so check it against Valve's

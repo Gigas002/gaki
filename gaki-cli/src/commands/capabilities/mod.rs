@@ -16,6 +16,7 @@ pub(crate) const EVENTS: &[&str] = &[
     "echo",
     "error",
     "guard_required",
+    "invite",
     "message",
     "not_found",
     "openid_challenge",

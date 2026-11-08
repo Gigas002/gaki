@@ -89,12 +89,17 @@ pub async fn open_chat(client: &SteamClient) -> Result<steam_vent_chat::ChatClie
     client.chat_client()
 }
 
-/// The conversation partner an incoming chat event belongs to.
-pub fn event_partner(event: &steam_vent_chat::ChatEvent) -> u64 {
+/// The conversation partner an incoming chat event belongs to, or `None`
+/// for a kind of event this version doesn't know.
+pub fn event_partner(event: &steam_vent_chat::ChatEvent) -> Option<u64> {
     use steam_vent_chat::ChatEvent;
     match event {
-        ChatEvent::Message(e) | ChatEvent::EchoMessage(e) => u64::from(e.source),
-        ChatEvent::Typing(e) => u64::from(e.source),
+        ChatEvent::Message(e) | ChatEvent::EchoMessage(e) | ChatEvent::GameInvite(e) => {
+            Some(u64::from(e.source))
+        }
+        ChatEvent::Typing(e) => Some(u64::from(e.source)),
+        ChatEvent::Other(e) => Some(u64::from(e.source)),
+        _ => None,
     }
 }
 

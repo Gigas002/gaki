@@ -9,7 +9,7 @@
 //! imports live in the parent module and are pulled in via `use super::*`.
 use super::*;
 use std::sync::RwLock;
-use steam_vent::NetMessage;
+use steam_vent::ReceivableMessage;
 use steam_vent_proto::steammessages_clientserver_friends::{
     CMsgClientAddFriend, CMsgClientAddFriendResponse, CMsgClientFriendsList,
     CMsgClientPersonaState, CMsgClientRemoveFriend,
@@ -166,11 +166,11 @@ fn drain_unprocessed_into(connection: &Connection, roster: &mut Roster) {
     let mut lists = Vec::new();
     let mut personas = Vec::new();
     for raw in connection.take_unprocessed() {
-        if raw.kind == <CMsgClientFriendsList as NetMessage>::KIND {
+        if raw.kind == <CMsgClientFriendsList as ReceivableMessage>::KIND {
             if let Ok(msg) = raw.into_message::<CMsgClientFriendsList>() {
                 lists.push(msg);
             }
-        } else if raw.kind == <CMsgClientPersonaState as NetMessage>::KIND
+        } else if raw.kind == <CMsgClientPersonaState as ReceivableMessage>::KIND
             && let Ok(msg) = raw.into_message::<CMsgClientPersonaState>()
         {
             personas.push(msg);

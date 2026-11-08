@@ -203,7 +203,7 @@ pub(crate) fn render_chat_event(target: u64, event: steam_vent_chat::ChatEvent, 
     use steam_vent_chat::ChatEvent;
     // Every event carries the conversation partner's SteamID; ignore events for
     // other conversations sharing this connection's notification stream.
-    if social::event_partner(&event) != target {
+    if social::event_partner(&event) != Some(target) {
         return;
     }
     match event {
@@ -238,6 +238,19 @@ pub(crate) fn render_chat_event(target: u64, event: steam_vent_chat::ChatEvent, 
                 cli_println!("* {target} is typing...");
             }
         }
+        ChatEvent::GameInvite(e) => {
+            let text = e.message_no_bbcode.unwrap_or(e.message);
+            if json {
+                print_json_line(&serde_json::json!({
+                    "event": "invite", "from": target, "text": text,
+                    "timestamp": e.server_timestamp,
+                }));
+            } else {
+                cli_println!("* {target} sent a game invite");
+            }
+        }
+        // Other entry types (and kinds added later) carry nothing to show.
+        _ => {}
     }
 }
 

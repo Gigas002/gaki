@@ -161,10 +161,13 @@ None is on crates.io yet, and `libgaki`'s API may change before 1.0.
 `gaki-steam-cdn` is gaki's own copy of
 [`aurelia-steam-cdn`](https://github.com/Drackrath/aurelia-steam-cdn), Aurelia's
 fork of [steam-cdn](https://github.com/OccamyLab/steam-cdn); its
-[README](gaki-steam-cdn/README.md) lists what changed. Friend chat uses
-[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat), a
-fork of [steam-vent-chat](https://codeberg.org/steam-vent/chat) published by
-Aurelia's author.
+[README](gaki-steam-cdn/README.md) lists what changed. The Steam protocol and
+friend chat come from
+[`aurelia-steam-vent`](https://crates.io/crates/aurelia-steam-vent) and
+[`aurelia-steam-vent-chat`](https://crates.io/crates/aurelia-steam-vent-chat),
+forks of [steam-vent](https://codeberg.org/steam-vent/steam-vent) and
+[steam-vent-chat](https://codeberg.org/steam-vent/chat) published by Aurelia's
+author.
 
 ---
 
@@ -187,7 +190,7 @@ pipeline in `gaki-steam-cdn`.
 - [Aurelia](https://github.com/Drackrath/Aurelia) and [Aurelia-TUI](https://github.com/Drackrath/Aurelia-TUI): the CLI and TUI gaki is forked from
 - [SteamFlow](https://github.com/weter11/SteamFlow): the project Aurelia is derived from. Its groundwork is the base everything here is built on. Thank you!
 - [steam-tui](https://github.com/dmadisetti/steam-tui): the original TUI that Aurelia-TUI rebuilt
-- [steam-vent](https://codeberg.org/steam-vent/steam-vent): Steam network protocol implementation
+- [steam-vent](https://codeberg.org/steam-vent/steam-vent): Steam network protocol implementation (forked & modified as [aurelia-steam-vent](https://codeberg.org/Drackrath/aurelia-steam-vent))
 - [steam-vent-chat](https://codeberg.org/steam-vent/chat): Steam Chat protocol implementation (forked & modified as [aurelia-steam-vent-chat](https://codeberg.org/Drackrath/aurelia-steam-vent-chat))
 - [steam-cdn](https://github.com/OccamyLab/steam-cdn): content-delivery and depot download engine (forked & modified as [aurelia-steam-cdn](https://github.com/Drackrath/aurelia-steam-cdn), and from there as `gaki-steam-cdn`)
 - [SteamKit2](https://github.com/SteamRE/SteamKit): Steam .NET research code
