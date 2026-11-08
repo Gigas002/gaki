@@ -156,12 +156,11 @@ impl SteamClient {
             None => return Ok((HashMap::new(), "public".to_string(), false)),
         };
 
-        let steamapps = match install_path.parent().and_then(|p| p.parent()) {
-            Some(path) => path.to_path_buf(),
-            None => return Ok((HashMap::new(), "public".to_string(), false)),
+        let Some(layout) = crate::library::layout::Layout::from_game_dir(&install_path) else {
+            return Ok((HashMap::new(), "public".to_string(), false));
         };
 
-        let manifest_path = steamapps.join(format!("appmanifest_{}.acf", game.app_id));
+        let manifest_path = layout.manifest(game.app_id);
         if !manifest_path.exists() {
             return Ok((HashMap::new(), "public".to_string(), false));
         }

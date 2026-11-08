@@ -733,7 +733,7 @@ fn anticheat_env(
         if !wanted {
             continue;
         }
-        let path = library_root.join("steamapps").join("common").join(dir);
+        let path = crate::library::layout::Layout::of(library_root).game_dir(dir);
         if path.is_dir() {
             env.insert(var.to_string(), path.to_string_lossy().into_owned());
         } else {

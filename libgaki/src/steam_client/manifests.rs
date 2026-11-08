@@ -26,11 +26,11 @@ impl SteamClient {
     }
 
     pub(crate) async fn appmanifest_path(&self, appid: u32) -> Result<PathBuf> {
-        let file = format!("appmanifest_{appid}.acf");
+        use crate::library::layout::Layout;
 
         // Search every known Steam library (incl. other drives) for the manifest.
         for root in crate::library::all_library_roots().await {
-            let candidate = root.join("steamapps").join(&file);
+            let candidate = Layout::of(&root).manifest(appid);
             if candidate.exists() {
                 return Ok(candidate);
             }
@@ -39,9 +39,7 @@ impl SteamClient {
         // Fall back to the configured library root even if the manifest is absent,
         // preserving the previous behaviour for callers that tolerate a missing file.
         let cfg = load_launcher_config().await?;
-        Ok(PathBuf::from(cfg.steam_library_path)
-            .join("steamapps")
-            .join(file))
+        Ok(Layout::of(Path::new(&cfg.steam_library_path)).manifest(appid))
     }
 
     pub(crate) async fn local_manifest_info_for_appid(
@@ -73,12 +71,14 @@ impl SteamClient {
             .parent()
             .ok_or_else(|| anyhow!("invalid steamapps path for app {appid}"))?
             .to_path_buf();
+        let layout = crate::library::layout::Layout::from_steamapps(&steamapps)
+            .ok_or_else(|| anyhow!("invalid steamapps path for app {appid}"))?;
 
         if manifest_path.exists() {
             let raw = std::fs::read_to_string(&manifest_path)
                 .with_context(|| format!("failed reading {}", manifest_path.display()))?;
             if let Some(installdir) = parse_installdir_from_acf(&raw) {
-                let p = steamapps.join("common").join(&installdir);
+                let p = layout.game_dir(&installdir);
                 if p.exists() {
                     return Ok(p);
                 }
@@ -95,11 +95,10 @@ impl SteamClient {
         }
 
         // Final fallback if no manifest or installdir
+        let cfg = load_launcher_config().await?;
         Ok(
-            PathBuf::from(load_launcher_config().await?.steam_library_path)
-                .join("steamapps")
-                .join("common")
-                .join(appid.to_string()),
+            crate::library::layout::Layout::of(Path::new(&cfg.steam_library_path))
+                .game_dir(&appid.to_string()),
         )
     }
 

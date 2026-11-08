@@ -212,6 +212,13 @@ pub fn running_games_dir() -> Result<PathBuf> {
     state_subdir("running")
 }
 
+/// Where the libraries with gaki's own layout keep their records:
+/// `<state dir>/libraries` (see [`state_subdir`] and
+/// [`crate::library::layout`]).
+pub fn library_records_dir() -> Result<PathBuf> {
+    state_subdir("libraries")
+}
+
 /// gaki's cache directory: `$XDG_CACHE_HOME/gaki`, or `~/.cache/gaki`.
 /// Holds data that can be fetched again, such as cached art and listings.
 pub fn cache_dir() -> Result<PathBuf> {

@@ -195,8 +195,8 @@ pub(crate) async fn cmd_account(json: bool) -> Result<()> {
 
 /// List the Steam library folders available to install into, with the free
 /// space on each, one per line (or a JSON `{ "libraries": [{path, free_bytes}] }`
-/// object with `--json`). Only roots that actually contain a `steamapps`
-/// directory are reported.
+/// object with `--json`): the configured `steam_library` first, then every
+/// other root that contains a `steamapps` directory.
 pub(crate) async fn cmd_libraries(json: bool) -> Result<()> {
     let libraries: Vec<(String, Option<u64>)> = library::folders()
         .await

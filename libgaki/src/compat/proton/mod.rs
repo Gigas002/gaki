@@ -151,7 +151,10 @@ pub(crate) fn search_dirs_from(
 ) -> Vec<(PathBuf, &'static str)> {
     let mut dirs = vec![(system.to_path_buf(), "system")];
     dirs.extend(user.iter().map(|d| (d.clone(), "user")));
-    dirs.push((steam_library_path.join("steamapps/common"), "steam"));
+    dirs.push((
+        crate::library::layout::Layout::of(steam_library_path).common(),
+        "steam",
+    ));
 
     let mut seen = std::collections::HashSet::new();
     dirs.retain(|(d, _)| seen.insert(std::fs::canonicalize(d).unwrap_or_else(|_| d.clone())));

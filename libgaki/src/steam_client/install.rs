@@ -197,20 +197,19 @@ impl SteamClient {
         // UI) when given, else the configured default. DLCs ignore this and
         // follow their base game's library (handled below).
         let library_root = library_override.unwrap_or_else(|| cfg.steam_library_path.clone());
+        let layout = crate::library::layout::Layout::for_install(
+            Path::new(&library_root),
+            Path::new(&cfg.steam_library_path),
+        )?;
         let (mut game_name, pics_installdir) = self.resolve_install_game_info(appid).await;
         let mut installdir = pics_installdir.unwrap_or_else(|| sanitize_install_dir(&game_name));
 
         // Re-installing / resuming into a library that already registers this app
-        let existing_manifest = Path::new(&library_root)
-            .join("steamapps")
-            .join(format!("appmanifest_{appid}.acf"));
+        let existing_manifest = layout.manifest(appid);
         if let Ok(raw) = std::fs::read_to_string(&existing_manifest) {
             let parsed = crate::core::acf::parse_app_manifest(&raw);
             if let Some(dir) = parsed.install_dir.clone() {
-                let existing_dir = Path::new(&library_root)
-                    .join("steamapps")
-                    .join("common")
-                    .join(&dir);
+                let existing_dir = layout.game_dir(&dir);
                 if existing_dir.is_dir() && crate::core::utils::is_safe_dir_name(&dir) {
                     installdir = dir;
                 }
@@ -240,24 +239,18 @@ impl SteamClient {
             let base_installdir = parse_installdir_from_acf(&base_raw).ok_or_else(|| {
                 anyhow!("could not determine base game install dir for app {base_appid}")
             })?;
-            let steamapps = base_manifest
+            let base_layout = base_manifest
                 .parent()
+                .and_then(crate::library::layout::Layout::from_steamapps)
                 .ok_or_else(|| anyhow!("invalid base manifest path for app {base_appid}"))?;
-            let dir = steamapps.join("common").join(&base_installdir);
+            let dir = base_layout.game_dir(&base_installdir);
             tracing::info!(
                 "DLC {appid} -> installing into base game {base_appid} at {}",
                 dir.display()
             );
             (dir, base_manifest)
         } else {
-            let dir = Path::new(&library_root)
-                .join("steamapps")
-                .join("common")
-                .join(&installdir);
-            let mp = Path::new(&library_root)
-                .join("steamapps")
-                .join(format!("appmanifest_{appid}.acf"));
-            (dir, mp)
+            (layout.game_dir(&installdir), layout.manifest(appid))
         };
 
         std::fs::create_dir_all(&install_dir)

@@ -1353,12 +1353,10 @@ pub fn proton_compat_prefix(
     }
 }
 
-/// `steamapps/compatdata/<appid>` under a library root.
+/// The game's Proton compat data in a library: `steamapps/compatdata/<appid>`
+/// (see [`crate::library::layout`]).
 pub fn compat_data_dir(library_root: &Path, app_id: u32) -> PathBuf {
-    library_root
-        .join("steamapps")
-        .join("compatdata")
-        .join(app_id.to_string())
+    crate::library::layout::Layout::of(library_root).compatdata(app_id)
 }
 
 /// Resolve `rel` under `base`, ignoring case.

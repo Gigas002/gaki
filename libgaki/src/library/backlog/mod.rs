@@ -211,14 +211,13 @@ pub fn deletable_dir(entry: &BacklogEntry) -> Option<PathBuf> {
         return None;
     }
     let dir = entry.install_dir.as_ref()?;
-    let common = Path::new(&entry.library).join("steamapps").join("common");
+    let layout = crate::library::layout::Layout::of(Path::new(&entry.library));
+    let common = layout.common();
     let name = dir.file_name()?.to_str()?;
     if dir.parent() != Some(common.as_path()) || !crate::core::utils::is_safe_dir_name(name) {
         return None;
     }
-    let manifest = Path::new(&entry.library)
-        .join("steamapps")
-        .join(format!("appmanifest_{}.acf", entry.app_id));
+    let manifest = layout.manifest(entry.app_id);
     // A finished install owns it.
     if manifest.exists() {
         return None;

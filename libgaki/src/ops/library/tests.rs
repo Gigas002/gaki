@@ -52,3 +52,22 @@ fn owned_app_stays_owned() {
     assert!(!games[0].is_family_shared);
     assert!(games[0].is_owned);
 }
+
+#[test]
+fn install_targets_list_the_configured_library_first_even_when_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = std::fs::canonicalize(dir.path()).unwrap();
+    let configured = root.join("games"); // nothing installed: no steamapps/
+    std::fs::create_dir_all(&configured).unwrap();
+    let other = root.join("Steam");
+    std::fs::create_dir_all(other.join("steamapps")).unwrap();
+    let stale = root.join("old"); // not a library
+    std::fs::create_dir_all(&stale).unwrap();
+
+    let targets = install_targets(
+        Some(configured.clone()),
+        vec![other.clone(), stale, configured.clone()],
+    );
+    assert_eq!(targets, [configured, other.clone()]);
+    assert_eq!(install_targets(None, vec![other.clone()]), [other]);
+}

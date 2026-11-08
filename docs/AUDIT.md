@@ -225,7 +225,7 @@ no counterpart to them.
 | Download queue: pause, resume, cancel | ✓ | ✓ `install …` | ✓ `Space`, `c`, `X` | |
 | Choose a library folder; see free space | ✓ | ✓ `--library`, `libraries` | ✓ install picker | |
 | Move an install; add an existing install | ✓ | ✓ `move`, `relink`, `import` | ✓ `M`, `K`, `N` | |
-| Create a new library folder | — | — | — | not done (a target needs a `steamapps` folder already; gaki says to add the drive in Steam's Storage settings) |
+| Create a new library folder | — | — | — | partly: `steam_library` may be any folder, which gets gaki's own layout ([CONFIG.md](CONFIG.md#library-layout)); other targets need a `steamapps` folder already, and gaki says to add the drive in Steam's Storage settings |
 | Download bandwidth limit, download schedule, auto-update windows | — | — | — | not done. The TUI checks for updates after each library load; the daemon can resume interrupted installs (`install-resume auto`) |
 | Enable or disable DLC | ✓ | ✓ `enable`, `disable` | ✓ `D` | |
 | Beta branches | ✓ | ✓ `branches`, `set-branch` | ✓ `b` | |

@@ -5,6 +5,7 @@ pub mod cloud_sync;
 pub mod collections;
 #[cfg(feature = "depot")]
 pub mod depot_browser;
+pub mod layout;
 pub mod local_library;
 pub mod platform;
 pub mod relocate;
@@ -136,7 +137,10 @@ async fn steam_data_roots() -> Vec<PathBuf> {
     let config = load_launcher_config().await.ok();
     let config_path = config.as_ref().and_then(|cfg| {
         let p = PathBuf::from(&cfg.steam_library_path);
-        (p.join("steamapps").exists() || p.join("Steam").join("steamapps").exists()).then_some(p)
+        (p.join("steamapps").exists()
+            || p.join("Steam").join("steamapps").exists()
+            || layout::Layout::of(&p).is_flat())
+        .then_some(p)
     });
 
     let mut roots: Vec<PathBuf> = config_path.into_iter().collect();
@@ -230,7 +234,7 @@ pub async fn scan_libraries_all(libraries: &[PathBuf]) -> HashMap<u32, Vec<Insta
     let mut installed: HashMap<u32, Vec<InstalledAppInfo>> = HashMap::new();
 
     for library_root in libraries {
-        let steamapps = library_root.join("steamapps");
+        let steamapps = layout::Layout::of(library_root).steamapps().to_path_buf();
         if !steamapps.exists() {
             continue;
         }
@@ -629,10 +633,11 @@ fn unescape_vdf(value: &str) -> String {
     out
 }
 
-/// Find the install folder for `appid` under `<steamapps>/common` by its
-/// `steam_appid.txt` marker. Used when a manifest's `installdir` is stale.
+/// Find the install folder for `appid` among the games of the library whose
+/// records are in `steamapps`, by its `steam_appid.txt` marker. Used when a
+/// manifest's `installdir` is stale.
 pub fn probe_install_dir_by_appid(steamapps: &Path, appid: u32) -> Option<PathBuf> {
-    let common = steamapps.join("common");
+    let common = layout::Layout::from_steamapps(steamapps)?.common();
     let appid_str = appid.to_string();
     let entries = std::fs::read_dir(common).ok()?;
     for entry in entries.flatten() {
@@ -669,7 +674,10 @@ async fn parse_app_manifest_info(path: &Path) -> Result<Option<(u32, InstalledAp
         return Ok(None);
     }
     let steamapps = path.parent().map(Path::to_path_buf).unwrap_or_default();
-    let mut install_path = steamapps.join("common").join(&dir);
+    let Some(layout) = layout::Layout::from_steamapps(&steamapps) else {
+        return Ok(None);
+    };
+    let mut install_path = layout.game_dir(&dir);
     // A manifest whose `installdir` no longer matches the folder on disk
     if !install_path.is_dir()
         && let Some(found) = probe_install_dir_by_appid(&steamapps, id)

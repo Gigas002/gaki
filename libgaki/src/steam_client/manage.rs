@@ -3,29 +3,42 @@
 //! Split out of `steam_client.rs` for readability; the struct, shared imports
 //! and free helpers live in the parent module (in scope via `use super::*`).
 use super::*;
+use crate::library::layout::Layout;
 
 impl SteamClient {
+    /// The layout a move, relink or import into `library` uses: gaki's own
+    /// for the configured `steam_library` when Steam doesn't know it, else
+    /// Steam's, which needs a `steamapps/`.
+    async fn destination_layout(library: &Path) -> Result<Layout> {
+        let cfg = load_launcher_config().await?;
+        let layout = Layout::for_install(library, Path::new(&cfg.steam_library_path))?;
+        if !layout.is_flat() && !layout.steamapps().exists() {
+            bail!(
+                "{} is not a Steam library folder (no steamapps/). Add the drive in \
+                 Steam \u{2192} Settings \u{2192} Storage first, or make it `steam_library`.",
+                library.display()
+            );
+        }
+        Ok(layout)
+    }
+
     /// Resolve an installed app's on-disk layout from its `appmanifest`:
-    /// `(manifest, steamapps_dir, library_root, installdir)`. Shared by the
+    /// `(manifest, library layout, installdir)`. Shared by the
     /// move/relink flows, which differ only in the message reported when no
     /// manifest exists (`missing_manifest_msg`, already formatted by the caller).
     async fn resolve_source_layout(
         &self,
         appid: u32,
         missing_manifest_msg: &str,
-    ) -> Result<(PathBuf, PathBuf, PathBuf, String)> {
+    ) -> Result<(PathBuf, Layout, String)> {
         let src_manifest = self.appmanifest_path(appid).await?;
         if !src_manifest.exists() {
             bail!("{missing_manifest_msg}");
         }
-        let src_steamapps = src_manifest
+        let src_layout = src_manifest
             .parent()
-            .ok_or_else(|| anyhow!("invalid manifest path for app {appid}"))?
-            .to_path_buf();
-        let src_lib_root = src_steamapps
-            .parent()
-            .ok_or_else(|| anyhow!("invalid library path for app {appid}"))?
-            .to_path_buf();
+            .and_then(Layout::from_steamapps)
+            .ok_or_else(|| anyhow!("invalid manifest path for app {appid}"))?;
 
         let raw = std::fs::read_to_string(&src_manifest)
             .with_context(|| format!("failed reading {}", src_manifest.display()))?;
@@ -35,7 +48,7 @@ impl SteamClient {
             bail!("app {appid} has unsafe installdir {installdir:?}");
         }
 
-        Ok((src_manifest, src_steamapps, src_lib_root, installdir))
+        Ok((src_manifest, src_layout, installdir))
     }
 
     #[cfg(feature = "versioning")]
@@ -62,10 +75,10 @@ impl SteamClient {
         // appmanifest or install directory found", since its manifest lives in
         // that library's steamapps — mirrors how move/relink locate the source.
         let appmanifest = self.appmanifest_path(appid).await?;
-        let steamapps = appmanifest
+        let layout = appmanifest
             .parent()
-            .ok_or_else(|| anyhow!("invalid steamapps path for app {appid}"))?
-            .to_path_buf();
+            .and_then(Layout::from_steamapps)
+            .ok_or_else(|| anyhow!("invalid steamapps path for app {appid}"))?;
 
         let installdir = if appmanifest.exists() {
             let raw = std::fs::read_to_string(&appmanifest)
@@ -74,16 +87,14 @@ impl SteamClient {
         } else {
             None
         };
-        // Never delete outside steamapps/common/<dir>.
+        // Never delete outside the library's games (steamapps/common/<dir>).
         if let Some(dir) = installdir
             .as_deref()
             .filter(|d| !crate::core::utils::is_safe_dir_name(d))
         {
             bail!("refusing to uninstall app {appid}: unsafe installdir {dir:?}");
         }
-        let install_dir = steamapps
-            .join("common")
-            .join(installdir.unwrap_or_else(|| appid.to_string()));
+        let install_dir = layout.game_dir(&installdir.unwrap_or_else(|| appid.to_string()));
 
         // Nothing to remove for an app that was never installed here — report it
         // rather than silently claiming success.
@@ -102,7 +113,7 @@ impl SteamClient {
         }
 
         if delete_prefix {
-            let compat = steamapps.join("compatdata").join(appid.to_string());
+            let compat = layout.compatdata(appid);
             if compat.exists() {
                 std::fs::remove_dir_all(&compat)
                     .with_context(|| format!("failed deleting {}", compat.display()))?;
@@ -131,55 +142,55 @@ impl SteamClient {
         use crate::library::relocate;
 
         // --- Resolve the source layout from the appmanifest ---
-        let (src_manifest, src_steamapps, src_lib_root, installdir) = self
+        let (src_manifest, src_layout, installdir) = self
             .resolve_source_layout(
                 appid,
                 &format!("app {appid} is not installed (no appmanifest found)"),
             )
             .await?;
+        let src_lib_root = src_layout.root().to_path_buf();
 
-        let src_common = src_steamapps.join("common").join(&installdir);
+        let src_common = src_layout.game_dir(&installdir);
         if !src_common.exists() {
             bail!("install directory not found: {}", src_common.display());
         }
 
         // --- Resolve and validate the destination library ---
-        let dest_steamapps = dest_library.join("steamapps");
-        if !dest_steamapps.exists() {
-            bail!(
-                "{} is not a Steam library folder (no steamapps/). Add the drive in \
-                 Steam \u{2192} Settings \u{2192} Storage first.",
-                dest_library.display()
-            );
-        }
-        if dest_steamapps == src_steamapps {
+        let dest_layout = Self::destination_layout(&dest_library).await?;
+        if dest_layout.steamapps() == src_layout.steamapps() {
             bail!("app {appid} is already in {}", dest_library.display());
         }
 
-        let dest_common = dest_steamapps.join("common").join(&installdir);
+        let dest_common = dest_layout.game_dir(&installdir);
         if dest_common.exists() {
             bail!("destination already exists: {}", dest_common.display());
         }
-        let dest_manifest = dest_steamapps.join(format!("appmanifest_{appid}.acf"));
+        let dest_manifest = dest_layout.manifest(appid);
 
         // Proton prefix, if this game has one.
-        let src_compat = src_steamapps.join("compatdata").join(appid.to_string());
+        let src_compat = src_layout.compatdata(appid);
         let src_compat = src_compat.exists().then_some(src_compat);
-        let dest_compat = src_compat
-            .as_ref()
-            .map(|_| dest_steamapps.join("compatdata").join(appid.to_string()));
+        let dest_compat = src_compat.as_ref().map(|_| dest_layout.compatdata(appid));
 
         // Locate the (single) libraryfolders.vdf and warn if the destination isn't
-        // a registered library — Steam won't scan an unregistered folder.
+        // a registered library — Steam won't scan an unregistered folder. A
+        // library in gaki's own layout is one Steam doesn't know, on purpose,
+        // so its index isn't touched.
         let roots = crate::library::all_library_roots().await;
-        if !roots.iter().any(|r| r.join("steamapps") == dest_steamapps) {
+        if !dest_layout.is_flat()
+            && !roots
+                .iter()
+                .any(|r| r.join("steamapps") == dest_layout.steamapps())
+        {
             tracing::warn!(
                 "{} is not a registered Steam library; Steam may not show the game until \
                  the folder is added in Settings \u{2192} Storage",
                 dest_library.display()
             );
         }
-        let libraryfolders = relocate::find_libraryfolders_vdf(&roots);
+        let libraryfolders = (!src_layout.is_flat() && !dest_layout.is_flat())
+            .then(|| relocate::find_libraryfolders_vdf(&roots))
+            .flatten();
 
         let (tx, rx) = tokio::sync::mpsc::channel(64);
 
@@ -281,27 +292,22 @@ impl SteamClient {
 
     /// Relink
     pub async fn relink_install(&self, appid: u32, dest_library: PathBuf) -> Result<PathBuf> {
-        let (src_manifest, src_steamapps, src_lib_root, installdir) = self
+        let (src_manifest, src_layout, installdir) = self
             .resolve_source_layout(
                 appid,
                 &format!("app {appid} is not registered (no appmanifest to relink)"),
             )
             .await?;
+        let src_lib_root = src_layout.root().to_path_buf();
 
-        let dest_steamapps = dest_library.join("steamapps");
-        if !dest_steamapps.exists() {
-            bail!(
-                "{} is not a Steam library folder (no steamapps/)",
-                dest_library.display()
-            );
-        }
-        if dest_steamapps == src_steamapps {
+        let dest_layout = Self::destination_layout(&dest_library).await?;
+        if dest_layout.steamapps() == src_layout.steamapps() {
             bail!(
                 "app {appid} is already linked to {}",
                 dest_library.display()
             );
         }
-        let dest_common = dest_steamapps.join("common").join(&installdir);
+        let dest_common = dest_layout.game_dir(&installdir);
         if !dest_common.exists() {
             bail!(
                 "game files not found at {} — relink only updates Steam's records; use \
@@ -309,7 +315,7 @@ impl SteamClient {
                 dest_common.display()
             );
         }
-        let dest_manifest = dest_steamapps.join(format!("appmanifest_{appid}.acf"));
+        let dest_manifest = dest_layout.manifest(appid);
 
         // Move only the manifest (files are already in place).
         std::fs::copy(&src_manifest, &dest_manifest)
@@ -386,14 +392,8 @@ impl SteamClient {
             }
         }
 
-        let steamapps = library.join("steamapps");
-        if !steamapps.exists() {
-            bail!(
-                "{} is not a Steam library folder (no steamapps/)",
-                library.display()
-            );
-        }
-        let common_dir = steamapps.join("common").join(&installdir);
+        let layout = Self::destination_layout(&library).await?;
+        let common_dir = layout.game_dir(&installdir);
         if !common_dir.exists() {
             bail!(
                 "game files not found at {} — `import` registers existing files; use \
@@ -401,7 +401,7 @@ impl SteamClient {
                 common_dir.display()
             );
         }
-        let manifest = steamapps.join(format!("appmanifest_{appid}.acf"));
+        let manifest = layout.manifest(appid);
         if manifest.exists() {
             bail!(
                 "app {appid} is already registered at {}",

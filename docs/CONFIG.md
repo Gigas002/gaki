@@ -10,7 +10,7 @@ check them with `gaki-cli config check`.
 | Directory                                      | Contents                                                       |
 | ---------------------------------------------- | -------------------------------------------------------------- |
 | `$XDG_CONFIG_HOME/gaki/` (`~/.config/gaki/`)   | `config.toml`, `games.toml`, `profiles/`, plus what gaki writes there: `pins.toml`, `install_backlog.toml`, `collections.toml`, `cloud_sync/` |
-| `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `account.toml` (the session, without its tokens), `gaki-tui.log`, launch `logs/`, `running/` (games gaki launched, for `gaki-cli stop`) |
+| `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `account.toml` (the session, without its tokens), `gaki-tui.log`, launch `logs/`, `running/` (games gaki launched, for `gaki-cli stop`), `libraries/` (records of [gaki-layout libraries](#library-layout)) |
 | `$XDG_CACHE_HOME/gaki/` (`~/.cache/gaki/`)     | what gaki can fetch again: `library_cache.toml`, `info_cache/`, `tag_names.toml`, `category_names.toml`, `images/`, `shadercache/` |
 | `$XDG_CONFIG_HOME/gaki/tui/`                   | `gaki-tui`'s own `config.toml` ([GAKI-TUI.md](GAKI-TUI.md))     |
 | `$XDG_CACHE_HOME/gaki/tui/`                    | `gaki-tui`'s cached library and cover art                       |
@@ -41,7 +41,7 @@ writes it, and `config unset <key>` removes one.
 
 | Key                   | Default              | Meaning                                                    |
 | --------------------- | -------------------- | ---------------------------------------------------------- |
-| `steam_library`       | the detected library | where games install                                        |
+| `steam_library`       | the detected library | where games install. A folder Steam doesn't know (no `steamapps/` in it) gets gaki's own layout: see [Library layout](#library-layout) |
 | `profiles_dir`        | `<config>/profiles`  | where profiles live; point it at `~/.config/lootrs/profiles` to share lootrs' |
 | `default_profile`     | —                    | the profile a game uses when `games.toml` names none       |
 | `default_platform`    | —                    | `windows` or `linux`: the build to install and run when a game has both. Unset installs the Windows build and runs whichever is installed |
@@ -57,6 +57,22 @@ writes it, and `config unset <key>` removes one.
 | `reauth_sensitive`    | `false`              | ask for a fresh sign-in before showing the inventory, wallet or market listings |
 | `secret_store`        | `keyring`            | where tokens are kept: `keyring` or `memory`               |
 | `shader_cache`        | `<cache>/shadercache` | where games' compiled shaders go: a directory that gets one `<app id>/` per game, or `off` (see [Shader caches](#shader-caches)) |
+
+### Library layout
+
+A Steam library keeps each game in `steamapps/common/<game>`, with its
+records (appmanifests, Workshop items, Proton compat data) in `steamapps/`.
+gaki uses that layout in every library Steam knows, so the Steam client sees
+the same games.
+
+A `steam_library` that Steam doesn't know (a folder with no `steamapps/`)
+gets gaki's own layout at its first install instead: each game directly in
+`<steam_library>/<game>`, and the records in
+`$XDG_STATE_HOME/gaki/libraries/<escaped path>/` (`home-me-games` for
+`/home/me/games`), laid out like a `steamapps/`. The Steam client doesn't
+see games installed there. The library keeps its layout once chosen; a
+folder Steam already uses keeps Steam's. `gaki-cli move`, `relink` and
+`import` treat it the same way. Other folders still need a `steamapps/`.
 
 ## Profiles
 

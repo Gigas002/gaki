@@ -279,17 +279,39 @@ pub struct LibraryFolder {
     pub free_bytes: Option<u64>,
 }
 
-/// Every Steam library folder that has a `steamapps` directory.
+/// The library folders games can be installed into: the configured
+/// `steam_library` first, then every other one that has a `steamapps`
+/// directory.
 pub async fn folders() -> Vec<LibraryFolder> {
-    crate::library::all_library_roots()
+    let configured = crate::core::config::load_launcher_config()
         .await
+        .ok()
+        .map(|config| std::path::PathBuf::from(config.steam_library_path))
+        .filter(|path| !path.as_os_str().is_empty());
+    install_targets(configured, crate::library::all_library_roots().await)
         .into_iter()
-        .filter(|root| root.join("steamapps").is_dir())
         .map(|path| LibraryFolder {
             free_bytes: crate::core::utils::available_space_for(&path),
             path,
         })
         .collect()
+}
+
+/// `configured` first, even with nothing installed in it yet (an install
+/// creates its `steamapps/`), then each of `roots` that has a `steamapps/`.
+fn install_targets(
+    configured: Option<std::path::PathBuf>,
+    roots: Vec<std::path::PathBuf>,
+) -> Vec<std::path::PathBuf> {
+    // `roots` are canonical, so compare against the canonical configured path.
+    let configured = configured.map(|path| std::fs::canonicalize(&path).unwrap_or(path));
+    let mut targets: Vec<_> = configured.iter().cloned().collect();
+    targets.extend(
+        roots
+            .into_iter()
+            .filter(|root| root.join("steamapps").is_dir() && Some(root) != configured.as_ref()),
+    );
+    targets
 }
 
 #[cfg(test)]

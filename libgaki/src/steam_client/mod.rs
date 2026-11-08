@@ -1163,6 +1163,11 @@ pub fn category_online_required(categories: &HashMap<String, String>) -> bool {
 /// the appmanifests on its next launch.
 #[cfg(feature = "install")]
 async fn update_libraryfolders_for(from_lib: &Path, to_lib: &Path, appid: u32, install_dir: &Path) {
+    // Steam doesn't know libraries in gaki's own layout, on purpose.
+    use crate::library::layout::Layout;
+    if Layout::of(from_lib).is_flat() || Layout::of(to_lib).is_flat() {
+        return;
+    }
     let roots = crate::library::all_library_roots().await;
     let Some(vdf_path) = crate::library::relocate::find_libraryfolders_vdf(&roots) else {
         return;

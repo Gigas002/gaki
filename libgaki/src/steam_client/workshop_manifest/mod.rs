@@ -35,22 +35,23 @@ pub(crate) struct InstalledWorkshopItem {
 // Path helpers
 // ---------------------------------------------------------------------------
 
-/// Returns `<library_root>/steamapps/workshop/appworkshop_<app_id>.acf`.
+/// Returns `<steamapps>/workshop/appworkshop_<app_id>.acf`, `<steamapps>`
+/// being the library's records (see [`crate::library::layout`]).
 pub(crate) fn workshop_manifest_path(library_root: &Path, app_id: u32) -> PathBuf {
-    library_root
-        .join("steamapps")
+    crate::library::layout::Layout::of(library_root)
+        .steamapps()
         .join("workshop")
         .join(format!("appworkshop_{app_id}.acf"))
 }
 
-/// Returns `<library_root>/steamapps/workshop/content/<app_id>/<published_file_id>`.
+/// Returns `<steamapps>/workshop/content/<app_id>/<published_file_id>`.
 pub(crate) fn workshop_content_dir(
     library_root: &Path,
     app_id: u32,
     published_file_id: u64,
 ) -> PathBuf {
-    library_root
-        .join("steamapps")
+    crate::library::layout::Layout::of(library_root)
+        .steamapps()
         .join("workshop")
         .join("content")
         .join(app_id.to_string())
