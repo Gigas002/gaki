@@ -537,9 +537,8 @@ impl Runner for WineTkgRunner {
             }
         }
 
-        let log_dir = crate::core::config::config_dir()
-            .unwrap_or_else(|_| PathBuf::from("/tmp"))
-            .join("logs");
+        let log_dir = crate::core::config::launch_logs_dir()
+            .unwrap_or_else(|_| PathBuf::from("/tmp"));
         let log_path = log_dir.join(format!("wine_{}.log", ctx.app.app_id));
         env.insert(
             "WINE_LOG_OUTPUT".to_string(),

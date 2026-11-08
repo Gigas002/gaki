@@ -9,13 +9,15 @@ check them with `gaki-cli config check`.
 
 | Directory                                      | Contents                                                       |
 | ---------------------------------------------- | -------------------------------------------------------------- |
-| `$XDG_CONFIG_HOME/gaki/` (`~/.config/gaki/`)   | `config.toml`, `games.toml`, `profiles/`, plus what gaki writes there: `pins.toml`, `install_backlog.toml`, `library_cache.toml`, `info_cache/`, `images/`, launch `logs/` |
-| `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `account.toml` (the session, without its tokens), `gaki-tui.log` |
+| `$XDG_CONFIG_HOME/gaki/` (`~/.config/gaki/`)   | `config.toml`, `games.toml`, `profiles/`, plus what gaki writes there: `pins.toml`, `install_backlog.toml`, `collections.toml`, `cloud_sync/` |
+| `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `account.toml` (the session, without its tokens), `gaki-tui.log`, launch `logs/`, `running/` (games gaki launched, for `gaki-cli stop`) |
+| `$XDG_CACHE_HOME/gaki/` (`~/.cache/gaki/`)     | what gaki can fetch again: `library_cache.toml`, `info_cache/`, `tag_names.toml`, `category_names.toml`, `images/`, `shadercache/` |
 | `$XDG_CONFIG_HOME/gaki/tui/`                   | `gaki-tui`'s own `config.toml` ([GAKI-TUI.md](GAKI-TUI.md))     |
 | `$XDG_CACHE_HOME/gaki/tui/`                    | `gaki-tui`'s cached library and cover art                       |
 | `$XDG_RUNTIME_DIR/gaki/`                       | the session daemon's socket                                    |
 
-`--config-dir <PATH>` moves the config directory, `account.toml` included. An
+`--config-dir <PATH>` moves the config directory, `account.toml` included, and
+keeps the caches, launch logs and `running/` in it too. An
 embedding driver (Heroic, for example) can use it to keep gaki's state apart
 from a standalone install. One daemon serves one config directory, so pair it
 with `--socket <PATH>` or `--no-daemon`.

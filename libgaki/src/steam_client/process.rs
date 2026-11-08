@@ -192,8 +192,8 @@ impl SteamClient {
         ctx.settings = Some(settings.clone());
         ctx.steam_enabled = steam_enabled;
 
-        if let Ok(config_dir) = crate::core::config::config_dir() {
-            let session = LaunchSession::new(&config_dir.join("logs"));
+        if let Ok(logs_dir) = crate::core::config::launch_logs_dir() {
+            let session = LaunchSession::new(&logs_dir);
             if let Ok(logger) = EventLogger::new(&session) {
                 ctx.session = Some(session);
                 ctx.logger = Some(logger);

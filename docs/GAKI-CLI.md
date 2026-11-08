@@ -410,5 +410,5 @@ Commands run through the daemon show the same logs at your `-v` level, and a
 verbose `play` also shows the daemon's own activity, prefixed `[daemon]`.
 `--log <FILTER>` (e.g. `--log debug,steam_vent=info`) overrides the level.
 
-Each launch's output is saved under `~/.config/gaki/logs/`; `gaki-cli
+Each launch's output is saved under `~/.local/state/gaki/logs/`; `gaki-cli
 clean --logs` deletes all but each game's newest.

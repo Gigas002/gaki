@@ -4,7 +4,7 @@
 //! `gaki-cli play` blocks in the foreground process while the game runs, so the
 //! PID of the launched process can't be queried from another invocation. To make
 //! `stop` work across processes, each launch records a small TOML file under
-//! `~/.config/gaki/running/<app_id>.toml` holding the child PID (and, for a
+//! `~/.local/state/gaki/running/<app_id>.toml` holding the child PID (and, for a
 //! per-game Proton/Wine launch, the WINEPREFIX the game runs in). The launching
 //! process removes the file when the game exits.
 //!
@@ -26,7 +26,7 @@
 //! - Records are replaced atomically (write to a temp file, then rename), so a
 //!   crash mid-write leaves the previous record rather than a truncated one.
 
-use crate::core::config::config_dir;
+use crate::core::config::running_games_dir;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -94,7 +94,7 @@ pub fn process_start_time(pid: u32) -> Option<u64> {
 }
 
 fn running_dir() -> Result<PathBuf> {
-    Ok(config_dir()?.join("running"))
+    running_games_dir()
 }
 
 fn record_path(app_id: u32) -> Result<PathBuf> {

@@ -127,7 +127,7 @@ impl Layout {
             images: config::image_cache_dir()?,
             library_cache: config::library_cache_path()?,
             tui_cache: config::cache_dir()?.join("tui"),
-            launch_logs: config::config_dir()?.join("logs"),
+            launch_logs: config::launch_logs_dir()?,
             locks: config::state_dir()?.join("installs"),
             shader_roots: shader_roots()?,
             data,

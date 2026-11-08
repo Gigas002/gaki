@@ -178,11 +178,38 @@ pub async fn ensure_config_dirs() -> Result<()> {
 }
 
 pub fn image_cache_dir() -> Result<PathBuf> {
-    Ok(config_dir()?.join("images"))
+    Ok(data_dir()?.join("images"))
 }
 
+/// Where gaki keeps what it can fetch again: the library and store info
+/// caches, the store name tables and images. That's [`cache_dir`], unless a
+/// config directory was set with [`set_config_dir`]: then it's that
+/// directory, so an embedder's (or a test's) files all stay in one place.
 pub fn data_dir() -> Result<PathBuf> {
-    config_dir()
+    if cfg!(test) || CONFIG_DIR_OVERRIDE.get().is_some() {
+        return config_dir();
+    }
+    cache_dir()
+}
+
+/// `<state dir>/<name>`, or `<name>` in a config directory set with
+/// [`set_config_dir`], so an embedder's (or a test's) files stay together.
+fn state_subdir(name: &str) -> Result<PathBuf> {
+    if cfg!(test) || CONFIG_DIR_OVERRIDE.get().is_some() {
+        return Ok(config_dir()?.join(name));
+    }
+    Ok(state_dir()?.join(name))
+}
+
+/// Where launch logs go: `<state dir>/logs` (see [`state_subdir`]).
+pub fn launch_logs_dir() -> Result<PathBuf> {
+    state_subdir("logs")
+}
+
+/// Where records of running games go: `<state dir>/running` (see
+/// [`state_subdir`]).
+pub fn running_games_dir() -> Result<PathBuf> {
+    state_subdir("running")
 }
 
 /// gaki's cache directory: `$XDG_CACHE_HOME/gaki`, or `~/.cache/gaki`.
