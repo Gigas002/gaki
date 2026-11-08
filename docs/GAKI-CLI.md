@@ -257,6 +257,14 @@ gaki-cli market listings                      # your listings and buy orders
 With `reauth_sensitive` on, the inventory, wallet and listings ask for a fresh
 sign-in first ([CONFIG.md](CONFIG.md#session-and-security)).
 
+Steam limits these pages hard, so gaki goes easy on them. A price or search
+result is reused for 5 minutes, and your inventory, wallet and listings for
+1 minute. Requests are sent at least 3 seconds apart, so a burst of
+commands waits its turn. The answers are kept in memory only. Commands
+that run through the session daemon share them; with `--no-daemon`, each
+command starts empty. Scripts that poll the market are the kind of
+automation Steam's rules forbid ([STEAM-RULES.md](STEAM-RULES.md)).
+
 ### Configuration
 
 ```bash

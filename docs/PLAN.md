@@ -2380,8 +2380,16 @@ user whether to do this phase and how.
   `logs_on_as_gaki`. Gates green (540/682/809 tests). Only a new password or
   QR login creates a device entry, so the saved session keeps its old name
   until the next `gaki-cli login`; not tried by hand (needs the user).
-- [ ] **9.3b** Item B: market, inventory and listings get a short cache and a
+- [x] **9.3b** Item B: market, inventory and listings get a short cache and a
   minimum interval between calls; they stay on. (User decision, 2026-11-08.)
+  *Done 2026-11-08:* libgaki `ops::market::pace`. Prices and searches are
+  reused for 5 minutes (`PUBLIC_TTL`); inventory, wallet and listings for 1
+  minute (`ACCOUNT_TTL`), keyed by SteamID. Requests from one process are at
+  least 3 s apart (`MIN_INTERVAL`, queued in order). Memory only, never on
+  disk; failures aren't cached. Every `ops::market` call goes through it, so
+  the CLI, the daemon and the TUI all do. GAKI-CLI.md explains it. Gates
+  green (540/682/812 tests). By hand through the daemon: first price
+  306 ms, the same again 15 ms (cache), two new items about 3 s each.
 - [ ] **9.3c** Item C: write `steam_appid.txt` only when the game's working
   folder has none; never overwrite or delete one (native and Wine launches,
   `steam_client/process.rs` and `infra/runners/wine_tkg.rs`). (User decision,
