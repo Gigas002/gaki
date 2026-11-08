@@ -320,6 +320,13 @@ fn checks_lines(view: &GameInfoView) -> Vec<Line<'static>> {
                         format!("{} depot(s) held at their version", files.pinned_depots),
                     ));
                 }
+                lines.push(match &files.shader_cache {
+                    Some((path, bytes)) => field(
+                        "  Shader cache",
+                        format!("{} in {path}", libgaki::core::utils::human_bytes(*bytes)),
+                    ),
+                    None => field("  Shader cache", "none".to_string()),
+                });
             }
         }
     }

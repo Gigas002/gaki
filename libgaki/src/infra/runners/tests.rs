@@ -249,6 +249,7 @@ async fn profile_prefix_and_overrides_reach_the_proton_env() {
         args: Vec::new(),
         cloud_sync: true,
         steam: Default::default(),
+        shader_cache: Default::default(),
     });
 
     let env = WineTkgRunner.build_env(&ctx).await.unwrap();
@@ -309,6 +310,7 @@ fn settings_with_runner_args(args: &[&str]) -> crate::settings::LaunchSettings {
         args: Vec::new(),
         cloud_sync: false,
         steam: Default::default(),
+        shader_cache: Default::default(),
     }
 }
 

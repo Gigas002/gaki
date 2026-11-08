@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Platform,
+    Platform, ShaderCache,
     issue::{Issue, Issues, Subject, ValidationContext},
 };
 use crate::{core::config::ChatPresence, library::backlog::InstallResume};
@@ -65,6 +65,11 @@ pub struct Config {
     /// `memory` (the running daemon only, for machines without a keyring).
     #[serde(default)]
     pub secret_store: SecretStoreKind,
+    /// Where games' compiled shaders go: a directory that gets one
+    /// `<app id>/` per game, or `off` to leave it to DXVK, VKD3D-Proton and
+    /// the drivers. `None` is `$XDG_CACHE_HOME/gaki/shadercache`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_cache: Option<ShaderCache>,
 }
 
 /// The `secret_store` setting.
@@ -100,6 +105,7 @@ impl Default for Config {
             daemon_idle_timeout: None,
             reauth_sensitive: false,
             secret_store: SecretStoreKind::default(),
+            shader_cache: None,
         }
     }
 }
@@ -124,6 +130,9 @@ impl Config {
         }
         if let Some(profile) = &self.default_profile {
             issues.name(profile);
+        }
+        if let Some(shader_cache) = &self.shader_cache {
+            issues.shader_cache(shader_cache, ctx.home);
         }
         if let Some(proxy) = &self.proxy
             && !proxy.contains("://")

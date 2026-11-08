@@ -686,12 +686,36 @@ pub fn forget(app_id: u32, delete_files: bool) -> Result<Option<PathBuf>> {
     Ok(deleted)
 }
 
-/// Uninstall a game, optionally deleting its Proton prefix too.
+/// Uninstall a game, optionally deleting its Proton prefix too. Its shader
+/// cache goes with it, as Steam does.
 pub async fn uninstall(client: &SteamClient, app_id: u32, delete_prefix: bool) -> Result<()> {
     client
         .uninstall_game(app_id, delete_prefix)
         .await
-        .with_context(|| format!("failed to uninstall app {app_id}"))
+        .with_context(|| format!("failed to uninstall app {app_id}"))?;
+    if let Some(cache) = shader_cache(app_id)
+        && let Err(e) = std::fs::remove_dir_all(&cache.path)
+    {
+        // The game is gone; a leftover cache is only disk space.
+        tracing::warn!(path = %cache.path.display(), error = %e, "couldn't delete the shader cache");
+    }
+    Ok(())
+}
+
+/// A game's shader cache on disk.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShaderCacheUsage {
+    pub path: PathBuf,
+    /// The size of the files in it.
+    pub bytes: u64,
+}
+
+/// The game's shader cache, when `shader_cache` gives it one and it exists.
+pub fn shader_cache(app_id: u32) -> Option<ShaderCacheUsage> {
+    let settings = crate::settings::resolve_user(app_id, &Default::default()).ok()?;
+    let path = settings.shader_cache_dir().filter(|dir| dir.is_dir())?;
+    let bytes = crate::library::relocate::dir_size(&path);
+    Some(ShaderCacheUsage { path, bytes })
 }
 
 /// Move an install to another library. Steam must be stopped.
@@ -743,6 +767,8 @@ pub struct Availability {
     pub install_path: Option<String>,
     pub pinned: bool,
     pub pinned_manifests: HashMap<u32, u64>,
+    /// The game's shader cache, if it has one on disk.
+    pub shader_cache: Option<ShaderCacheUsage>,
 }
 
 /// See [`Availability`].
@@ -757,6 +783,7 @@ pub async fn availability(app_id: u32) -> Result<Availability> {
         install_path,
         pinned,
         pinned_manifests,
+        shader_cache: shader_cache(app_id),
     })
 }
 

@@ -63,6 +63,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("daemon_idle_timeout", KeyKind::Integer),
     ("reauth_sensitive", KeyKind::Bool),
     ("secret_store", KeyKind::Text),
+    ("shader_cache", KeyKind::Path),
 ];
 
 fn config_toml_path() -> Result<PathBuf> {

@@ -191,6 +191,12 @@ pub fn cache_dir() -> Result<PathBuf> {
     xdg_dir(std::env::var_os("XDG_CACHE_HOME"), home_dir, ".cache")
 }
 
+/// Where games' shader caches go unless `shader_cache` says otherwise:
+/// `<cache dir>/shadercache`, one `<app id>/` per game.
+pub fn shader_cache_dir() -> Result<PathBuf> {
+    Ok(cache_dir()?.join("shadercache"))
+}
+
 /// gaki's state directory: `$XDG_STATE_HOME/gaki`, or `~/.local/state/gaki`.
 /// Holds data worth keeping between runs that isn't config, such as logs.
 pub fn state_dir() -> Result<PathBuf> {

@@ -34,9 +34,41 @@ impl PipelineStage for ApplySettingsStage {
         };
         crate::launch::game_env::export(spec, app_id, &name, game_dir.as_deref());
         if let Some(settings) = &ctx.settings {
+            if let Some(dir) = settings.shader_cache_dir() {
+                if let Err(e) = crate::config::ShaderCache::create_dirs(&dir) {
+                    // The drivers fall back to their own defaults.
+                    tracing::warn!(dir = %dir.display(), error = %e, "can't create the shader cache");
+                } else {
+                    shader_cache_env(spec, &dir, |key| std::env::var_os(key).is_some());
+                }
+            }
             apply(settings, spec);
         }
         Ok(())
+    }
+}
+
+/// Point DXVK, VKD3D-Proton and the drivers at `dir`, the game's shader
+/// cache, and hand it to Proton as `STEAM_COMPAT_SHADER_PATH`. A variable
+/// the runner or a fixup already set, or one gaki's own environment has
+/// (`inherited`), is left alone; the profile's and the game's `env` are
+/// applied after this, so they win too.
+pub fn shader_cache_env(
+    spec: &mut CommandSpec,
+    dir: &std::path::Path,
+    inherited: impl Fn(&str) -> bool,
+) {
+    let proton = spec.env.contains_key("STEAM_COMPAT_DATA_PATH");
+    let mut vars = crate::config::ShaderCache::env(dir);
+    if proton {
+        vars.push(("STEAM_COMPAT_SHADER_PATH", dir.to_path_buf()));
+    }
+    for (key, value) in vars {
+        if !inherited(key) {
+            spec.env
+                .entry(key.to_owned())
+                .or_insert_with(|| value.to_string_lossy().into_owned());
+        }
     }
 }
 

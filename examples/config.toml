@@ -34,3 +34,8 @@ install_resume = "manual"
 # Where the session's tokens are kept: keyring (the OS keyring) | memory
 # (the running daemon only, for machines without a keyring).
 # secret_store = "keyring"
+
+# Where games' compiled shaders (DXVK, VKD3D-Proton, Mesa, NVIDIA) go: one
+# <app id>/ per game under this directory, or "off" to leave them to their
+# own defaults. Unset: ~/.cache/gaki/shadercache.
+# shader_cache = "~/.cache/gaki/shadercache"

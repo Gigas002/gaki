@@ -507,6 +507,7 @@ pub(crate) async fn cmd_available(app_id: u32, json: bool) -> Result<()> {
         install_path,
         pinned,
         pinned_manifests,
+        shader_cache,
     } = install::availability(app_id).await?;
     if json {
         print_json(&serde_json::json!({
@@ -515,6 +516,10 @@ pub(crate) async fn cmd_available(app_id: u32, json: bool) -> Result<()> {
             "install_path": install_path,
             "pinned": pinned,
             "pinned_manifests": manifests_json(&pinned_manifests),
+            "shader_cache": shader_cache.as_ref().map(|c| serde_json::json!({
+                "path": c.path,
+                "bytes": c.bytes,
+            })),
         }));
     } else {
         cli_println!(
@@ -528,6 +533,13 @@ pub(crate) async fn cmd_available(app_id: u32, json: bool) -> Result<()> {
         );
         if let Some(p) = install_path {
             cli_println!("  path: {p}");
+        }
+        if let Some(cache) = shader_cache {
+            cli_println!(
+                "  shader cache: {} ({})",
+                cache.path.display(),
+                libgaki::core::utils::human_bytes(cache.bytes)
+            );
         }
     }
     Ok(())

@@ -289,3 +289,39 @@ fn steam_integration_layers() {
         SteamIntegration::None
     );
 }
+
+#[test]
+fn shader_cache_layers_game_over_profile_over_config() {
+    let mut catalog = catalog(Some("proton"), Vec::new());
+    let place = |catalog: &Catalog| {
+        run(catalog, 10, &Overrides::default())
+            .unwrap()
+            .shader_cache
+    };
+    assert_eq!(place(&catalog), ShaderCachePlace::Default);
+
+    catalog.config.shader_cache = Some(ShaderCache::Dir("~/shaders".into()));
+    assert_eq!(
+        place(&catalog),
+        ShaderCachePlace::Dir(PathBuf::from(HOME).join("shaders"))
+    );
+    let settings = run(&catalog, 10, &Overrides::default()).unwrap();
+    assert_eq!(
+        settings.shader_cache_dir(),
+        Some(PathBuf::from(HOME).join("shaders/10"))
+    );
+
+    catalog.profiles[1].shader_cache = Some(ShaderCache::Off);
+    assert_eq!(place(&catalog), ShaderCachePlace::Off);
+    assert_eq!(
+        run(&catalog, 10, &Overrides::default())
+            .unwrap()
+            .shader_cache_dir(),
+        None
+    );
+
+    let mut game = Game::new(10);
+    game.shader_cache = Some(ShaderCache::Dir("/fast".into()));
+    catalog.games.push(game);
+    assert_eq!(place(&catalog), ShaderCachePlace::Dir("/fast".into()));
+}

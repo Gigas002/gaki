@@ -209,7 +209,8 @@ tabs, switched with `Tab`. Each loads in the background; `j` / `k` and
   description.
 - **Checks** asks Steam for the game's DRM tickets (`gaki-cli drm`: the
   ownership ticket and the encrypted app ticket) and looks at its files on
-  disk (`gaki-cli available`: installed, where, pinned). They run the first
+  disk (`gaki-cli available`: installed, where, pinned, and the size of its
+  shader cache). They run the first
   time you show the tab; `r` runs them again.
 - **Artwork** lists the store and library images and saves them with `s`
   as `<app id>_<kind>.<ext>`, into your Pictures folder by default (`o`

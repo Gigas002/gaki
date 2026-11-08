@@ -463,3 +463,30 @@ fn games_using_a_profile() {
     assert_eq!(ids, [1]);
     assert!(catalog.games_using("other").is_empty());
 }
+
+#[test]
+fn shader_cache_is_off_or_a_directory_that_can_be_made() {
+    let config: Config = toml::from_str("shader_cache = \"off\"").unwrap();
+    assert_eq!(config.shader_cache, Some(ShaderCache::Off));
+    assert!(config.validate(&ctx()).is_empty());
+
+    let config: Config = toml::from_str("shader_cache = \"shaders\"").unwrap();
+    assert!(has(
+        &config.validate(&ctx()),
+        Severity::Error,
+        "`shader_cache` must be an absolute path"
+    ));
+
+    // Under a file: can't be created.
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "file", "");
+    let mut game = Game::new(10);
+    game.shader_cache = Some(ShaderCache::Dir(dir.path().join("file/cache")));
+    assert!(has(
+        &game.validate(&ctx()),
+        Severity::Error,
+        "can't be created"
+    ));
+    game.shader_cache = Some(ShaderCache::Dir(dir.path().join("new/cache")));
+    assert!(game.validate(&ctx()).is_empty());
+}

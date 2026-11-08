@@ -94,11 +94,11 @@ gaki-cli install stop 1245620         # cancel a running install; it stays in th
 gaki-cli install forget 1245620       # drop a backlog entry (--delete-files removes its files)
 gaki-cli update 1245620               # download the latest manifest
 gaki-cli verify 1245620               # verify installed files
-gaki-cli uninstall 1245620            # remove a game (--delete-prefix also wipes its prefix)
+gaki-cli uninstall 1245620            # remove a game and its shader cache (--delete-prefix also wipes its prefix)
 gaki-cli move 1245620 /mnt/games/SteamLibrary    # move an install to another library
 gaki-cli relink 1245620 /mnt/games/SteamLibrary  # point Steam at already-moved files
 gaki-cli import 1245620 /mnt/games/SteamLibrary  # register files already on disk
-gaki-cli available 1245620            # installed and present on disk?
+gaki-cli available 1245620            # installed and present on disk? (and its shader cache's size)
 gaki-cli duplicates                   # games installed in several libraries at once
 gaki-cli enable 2001                  # enable an installed DLC
 gaki-cli disable 2001                 # disable it

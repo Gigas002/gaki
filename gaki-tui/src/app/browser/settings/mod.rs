@@ -187,6 +187,14 @@ pub const SPECS: &[Spec] = &[
              again whenever the session ends.",
         ),
     },
+    Spec {
+        key: "shader_cache",
+        label: "Shader caches",
+        default: "<cache dir>/shadercache/<app id>; `off` leaves them to the drivers",
+        edit: Edit::Prompt,
+        note: Some("Saved. It applies from the next launch."),
+        confirm: None,
+    },
 ];
 
 /// The value after `current` when `Enter` steps a switch or a choice;

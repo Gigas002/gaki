@@ -54,6 +54,7 @@ writes it, and `config unset <key>` removes one.
 | `daemon_idle_timeout` | 30 minutes           | seconds the daemon idles before it exits; `0` never        |
 | `reauth_sensitive`    | `false`              | ask for a fresh sign-in before showing the inventory, wallet or market listings |
 | `secret_store`        | `keyring`            | where tokens are kept: `keyring` or `memory`               |
+| `shader_cache`        | `<cache>/shadercache` | where games' compiled shaders go: a directory that gets one `<app id>/` per game, or `off` (see [Shader caches](#shader-caches)) |
 
 ## Profiles
 
@@ -92,6 +93,7 @@ winhttp = "n,b"
 | `proton.build`  | an official build name (`experimental`, `9.0`, ...) or the path of a Proton directory, such as a GE-Proton or proton-cachyos build from your package manager |
 | `steam`         | the Steam integration for games using the profile (see below)             |
 | `anticheat`     | `battleye` and `eac` (booleans): anti-cheat runtimes to make available    |
+| `shader_cache`  | `off` or a directory, over `config.toml`'s (see [Shader caches](#shader-caches)) |
 
 The format is lootrs': gaki reads profiles through lootrs' own model, so one
 profile directory can serve both tools. lootrs' fields (`dxvk`, `vkd3d`,
@@ -128,6 +130,7 @@ DXVK_HUD = "fps"
 | `wrappers` | commands wrapped around the launch, inside the profile's            |
 | `env`      | environment variables, over the profile's                           |
 | `steam`    | the Steam integration, over the profile's                           |
+| `shader_cache` | `off` or a directory, over the profile's                        |
 
 ### Wrappers
 
@@ -149,6 +152,32 @@ host Steam client, which Steamworks features and some DRM need:
 | `none` | never bridge                                             |
 
 Family-Shared games always bridge: they need the host Steam client.
+
+### Shader caches
+
+DXVK, VKD3D-Proton and the GPU drivers keep the shaders they compile on disk
+so a game doesn't stutter compiling them again. gaki gives each game its own
+cache directory, `$XDG_CACHE_HOME/gaki/shadercache/<app id>` by default, and
+points them at it for Proton and native launches alike:
+
+| Variable                      | In the game's directory |
+| ----------------------------- | ----------------------- |
+| `DXVK_STATE_CACHE_PATH`       | `DXVK_state_cache/`     |
+| `VKD3D_SHADER_CACHE_PATH`     | `VKD3D_shader_cache/`   |
+| `MESA_SHADER_CACHE_DIR`       | the directory itself    |
+| `__GL_SHADER_DISK_CACHE_PATH` | `nvidiav1/` (NVIDIA)    |
+| `AMD_VK_PIPELINE_CACHE_PATH`  | `AMDv1/` (AMDVLK)       |
+| `STEAM_COMPAT_SHADER_PATH`    | the directory itself (Proton only) |
+
+This is the layout Proton uses for its local shader cache. `shader_cache` in
+`config.toml`, a profile or a game entry moves it (`<path>/<app id>`), or
+turns it `off`, which sets none of these and leaves each one to its own
+default. A variable that is already set wins: in the profile's or game's
+`env`, by a fixup, or in gaki's own environment. `gaki-cli uninstall`
+deletes the game's cache, `gaki-cli available` shows its size, and
+`config check` reports a `shader_cache` that can't be created. Caches left
+at the old defaults (a `.dxvk-cache` next to the game, `~/.cache/mesa_shader_cache`,
+which other programs share) are not moved or deleted.
 
 ## Session and security
 

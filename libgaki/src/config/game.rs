@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use super::{
-    Platform, SteamIntegration,
+    Platform, ShaderCache, SteamIntegration,
     issue::{Issue, Issues, Subject, ValidationContext},
 };
 
@@ -43,6 +43,10 @@ pub struct Game {
     /// Steam integration, instead of the profile's.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub steam: Option<SteamIntegration>,
+    /// Where this game's shader caches go, instead of the profile's or
+    /// `config.toml`'s: `off`, or a directory that gets `<app id>/` inside.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shader_cache: Option<ShaderCache>,
 }
 
 impl Game {
@@ -56,6 +60,7 @@ impl Game {
             wrappers: Vec::new(),
             env: BTreeMap::new(),
             steam: None,
+            shader_cache: None,
         }
     }
 
@@ -68,7 +73,7 @@ impl Game {
 
     /// Checks this entry on its own; duplicates and profile references are
     /// checked by [`super::Catalog::validate`].
-    pub fn validate(&self, _ctx: &ValidationContext) -> Vec<Issue> {
+    pub fn validate(&self, ctx: &ValidationContext) -> Vec<Issue> {
         let mut issues = Issues::new(self.subject());
         if self.app_id == 0 {
             issues.error("`app_id` must not be 0");
@@ -90,6 +95,9 @@ impl Game {
             }
         }
         issues.env(&self.env);
+        if let Some(shader_cache) = &self.shader_cache {
+            issues.shader_cache(shader_cache, ctx.home);
+        }
         issues.finish()
     }
 }

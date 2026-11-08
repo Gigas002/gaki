@@ -30,7 +30,7 @@ pub use game::{Game, GamesFile};
 pub use global::{Config, SecretStoreKind};
 pub use issue::{Issue, Severity, Subject, ValidationContext, expand_tilde, validate_name};
 pub use profile::{
-    Anticheat, Profile, ProtonSection, Runner, SteamIntegration, is_supported,
+    Anticheat, Profile, ProtonSection, Runner, ShaderCache, SteamIntegration, is_supported,
     validate_dll_override, validate_profile,
 };
 

@@ -7,7 +7,9 @@
 //! Each tool validates a profile for its own launches: gaki with
 //! [`validate_profile`], lootrs with `Profile::validate`.
 
-pub use liblootrs::model::{Anticheat, Profile, ProtonSection, Runner, SteamIntegration};
+pub use liblootrs::model::{
+    Anticheat, Profile, ProtonSection, Runner, ShaderCache, SteamIntegration,
+};
 
 use super::issue::{Issue, Issues, Subject, ValidationContext};
 
@@ -32,6 +34,9 @@ pub fn validate_profile(profile: &Profile, ctx: &ValidationContext) -> Vec<Issue
         return issues.finish();
     }
 
+    if let Some(shader_cache) = &profile.shader_cache {
+        issues.shader_cache(shader_cache, ctx.home);
+    }
     let proton = runner == Runner::Proton;
     if let Some(prefix) = &profile.prefix {
         if proton {

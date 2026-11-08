@@ -15,6 +15,7 @@ fn settings() -> LaunchSettings {
         args: Vec::new(),
         cloud_sync: true,
         steam: Default::default(),
+        shader_cache: Default::default(),
     }
 }
 
@@ -89,4 +90,37 @@ fn gaki_variables_describe_the_unwrapped_command() {
     assert_eq!(command.env["GAKI_GAME_DIR"], "/games/g");
     assert_eq!(command.env["GAKI_LAUNCH_PROGRAM"], "/proton/proton");
     assert_eq!(command.env["GAKI_LAUNCH_ARGS"], "run /game/game.exe");
+}
+
+#[test]
+fn shader_cache_vars_yield_to_runner_inherited_and_user_env() {
+    let mut command = spec();
+    command
+        .env
+        .insert("STEAM_COMPAT_DATA_PATH".into(), "/compat".into());
+    command
+        .env
+        .insert("VKD3D_SHADER_CACHE_PATH".into(), "/fixup".into());
+    let dir = std::path::Path::new("/cache/10");
+    shader_cache_env(&mut command, dir, |key| key == "MESA_SHADER_CACHE_DIR");
+    let mut settings = settings();
+    settings
+        .env
+        .insert("DXVK_STATE_CACHE_PATH".into(), "/mine".into());
+    apply(&settings, &mut command);
+
+    let env = &command.env;
+    assert_eq!(env["STEAM_COMPAT_SHADER_PATH"], "/cache/10");
+    assert_eq!(env["__GL_SHADER_DISK_CACHE_PATH"], "/cache/10/nvidiav1");
+    assert_eq!(env["VKD3D_SHADER_CACHE_PATH"], "/fixup");
+    assert_eq!(env["DXVK_STATE_CACHE_PATH"], "/mine");
+    assert!(!env.contains_key("MESA_SHADER_CACHE_DIR"));
+}
+
+#[test]
+fn native_launches_get_no_proton_variable() {
+    let mut command = spec();
+    shader_cache_env(&mut command, std::path::Path::new("/c/10"), |_| false);
+    assert_eq!(command.env["MESA_SHADER_CACHE_DIR"], "/c/10");
+    assert!(!command.env.contains_key("STEAM_COMPAT_SHADER_PATH"));
 }

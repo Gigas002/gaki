@@ -51,6 +51,7 @@ mod choose_proton {
             args: Vec::new(),
             cloud_sync: true,
             steam: Default::default(),
+            shader_cache: Default::default(),
         }
     }
 

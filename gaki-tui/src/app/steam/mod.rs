@@ -1168,6 +1168,8 @@ pub struct FilesCheck {
     pub install_path: Option<String>,
     pub pinned: bool,
     pub pinned_depots: usize,
+    /// The game's shader cache and its size in bytes, if it has one.
+    pub shader_cache: Option<(String, u64)>,
 }
 
 #[cfg(feature = "install")]
@@ -1178,6 +1180,9 @@ pub fn files_check(id: i32) -> Result<FilesCheck, TuiError> {
         install_path: a.install_path,
         pinned: a.pinned,
         pinned_depots: a.pinned_manifests.len(),
+        shader_cache: a
+            .shader_cache
+            .map(|c| (c.path.display().to_string(), c.bytes)),
     })
 }
 

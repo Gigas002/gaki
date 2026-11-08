@@ -2232,7 +2232,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   winning for untouched apps, and clearing only what was uploaded. Docs:
   GAKI-TUI.md, GAKI-CLI.md, AUDIT.md §3.
 
-- [ ] **8.19** Shader caches: where a game's compiled shaders go, and a
+- [x] **8.19** Shader caches: where a game's compiled shaders go, and a
   setting for it (user request, 2026-11-08). Today gaki sets nothing, so
   DXVK, VKD3D-Proton and the Mesa/NVIDIA drivers each pick their own
   default (often inside the prefix or the working directory), and nothing
@@ -2251,6 +2251,34 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `available` and the TUI's Game info Checks tab show its size.
   - `gaki-cli config set`, the TUI Settings tab, `config check` (a path
     that can't be created) and `docs/CONFIG.md` cover the new key.
+  *Done (user choices: default `$XDG_CACHE_HOME/gaki/shadercache/<app id>`,
+  not Steam's layout; no `steam` value; old caches left alone; the profile
+  field lives in liblootrs):* the Proton check turned up a difference.
+  proton-cachyos only reads `STEAM_COMPAT_SHADER_PATH` when
+  `PROTON_LOCAL_SHADER_CACHE` is set (`protonfixes/utilities.py`
+  `setup_local_shader_cache`); otherwise the official client sets the
+  driver variables itself. So gaki sets them directly for every launch,
+  with Proton's own layout: `DXVK_STATE_CACHE_PATH` (`DXVK_state_cache/`),
+  `VKD3D_SHADER_CACHE_PATH` (`VKD3D_shader_cache/`),
+  `MESA_SHADER_CACHE_DIR`, `__GL_SHADER_DISK_CACHE_PATH` (`nvidiav1/`),
+  `AMD_VK_PIPELINE_CACHE_PATH` (`AMDv1/`), plus `STEAM_COMPAT_SHADER_PATH`
+  for Proton. lootrs (uncommitted, needs a push): `liblootrs::model::ShaderCache`
+  (`off` or a directory, with `env`/`create_dirs`), `Profile::shader_cache`,
+  validation, lootrs' own launches use `<dir>/<game>` (unset stays off
+  there), TUI form field, CHANGELOG, example profile. gaki:
+  `shader_cache` in `config.toml` (`KEYS`, Settings tab), `games.toml`,
+  and profiles; `settings::ShaderCachePlace` and
+  `LaunchSettings::shader_cache_dir`; `ApplySettingsStage` creates the
+  directories and adds the variables before the profile and game `env`,
+  skipping any the runner, a fixup or gaki's own environment already set.
+  `config check` reports a relative path or one under a file.
+  `ops::install::uninstall` deletes the cache, and `availability` (`gaki-cli
+  available`, the TUI Checks tab) shows its path and size. Checked by
+  hand: a native launch of Buckshot Roulette got all five variables, and
+  RADV wrote 6 MB into `~/.cache/gaki/shadercache/2835570`. A Proton
+  launch was not run by hand. Docs: CONFIG.md (new "Shader caches"
+  section), GAKI-CLI.md, GAKI-TUI.md, examples.
+
 - [ ] **8.20** `gaki-cli clean`: remove gaki's caches and leftovers in
   one go (user request, 2026-11-08). It lists what it would delete, with
   sizes, and deletes only after a confirm or `--yes`; `--dry-run` only

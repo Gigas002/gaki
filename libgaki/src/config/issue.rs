@@ -114,6 +114,25 @@ impl Issues {
         }
     }
 
+    /// Checks a `shader_cache` value: `off`, or an absolute directory gaki
+    /// can create, so not under an existing file.
+    pub(super) fn shader_cache(&mut self, value: &super::ShaderCache, home: &Path) {
+        let super::ShaderCache::Dir(dir) = value else {
+            return;
+        };
+        let Some(dir) = self.absolute("shader_cache", dir, home) else {
+            return;
+        };
+        if let Some(existing) = dir.ancestors().find(|a| a.exists())
+            && !existing.is_dir()
+        {
+            self.error(format!(
+                "`shader_cache` can't be created: `{}` is not a directory",
+                existing.display()
+            ));
+        }
+    }
+
     pub(super) fn env(&mut self, env: &BTreeMap<String, String>) {
         for key in env.keys() {
             if key.is_empty() || key.contains(['=', '\0']) {

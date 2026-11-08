@@ -22,7 +22,8 @@ use std::{
 };
 
 use crate::config::{
-    Anticheat, Catalog, Platform, Profile, ProtonSection, Runner, SteamIntegration, expand_tilde,
+    Anticheat, Catalog, Platform, Profile, ProtonSection, Runner, ShaderCache, SteamIntegration,
+    expand_tilde,
 };
 
 /// The command-line layer.
@@ -92,6 +93,30 @@ pub struct LaunchSettings {
     pub args: Vec<String>,
     pub cloud_sync: bool,
     pub steam: SteamIntegration,
+    /// Where the game's shader caches go.
+    pub shader_cache: ShaderCachePlace,
+}
+
+/// The resolved `shader_cache`: the game's, else the profile's, else
+/// `config.toml`'s.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum ShaderCachePlace {
+    /// `$XDG_CACHE_HOME/gaki/shadercache`.
+    #[default]
+    Default,
+    /// Set nothing.
+    Off,
+    /// A directory, `~` expanded.
+    Dir(PathBuf),
+}
+
+impl ShaderCachePlace {
+    fn of(value: &ShaderCache, home: &Path) -> Self {
+        match value {
+            ShaderCache::Off => Self::Off,
+            ShaderCache::Dir(dir) => Self::Dir(expand_tilde(dir, home)),
+        }
+    }
 }
 
 /// Why a game's settings can't be resolved.
@@ -128,6 +153,17 @@ impl LaunchSettings {
             .as_ref()
             .and_then(|proton| proton.prefix.clone())
             .unwrap_or_else(|| crate::core::utils::compat_data_dir(library_root, self.app_id))
+    }
+
+    /// The game's own shader cache directory, `<root>/<app id>`; `None`
+    /// when it's `off` (or the cache directory can't be found).
+    pub fn shader_cache_dir(&self) -> Option<PathBuf> {
+        let root = match &self.shader_cache {
+            ShaderCachePlace::Off => return None,
+            ShaderCachePlace::Dir(dir) => dir.clone(),
+            ShaderCachePlace::Default => crate::core::config::shader_cache_dir().ok()?,
+        };
+        Some(root.join(self.app_id.to_string()))
     }
 
     /// The Wine prefix Proton keeps inside [`Self::compat_data`].
@@ -251,6 +287,12 @@ pub fn resolve(
             .steam
             .or_else(|| game.and_then(|game| game.steam))
             .or_else(|| profile.and_then(|p| p.steam))
+            .unwrap_or_default(),
+        shader_cache: game
+            .and_then(|game| game.shader_cache.as_ref())
+            .or_else(|| profile.and_then(|p| p.shader_cache.as_ref()))
+            .or(config.shader_cache.as_ref())
+            .map(|value| ShaderCachePlace::of(value, home))
             .unwrap_or_default(),
     })
 }
