@@ -1,6 +1,5 @@
 // Based on steam-cdn (Apache-2.0), modified by Aurelia and gaki; see README.md.
 use aes::cipher::block_padding;
-use lzma_rs::error::Error as LzmaError;
 use reqwest::StatusCode;
 use steam_vent::NetworkError;
 use tokio::{sync::AcquireError, task::JoinError};
@@ -45,12 +44,6 @@ impl From<JoinError> for Error {
 
 impl From<ZipError> for Error {
     fn from(err: ZipError) -> Self {
-        Self::Decompress(err.to_string())
-    }
-}
-
-impl From<LzmaError> for Error {
-    fn from(err: LzmaError) -> Self {
         Self::Decompress(err.to_string())
     }
 }

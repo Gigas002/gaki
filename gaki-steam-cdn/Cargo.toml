@@ -16,7 +16,7 @@ crc32fast.workspace = true
 futures.workspace = true
 itertools.workspace = true
 keyvalues-parser.workspace = true
-lzma-rs.workspace = true
+lzma-rust2.workspace = true
 protobuf.workspace = true
 reqwest.workspace = true
 ruzstd.workspace = true
@@ -30,4 +30,5 @@ tracing.workspace = true
 zip.workspace = true
 
 [dev-dependencies]
+lzma-rust2 = { workspace = true, features = ["encoder"] }
 tempfile.workspace = true

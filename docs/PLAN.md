@@ -2189,9 +2189,18 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   official client's binary was ruled out (user decision, 2026-11-08).
   Recorded in `docs/AUDIT.md` §1.5; the chunk SHA-1 check stays the
   protection.
-- [ ] **8.17** Replace `lzma-rs` (unmaintained) for VZ chunks with a
+- [x] **8.17** Replace `lzma-rs` (unmaintained) for VZ chunks with a
   maintained decoder (8.14a follow-up), keeping the bounded output and the
   CRC check.
+  *Done:* `gaki-steam-cdn` now decodes VZ chunks with `lzma-rust2` 0.25
+  (`std` and `optimization` features only; the `encoder` feature is on
+  for tests only), using its raw `LzmaReader::new_with_props`. It sizes the
+  dictionary to the claimed output size. A claim larger than the chunk is
+  refused before decoding (as before), and a stream shorter than its
+  claim, a corrupt stream or a wrong CRC32 are now all
+  `Error::Decompress`. The `From<lzma_rs::Error>` impl is gone. New tests
+  build real VZ containers (round trip, wrong CRC, too-large claim, short
+  stream, garbled stream). `docs/AUDIT.md` §1.3 row updated.
 - [ ] **8.18** TUI favourites and hidden games as Steam's own (8.14c
   follow-up). `f` and `H` keep lists in `tui/config.toml`, while
   `libgaki`'s collections, and `gaki-cli collections`, have Steam's

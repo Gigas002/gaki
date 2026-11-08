@@ -1,5 +1,5 @@
 // Based on steam-cdn (Apache-2.0), modified by Aurelia and gaki; see README.md.
-use lzma_rs::decompress::raw::{LzmaDecoder, LzmaParams, LzmaProperties};
+use lzma_rust2::LzmaReader;
 use std::io::{Cursor, SeekFrom};
 use tokio::{
     io::{AsyncReadExt, AsyncSeekExt},
@@ -36,7 +36,10 @@ pub fn is_vsz(data: &[u8]) -> bool {
 /// can claim or expand to far more than the chunk it stands for.
 pub(crate) fn read_bounded(reader: impl std::io::Read, max_len: usize) -> Result<Vec<u8>, Error> {
     let mut out = Vec::new();
-    std::io::Read::read_to_end(&mut reader.take(max_len as u64 + 1), &mut out)?;
+    std::io::Read::read_to_end(
+        &mut std::io::Read::take(reader, max_len as u64 + 1),
+        &mut out,
+    )?;
     if out.len() > max_len {
         return Err(Error::Decompress(format!(
             "chunk expands past its {max_len} bytes"
@@ -105,30 +108,31 @@ pub async fn decompress(data: &[u8], max_len: usize) -> Result<Vec<u8>, Error> {
     }
 
     let decompressed_data = task::spawn_blocking(move || -> Result<Vec<u8>, Error> {
-        let mut decompressed = Vec::with_capacity(decompressed_size as usize);
-
-        let lc = (properties[0] % 9) as u32;
-        let remainder = (properties[0] / 9) as u32;
-        let lp = remainder % 5;
-        let pb = remainder / 5;
-
-        let mut dict_size = 0u32;
-
-        for i in 0..4 {
-            dict_size += (properties[1 + i] as u32) << (i * 8);
-        }
-
-        LzmaDecoder::new(
-            LzmaParams::new(
-                LzmaProperties { lc, lp, pb },
-                dict_size,
-                Some(decompressed_size as u64),
-            ),
+        let dict_size =
+            u32::from_le_bytes([properties[1], properties[2], properties[3], properties[4]]);
+        // The reader stops at the claimed size and sizes its dictionary
+        // to it, so a bad header can't make it allocate more than that.
+        let reader = LzmaReader::new_with_props(
+            &buffer[..],
+            decompressed_size as u64,
+            properties[0],
+            dict_size,
             None,
-        )?
-        .decompress(&mut Cursor::new(buffer), &mut decompressed)?;
-
-        Ok(decompressed)
+        )
+        .map_err(|e| Error::Decompress(format!("LZMA header: {e}")))?;
+        let mut out = Vec::with_capacity(decompressed_size as usize);
+        std::io::Read::read_to_end(
+            &mut std::io::Read::take(reader, max_len as u64 + 1),
+            &mut out,
+        )
+        .map_err(|e| Error::Decompress(format!("LZMA stream: {e}")))?;
+        if out.len() != decompressed_size as usize {
+            return Err(Error::Decompress(format!(
+                "VZ chunk holds {} bytes, not the {decompressed_size} it claims",
+                out.len()
+            )));
+        }
+        Ok(out)
     })
     .await??;
 

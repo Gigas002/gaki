@@ -14,6 +14,71 @@ pub(crate) fn vsz(plain: &[u8]) -> Vec<u8> {
     out
 }
 
+/// A VZ container around `plain`, as Steam builds one: raw LZMA with the
+/// properties byte and dictionary size up front, no end marker.
+pub(crate) fn vz(plain: &[u8]) -> Vec<u8> {
+    use std::io::Write;
+    let options = lzma_rust2::LzmaOptions::with_preset(6);
+    let mut writer =
+        lzma_rust2::LzmaWriter::new(Vec::new(), &options, false, false, Some(plain.len() as u64))
+            .unwrap();
+    writer.write_all(plain).unwrap();
+    let stream = writer.finish().unwrap();
+    let mut out = b"VZa".to_vec();
+    out.extend_from_slice(&[0u8; 4]); // timestamp/crc field, not read
+    out.push(options.get_props());
+    out.extend_from_slice(&options.dict_size.to_le_bytes());
+    out.extend_from_slice(&stream);
+    out.extend_from_slice(&crc32fast::hash(plain).to_le_bytes());
+    out.extend_from_slice(&(plain.len() as u32).to_le_bytes());
+    out.extend_from_slice(b"zv");
+    out
+}
+
+#[tokio::test]
+async fn decompresses_vz() {
+    let plain = b"chunk content ".repeat(100);
+    assert_eq!(decompress(&vz(&plain), plain.len()).await.unwrap(), plain);
+}
+
+#[tokio::test]
+async fn vz_checks_crc_size_and_stream() {
+    let plain = b"chunk content ".repeat(100);
+    let good = vz(&plain);
+    let n = good.len();
+
+    let mut bad_crc = good.clone();
+    bad_crc[n - 10] ^= 1;
+    assert!(matches!(
+        decompress(&bad_crc, plain.len()).await,
+        Err(Error::Decompress(_))
+    ));
+
+    // Claims more than the chunk may hold: refused before decoding.
+    assert!(matches!(
+        decompress(&good, plain.len() - 1).await,
+        Err(Error::Decompress(_))
+    ));
+
+    // Claims more than the stream holds.
+    let mut long = good.clone();
+    long[n - 6..n - 2].copy_from_slice(&(plain.len() as u32 + 1).to_le_bytes());
+    assert!(matches!(
+        decompress(&long, plain.len() + 1).await,
+        Err(Error::Decompress(_))
+    ));
+
+    // Garbage in the LZMA stream.
+    let mut garbled = good;
+    for b in &mut garbled[12..n - 10] {
+        *b = 0xff;
+    }
+    assert!(matches!(
+        decompress(&garbled, plain.len()).await,
+        Err(Error::Decompress(_))
+    ));
+}
+
 #[test]
 fn detects_containers() {
     assert!(is_vz(b"VZa..."));

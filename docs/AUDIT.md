@@ -49,7 +49,7 @@ override is still `0600` and peer-checked. OK.
 | `installdir` | Every PICS or `appmanifest` install directory is checked to be one plain name before use, except in `import_install`. It now checks too. | low | Fixed |
 | Launch entries | The executable and working directory of a PICS launch entry are joined to the install directory as given. Running a Valve launch entry trusts Valve as much as running the game's binary does. | low | Accepted |
 | protobuf (RUSTSEC-2024-0437) | Stack overflow on deeply nested messages. `steam-vent` pins `=3.5.1`. The `deny.toml` note said the input was only CM traffic; depot manifests from CDN servers are parsed with it too. The worst case is a crash. Note corrected. | low | Accepted |
-| lzma-rs | Unmaintained (no release since 2023); used only for VZ chunks, whose input is now bounded and decrypted with the depot key first. | low | Follow-up 8.17 |
+| LZMA decoder | `lzma-rs` was unmaintained (no release since 2023). VZ chunks are now decoded with `lzma-rust2` (maintained, pure Rust), which sizes its dictionary to the claimed output, so a bad header can't make it allocate more. The claimed size is checked against the chunk's size first, and the output length and CRC32 after. | low | Fixed (8.17) |
 | Config and profile files | The user's own files; parse errors become `Issue`s or load errors, never panics. | — | OK |
 | Panics on input | No `unwrap`/`expect` on outside data in the parsers; string slicing on Steam text stays on character boundaries; the chat wrapper guards a zero width. | — | OK |
 

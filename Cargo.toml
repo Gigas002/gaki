@@ -34,7 +34,7 @@ keyring-core = "1" # The keyring `Entry` API; the store above backs it
 keyvalues-parser = "0.2" # gaki-steam-cdn: text VDF from PICS
 keyvalues-serde = "0.2" # Text VDF deserialization into structs
 libc = "0.2"
-lzma-rs = { version = "0.3", features = ["raw_decoder"] } # gaki-steam-cdn: Steam's VZ (LZMA) chunk containers
+lzma-rust2 = { version = "0.25", default-features = false, features = ["std", "optimization"] } # gaki-steam-cdn: Steam's VZ (LZMA) chunk containers
 protobuf = "3.5" # rust-protobuf runtime; matches steam-vent-proto's MessageField/EnumOrUnknown
 protobuf-codegen = "3.5" # Pure-Rust codegen (no protoc); tracks the `protobuf` runtime
 qrcode = { version = "0.14", default-features = false } # Terminal QR rendering for `login --qr`
