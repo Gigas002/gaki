@@ -221,12 +221,14 @@ impl SteamClient {
         let (install_dir, executable, args, game_working_dir) = self
             .resolve_exec_plan(app, launch_info, user_config)
             .await?;
-        let app_id_str = app.app_id.to_string();
 
         match launch_info.target {
             LaunchTarget::NativeLinux => {
-                let app_id_path = game_working_dir.join("steam_appid.txt");
-                std::fs::write(&app_id_path, &app_id_str).unwrap_or_default();
+                if let Err(e) =
+                    crate::core::utils::ensure_steam_appid(&game_working_dir, app.app_id)
+                {
+                    tracing::warn!("could not write steam_appid.txt: {e}");
+                }
 
                 {
                     use std::os::unix::fs::PermissionsExt;

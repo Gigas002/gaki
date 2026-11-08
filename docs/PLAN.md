@@ -2390,10 +2390,18 @@ user whether to do this phase and how.
   the CLI, the daemon and the TUI all do. GAKI-CLI.md explains it. Gates
   green (540/682/812 tests). By hand through the daemon: first price
   306 ms, the same again 15 ms (cache), two new items about 3 s each.
-- [ ] **9.3c** Item C: write `steam_appid.txt` only when the game's working
+- [x] **9.3c** Item C: write `steam_appid.txt` only when the game's working
   folder has none; never overwrite or delete one (native and Wine launches,
   `steam_client/process.rs` and `infra/runners/wine_tkg.rs`). (User decision,
   2026-11-08.)
+  *Done 2026-11-08:* `core::utils::ensure_steam_appid` opens the file with
+  `create_new`, so an existing one is kept and two launches can't race;
+  both writers use it and log a failure instead of dropping it. In practice
+  only Proton/Wine launches write it: native games go through the
+  pipeline's `NativeRunner`, which sets `SteamAppId` and writes no file (the
+  native writer is in the fallback `internal_legacy_launch_adhoc`). Tests in
+  `core/utils/tests/steam_appid.rs`. Gates green (543/685/815 tests). Not
+  launched by hand: the behaviour is the file open, covered by the tests.
 - [ ] **9.3** For each gray area or broken rule, find a way to keep the
   feature without breaking the rule (an official endpoint instead of
   scraping, a lower request rate or a cache, needing the official client

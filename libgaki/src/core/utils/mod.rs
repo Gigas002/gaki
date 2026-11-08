@@ -251,6 +251,34 @@ pub fn setup_fake_steam_trap(config_dir: &Path) -> Result<PathBuf> {
     Ok(trap_dir)
 }
 
+/// Give the game in `dir` a `steam_appid.txt` holding `app_id`, unless it has
+/// one already. Returns whether a file was written.
+///
+/// The file stops a Steamworks game from quitting to relaunch itself through
+/// Steam, which would leave gaki's runner, env and profile behind. Steam
+/// itself never writes it (it sets `SteamAppId` instead), so a file already
+/// there is the developer's, which wins, or one gaki wrote before with the
+/// same id. It is never overwritten or removed (STEAM-RULES.md §3, item C).
+pub fn ensure_steam_appid(dir: &Path, app_id: u32) -> std::io::Result<bool> {
+    use std::io::Write;
+    let path = dir.join("steam_appid.txt");
+    match std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(&path)
+    {
+        Ok(mut file) => {
+            file.write_all(app_id.to_string().as_bytes())?;
+            Ok(true)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+            tracing::debug!(path = %path.display(), "keeping the existing steam_appid.txt");
+            Ok(false)
+        }
+        Err(e) => Err(e),
+    }
+}
+
 /// The host's real Steam client install directory, suitable as
 /// `STEAM_COMPAT_CLIENT_INSTALL_PATH` so Proton's `lsteamclient` bridge can reach
 /// the running Steam client (Steamworks online features, Family-Sharing licences).
