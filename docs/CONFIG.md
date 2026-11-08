@@ -46,7 +46,7 @@ writes it, and `config unset <key>` removes one.
 | `default_proton`      | `experimental`       | the Proton build for a Windows launch whose profile names none: an official build name or a path. `gaki-cli proton default` sets it |
 | `cloud_sync`          | `true`               | sync Steam Cloud saves around a launch                     |
 | `presence`            | `offline`            | your Steam presence while gaki is signed in: `offline` or `online` |
-| `proxy`               | —                    | a proxy for all HTTP(S) traffic, e.g. `socks5://127.0.0.1:1080` |
+| `proxy`               | —                    | a proxy for all HTTP(S) traffic, e.g. `socks5://127.0.0.1:1080`. Steam's rules forbid using one to disguise your country ([STEAM-RULES.md](STEAM-RULES.md#your-part)) |
 | `no_proxy`            | —                    | comma-separated hosts that bypass it                       |
 | `install_resume`      | `manual`             | `auto` resumes interrupted installs when the daemon starts |
 | `experimental`        | `false`              | turn on experimental features                              |

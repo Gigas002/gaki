@@ -19,9 +19,10 @@
 
 > [!CAUTION]
 > **gaki is experimental, and we don't recommend using it yet.** Commands,
-> config files and behaviour still change without notice, and it hasn't been
-> checked against Steam's rules. Try it on a spare account, not the one your
-> library lives on.
+> config files and behaviour still change without notice, and like every
+> unofficial Steam client it sits in a gray zone of Steam's rules
+> ([Steam rules and risks](#steam-rules-and-risks)). Try it on a spare
+> account, not the one your library lives on.
 
 gaki is a command-line Steam client and launcher for Linux. No CEF, no
 WebViews, no GUI. It talks to Steam's real network protocols through
@@ -132,6 +133,29 @@ less.
 
 ---
 
+## Steam rules and risks
+
+gaki was checked against Steam's rules on 2026-11-08: the Subscriber
+Agreement, the Online Conduct rules, the Web API terms and the brand
+guidelines. That was a technical review, not legal advice.
+
+- **No rule is broken outright.** gaki signs in with Valve's own login,
+  never stores your password, downloads only games you own, never sets
+  achievements or fakes playtime, and **never buys, sells or trades**: the
+  market, inventory and wallet are read-only.
+- **But it is unofficial.** The Subscriber Agreement forbids
+  "unauthorized third-party software" that interacts with Steam, which
+  covers every unofficial client, and Valve may restrict an account without
+  notice. How likely that is can't be read from the rules.
+- **Scripting has limits.** Bots that chat, poll the market or farm
+  playtime are against the rules, whatever runs them, and so is using a
+  proxy to hide your country.
+
+The full review, with every feature rated and the clauses quoted, is in
+[docs/STEAM-RULES.md](docs/STEAM-RULES.md).
+
+---
+
 ## Documentation
 
 | Document | Contents |
@@ -141,6 +165,7 @@ less.
 | [docs/CONFIG.md](docs/CONFIG.md) | `config.toml`, profiles, `games.toml`, where files live, the session |
 | [docs/FEATURES.md](docs/FEATURES.md) | The Cargo features and what each one builds |
 | [docs/FAQ.md](docs/FAQ.md) | Prerequisites and common questions |
+| [docs/STEAM-RULES.md](docs/STEAM-RULES.md) | Steam's rules and what gaki does about them; the risks to an account |
 | [docs/AUDIT.md](docs/AUDIT.md) | Security, performance and feature audit, with a matrix against the official client |
 | [examples/](examples) | Commented example configuration |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows |

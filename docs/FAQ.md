@@ -63,3 +63,8 @@ gaki is unofficial and unaffiliated with Valve, it edits Steam's files
 directly, and third-party tools that talk to Steam carry a risk of action
 against your account. Read the disclaimer at the top of the
 [README](../README.md) first, and use gaki at your own risk.
+
+VAC looks for cheats in VAC-secured games. gaki has no cheat features and
+doesn't modify a game while it runs; it only starts it. The wider question is Steam's rules on unofficial
+clients: [STEAM-RULES.md](STEAM-RULES.md) goes through them, says what gaki
+does about each, and what you shouldn't script with it.

@@ -210,6 +210,13 @@ fn entries() -> Vec<Entry> {
         Entry::Header("General"),
         Entry::Binding("?", "toggle this help"),
         Entry::Keys(lib(&[A::Quit]), "quit"),
+        Entry::Blank,
+        // docs/STEAM-RULES.md, kept to the column's 28 characters.
+        Entry::Header("Steam rules"),
+        Entry::Binding("unofficial", "Valve hasn't authorized gaki"),
+        Entry::Binding("read-only", "never buys, sells or trades"),
+        Entry::Binding("no bots", "don't script chat or market"),
+        Entry::Binding("details", "docs/STEAM-RULES.md"),
     ]
 }
 
@@ -256,4 +263,23 @@ pub fn help(scroll: u16) -> Paragraph<'static> {
         .style(theme::base())
         .alignment(Alignment::Left)
         .scroll((scroll, 0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn shows_the_steam_rules() {
+        // Tall enough for every row, so the block at the end is drawn.
+        let backend = ratatui::backend::TestBackend::new(100, row_count() + 2);
+        let mut terminal = ratatui::Terminal::new(backend).unwrap();
+        terminal
+            .draw(|f| f.render_widget(help(0), f.area()))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+        let screen: String = buffer.content().iter().map(|c| c.symbol()).collect();
+        assert!(screen.contains("Steam rules"));
+        assert!(screen.contains("docs/STEAM-RULES.md"));
+    }
 }

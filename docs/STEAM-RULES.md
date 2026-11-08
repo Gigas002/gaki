@@ -9,8 +9,86 @@ gaki is an independent, unofficial project. It is not affiliated with,
 authorized, sponsored or endorsed by Valve or Steam. "Steam" and "Valve" are
 trademarks of Valve Corporation.
 
-Review date: **2026-11-08** (PLAN.md Phase 9). This page is the working
-audit (steps 9.1 and 9.2). Step 9.4 turns it into the user guide.
+Last review: **2026-11-08**, against the Steam Subscriber Agreement as
+updated on 2026-09-10. The review is rerun whenever one of these rules
+changes, and whenever gaki gains a feature that talks to Steam.
+
+## In short
+
+gaki breaks none of Steam's rules outright. It does sit in the gray zone that
+every unofficial Steam client shares. The Steam Subscriber Agreement (SSA)
+forbids "unauthorized third-party software … interacting with … Steam" and
+emulating Valve's protocols. Read word for word, that covers any program
+that isn't the official client, gaki included. Valve has not authorized
+gaki, and it may "restrict or terminate your Account(s) … without notice"
+(SSA §4.D). How likely that is can't be read from the rules. Weigh it
+before using gaki on an account you care about; a spare account is safest.
+
+## What gaki does that the official client doesn't
+
+- **It logs on to Steam itself.** It uses Valve's own sign-in (password with
+  Steam Guard, or the QR code), as a device named "gaki" that you can see
+  and revoke in your account's authorized devices. Your password is never
+  stored; only the session token is, in your system keyring.
+- **It downloads and installs games itself,** from Steam's servers, and only
+  games your account owns, since Steam's servers check that. It writes the
+  install records into Steam's library folders, so the official client sees
+  the games as its own.
+- **It starts games itself.** With Steam running, the game is bridged to it,
+  so online features, achievements and ownership work as under Steam. Without
+  Steam, only games that run without Steam start at all. For Proton games
+  gaki also puts a `steam_appid.txt` in the game's folder if none is there,
+  so the game doesn't quit to relaunch through Steam.
+- **It can pin a game to an older build,** which the official client only
+  does through its developer console.
+- **It reads Steam's web pages** for prices, searches, reviews and the
+  Community Market, as the store's own pages do: one request per action,
+  backing off when Steam says to slow down. Market answers are kept for a
+  few minutes and requests are spaced at least 3 seconds apart, because
+  Steam limits those pages hard.
+- **It looks up other sites** when you ask: ProtonDB ratings, and links to
+  SteamDB and the Steam store.
+
+## What gaki never does
+
+- **It never moves money or items.** Market, inventory and wallet are
+  read-only: no buying, selling, trading or listing.
+- It never sets achievements or stats, and never reports a game as played
+  unless the game really runs. No idling, no card farming.
+- It never emulates Steam or fakes ownership. A game that needs Steam and
+  can't reach it doesn't start.
+- It never posts or messages anything you didn't ask it to.
+- It uses no Steam Web API key and ships no Valve or Steam logo.
+
+## Your part
+
+These are against Steam's rules however you do them. gaki makes them easy
+to script, so they're worth saying:
+
+- **Automation.** The SSA forbids "scripts, bots, macros, or other
+  non-human-controlled systems" that interact with Steam (§4.C). A script
+  that answers chats (`chat open --json`), polls the market, or loops `play`
+  to rack up playtime or card drops is exactly that.
+- **Hiding your country.** gaki's `proxy` setting has ordinary uses, but the
+  SSA forbids "IP proxying or other methods to disguise the place of your
+  residence" (§3.A). Comparing regional prices with `price --compare` is
+  fine: it asks the store, it doesn't pretend to be elsewhere.
+- **Sharing.** Your account is "strictly personal" (§1.C): one person per
+  config directory and session.
+
+## Features off by default for this reason
+
+None. Every feature rated a gray area was kept and made more careful
+instead (the device name, market pacing and `steam_appid.txt`, see the
+review below). Builds can still leave features out entirely
+([FEATURES.md](FEATURES.md)).
+
+---
+
+# The review in detail
+
+This is the audit behind the summary above: the rules, with links and the
+clauses that matter, every feature rated against them, and what was changed.
 
 ## 1. The rules (9.1)
 
@@ -128,15 +206,19 @@ of that.
 | 2.21 | The `proxy` setting | **OK** as a feature; see 2.9 | SSA §3.A | Proxies have ordinary uses (corporate networks). The clause covers disguising residence, which is the user's choice. |
 | 2.22 | Several accounts (`--config-dir`), account data | **OK** | SSA §1.C | Each config directory holds one person's session. gaki has no account sharing or switching between people. |
 
-## 3. Gray areas to decide (input to 9.3)
+## 3. Gray areas and what was done (9.3)
 
-For each one, a way to keep the feature closer to the rules. The user picks
-keep, change or gate; each change becomes its own 9.x step.
+Each gray area got a proposal to bring the feature closer to the rules, and
+a decision (2026-11-08). None was dropped or put behind a gate that's off by
+default.
 
-Decided on 2026-11-08: **A** name the device "gaki"; **B** cache plus a
-minimum interval, kept on; **C** keep an existing `steam_appid.txt`, write one only
-when none exists; **F** keep the name, noted here.
-**D** and **E** are docs only and go into 9.4.
+- **A**, **B** and **C** changed code (PLAN.md 9.3a, 9.3b, 9.3c): the device
+  is named "gaki"; market answers are cached and requests spaced 3 seconds
+  apart; an existing `steam_appid.txt` is kept, and one is written only when
+  none exists.
+- **D** and **E** are covered by "Your part" above and by the help of
+  `chat open`, the market commands and the `proxy` setting.
+- **F**: the crate keeps its name.
 
 | Item | Feature | Proposal |
 | ---- | ------- | -------- |

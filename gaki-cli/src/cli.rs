@@ -31,6 +31,18 @@ pub(crate) fn config_dir_arg<I: IntoIterator<Item = String>>(args: I) -> Option<
 }
 
 /// gaki — a command-line Steam launcher (auth, library, install, launch).
+/// `--help` footer of the chat commands (STEAM-RULES.md, "Your part").
+#[cfg(feature = "social")]
+const RULES_CHAT: &str = "Steam's rules forbid bots: a script that sends or answers messages \
+for you is automation under the Steam Subscriber Agreement (\u{a7}4.C). See docs/STEAM-RULES.md.";
+
+/// `--help` footer of the inventory, wallet and market commands.
+#[cfg(any(feature = "inventory", feature = "market"))]
+const RULES_MARKET: &str = "Read-only: gaki never buys, sells or trades. Steam limits these pages \
+hard, so answers are reused for a while (prices 5 minutes, your own data 1 minute) and requests \
+are spaced 3 seconds apart. Scripts that poll the market are automation under the Steam \
+Subscriber Agreement (\u{a7}4.C). See docs/STEAM-RULES.md.";
+
 #[derive(Parser)]
 #[command(
     name = env!("CARGO_BIN_NAME"),
@@ -589,12 +601,14 @@ pub(crate) enum Command {
     },
     /// Send and read direct chat messages.
     #[cfg(feature = "social")]
+    #[command(after_long_help = RULES_CHAT)]
     Chat {
         #[command(subcommand)]
         command: ChatCommand,
     },
     /// View your Steam inventory for a game.
     #[cfg(feature = "inventory")]
+    #[command(after_long_help = RULES_MARKET)]
     Inventory {
         #[arg(value_parser = app_ref)]
         app_id: u32,
@@ -604,9 +618,11 @@ pub(crate) enum Command {
     },
     /// Show your Steam Wallet balance.
     #[cfg(feature = "inventory")]
+    #[command(after_long_help = RULES_MARKET)]
     Wallet,
     /// Steam Community Market: prices, search, and your listings.
     #[cfg(feature = "market")]
+    #[command(after_long_help = RULES_MARKET)]
     Market {
         #[command(subcommand)]
         command: MarketCommand,
@@ -708,6 +724,9 @@ pub(crate) enum ConfigCommand {
     /// release lookups. Takes effect on the next command (and requires restarting
     /// the session daemon). An explicit `HTTP(S)_PROXY`/`ALL_PROXY` environment
     /// variable still overrides this. The Steam CM connection is not proxied.
+    ///
+    /// Steam's rules forbid using a proxy to disguise your country (Steam
+    /// Subscriber Agreement §3.A; see docs/STEAM-RULES.md).
     Proxy {
         /// Proxy URL, e.g. `http://host:8080`, `http://user:pass@host:8080`, or
         /// `socks5://host:1080`. Omit to print the current setting.

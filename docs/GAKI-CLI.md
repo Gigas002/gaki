@@ -241,6 +241,11 @@ gaki-cli chat history 76561198042323314       # recent messages with a friend
 gaki-cli chat open 76561198042323314          # live chat (type to send, Ctrl-D quits)
 ```
 
+`chat open --json` reads lines to send from stdin, so another program can
+drive it. Steam's rules forbid bots: a script that sends or answers
+messages for you is automation under the Subscriber Agreement
+([STEAM-RULES.md](STEAM-RULES.md#your-part)).
+
 ### Inventory and market
 
 Read-only, by design: you can look, but never buy, sell or trade. gaki will

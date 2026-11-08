@@ -2409,7 +2409,7 @@ user whether to do this phase and how.
   feature gate). If no compliant way exists, decide with the user: drop the
   feature, or keep it behind a clear warning and a gate that's off by
   default. Each change becomes its own step (9.x).
-- [ ] **9.4** Document the result for users. Add a **"Steam rules and
+- [x] **9.4** Document the result for users. Add a **"Steam rules and
   risks"** section to `README.md` and a full page at `docs/STEAM-RULES.md`:
   what gaki does that the official client doesn't, which rules it touches,
   what could happen to an account (from nothing to a ban) and how likely
@@ -2417,6 +2417,19 @@ user whether to do this phase and how.
   "never moves money" policy, the existing "not affiliated with Valve"
   notice, and the date of the review. Link it from `docs/FAQ.md`, from the
   help of every gated command, and from the TUI help.
+  *Done 2026-11-08:* STEAM-RULES.md now opens with the user guide (in short;
+  what gaki does that the client doesn't; what it never does; your part:
+  automation, proxies, sharing; features off by default: none), then "The
+  review in detail" (§1 rules, §2 ratings, §3 what was done). README has a
+  "Steam rules and risks" section, the caution box no longer says
+  "unchecked", and the docs table lists the page. Links: FAQ (with a VAC
+  note), CONFIG.md `proxy`, GAKI-CLI.md chat and market, `--help` footers
+  of `chat`, `inventory`, `wallet`, `market` and the `config proxy` doc,
+  and a "Steam rules" block in the TUI help (test `shows_the_steam_rules`).
+  Gates green (544/686/816 tests). Found on the way, not fixed (before
+  this step): several TUI help descriptions are over the 28-character
+  column and get cut off, e.g. "workshop (status, browse, comments)".
+
 - [ ] **9.5** Make the rules audit part of the release checklist: rerun
   9.1–9.4 when a rule changes or a feature that talks to Steam is added.
 
