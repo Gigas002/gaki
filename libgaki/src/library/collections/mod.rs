@@ -24,12 +24,31 @@ use crate::steam_client::{RemoteNamespace, SteamClient};
 /// Key prefix for every collection entry in the CloudConfigStore namespace.
 const KEY_PREFIX: &str = "user-collections.";
 
+/// The id of Steam's built-in favourites collection.
+pub const FAVORITE: &str = "favorite";
+/// The id of Steam's built-in hidden-games collection.
+pub const HIDDEN: &str = "hidden";
+
 /// Built-in collection ids that Steam manages specially. They can be cleared
 /// (add/remove members) but never deleted.
-const BUILTIN_IDS: &[&str] = &["favorite", "hidden"];
+const BUILTIN_IDS: &[&str] = &[FAVORITE, HIDDEN];
+
+/// The name a built-in collection gets when gaki creates it locally (a pull
+/// then takes Steam's).
+fn builtin_name(id: &str) -> Option<&'static str> {
+    match id {
+        FAVORITE => Some("Favorites"),
+        HIDDEN => Some("Hidden"),
+        _ => None,
+    }
+}
+
+/// Serialises every load-edit-save of the store within this process, so a
+/// background sync and an edit from the UI can't save over each other.
+static STORE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// A single Steam library collection (a named group of games).
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct Collection {
     /// Stable id, e.g. `uc-1a2b3c4d`, or a built-in id (`favorite`/`hidden`).
     pub id: String,
@@ -53,6 +72,11 @@ pub struct Collection {
     /// Marked for deletion; pushed to Steam as a tombstone, then dropped locally.
     #[serde(default)]
     pub deleted: bool,
+    /// App ids added or removed here since the last push. A pull keeps the
+    /// local membership of these, so adding a game back isn't undone by the
+    /// older removal still on Steam (or the other way round). Never sent.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub changed: Vec<u32>,
 }
 
 impl Collection {
@@ -69,6 +93,22 @@ impl Collection {
     /// Static membership test: a member iff explicitly added and not removed.
     pub fn contains(&self, app_id: u32) -> bool {
         self.added.contains(&app_id) && !self.removed.contains(&app_id)
+    }
+
+    /// Make `app_id` a member or not, and remember it changed locally.
+    fn set_member(&mut self, app_id: u32, member: bool) {
+        let (from, to) = if member {
+            (&mut self.removed, &mut self.added)
+        } else {
+            (&mut self.added, &mut self.removed)
+        };
+        from.retain(|&x| x != app_id);
+        if !to.contains(&app_id) {
+            to.push(app_id);
+        }
+        if !self.changed.contains(&app_id) {
+            self.changed.push(app_id);
+        }
     }
 
     /// Convert to a Steam CloudConfigStore entry: `(key, Option<value_json>)`.
@@ -115,6 +155,7 @@ impl Collection {
             removed: parse_app_ids(v.get("removed")),
             filter_spec: v.get("filterSpec").cloned(),
             deleted: false,
+            changed: Vec::new(),
         })
     }
 }
@@ -210,6 +251,7 @@ impl CollectionsStore {
             removed: Vec::new(),
             filter_spec: None,
             deleted: false,
+            changed: Vec::new(),
         });
         self.save()?;
         Ok(id)
@@ -247,32 +289,49 @@ impl CollectionsStore {
         self.save()
     }
 
-    /// Add app ids to a static collection and save.
+    /// Add app ids to a static collection and save. A built-in
+    /// collection (`favorite`, `hidden`) is created if this store has none
+    /// yet.
     pub fn add(&mut self, name_or_id: &str, app_ids: &[u32]) -> Result<()> {
-        let idx = self.resolve_index(name_or_id)?;
-        self.ensure_static(idx)?;
+        let idx = self.edit_index(name_or_id)?;
         let c = &mut self.collections[idx];
         for &app in app_ids {
-            c.removed.retain(|&x| x != app);
-            if !c.added.contains(&app) {
-                c.added.push(app);
-            }
+            c.set_member(app, true);
         }
         self.save()
     }
 
     /// Remove app ids from a static collection (tombstone them) and save.
+    /// A built-in collection is created if this store has none yet, so the
+    /// removal still reaches Steam.
     pub fn remove(&mut self, name_or_id: &str, app_ids: &[u32]) -> Result<()> {
-        let idx = self.resolve_index(name_or_id)?;
-        self.ensure_static(idx)?;
+        let idx = self.edit_index(name_or_id)?;
         let c = &mut self.collections[idx];
         for &app in app_ids {
-            c.added.retain(|&x| x != app);
-            if !c.removed.contains(&app) {
-                c.removed.push(app);
-            }
+            c.set_member(app, false);
         }
         self.save()
+    }
+
+    /// The index of a static collection to edit, creating a missing
+    /// built-in one.
+    fn edit_index(&mut self, name_or_id: &str) -> Result<usize> {
+        let idx = match self.resolve_index(name_or_id) {
+            Ok(idx) => idx,
+            Err(e) => {
+                let Some(name) = builtin_name(name_or_id) else {
+                    return Err(e);
+                };
+                self.collections.push(Collection {
+                    id: name_or_id.to_string(),
+                    name: name.to_string(),
+                    ..Collection::default()
+                });
+                self.collections.len() - 1
+            }
+        };
+        self.ensure_static(idx)?;
+        Ok(idx)
     }
 
     /// Error if the collection at `idx` is dynamic (not editable via the CLI).
@@ -312,7 +371,13 @@ impl CollectionsStore {
                     };
                     match self.collections.iter_mut().find(|c| c.id == incoming.id) {
                         Some(local) => {
-                            // Union memberships; remote wins for name/filter.
+                            // Union memberships; remote wins for name/filter,
+                            // except for apps changed here since the last push.
+                            let kept: Vec<(u32, bool)> = local
+                                .changed
+                                .iter()
+                                .map(|&a| (a, local.contains(a)))
+                                .collect();
                             for a in &incoming.added {
                                 if !local.added.contains(a) {
                                     local.added.push(*a);
@@ -322,6 +387,9 @@ impl CollectionsStore {
                                 if !local.removed.contains(r) {
                                     local.removed.push(*r);
                                 }
+                            }
+                            for (app, member) in kept {
+                                local.set_member(app, member);
                             }
                             local.name = incoming.name;
                             local.filter_spec = incoming.filter_spec;
@@ -335,25 +403,38 @@ impl CollectionsStore {
     }
 }
 
-/// Pull remote collections from Steam, merge into `store`, and save.
-pub async fn pull(store: &mut CollectionsStore, client: &SteamClient) -> Result<()> {
+/// Load the store, run `f` on it (which saves what it changes), and hand
+/// back its result, holding the in-process store lock throughout. Every
+/// load-edit-save goes through here, never across a network call.
+pub fn edit<T>(f: impl FnOnce(&mut CollectionsStore) -> Result<T>) -> Result<T> {
+    let _guard = STORE_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    f(&mut CollectionsStore::load()?)
+}
+
+/// Pull remote collections from Steam, merge them into the local store,
+/// save, and return the store.
+pub async fn pull(client: &SteamClient) -> Result<CollectionsStore> {
     let remote = client
         .download_collections()
         .await
         .context("failed downloading collections from Steam")?;
-    store.apply_remote(remote);
-    store.save()?;
-    Ok(())
+    edit(|store| {
+        store.apply_remote(remote);
+        store.save()?;
+        Ok(store.clone())
+    })
 }
 
-/// Push every local collection to Steam, then save. On a version conflict the
-/// error tells the user to `pull` first.
-pub async fn push(store: &mut CollectionsStore, client: &SteamClient) -> Result<()> {
+/// Push every local collection to Steam, then save and return the store.
+/// On a version conflict the error tells the user to `pull` first. Edits
+/// made while the upload runs stay local for the next push.
+pub async fn push(client: &SteamClient) -> Result<CollectionsStore> {
+    let sent = edit(|store| Ok(store.clone()))?;
     let entries: Vec<(String, Option<String>)> =
-        store.collections.iter().map(Collection::to_entry).collect();
+        sent.collections.iter().map(Collection::to_entry).collect();
 
     let new_version = match client
-        .upload_collections(store.namespace_version, entries)
+        .upload_collections(sent.namespace_version, entries)
         .await
     {
         Ok(v) => v,
@@ -370,18 +451,40 @@ pub async fn push(store: &mut CollectionsStore, client: &SteamClient) -> Result<
         }
     };
 
-    store.namespace_version = new_version;
-    // Deleted collections are now tombstoned server-side; drop them locally.
-    store.collections.retain(|c| !c.deleted);
-    store.save()?;
-    Ok(())
+    edit(|store| {
+        store.uploaded(&sent, new_version);
+        store.save()?;
+        Ok(store.clone())
+    })
 }
 
 /// Full sync: `pull` (merge remote in) then `push` (send the merged result).
-pub async fn sync(store: &mut CollectionsStore, client: &SteamClient) -> Result<()> {
-    pull(store, client).await?;
-    push(store, client).await?;
-    Ok(())
+pub async fn sync(client: &SteamClient) -> Result<CollectionsStore> {
+    pull(client).await?;
+    push(client).await
+}
+
+impl CollectionsStore {
+    /// Record that `sent` reached Steam as `version`: deleted collections
+    /// that went up as tombstones are dropped, and the local changes that
+    /// went up are no longer pending. Changes made since `sent` stay.
+    fn uploaded(&mut self, sent: &CollectionsStore, version: u64) {
+        self.namespace_version = version;
+        let tombstoned =
+            |c: &Collection| sent.collections.iter().any(|s| s.id == c.id && s.deleted);
+        self.collections.retain(|c| !tombstoned(c));
+        for c in &mut self.collections {
+            if let Some(s) = sent.collections.iter().find(|s| s.id == c.id) {
+                let pending: Vec<u32> = c
+                    .changed
+                    .iter()
+                    .copied()
+                    .filter(|&a| !s.changed.contains(&a) || s.contains(a) != c.contains(a))
+                    .collect();
+                c.changed = pending;
+            }
+        }
+    }
 }
 
 #[cfg(test)]

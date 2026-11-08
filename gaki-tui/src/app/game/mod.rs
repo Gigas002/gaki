@@ -185,9 +185,9 @@ impl Game {
         String::new()
     }
 
-    /// Whether this game is marked as a favourite in the config.
+    /// Whether this game is one of the favourites.
     pub fn is_favourite(&self) -> bool {
-        Config::cached().favorite_games.contains(&self.id)
+        crate::app::marks::is_favourite(self.id)
     }
 
     /// The raw display name (no favourite marker), for sorting.
@@ -244,8 +244,7 @@ pub fn load_library() -> Result<Vec<Game>, TuiError> {
 
 impl Named for Game {
     fn get_name(&self) -> String {
-        let config = Config::cached();
-        if config.favorite_games.contains(&self.id) {
+        if crate::app::marks::is_favourite(self.id) {
             format!("♡ {}", self.name.clone())
         } else {
             self.name.clone()
@@ -254,6 +253,6 @@ impl Named for Game {
 
     fn is_valid(&self) -> bool {
         let config = Config::cached();
-        !&config.hidden_games.contains(&self.id) && config.allowed_games.contains(&self.game_type)
+        !crate::app::marks::is_hidden(self.id) && config.allowed_games.contains(&self.game_type)
     }
 }

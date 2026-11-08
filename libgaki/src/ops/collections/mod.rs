@@ -91,24 +91,24 @@ pub fn show(name_or_id: &str) -> Result<Summary> {
 
 /// Create a static collection; returns its id.
 pub fn create(name: &str) -> Result<String> {
-    CollectionsStore::load()?.create(name)
+    collections::edit(|s| s.create(name))
 }
 
 /// Mark a collection for deletion on the next push.
 pub fn delete(name_or_id: &str) -> Result<()> {
-    CollectionsStore::load()?.delete(name_or_id)
+    collections::edit(|s| s.delete(name_or_id))
 }
 
 pub fn rename(name_or_id: &str, new_name: &str) -> Result<()> {
-    CollectionsStore::load()?.rename(name_or_id, new_name)
+    collections::edit(|s| s.rename(name_or_id, new_name))
 }
 
 pub fn add(name_or_id: &str, app_ids: &[u32]) -> Result<()> {
-    CollectionsStore::load()?.add(name_or_id, app_ids)
+    collections::edit(|s| s.add(name_or_id, app_ids))
 }
 
 pub fn remove(name_or_id: &str, app_ids: &[u32]) -> Result<()> {
-    CollectionsStore::load()?.remove(name_or_id, app_ids)
+    collections::edit(|s| s.remove(name_or_id, app_ids))
 }
 
 /// Collections stored locally (including ones marked deleted).
@@ -126,8 +126,7 @@ pub struct Synced {
 
 /// Download Steam's collections and merge them into the local store.
 pub async fn pull(client: &SteamClient) -> Result<Synced> {
-    let mut store = CollectionsStore::load()?;
-    collections::pull(&mut store, client).await?;
+    let store = collections::pull(client).await?;
     Ok(Synced {
         namespace_version: store.namespace_version,
         count: store.collections.iter().filter(|c| !c.deleted).count(),
@@ -136,8 +135,7 @@ pub async fn pull(client: &SteamClient) -> Result<Synced> {
 
 /// Upload the local collections (changes the Steam account).
 pub async fn push(client: &SteamClient) -> Result<Synced> {
-    let mut store = CollectionsStore::load()?;
-    collections::push(&mut store, client).await?;
+    let store = collections::push(client).await?;
     Ok(Synced {
         namespace_version: store.namespace_version,
         count: store.collections.len(),
@@ -146,12 +144,38 @@ pub async fn push(client: &SteamClient) -> Result<Synced> {
 
 /// Pull, then push (changes the Steam account).
 pub async fn sync(client: &SteamClient) -> Result<Synced> {
-    let mut store = CollectionsStore::load()?;
-    collections::sync(&mut store, client).await?;
+    let store = collections::sync(client).await?;
     Ok(Synced {
         namespace_version: store.namespace_version,
         count: store.collections.len(),
     })
+}
+
+/// One of Steam's built-in collections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BuiltIn {
+    Favorite,
+    Hidden,
+}
+
+impl BuiltIn {
+    pub fn id(self) -> &'static str {
+        match self {
+            BuiltIn::Favorite => collections::FAVORITE,
+            BuiltIn::Hidden => collections::HIDDEN,
+        }
+    }
+}
+
+/// The members of a built-in collection; none if the store has none yet.
+pub fn builtin_members(which: BuiltIn) -> Result<Vec<u32>> {
+    let store = CollectionsStore::load()?;
+    Ok(store
+        .collections
+        .iter()
+        .find(|c| !c.deleted && c.id == which.id())
+        .map(|c| Summary::of(c).app_ids.unwrap_or_default())
+        .unwrap_or_default())
 }
 
 #[cfg(test)]

@@ -1,5 +1,4 @@
-//! The TUI's own settings file: the default user, hidden and favourite
-//! games, the shown game types, the highlight colour, and the background
+//! The TUI's own settings file: the default user, the shown game types, the highlight colour, and the background
 //! update check, in
 //! `gaki/tui/config.toml` under the config dir.
 
@@ -28,7 +27,13 @@ static CACHE: RwLock<Option<Config>> = RwLock::new(None);
 #[serde(default)]
 pub struct Config {
     pub default_user: String,
+    /// Hidden and favourite games of builds without the `collections`
+    /// feature. With it, these are Steam's own collections and an older
+    /// file's lists are moved there once (`app::marks::migrate`); empty
+    /// lists aren't written.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub hidden_games: Vec<i32>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
     pub favorite_games: Vec<i32>,
     pub allowed_games: Vec<GameType>,
     pub highlight: Color,

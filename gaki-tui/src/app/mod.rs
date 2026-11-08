@@ -8,6 +8,7 @@ pub mod client;
 pub mod game;
 mod keys;
 pub mod library;
+pub mod marks;
 mod marquee;
 pub mod steam;
 mod terminal;

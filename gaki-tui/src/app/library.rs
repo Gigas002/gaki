@@ -69,6 +69,10 @@ pub fn run() -> AppResult {
         }
         // A link that failed to open becomes the notice.
         lib.browser.poll_links();
+        // A favourite or hide that didn't reach Steam becomes the notice.
+        if let Some(e) = crate::app::marks::take_sync_error() {
+            lib.browser.notice = Some(e);
+        }
         // Adopt a market search or price result published off-thread.
         #[cfg(feature = "market")]
         lib.browser.poll_market();
@@ -83,7 +87,10 @@ impl Library {
     /// Load the config, probe the session, and seed the browser from the
     /// cached library if there is one.
     fn start() -> AppResult<Self> {
-        let config = Config::new()?;
+        let mut config = Config::new()?;
+        if let Err(e) = crate::app::marks::migrate(&mut config) {
+            tracing::warn!(error = %e, "moving favourite and hidden games into Steam's collections");
+        }
         let mut app = App::new(&config);
         let client = Client::new();
         // Always probe the session first (stored session or daemon). The

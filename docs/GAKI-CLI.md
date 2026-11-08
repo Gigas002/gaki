@@ -205,6 +205,7 @@ gaki-cli collections remove "RPGs" 730
 gaki-cli collections show "RPGs"
 gaki-cli collections rename "RPGs" "Role-playing"
 gaki-cli collections delete "Role-playing"  # favourite and hidden can't be deleted
+gaki-cli collections add favorite 570 # the built-in ids work even before a pull
 gaki-cli list --collection "RPGs"     # filter the library to one collection
 gaki-cli collections pull             # fetch Steam's collections and merge them in
 gaki-cli collections push --yes       # upload local collections to your account

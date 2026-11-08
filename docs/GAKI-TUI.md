@@ -80,7 +80,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `n`                   | Game info: details, DRM and files checks, save artwork (see below) |
 | `J`                   | Steam Store: search, deals, events, your wishlist        |
 | `X`                   | Installs: running installs and the backlog               |
-| `f` / `H`             | Toggle a favourite, hide the game                        |
+| `f` / `H`             | Toggle a favourite, hide the game (Steam's own collections, see below) |
 | `A` / `p`             | Account (`o` logs out), settings (see below)             |
 | `r`                   | Refresh the library from Steam                           |
 | `l`                   | Sign in again                                            |
@@ -295,12 +295,23 @@ everything about the session, installs and launches. Its own settings are in
 
 | Key              | Meaning                                                       |
 | ---------------- | ------------------------------------------------------------- |
-| `favorite_games` | your favourites (`f`)                                         |
-| `hidden_games`   | the games `H` hid                                             |
 | `allowed_games`  | the app types listed: any of `Game`, `DLC`, `Driver`, `Application`, `Config`, `Demo`, `Tool`, `Unknown`. The default is `Game` and `DLC` |
 | `highlight`      | the highlight color                                           |
 | `check_updates`  | check the installed games for updates after the library loads (`true`) |
 | `store_regions`  | the regions the Store overlay compares prices in, e.g. `["US", "DE", "JP"]`; empty (the default) means your account's country |
+
+Favourites (`f`, the Favourites tab) and hidden games (`H`) are Steam's
+own built-in Favorites and Hidden collections, the same ones as in the
+Steam client and `gaki-cli collections`. A change is saved in the local
+collections store at once and synced to Steam in the background; if that
+fails (offline, signed out) the status bar says so and the next sync sends
+it. Steam's collections are fetched after the library loads, so marks made
+in the Steam client show up. To unhide a game, remove it from Hidden in the
+collections overlay or with `gaki-cli collections remove hidden <app>`.
+An older `config.toml` with `favorite_games` or `hidden_games` lists has
+them moved into those collections on the first start, and the keys are
+dropped. A build without the `collections` feature keeps them as lists in
+`config.toml` instead.
 
 The cached library (`games.toml`) and cover art (`icons/`) are in
 `$XDG_CACHE_HOME/gaki/tui/`, and the log is

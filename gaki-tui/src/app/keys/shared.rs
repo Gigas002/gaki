@@ -6,6 +6,7 @@ use crate::app::browser::Browser;
 use crate::app::browser::InstallPhase;
 use crate::app::client::Client;
 use crate::app::game::Game;
+use crate::app::marks;
 use crate::app::{App, AppResult, Mode};
 use crate::config::Config;
 
@@ -50,20 +51,14 @@ pub(super) fn toggle_favourite(
     config: &mut Config,
     game: &Game,
 ) -> AppResult {
-    if config.favorite_games.contains(&game.id) {
-        config.favorite_games.retain(|&x| x != game.id);
-    } else {
-        config.favorite_games.push(game.id);
-    }
-    config.save()?;
+    marks::set_favourite(config, game.id, !marks::is_favourite(game.id))?;
     browser.refresh();
     Ok(())
 }
 
 /// Hide `game` from the library.
 pub(super) fn hide(browser: &mut Browser, config: &mut Config, game: &Game) -> AppResult {
-    config.hidden_games.push(game.id);
-    config.save()?;
+    marks::hide(config, game.id)?;
     browser.refresh();
     Ok(())
 }

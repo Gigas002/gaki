@@ -8,6 +8,7 @@ fn collection(id: &str, added: &[u32], removed: &[u32], dynamic: bool) -> Collec
         removed: removed.to_vec(),
         filter_spec: dynamic.then(|| serde_json::json!({})),
         deleted: false,
+        changed: Vec::new(),
     }
 }
 

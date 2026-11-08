@@ -213,7 +213,7 @@ no counterpart to them.
 | Achievements (view) | ✓ | ✓ `achievements` | ✓ `a` | |
 | Playtime | part | — | — | Fetched with the owned games, never shown. not done |
 | Collections, synced with Steam | ✓ | ✓ `collections` | ✓ `O` | |
-| Favourites and hidden games | ✓ (Steam's built-in collections) | ✓ `collections` | part | The TUI's `f`/`H` keep their own lists in `tui/config.toml`, separate from Steam's favourite and hidden collections. not done (follow-up 8.18) |
+| Favourites and hidden games | ✓ (Steam's built-in collections) | ✓ `collections` | ✓ | The TUI's `f`/`H` and Favourites tab use Steam's built-in collections, synced in the background (8.18). |
 | Add a non-Steam game, activate a product key | — | — | — | not done |
 | Screenshots, recordings, notes | — | — | — | not done |
 

@@ -177,7 +177,7 @@ impl Browser {
 
     /// Whether a game passes the hidden/allowed-type rules and the active tab.
     fn passes(game: &Game, filter: Filter, config: &Config) -> bool {
-        if config.hidden_games.contains(&game.id) {
+        if crate::app::marks::is_hidden(game.id) {
             return false;
         }
         if !config.allowed_games.contains(&game.game_type) {
@@ -187,7 +187,7 @@ impl Browser {
             Filter::All => true,
             Filter::Installed => game.installed,
             Filter::Updates => game.update_available,
-            Filter::Favourites => config.favorite_games.contains(&game.id),
+            Filter::Favourites => crate::app::marks::is_favourite(game.id),
         }
     }
 

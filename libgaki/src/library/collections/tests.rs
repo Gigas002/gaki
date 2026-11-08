@@ -10,6 +10,7 @@ fn static_entry_round_trips() {
         removed: vec![20],
         filter_spec: None,
         deleted: false,
+        changed: Vec::new(),
     };
     let (key, value) = c.to_entry();
     assert_eq!(key, "user-collections.uc-0001");
@@ -34,6 +35,7 @@ fn dynamic_entry_preserves_filter_spec() {
         removed: vec![],
         filter_spec: Some(filter.clone()),
         deleted: false,
+        changed: Vec::new(),
     };
     let (key, value) = c.to_entry();
     let value = value.unwrap();
@@ -54,6 +56,7 @@ fn deleted_collection_becomes_tombstone() {
         removed: vec![],
         filter_spec: None,
         deleted: true,
+        changed: Vec::new(),
     };
     let (key, value) = c.to_entry();
     assert_eq!(key, "user-collections.uc-x");
@@ -72,6 +75,7 @@ fn merge_unions_and_honors_remote_deletion() {
                 removed: vec![],
                 filter_spec: None,
                 deleted: false,
+                changed: Vec::new(),
             },
             Collection {
                 id: "uc-gone".into(),
@@ -80,6 +84,7 @@ fn merge_unions_and_honors_remote_deletion() {
                 removed: vec![],
                 filter_spec: None,
                 deleted: false,
+                changed: Vec::new(),
             },
         ],
     };
@@ -93,6 +98,7 @@ fn merge_unions_and_honors_remote_deletion() {
         removed: vec![7],
         filter_spec: None,
         deleted: false,
+        changed: Vec::new(),
     }
     .to_entry();
     let b_entry = Collection {
@@ -102,6 +108,7 @@ fn merge_unions_and_honors_remote_deletion() {
         removed: vec![],
         filter_spec: None,
         deleted: false,
+        changed: Vec::new(),
     }
     .to_entry();
 
@@ -139,6 +146,7 @@ fn resolve_by_name_id_and_ambiguity() {
                 removed: vec![],
                 filter_spec: None,
                 deleted: false,
+                changed: Vec::new(),
             },
             Collection {
                 id: "uc-2".into(),
@@ -147,6 +155,7 @@ fn resolve_by_name_id_and_ambiguity() {
                 removed: vec![],
                 filter_spec: None,
                 deleted: false,
+                changed: Vec::new(),
             },
             Collection {
                 id: "uc-3".into(),
@@ -155,6 +164,7 @@ fn resolve_by_name_id_and_ambiguity() {
                 removed: vec![],
                 filter_spec: None,
                 deleted: false,
+                changed: Vec::new(),
             },
         ],
     };
@@ -166,4 +176,101 @@ fn resolve_by_name_id_and_ambiguity() {
     assert!(store.resolve("nope").is_err());
     // Ambiguous name.
     assert!(store.resolve("Dupe").is_err());
+}
+
+#[test]
+fn builtins_are_created_on_first_edit() {
+    let mut store = CollectionsStore::default();
+    // Only the built-in ids are created on demand.
+    assert!(store.add("uc-missing", &[1]).is_err());
+    store.collections.clear();
+    store.add(FAVORITE, &[570]).unwrap();
+    store.remove(HIDDEN, &[10]).unwrap();
+    let fav = store.resolve(FAVORITE).unwrap();
+    assert!(fav.is_builtin() && fav.contains(570));
+    assert_eq!(fav.name, "Favorites");
+    let hidden = store.resolve(HIDDEN).unwrap();
+    assert!(!hidden.contains(10));
+    assert_eq!(hidden.removed, [10]);
+}
+
+fn remote_with(c: &Collection, version: u64) -> RemoteNamespace {
+    let (key, value) = c.to_entry();
+    RemoteNamespace {
+        version,
+        entries: vec![(key, value)],
+    }
+}
+
+#[test]
+fn local_changes_survive_a_pull() {
+    // Steam still has 570 removed from an earlier push, and 440 added.
+    let remote = Collection {
+        id: FAVORITE.into(),
+        name: "Favorites".into(),
+        added: vec![440],
+        removed: vec![570],
+        ..Collection::default()
+    };
+    let mut store = CollectionsStore::default();
+    store.collections.push(remote.clone());
+    // Re-favourite 570 and drop 440 here, then pull before pushing.
+    let c = &mut store.collections[0];
+    c.set_member(570, true);
+    c.set_member(440, false);
+    store.apply_remote(remote_with(&remote, 3));
+
+    let fav = store.resolve(FAVORITE).unwrap();
+    assert!(fav.contains(570), "re-add kept");
+    assert!(!fav.contains(440), "removal kept");
+    assert_eq!(store.namespace_version, 3);
+}
+
+#[test]
+fn remote_changes_win_for_untouched_apps() {
+    let mut store = CollectionsStore::default();
+    store.collections.push(Collection {
+        id: FAVORITE.into(),
+        added: vec![1, 2],
+        ..Collection::default()
+    });
+    // Removed on Steam; nothing changed here.
+    let remote = Collection {
+        id: FAVORITE.into(),
+        added: vec![2],
+        removed: vec![1],
+        ..Collection::default()
+    };
+    store.apply_remote(remote_with(&remote, 4));
+    assert!(!store.resolve(FAVORITE).unwrap().contains(1));
+}
+
+#[test]
+fn upload_clears_only_what_was_sent() {
+    let mut store = CollectionsStore::default();
+    store.collections.push(Collection {
+        id: FAVORITE.into(),
+        ..Collection::default()
+    });
+    store.collections.push(Collection {
+        id: "uc-old".into(),
+        deleted: true,
+        ..Collection::default()
+    });
+    store.collections[0].set_member(1, true);
+    let sent = store.clone();
+    // Changed while the upload ran: 1 again (now out) and 2 (new).
+    store.collections[0].set_member(1, false);
+    store.collections[0].set_member(2, true);
+    store.uploaded(&sent, 9);
+
+    assert_eq!(store.namespace_version, 9);
+    assert!(store.collections.iter().all(|c| c.id != "uc-old"));
+    let mut pending = store.collections[0].changed.clone();
+    pending.sort_unstable();
+    assert_eq!(pending, [1, 2]);
+
+    let sent = store.clone();
+    store.uploaded(&sent, 10);
+    assert!(store.collections[0].changed.is_empty());
 }

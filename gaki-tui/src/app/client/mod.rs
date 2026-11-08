@@ -154,6 +154,8 @@ fn handle_load_games(state: &Arc<Mutex<State>>) -> Result<(), TuiError> {
             write_cache(&games)?;
             *state.lock()? = State::LoggedIn;
             tracing::info!(games = games.len(), "loaded library");
+            // Favourites and hidden games set in the Steam client.
+            crate::app::marks::pull();
         }
         Err(err) => {
             tracing::warn!(error = %err, "failed to load library");

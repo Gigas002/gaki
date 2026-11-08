@@ -2201,12 +2201,37 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   `Error::Decompress`. The `From<lzma_rs::Error>` impl is gone. New tests
   build real VZ containers (round trip, wrong CRC, too-large claim, short
   stream, garbled stream). `docs/AUDIT.md` §1.3 row updated.
-- [ ] **8.18** TUI favourites and hidden games as Steam's own (8.14c
+- [x] **8.18** TUI favourites and hidden games as Steam's own (8.14c
   follow-up). `f` and `H` keep lists in `tui/config.toml`, while
   `libgaki`'s collections, and `gaki-cli collections`, have Steam's
   built-in favourite and hidden collections. Make the keys and the
   Favourites tab use those collections, and move any existing local lists
   into them once.
+  *Done (user choices: push in the background; move the lists once and
+  drop the keys):* new `gaki-tui` module `app::marks` caches the members
+  of Steam's `favorite` and `hidden` collections for the list; `f`, `H`,
+  the Favourites tab, the `♡` marker and the hidden filter read it. A toggle
+  edits the local collections store and queues a sync (pull, then push) on
+  one background thread, which folds a burst of toggles into one sync. A
+  failed sync becomes the status-bar notice, and the change stays local
+  for the next sync. Steam's collections are pulled after the library
+  loads, and the cache reloads after a sync and after collections-overlay
+  edits. On start, `favorite_games`/`hidden_games` from `tui/config.toml`
+  are added to the collections once and the keys are dropped (empty lists
+  aren't written). A build without `collections` keeps the config lists.
+  libgaki: `add`/`remove` create a missing built-in collection
+  (`gaki-cli collections add favorite 570` works before any pull); a new
+  `Collection::changed` list (app ids edited since the last push, never
+  sent) makes a pull keep the local membership of those apps. Before this,
+  re-adding a game removed earlier was undone by the old `removed` entry
+  still on Steam. Pull and push no longer hold a copy of the store across
+  the network: they reload and merge under an in-process lock
+  (`collections::edit`), so an edit made while a sync runs isn't saved
+  over. New `ops::collections::{BuiltIn, builtin_members}`. Tests for
+  creating built-ins, local changes surviving a pull, remote changes
+  winning for untouched apps, and clearing only what was uploaded. Docs:
+  GAKI-TUI.md, GAKI-CLI.md, AUDIT.md §3.
+
 - [ ] **8.19** Shader caches: where a game's compiled shaders go, and a
   setting for it (user request, 2026-11-08). Today gaki sets nothing, so
   DXVK, VKD3D-Proton and the Mesa/NVIDIA drivers each pick their own

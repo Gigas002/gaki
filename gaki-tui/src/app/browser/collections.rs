@@ -8,6 +8,8 @@ impl Browser {
     /// game that add/remove will act on).
     pub fn open_collections(&mut self, app_id: i32) {
         self.collections = steam::collections_list().unwrap_or_default();
+        // The overlay may have changed the favourites or hidden games.
+        crate::app::marks::reload();
         self.collections_app_id = app_id;
         self.collections_index = 0;
         self.collections_status.clear();
@@ -52,6 +54,8 @@ impl Browser {
 
     fn refresh_collections(&mut self) {
         self.collections = steam::collections_list().unwrap_or_default();
+        // The overlay may have changed the favourites or hidden games.
+        crate::app::marks::reload();
         if self.collections_index >= self.collections.len() {
             self.collections_index = self.collections.len().saturating_sub(1);
         }
