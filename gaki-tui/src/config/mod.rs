@@ -26,6 +26,7 @@ static CACHE: RwLock<Option<Config>> = RwLock::new(None);
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct Config {
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub default_user: String,
     /// Hidden and favourite games of builds without the `collections`
     /// feature. With it, these are Steam's own collections and an older
@@ -93,8 +94,8 @@ impl Config {
     pub fn save(&self) -> Result<(), TuiError> {
         // Publish only persisted settings. A failed save must not make a toggle
         // appear successful in cached readers while the UI retains its old copy.
-        let text = toml::to_string(&self).map_err(|e| TuiError::Problem(e.to_string()))?;
-        libgaki::config::edit::write_atomic(&config_location()?, &text)
+        // The file's comments and layout are kept: users edit it by hand.
+        libgaki::config::edit::write_serialized(&config_location()?, self)
             .map_err(|e| TuiError::Problem(format!("{e:#}")))?;
         *CACHE.write()? = Some(self.clone());
         Ok(())

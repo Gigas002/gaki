@@ -490,3 +490,36 @@ fn shader_cache_is_off_or_a_directory_that_can_be_made() {
     game.shader_cache = Some(ShaderCache::Dir(dir.path().join("new/cache")));
     assert!(game.validate(&ctx()).is_empty());
 }
+
+#[test]
+fn write_serialized_keeps_comments() {
+    #[derive(serde::Serialize)]
+    struct Settings {
+        check: bool,
+        regions: Vec<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        gone: Option<u32>,
+        added: u32,
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    fs::write(
+        &path,
+        "# header\n\n# whether to check\ncheck = true # inline\n\n# regions\nregions = []\n\
+         # old\ngone = 1\n# commented = 2\n",
+    )
+    .unwrap();
+    let settings = Settings {
+        check: false,
+        regions: vec![],
+        gone: None,
+        added: 3,
+    };
+    edit::write_serialized(&path, &settings).unwrap();
+    let text = fs::read_to_string(&path).unwrap();
+    assert_eq!(
+        text,
+        "# header\n\n# whether to check\ncheck = false # inline\n\n# regions\nregions = []\n\
+         added = 3\n# commented = 2\n"
+    );
+}

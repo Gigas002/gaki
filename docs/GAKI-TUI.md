@@ -296,7 +296,9 @@ overlay, looks anyone up by SteamID64, profile URL, a friend's name or `me`.
 
 `gaki-tui` reads gaki's own configuration ([CONFIG.md](CONFIG.md)) for
 everything about the session, installs and launches. Its own settings are in
-`$XDG_CONFIG_HOME/gaki/tui/config.toml`:
+`$XDG_CONFIG_HOME/gaki/tui/config.toml`. gaki-tui saves this file itself
+(after a login, and when favourites are migrated), keeping its comments and
+layout, so it can be edited by hand:
 
 | Key              | Meaning                                                       |
 | ---------------- | ------------------------------------------------------------- |

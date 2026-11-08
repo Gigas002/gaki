@@ -37,3 +37,22 @@ fn store_regions_default_to_none_and_parse() {
     let config = Config::parse("store_regions = [\"US\", \"DE\"]\n").unwrap();
     assert_eq!(config.store_regions, ["US", "DE"]);
 }
+
+#[test]
+fn a_commented_file_parses_and_keeps_its_comments_on_save() {
+    let text = "# settings\n\n# types\nallowed_games = [\"Game\", \"DLC\"]\n\n# colour\n\
+                highlight = \"#66C0F4\"\n\n# updates\ncheck_updates = true\n\n# regions\n\
+                store_regions = []\n";
+    let mut config = Config::parse(text).unwrap();
+    assert_eq!(config.highlight, theme::ACCENT);
+    config.check_updates = false;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("config.toml");
+    std::fs::write(&path, text).unwrap();
+    libgaki::config::edit::write_serialized(&path, &config).unwrap();
+    let saved = std::fs::read_to_string(&path).unwrap();
+    assert_eq!(
+        saved,
+        text.replace("check_updates = true", "check_updates = false")
+    );
+}

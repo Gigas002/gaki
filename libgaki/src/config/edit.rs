@@ -74,6 +74,40 @@ pub fn write_atomic(path: &Path, text: &str) -> Result<()> {
     fs::rename(&tmp, path).with_context(|| format!("could not replace {}", path.display()))
 }
 
+/// Write `value` to `path` as TOML, keeping the file that's already there as
+/// it reads: a key whose value didn't change is left alone, a changed one
+/// keeps its comments, keys `value` no longer writes are removed, and new ones
+/// go at the end. For a settings struct a program saves whole, so a
+/// hand-commented file survives the save. A file that doesn't parse is
+/// replaced.
+pub fn write_serialized<T: serde::Serialize>(path: &Path, value: &T) -> Result<()> {
+    let text = toml::to_string(value).context("could not serialize the settings")?;
+    let new = text
+        .parse::<DocumentMut>()
+        .context("could not parse the serialized settings")?;
+    let mut doc = TomlFile::open(path).map(|f| f.doc).unwrap_or_default();
+    let table = doc.as_table_mut();
+    let stale: Vec<String> = table
+        .iter()
+        .map(|(key, _)| key.to_string())
+        .filter(|key| !new.contains_key(key))
+        .collect();
+    for key in stale {
+        table.remove(&key);
+    }
+    for (key, item) in new.iter() {
+        match item {
+            Item::Value(value) => {
+                set_in(table, key, Some(value.clone()));
+            }
+            _ => {
+                table.insert(key, item.clone());
+            }
+        }
+    }
+    write_atomic(path, &doc.to_string())
+}
+
 /// Set or remove `key` in `table`, keeping the comment above an existing key.
 pub fn set_in(table: &mut Table, key: &str, value: Option<Value>) -> bool {
     match value {
