@@ -320,6 +320,45 @@ pub(crate) enum Command {
     /// List the games gaki is currently running.
     #[cfg(feature = "library")]
     Running,
+    /// Delete gaki's caches and leftovers: art, `info`, library and TUI
+    /// caches, old launch logs (each game's newest stays), unused install
+    /// locks, and the shader caches of games that aren't installed. Lists them
+    /// with their sizes and asks first. Subset flags pick kinds; without any,
+    /// all of them. Never touches the config, the session, installs, saves,
+    /// prefixes or partial downloads.
+    Clean {
+        /// Cover art and artwork.
+        #[arg(long)]
+        images: bool,
+        /// Cached `info` records and store tag/category names.
+        #[arg(long)]
+        info: bool,
+        /// The cached list of owned games.
+        #[arg(long)]
+        library: bool,
+        /// gaki-tui's cached library and cover art.
+        #[arg(long)]
+        tui: bool,
+        /// Launch logs, except each game's newest.
+        #[arg(long)]
+        logs: bool,
+        /// Install lock files no process holds.
+        #[arg(long)]
+        locks: bool,
+        /// Shader caches of games that aren't installed.
+        #[arg(long)]
+        shaders: bool,
+        /// Every game's shader cache, installed ones too (they rebuild on the
+        /// next launch).
+        #[arg(long)]
+        all_shaders: bool,
+        /// Only list what would be deleted.
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+        /// Don't ask.
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
     /// Uninstall a game.
     #[cfg(feature = "install")]
     Uninstall {

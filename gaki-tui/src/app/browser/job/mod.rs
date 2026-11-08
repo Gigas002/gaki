@@ -39,6 +39,27 @@ pub enum Load<T> {
     Failed(String),
 }
 
+/// A clone shares a running job's slot: whichever polls first adopts it.
+impl<T: Clone> Clone for Load<T> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Loading(slot) => Self::Loading(Arc::clone(slot)),
+            Self::Ready(value) => Self::Ready(value.clone()),
+            Self::Failed(e) => Self::Failed(e.clone()),
+        }
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for Load<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Loading(_) => f.write_str("Loading"),
+            Self::Ready(value) => f.debug_tuple("Ready").field(value).finish(),
+            Self::Failed(e) => f.debug_tuple("Failed").field(e).finish(),
+        }
+    }
+}
+
 impl<T: Default> Default for Load<T> {
     fn default() -> Self {
         Self::Ready(T::default())

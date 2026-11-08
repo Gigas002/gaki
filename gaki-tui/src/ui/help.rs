@@ -185,7 +185,10 @@ fn entries() -> Vec<Entry> {
         Entry::Keys(lib(&[A::ProtonIssues]), "Proton issues (GitHub)"),
         Entry::Keys(lib(&[A::Reload]), "refresh library"),
         Entry::Keys(lib(&[A::Account]), "account (and log out)"),
-        Entry::Keys(lib(&[A::Settings]), "settings, profiles, check, daemons"),
+        Entry::Keys(
+            lib(&[A::Settings]),
+            "settings, profiles, check, daemons, clean",
+        ),
         #[cfg(feature = "social")]
         Entry::Keys(lib(&[A::Friends, A::TabFriends]), "open Friends tab"),
         #[cfg(feature = "social")]

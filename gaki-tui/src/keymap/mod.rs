@@ -220,6 +220,9 @@ actions! {
         StopDaemon => "stop_daemon" ["s"] in "daemons",
         StopAllDaemons => "stop_all_daemons" ["S"] in "daemons",
         RefreshDaemons => "refresh_daemons" ["r"] in "daemons",
+        Clean => "clean" ["x"] in "clean",
+        AllShaders => "all_shaders" ["a"] in "clean",
+        RescanClean => "rescan_clean" ["r"] in "clean",
     }
 }
 

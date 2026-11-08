@@ -686,6 +686,11 @@ pub fn forget(app_id: u32, delete_files: bool) -> Result<Option<PathBuf>> {
     Ok(deleted)
 }
 
+/// Whether some process holds `app_id`'s install lock right now.
+pub fn lock_is_held(app_id: u32) -> bool {
+    lock::is_held(app_id)
+}
+
 /// Uninstall a game, optionally deleting its Proton prefix too. Its shader
 /// cache goes with it, as Steam does.
 pub async fn uninstall(client: &SteamClient, app_id: u32, delete_prefix: bool) -> Result<()> {

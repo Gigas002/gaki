@@ -10,7 +10,10 @@
 //! * Daemons: the running `gaki-cli` session daemons; `s` stops the
 //!   highlighted one and `S` all of them, each after a y/n.
 
+use libgaki::ops::clean::Item as CleanItem;
 use libgaki::ops::daemon::GakiProcess;
+
+use crate::app::browser::job::Load;
 
 use super::Browser;
 use crate::app::steam;
@@ -248,10 +251,17 @@ pub enum Tab {
     Profiles,
     Check,
     Daemons,
+    Clean,
 }
 
 impl Tab {
-    pub const ALL: [Tab; 4] = [Tab::Settings, Tab::Profiles, Tab::Check, Tab::Daemons];
+    pub const ALL: [Tab; 5] = [
+        Tab::Settings,
+        Tab::Profiles,
+        Tab::Check,
+        Tab::Daemons,
+        Tab::Clean,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
@@ -259,6 +269,7 @@ impl Tab {
             Tab::Profiles => "Profiles",
             Tab::Check => "Check",
             Tab::Daemons => "Daemons",
+            Tab::Clean => "Clean",
         }
     }
 
@@ -371,6 +382,36 @@ impl DaemonsTab {
     }
 }
 
+/// The Clean tab: what `gaki-cli clean` would delete, scanned in the
+/// background each time the tab is shown.
+#[derive(Debug, Clone)]
+pub struct CleanTab {
+    pub scan: Load<Vec<CleanItem>>,
+    /// Every game's shader cache, not only those of uninstalled games.
+    pub all_shaders: bool,
+    /// Waiting for the y/n to delete.
+    pub confirm: bool,
+}
+
+impl CleanTab {
+    pub fn start(all_shaders: bool) -> Self {
+        Self {
+            scan: Load::start(move || steam::clean_scan(all_shaders)),
+            all_shaders,
+            confirm: false,
+        }
+    }
+
+    /// A tab over an already-finished scan (tests, previews).
+    pub fn with(items: Vec<CleanItem>) -> Self {
+        Self {
+            scan: Load::Ready(items),
+            all_shaders: false,
+            confirm: false,
+        }
+    }
+}
+
 /// A change waiting for its y/n.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pending {
@@ -399,6 +440,8 @@ pub struct SettingsView {
     pub check: Option<CheckTab>,
     /// Read each time the Daemons tab is shown.
     pub daemons: Option<DaemonsTab>,
+    /// Scanned each time the Clean tab is shown.
+    pub clean: Option<CleanTab>,
 }
 
 impl SettingsView {
@@ -503,7 +546,80 @@ impl Browser {
             }
             Tab::Check => view.check = Some(CheckTab::run()),
             Tab::Daemons => view.daemons = Some(DaemonsTab::load()),
+            Tab::Clean => {
+                let all = view.clean.as_ref().is_some_and(|c| c.all_shaders);
+                view.clean = Some(CleanTab::start(all));
+            }
             _ => {}
+        }
+    }
+
+    /// `r` in the Clean tab: scan again.
+    pub fn rescan_clean(&mut self) {
+        if let Some(tab) = &mut self.settings.clean
+            && !tab.scan.is_loading()
+        {
+            *tab = CleanTab::start(tab.all_shaders);
+        }
+    }
+
+    /// `a` in the Clean tab: include the installed games' shader caches, or
+    /// stop including them, and scan again.
+    pub fn toggle_clean_all_shaders(&mut self) {
+        if let Some(tab) = &mut self.settings.clean
+            && !tab.scan.is_loading()
+        {
+            *tab = CleanTab::start(!tab.all_shaders);
+        }
+    }
+
+    /// `x` in the Clean tab: ask before deleting what the scan found.
+    pub fn begin_clean(&mut self) {
+        let view = &mut self.settings;
+        let Some(tab) = &mut view.clean else {
+            return;
+        };
+        match tab.scan.ready() {
+            Some(items) if !items.is_empty() => tab.confirm = true,
+            Some(_) => view.status = "Nothing to clean.".to_string(),
+            None => {}
+        }
+    }
+
+    pub fn clean_confirm_open(&self) -> bool {
+        self.settings.clean.as_ref().is_some_and(|t| t.confirm)
+    }
+
+    /// Answer the clean confirm: `yes` deletes, then scans again.
+    pub fn answer_clean(&mut self, yes: bool) {
+        let view = &mut self.settings;
+        let Some(tab) = &mut view.clean else {
+            return;
+        };
+        tab.confirm = false;
+        if !yes {
+            return;
+        }
+        let Some(items) = tab.scan.ready() else {
+            return;
+        };
+        let report = steam::clean_delete(items);
+        let freed = libgaki::core::utils::human_bytes(report.freed_bytes);
+        view.status = match report.failed.as_slice() {
+            [] => format!("Freed {freed}."),
+            [(path, e), ..] => format!(
+                "Freed {freed}; {} couldn't be deleted ({}: {e}).",
+                report.failed.len(),
+                path.display()
+            ),
+        };
+        *tab = CleanTab::start(tab.all_shaders);
+    }
+
+    /// Adopt a finished Clean scan. Called once per tick.
+    pub fn poll_settings(&mut self) {
+        if let Some(tab) = &mut self.settings.clean {
+            tab.scan.poll();
         }
     }
 
@@ -525,7 +641,7 @@ impl Browser {
         let scroll = match view.tab {
             Tab::Profiles => view.profiles_tab.as_mut().map(|t| &mut t.scroll),
             Tab::Check => view.check.as_mut().map(|t| &mut t.scroll),
-            Tab::Settings | Tab::Daemons => None,
+            Tab::Settings | Tab::Daemons | Tab::Clean => None,
         };
         if let Some(scroll) = scroll {
             *scroll = scroll.saturating_add_signed(delta);

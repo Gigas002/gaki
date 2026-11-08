@@ -135,6 +135,7 @@ impl Library {
         browser.poll_workshop();
         browser.poll_depots();
         browser.poll_game_info();
+        browser.poll_settings();
         #[cfg(feature = "cloud")]
         browser.poll_cloud();
         #[cfg(feature = "store")]

@@ -2279,7 +2279,7 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   launch was not run by hand. Docs: CONFIG.md (new "Shader caches"
   section), GAKI-CLI.md, GAKI-TUI.md, examples.
 
-- [ ] **8.20** `gaki-cli clean`: remove gaki's caches and leftovers in
+- [x] **8.20** `gaki-cli clean`: remove gaki's caches and leftovers in
   one go (user request, 2026-11-08). It lists what it would delete, with
   sizes, and deletes only after a confirm or `--yes`; `--dry-run` only
   lists. The things to clean:
@@ -2295,6 +2295,28 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   --delete-files`. `--json` reports what was freed. The TUI gets the same
   as a **Clean** action in Settings, after a y/n. A running daemon keeps
   working: it reloads what it needs.
+  *Done (user choices: old logs = every launch log but each game's newest;
+  plain `clean` takes every safe kind):* new `libgaki::ops::clean`
+  (`Kind`, `Selection`, `plan`/`plan_in`, `delete`, `totals`, `Layout`).
+  Images, `info_cache` (plus `tag_names`/`category_names`), the library
+  cache, the TUI cache, launch logs (a log without `summary.toml` is kept
+  for 24 h in case the game still runs), unheld `installs/*.lock`, and
+  shader caches under the default root and every root `config.toml`, the
+  profiles or `games.toml` name. A numbered folder counts as a shader
+  cache only when it has a folder gaki or Mesa make, so a user's own
+  folder is left alone. Cache directories are emptied and kept, so a
+  running daemon or TUI keeps writing. `gaki-cli clean` with `--images`,
+  `--info`, `--library`, `--tui`, `--logs`, `--locks`, `--shaders`
+  (uninstalled games only; this is a kind flag, not the plan's "every
+  game"), `--all-shaders` (installed games too), `-n/--dry-run`,
+  `-y/--yes` and `--json`. TUI: a fifth Settings tab, **Clean**, scans in
+  the background (`x` delete after y/n, `a` every game's shaders, `r` scan
+  again; `[settings]` keybinds `clean`, `all_shaders`, `rescan_clean`).
+  `Load` got `Clone`/`Debug`. Program logs: only `gaki-tui.log` exists and
+  it isn't rotated, so there's nothing old to delete. Checked by hand: a
+  dry run on the real directories, and a real delete in throwaway
+  directories. Docs: GAKI-CLI.md ("Cleaning up"), GAKI-TUI.md,
+  FEATURES.md, examples/keybinds.toml.
 
 ### Phase 9 — Steam rules audit
 

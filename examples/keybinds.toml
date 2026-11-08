@@ -122,6 +122,9 @@
 # stop_daemon = "s"               # daemons tab
 # stop_all_daemons = "S"          # daemons tab
 # refresh_daemons = "r"           # daemons tab
+# clean = "x"                     # clean tab
+# all_shaders = "a"               # clean tab
+# rescan_clean = "r"              # clean tab
 
 # The Workshop overlay's status list (`W`).
 [workshop]

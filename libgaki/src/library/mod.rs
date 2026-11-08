@@ -199,6 +199,11 @@ fn libraryfolders_vdf_paths(root: &Path) -> Vec<PathBuf> {
 /// libraries sorted in, which silently pins the app to a stale copy: updates then
 /// download into the *configured* library while the check keeps reading the old
 /// manifest, so the game reports an available update forever.
+/// The apps installed in `libraries`.
+pub async fn scan_installed_in(libraries: &[PathBuf]) -> HashMap<u32, InstalledAppInfo> {
+    scan_libraries(libraries).await
+}
+
 async fn scan_libraries(libraries: &[PathBuf]) -> HashMap<u32, InstalledAppInfo> {
     scan_libraries_all(libraries)
         .await

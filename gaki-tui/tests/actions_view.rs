@@ -4,7 +4,7 @@
 //! they lay out and paint without panicking. State is set through the public
 //! fields directly so the tests never reach Steam.
 
-use gaki_tui::app::browser::settings::{Pending, SPECS, SettingsView};
+use gaki_tui::app::browser::settings::{CleanTab, Pending, SPECS, SettingsView, Tab};
 use gaki_tui::app::browser::{Action, Browser, Link};
 use gaki_tui::app::game::Game;
 #[cfg(feature = "collections")]
@@ -587,9 +587,12 @@ fn settings_tabs_cycle() {
     assert_eq!(browser.settings.tab, Tab::Daemons);
     assert!(browser.settings.daemons.is_some(), "daemons listed");
     browser.settings_tab(true);
+    assert_eq!(browser.settings.tab, Tab::Clean);
+    assert!(browser.settings.clean.is_some(), "clean scan started");
+    browser.settings_tab(true);
     assert_eq!(browser.settings.tab, Tab::Settings);
     browser.settings_tab(false);
-    assert_eq!(browser.settings.tab, Tab::Daemons);
+    assert_eq!(browser.settings.tab, Tab::Clean);
 }
 
 #[test]
@@ -678,4 +681,34 @@ fn settings_daemons_tab_says_when_none_run() {
         screen.contains("No gaki-cli daemon is running."),
         "{screen}"
     );
+}
+
+/// The Clean tab lists each kind with its size and a total, and asks
+/// before deleting.
+#[test]
+fn clean_tab_lists_kinds_and_asks() {
+    use libgaki::ops::clean::{Item, Kind};
+    let item = |kind, bytes| Item {
+        kind,
+        path: "/nonexistent".into(),
+        bytes,
+        keep_dir: false,
+        app_id: None,
+    };
+    let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
+    view.tab = Tab::Clean;
+    view.clean = Some(CleanTab::with(vec![
+        item(Kind::Images, 2048),
+        item(Kind::Shaders, 1024),
+        item(Kind::Shaders, 1024),
+    ]));
+    let text = settings_screen(&view, 100, 20);
+    assert!(text.contains("images"), "{text}");
+    assert!(text.contains("2.00 KiB  2 item(s)"), "{text}");
+    assert!(text.contains("4.00 KiB"), "{text}");
+    assert!(text.contains("[x] delete"), "{text}");
+
+    view.clean.as_mut().unwrap().confirm = true;
+    let text = settings_screen(&view, 100, 20);
+    assert!(text.contains("Delete all of this (4.00 KiB)?"), "{text}");
 }

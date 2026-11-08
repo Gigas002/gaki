@@ -100,7 +100,43 @@ fn browser_with_daemons(rows: Vec<GakiProcess>) -> Browser {
 #[test]
 fn the_daemons_tab_follows_the_check_tab() {
     assert_eq!(Tab::Check.step(true), Tab::Daemons);
-    assert_eq!(Tab::Daemons.step(true), Tab::Settings);
+    assert_eq!(Tab::Daemons.step(true), Tab::Clean);
+    assert_eq!(Tab::Clean.step(true), Tab::Settings);
+}
+
+fn clean_item(kind: libgaki::ops::clean::Kind, bytes: u64) -> CleanItem {
+    CleanItem {
+        kind,
+        // Never deleted here: every answer below is no.
+        path: "/nonexistent/gaki-clean-test".into(),
+        bytes,
+        keep_dir: false,
+        app_id: None,
+    }
+}
+
+#[test]
+fn cleaning_asks_first_and_no_cancels() {
+    let mut browser = Browser::new(vec![]);
+    browser.settings.tab = Tab::Clean;
+    browser.settings.clean = Some(CleanTab::with(vec![clean_item(
+        libgaki::ops::clean::Kind::Images,
+        10,
+    )]));
+    browser.begin_clean();
+    assert!(browser.clean_confirm_open());
+    browser.answer_clean(false);
+    assert!(!browser.clean_confirm_open());
+    assert!(browser.settings.status.is_empty());
+}
+
+#[test]
+fn cleaning_nothing_says_so() {
+    let mut browser = Browser::new(vec![]);
+    browser.settings.clean = Some(CleanTab::with(Vec::new()));
+    browser.begin_clean();
+    assert!(!browser.clean_confirm_open());
+    assert_eq!(browser.settings.status, "Nothing to clean.");
 }
 
 #[test]

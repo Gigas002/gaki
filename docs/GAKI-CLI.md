@@ -280,6 +280,31 @@ gaki-cli profiles show proton
 
 [CONFIG.md](CONFIG.md) covers every file and key.
 
+### Cleaning up
+
+```bash
+gaki-cli clean                        # list caches and leftovers with sizes, then ask
+gaki-cli clean --dry-run              # only list
+gaki-cli clean --logs --locks --yes   # just these kinds, without asking
+gaki-cli clean --all-shaders          # also the installed games' shader caches
+```
+
+`clean` finds the cover art and artwork cache (`--images`), the `info`
+cache and store name tables (`--info`), the cached library (`--library`),
+gaki-tui's cache (`--tui`), launch logs other than each game's newest
+(`--logs`; one without a summary is kept for a day, in case its game is
+still running), install lock files no process holds (`--locks`), and the
+shader caches of games that are no longer installed (`--shaders`). With no
+kind flag it takes them all; `--all-shaders` adds the installed games'
+shader caches, which rebuild on the next launch. A shader cache counts only
+when it has the folders gaki or Mesa make, so a numbered folder of your
+own under `shader_cache` is left alone. Cache directories are emptied
+rather than removed, so a running daemon or TUI keeps working. It never
+touches the config, the session, the install backlog, installed games,
+Cloud saves, prefixes or partial downloads (`install forget
+--delete-files` handles those). `--json` lists the items and the bytes
+freed; it needs `--yes` unless it's a `--dry-run`.
+
 ## Scripting with `--json`
 
 Add `--json` to any command for machine-readable output, errors included. It's
@@ -372,4 +397,5 @@ Commands run through the daemon show the same logs at your `-v` level, and a
 verbose `play` also shows the daemon's own activity, prefixed `[daemon]`.
 `--log <FILTER>` (e.g. `--log debug,steam_vent=info`) overrides the level.
 
-Each launch's output is saved under `~/.config/gaki/logs/`.
+Each launch's output is saved under `~/.config/gaki/logs/`; `gaki-cli
+clean --logs` deletes all but each game's newest.

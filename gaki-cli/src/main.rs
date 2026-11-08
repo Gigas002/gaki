@@ -495,6 +495,32 @@ async fn run(cli: Cli) -> Result<()> {
         Command::LaunchTargets { app_id, steam } => cmd_launch_targets(app_id, steam, json).await,
         #[cfg(feature = "library")]
         Command::Running => cmd_running(json),
+        Command::Clean {
+            images,
+            info,
+            library,
+            tui,
+            logs,
+            locks,
+            shaders,
+            all_shaders,
+            dry_run,
+            yes,
+        } => {
+            let flags = CleanFlags {
+                images,
+                info,
+                library,
+                tui,
+                logs,
+                locks,
+                shaders,
+                all_shaders,
+                dry_run,
+                yes,
+            };
+            cmd_clean(flags, json).await
+        }
         #[cfg(feature = "library")]
         Command::Stop { app_id, force } => cmd_stop(app_id, force, json).await,
         #[cfg(feature = "library")]

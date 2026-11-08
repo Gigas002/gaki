@@ -682,6 +682,21 @@ pub fn account() -> Result<Account, TuiError> {
     })
 }
 
+/// What `gaki-cli clean` would delete, with every kind picked; `all_shaders`
+/// adds the installed games' shader caches.
+pub fn clean_scan(all_shaders: bool) -> Result<Vec<libgaki::ops::clean::Item>, TuiError> {
+    let selection = libgaki::ops::clean::Selection {
+        kinds: Vec::new(),
+        all_shaders,
+    };
+    in_process(libgaki::ops::clean::plan(&selection))
+}
+
+/// Delete what [`clean_scan`] found.
+pub fn clean_delete(items: &[libgaki::ops::clean::Item]) -> libgaki::ops::clean::Report {
+    libgaki::ops::clean::delete(items)
+}
+
 /// Every `config.toml` key with the text it is set to (`None` when unset),
 /// in the order `gaki-cli config show` lists them.
 pub fn settings_values() -> Result<Vec<(&'static str, Option<String>)>, TuiError> {

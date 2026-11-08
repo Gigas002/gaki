@@ -50,7 +50,7 @@ uses it.
 
 | Feature          | Commands                                                                         |
 | ---------------- | -------------------------------------------------------------------------------- |
-| *(always)*       | `capabilities`, `config`, `profiles`, `proton list`, `proton default`            |
+| *(always)*       | `capabilities`, `clean`, `config`, `profiles`, `proton list`, `proton default`   |
 | `authentication` | `login`, `logout`, `daemon`, `kill`                                              |
 | `library`        | `list`, `info`, `account`, `library export`, `play`, `launch-targets`, `stop`, `running`, `drm`, `dlc`, `enable`, `disable`, `achievements`, `image`, `depots`, `launch-options`, `libraries` (plus the hidden `appinfo`, `tags`) |
 | `install`        | `install`, `update`, `library import`, `uninstall`, `verify`, `available`, `move`, `relink`, `import`, `duplicates`, `proton install`, `proton uninstall` |
@@ -80,7 +80,7 @@ A TUI without a library has nothing to show, so `gaki-tui` always builds
 
 | Feature       | Views and keys                                                                     |
 | ------------- | ---------------------------------------------------------------------------------- |
-| *(always)*    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, game info `n` (details, checks, artwork), SteamDB `Z`, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p` (with the Profiles, Check and Daemons tabs), favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T` |
+| *(always)*    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, game info `n` (details, checks, artwork), SteamDB `Z`, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p` (with the Profiles, Check, Daemons and Clean tabs), favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T` |
 | `install`     | install `d` (with the library picker), pause/resume `Space`, cancel `c`, uninstall `x`, move `M`, relink `K`, import `N`, verify `v`, update `U`, the Installs overlay `X` (resume, resume all, pause, stop, forget, and the Duplicates tab), the background update check (Updates tab, `▲` badges), Proton install/uninstall (`P` then `i`/`u`), the "install now?" prompt |
 | `versioning`  | versions and pinning `V`, beta branches `b`                                        |
 | `cloud`       | cloud saves `C`                                                                    |

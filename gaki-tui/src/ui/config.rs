@@ -15,7 +15,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
 use crate::app::browser::settings::{
-    CheckTab, DaemonsTab, Edit, ProfilesTab, SPECS, SettingsView, Tab,
+    CheckTab, CleanTab, DaemonsTab, Edit, ProfilesTab, SPECS, SettingsView, Tab,
 };
 use crate::keymap::{OverlayAction as O, SettingsAction as S, hints, key_of, pair};
 use crate::ui::{selection_marker, theme};
@@ -161,6 +161,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &SettingsView) {
         Tab::Profiles => draw_profiles(frame, body, view),
         Tab::Check => draw_check(frame, body, view.check.as_ref()),
         Tab::Daemons => draw_daemons(frame, body, view),
+        Tab::Clean => draw_clean(frame, body, view),
     }
 }
 
@@ -328,6 +329,80 @@ fn draw_check(frame: &mut Frame, area: Rect, check: Option<&CheckTab>) {
         .wrap(Wrap { trim: false });
     let max = paragraph.line_count(body.width.max(1)).saturating_sub(1);
     frame.render_widget(paragraph.scroll((scroll.min(max as u16), 0)), body);
+}
+
+fn clean_footer(view: &SettingsView, tab: Option<&CleanTab>) -> Vec<Line<'static>> {
+    if let Some(tab) = tab.filter(|t| t.confirm) {
+        let total: u64 = tab
+            .scan
+            .ready()
+            .map_or(0, |items| items.iter().map(|i| i.bytes).sum());
+        return vec![
+            warn(format!(
+                "Delete all of this ({})? Caches fill again as gaki needs them.",
+                libgaki::core::utils::human_bytes(total)
+            )),
+            dim("[y] yes  [n] no"),
+        ];
+    }
+    let shaders = if tab.is_some_and(|t| t.all_shaders) {
+        "only uninstalled games' shaders"
+    } else {
+        "every game's shaders"
+    };
+    status_and_hint(
+        view,
+        &hints(&[
+            (key_of(S::Clean), "delete"),
+            (key_of(S::AllShaders), shaders),
+            (key_of(S::RescanClean), "scan again"),
+            ("Esc".to_string(), "close"),
+        ]),
+    )
+}
+
+fn draw_clean(frame: &mut Frame, area: Rect, view: &SettingsView) {
+    use crate::app::browser::job::Load;
+    use libgaki::core::utils::human_bytes;
+    let tab = view.clean.as_ref();
+    let body = with_footer(frame, area, clean_footer(view, tab));
+    let lines: Vec<Line<'static>> = match tab.map(|t| &t.scan) {
+        None | Some(Load::Loading(_)) => vec![dim("Looking for caches and leftovers…")],
+        Some(Load::Failed(e)) => vec![warn(format!("Couldn't look: {e}"))],
+        Some(Load::Ready(items)) if items.is_empty() => vec![Line::from(Span::styled(
+            "Nothing to clean.".to_string(),
+            theme::value().fg(theme::ONLINE),
+        ))],
+        Some(Load::Ready(items)) => {
+            let mut lines: Vec<Line<'static>> = libgaki::ops::clean::totals(items)
+                .into_iter()
+                .map(|(kind, (count, bytes))| {
+                    Line::from(vec![
+                        Span::styled(format!("{:<10}", kind.as_str()), theme::label()),
+                        Span::styled(format!("{:>11}", human_bytes(bytes)), theme::value()),
+                        Span::styled(format!("  {count} item(s)"), theme::dim()),
+                    ])
+                })
+                .collect();
+            let total: u64 = items.iter().map(|i| i.bytes).sum();
+            lines.push(Line::from(vec![
+                Span::styled(format!("{:<10}", "total"), theme::label()),
+                Span::styled(format!("{:>11}", human_bytes(total)), theme::accent()),
+            ]));
+            lines.push(Line::from(""));
+            lines.push(dim(
+                "Never touched: config, session, installs, saves, prefixes, partial downloads."
+                    .to_string(),
+            ));
+            lines
+        }
+    };
+    frame.render_widget(
+        Paragraph::new(lines)
+            .style(theme::base())
+            .wrap(Wrap { trim: false }),
+        body,
+    );
 }
 
 fn daemons_footer(view: &SettingsView, tab: Option<&DaemonsTab>) -> Vec<Line<'static>> {

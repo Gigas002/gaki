@@ -6,6 +6,7 @@
 
 #[cfg(feature = "authentication")]
 pub mod auth;
+pub mod clean;
 #[cfg(feature = "cloud")]
 pub mod cloud;
 #[cfg(feature = "collections")]

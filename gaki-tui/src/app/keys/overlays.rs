@@ -731,6 +731,8 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
             browser.answer_settings_confirm(matches!(input, KeyCode::Char('y' | 'Y')));
         } else if browser.daemon_confirm_open() {
             browser.answer_daemon_stop(matches!(input, KeyCode::Char('y' | 'Y')));
+        } else if browser.clean_confirm_open() {
+            browser.answer_clean(matches!(input, KeyCode::Char('y' | 'Y')));
         } else if browser.settings.input.is_some() {
             match input {
                 KeyCode::Esc => browser.cancel_settings_input(),
@@ -748,6 +750,7 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
                 Tab::Profiles => "profiles",
                 Tab::Check => "check",
                 Tab::Daemons => "daemons",
+                Tab::Clean => "clean",
             };
             match own::<S>(key, Some(group)) {
                 _ if input == KeyCode::Esc => browser.close_config(),
@@ -758,6 +761,9 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
                 Some(S::StopDaemon) => browser.begin_daemon_stop(false),
                 Some(S::StopAllDaemons) => browser.begin_daemon_stop(true),
                 Some(S::RefreshDaemons) => browser.reload_daemons(),
+                Some(S::Clean) => browser.begin_clean(),
+                Some(S::AllShaders) => browser.toggle_clean_all_shaders(),
+                Some(S::RescanClean) => browser.rescan_clean(),
                 None => match (tab, common(key)) {
                     (_, Some(O::Close)) => browser.close_config(),
                     (_, Some(O::NextTab)) => browser.settings_tab(true),

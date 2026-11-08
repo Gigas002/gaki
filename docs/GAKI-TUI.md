@@ -159,6 +159,10 @@ and profile directories after a library reload (`r`).
   daemon and `S` stops them all, each after a y/n; this is
   `gaki-cli daemon stop`. A client starts a fresh daemon the next time it
   needs one. `r` reads the list again.
+- **Clean** looks for gaki's caches and leftovers each time you open the
+  tab and lists each kind with its size, as `gaki-cli clean` does. `x`
+  deletes them all after a y/n, `a` switches between only the shader
+  caches of uninstalled games and every game's, and `r` looks again.
 
 ### Cloud saves
 
