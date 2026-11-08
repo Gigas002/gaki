@@ -99,6 +99,18 @@ const PROBE_TIMEOUT: Duration = Duration::from_secs(20);
 /// round-robin, so each attempt hits a different server.
 const CM_CONNECT_ATTEMPTS: usize = 3;
 
+/// The device name gaki logs on as. Steam shows it in the account's list of
+/// authorized devices (Steam Guard), so the user can tell which program holds
+/// a session and revoke it.
+pub(crate) const DEVICE_NAME: &str = "gaki";
+
+/// What gaki tells Steam about itself on a password logon: [`DEVICE_NAME`],
+/// with steam-vent's defaults for the rest (the Steam Client platform type,
+/// which a CM logon needs).
+pub(crate) fn client_info() -> ClientInfo {
+    ClientInfo::new(DEVICE_NAME.to_string())
+}
+
 /// The logon ID this process sends with every CM logon.
 ///
 /// Steam ends an older session when a new logon arrives with the same

@@ -2372,8 +2372,14 @@ user whether to do this phase and how.
   breaks a rule. The gray areas are the unofficial client itself (SSA
   §4.B, §2.G(ii)), the market and inventory endpoints, and
   `steam_appid.txt`; the rest are low. §3 lists items A–F for 9.3.
-- [ ] **9.3a** Item A: log on as device "gaki" (`ClientInfo::new`) instead
+- [x] **9.3a** Item A: log on as device "gaki" (`ClientInfo::new`) instead
   of steam-vent's "DESKTOP-VENT". (User decision, 2026-11-08.)
+  *Done 2026-11-08:* `steam_client::DEVICE_NAME` ("gaki") and
+  `client_info()`. Password logons pass it to `login_with_logon_id`, and the
+  QR request uses it too (it said "gaki-cli", even from the TUI). Test
+  `logs_on_as_gaki`. Gates green (540/682/809 tests). Only a new password or
+  QR login creates a device entry, so the saved session keeps its old name
+  until the next `gaki-cli login`; not tried by hand (needs the user).
 - [ ] **9.3b** Item B: market, inventory and listings get a short cache and a
   minimum interval between calls; they stay on. (User decision, 2026-11-08.)
 - [ ] **9.3c** Item C: write `steam_appid.txt` only when the game's working

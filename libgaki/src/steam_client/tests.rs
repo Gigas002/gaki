@@ -822,3 +822,13 @@ fn pics_replies_are_reused_briefly() {
     assert!(cache.get(7, t + Duration::from_secs(10)).is_none());
     assert!(cache.get(7, t).is_none());
 }
+
+#[test]
+fn logs_on_as_gaki() {
+    // Shown in the account's authorized devices; must say which program it is.
+    assert_eq!(client_info().name, "gaki");
+    assert_eq!(DEVICE_NAME, "gaki");
+    let id = logon_id();
+    assert_ne!(id, 0, "0 is steam-vent's shared default");
+    assert_eq!(logon_id(), id, "one ID per process");
+}

@@ -392,7 +392,7 @@ impl SteamClient {
                 password,
                 FileGuardDataStore::user_cache(),
                 handler,
-                &ClientInfo::default(),
+                &client_info(),
                 logon_id(),
             )
             .await
@@ -508,7 +508,7 @@ impl SteamClient {
             }
 
             let mut begin = CAuthentication_BeginAuthSessionViaQR_Request::new();
-            begin.set_device_friendly_name("gaki-cli".to_string());
+            begin.set_device_friendly_name(DEVICE_NAME.to_string());
             begin.set_platform_type(EAuthTokenPlatformType::k_EAuthTokenPlatformType_SteamClient);
             begin.set_website_id("Client".to_string());
 
