@@ -2350,13 +2350,17 @@ rules before any public release. **This is a technical review, not legal
 advice;** say so wherever the result is published. Before starting, ask the
 user whether to do this phase and how.
 
-- [ ] **9.1** Collect the rules that apply, saving a link and the date
+- [x] **9.1** Collect the rules that apply, saving a link and the date
   checked for each: the Steam Subscriber Agreement, the Steam Online Conduct
   rules, the Steam Web API Terms of Use, the Steam trademark and brand
   guidelines, the Steamworks and partner terms, and the Community Market
   and trading terms (gaki only reads those, see Non-goals). Note which apply
   to gaki itself, which to its users, and which to neither.
-- [ ] **9.2** Go through every feature against those rules: logging in as a
+  *Done 2026-11-08:* docs/STEAM-RULES.md §1, with link, version and
+  applicability for each, the quoted clauses, and the robots.txt of every
+  host gaki contacts. (User's choices: audit first, decide each gray area
+  together, findings in STEAM-RULES.md.)
+- [x] **9.2** Go through every feature against those rules: logging in as a
   non-official client (steam-vent, the CM protocol, QR and Steam Guard), the
   daemon holding a session, depot and manifest downloads, installs outside
   the official client, Steam Cloud sync, presence and chat, store, price
@@ -2364,6 +2368,18 @@ user whether to do this phase and how.
   session, ProtonDB, SteamGridDB and the other third-party services, art
   caching, and the names and logos gaki uses. For each one: **OK**, **gray
   area**, or **breaks a rule**, quoting the clause.
+  *Done 2026-11-08:* docs/STEAM-RULES.md §2 rates 22 features. Nothing
+  breaks a rule. The gray areas are the unofficial client itself (SSA
+  §4.B, §2.G(ii)), the market and inventory endpoints, and
+  `steam_appid.txt`; the rest are low. §3 lists items A–F for 9.3.
+- [ ] **9.3a** Item A: log on as device "gaki" (`ClientInfo::new`) instead
+  of steam-vent's "DESKTOP-VENT". (User decision, 2026-11-08.)
+- [ ] **9.3b** Item B: market, inventory and listings get a short cache and a
+  minimum interval between calls; they stay on. (User decision, 2026-11-08.)
+- [ ] **9.3c** Item C: write `steam_appid.txt` only when the game's working
+  folder has none; never overwrite or delete one (native and Wine launches,
+  `steam_client/process.rs` and `infra/runners/wine_tkg.rs`). (User decision,
+  2026-11-08.)
 - [ ] **9.3** For each gray area or broken rule, find a way to keep the
   feature without breaking the rule (an official endpoint instead of
   scraping, a lower request rate or a cache, needing the official client
