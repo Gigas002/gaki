@@ -5,7 +5,7 @@ readme = "README.md"
 version.workspace = true
 edition.workspace = true
 # Upstream Aurelia-TUI is GPL-3.0 (only); the text is the root LICENSE.
-license = "GPL-3.0-only"
+license.workspace = true
 repository.workspace = true
 keywords = ["tui", "steam", "gaki", "gaming"]
 categories = ["command-line-utilities"]

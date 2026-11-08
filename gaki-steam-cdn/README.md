@@ -27,7 +27,7 @@ source file carries a notice that it was modified.
 
 ## License
 
-GPL-3.0-or-later, like the rest of gaki; see [`LICENSE`](../LICENSE).
+GPL-3.0-only, like the rest of gaki; see [`LICENSE`](../LICENSE).
 
 Upstream steam-cdn is licensed under the Apache License 2.0, and its license
 text is kept in [`LICENSE-APACHE`](LICENSE-APACHE).

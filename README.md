@@ -2,7 +2,7 @@
 
 **A fast, lightweight, headless Steam launcher and library manager written in Rust. Install, update and play your Steam games entirely from the terminal.**
 
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
 [![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
 [![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#gaki-a-command-line-steam-client-for-linux)
 
@@ -225,8 +225,7 @@ pipeline in `gaki-steam-cdn`.
 
 ## License
 
-gaki is released under the [GPL-3.0-or-later License](LICENSE). The `gaki-tui` crate,
-imported from Aurelia-TUI, is GPL-3.0-only.
+gaki is released under the [GPL-3.0-only License](LICENSE).
 
 gaki is a fork of [Aurelia](https://github.com/Drackrath/Aurelia), whose early history
 (up to commit `065782bc`) was MIT-licensed, and which was derived from

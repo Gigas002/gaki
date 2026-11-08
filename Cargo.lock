@@ -1318,7 +1318,7 @@ dependencies = [
 
 [[package]]
 name = "gaki-cli"
-version = "0.1.41"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "aurelia-steam-vent-chat",
@@ -1338,7 +1338,7 @@ dependencies = [
 
 [[package]]
 name = "gaki-steam-cdn"
-version = "0.1.41"
+version = "0.1.0"
 dependencies = [
  "aes 0.9.4",
  "aurelia-steam-vent",
@@ -1365,7 +1365,7 @@ dependencies = [
 
 [[package]]
 name = "gaki-tui"
-version = "0.1.41"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -2090,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "libgaki"
-version = "0.1.41"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",

@@ -36,7 +36,7 @@ app and Workshop files. gaki is a launcher and library manager too. It lists
 and searches your library, launches games natively or through Proton, syncs
 Steam Cloud saves, manages DLC and Workshop subscriptions, reads achievements,
 and does friends and chat. SteamCMD is proprietary; gaki is open source under
-GPL-3.0-or-later.
+GPL-3.0-only.
 
 ## Does it run Windows games?
 
