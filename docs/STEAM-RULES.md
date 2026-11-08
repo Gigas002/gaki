@@ -234,3 +234,28 @@ downgrades (2.3, 2.4), Steam file edits (2.5) and the general §4.B reading
 (2.1). They are what gaki is for. 9.4 should state them plainly as the
 risk of using any unofficial client: Valve can restrict an account without
 notice (SSA §4.D). How likely that is can't be judged from the text.
+
+## 4. Keeping this review current (9.5)
+
+The review is part of the release checklist (ARCHITECTURE.md §12). Rerun it
+before a release when a rule in §1 has a new version, or when a feature
+that talks to Steam or another online service was added or changed since
+the review date at the top of this page. Smaller changes keep their §2 row
+up to date as they land (ARCHITECTURE.md §10).
+
+To rerun it:
+
+1. **The rules (§1).** Open each link and note its version or "last
+   updated" date. For any that changed, read it again and update the quoted
+   clauses. Check the robots.txt of any new host gaki contacts.
+2. **The features (§2).** List what gaki sends and where: the endpoints in
+   `libgaki/src/web/`, `steam_client/` and `ops/`, the TUI's own lookups,
+   and anything written into Steam's or a game's files. Give each new or
+   changed feature a row, with a rating and the clause.
+3. **Decide (§3).** For each new gray area or broken rule, propose a way to
+   keep the feature within the rules, and decide it with the maintainer:
+   change it, gate it off by default with a warning, or drop it. Each change
+   is its own step in PLAN.md.
+4. **Tell users.** Update the guide at the top of this page, the README's
+   "Steam rules and risks" section, and the `--help` footers and TUI help
+   that point here. Set the review date in both this page and the README.

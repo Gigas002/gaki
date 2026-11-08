@@ -2372,6 +2372,9 @@ user whether to do this phase and how.
   breaks a rule. The gray areas are the unofficial client itself (SSA
   §4.B, §2.G(ii)), the market and inventory endpoints, and
   `steam_appid.txt`; the rest are low. §3 lists items A–F for 9.3.
+  *Done 2026-11-08:* items A–F decided with the user (STEAM-RULES.md §3):
+  three code changes, 9.3a–9.3c below; D and E docs only (9.4); F kept.
+  Nothing dropped or gated off.
 - [x] **9.3a** Item A: log on as device "gaki" (`ClientInfo::new`) instead
   of steam-vent's "DESKTOP-VENT". (User decision, 2026-11-08.)
   *Done 2026-11-08:* `steam_client::DEVICE_NAME` ("gaki") and
@@ -2402,7 +2405,7 @@ user whether to do this phase and how.
   native writer is in the fallback `internal_legacy_launch_adhoc`). Tests in
   `core/utils/tests/steam_appid.rs`. Gates green (543/685/815 tests). Not
   launched by hand: the behaviour is the file open, covered by the tests.
-- [ ] **9.3** For each gray area or broken rule, find a way to keep the
+- [x] **9.3** For each gray area or broken rule, find a way to keep the
   feature without breaking the rule (an official endpoint instead of
   scraping, a lower request rate or a cache, needing the official client
   running, doing it only when the user asks, attribution, an off-by-default
@@ -2430,8 +2433,16 @@ user whether to do this phase and how.
   this step): several TUI help descriptions are over the 28-character
   column and get cut off, e.g. "workshop (status, browse, comments)".
 
-- [ ] **9.5** Make the rules audit part of the release checklist: rerun
+- [x] **9.5** Make the rules audit part of the release checklist: rerun
   9.1–9.4 when a rule changes or a feature that talks to Steam is added.
+  *Done 2026-11-08:* ARCHITECTURE.md gets §12 "Releases" (gates and CI,
+  version bump, the rules review current, no AUDIT.md finding left open) and a §10
+  item: a change in how gaki talks to Steam or another service updates its
+  STEAM-RULES.md §2 row in the same change. STEAM-RULES.md §4 says when and
+  how to rerun the review. On the way: the 9.4 TUI help test was an inline
+  `mod tests` (§11.6 forbids that), so `ui/help.rs` became `ui/help/mod.rs`
+  and `tests.rs`. Phase 9 complete.
+
 
 ---
 

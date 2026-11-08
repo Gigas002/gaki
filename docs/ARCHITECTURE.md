@@ -310,6 +310,10 @@ Before opening a pull request:
 - [ ] Dependencies are latest, active, and justified.
 - [ ] Tests cover new behavior; coverage does not regress meaningfully.
 - [ ] All quality gates in §8 pass locally.
+- [ ] A change in how gaki talks to Steam or another online service (a new
+      endpoint, request rate, login step, or something written into Steam's
+      or a game's files) updates its row in
+      [STEAM-RULES.md](STEAM-RULES.md) §2, or adds one, in the same change.
 
 ---
 
@@ -388,3 +392,25 @@ channels; the UI thread never blocks on network or disk I/O.
   A module without tests stays a single file until it gets some. A crate
   root's tests are `src/tests.rs`. No `#[path]` attributes and no inline
   `mod tests { ... }`.
+
+---
+
+## 12. Releases
+
+Before tagging a release (`v*`, which runs `deploy.yml`):
+
+- [ ] All quality gates in §8 pass at all three feature levels, and CI is
+      green on the commit being tagged.
+- [ ] The version is bumped in the workspace `Cargo.toml`.
+- [ ] **The Steam rules review is current** ([STEAM-RULES.md](STEAM-RULES.md),
+      "Keeping this review current"). Rerun it if either is true since the
+      review date at the top of that page:
+  - one of the rules it lists has a new version (Valve emails account
+    holders about Subscriber Agreement changes 30 days ahead, SSA §8), or
+  - a feature that talks to Steam or another online service was added or
+    changed (a commit that touched a §2 row, per §10).
+
+  Each gray area or broken rule a rerun finds is decided before the release:
+  changed, gated off by default with a warning, or dropped.
+- [ ] Every finding in [AUDIT.md](AUDIT.md) has a status other than open
+      (fixed, accepted with a reason, and so on).
