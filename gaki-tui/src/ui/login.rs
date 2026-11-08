@@ -14,7 +14,16 @@ use crate::app::steam::LoginPhase;
 use crate::app::{App, Mode};
 use crate::ui::theme;
 
+/// The GAKI wordmark and tagline.
 const SPLASH: &str = include_str!("../../assets/splash.txt");
+/// The splash picture in density ASCII, largest first: the splash shows the
+/// largest that fits.
+const ARTS: [&str; 4] = [
+    include_str!("../../assets/splash_art_160.txt"),
+    include_str!("../../assets/splash_art_128.txt"),
+    include_str!("../../assets/splash_art_96.txt"),
+    include_str!("../../assets/splash_art_64.txt"),
+];
 
 /// Draw the screen for `app.mode`. The library (`Mode::Browse`) is drawn by
 /// [`super::library`], so it gets a placeholder here.
@@ -49,7 +58,9 @@ pub fn draw(frame: &mut Frame, app: &App, client: &Client) {
             placement[0],
         ),
         Mode::LoginQr => frame.render_widget(qr(client.get_qr(), placement[0]), placement[0]),
-        Mode::LoginUser | Mode::LoginPass => frame.render_widget(splash(), placement[0]),
+        Mode::LoginUser | Mode::LoginPass => {
+            frame.render_widget(splash(placement[0]), placement[0])
+        }
         Mode::LoginClassic => {
             let status = match client.get_login_phase() {
                 LoginPhase::AwaitingConfirmation => {
@@ -72,7 +83,7 @@ pub fn draw(frame: &mut Frame, app: &App, client: &Client) {
             frame.render_widget(login_guard(kind, app.guard_code.clone()), placement[0])
         }
         Mode::Terminated(err) => frame.render_widget(terminated(err.clone()), placement[0]),
-        Mode::Loading => frame.render_widget(splash(), placement[0]),
+        Mode::Loading => frame.render_widget(splash(placement[0]), placement[0]),
         Mode::Browse => {}
     }
     frame.render_widget(help, placement[1]);
@@ -81,7 +92,7 @@ pub fn draw(frame: &mut Frame, app: &App, client: &Client) {
 /// The first frame, drawn while the session is probed.
 pub fn startup(frame: &mut Frame) {
     let placement = layout().split(frame.area());
-    frame.render_widget(splash(), placement[0]);
+    frame.render_widget(splash(placement[0]), placement[0]);
     frame.render_widget(patience(), placement[1]);
 }
 
@@ -112,8 +123,37 @@ pub fn no_session() -> Paragraph<'static> {
     )
 }
 
-pub fn splash() -> Paragraph<'static> {
-    infobox("gaki".to_string(), SPLASH.to_string(), Alignment::Center)
+/// The splash, centred vertically in `area` so it keeps clear of the
+/// panel's borders: the picture over the wordmark, or as much of that as
+/// fits ([`splash_text`]).
+pub fn splash(area: Rect) -> Paragraph<'static> {
+    let inner = usize::from(area.height.saturating_sub(2));
+    let text = splash_text(inner, usize::from(area.width.saturating_sub(2)));
+    let padding = inner.saturating_sub(text.lines().count()) / 2;
+    infobox(
+        "gaki".to_string(),
+        format!("{}{text}", "\n".repeat(padding)),
+        Alignment::Center,
+    )
+}
+
+/// The largest splash that fits in `rows` lines of `cols` columns: the
+/// largest picture that fits over the wordmark, else the largest that fits
+/// alone, else the wordmark alone.
+fn splash_text(rows: usize, cols: usize) -> String {
+    let word = SPLASH.lines().count();
+    let fits = |art: &str, extra: usize| art.lines().count() + extra <= rows && width(art) <= cols;
+    if let Some(art) = ARTS.iter().find(|art| fits(art, 1 + word)) {
+        format!("{art}\n{SPLASH}")
+    } else if let Some(art) = ARTS.iter().find(|art| fits(art, 0)) {
+        art.to_string()
+    } else {
+        SPLASH.to_string()
+    }
+}
+
+fn width(block: &str) -> usize {
+    block.lines().map(|l| l.chars().count()).max().unwrap_or(0)
 }
 
 pub fn patience() -> Paragraph<'static> {
@@ -314,4 +354,56 @@ pub fn terminated_help() -> Paragraph<'static> {
         "Press q to quit.".to_string(),
         Alignment::Left,
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_splash_shows_the_largest_picture_that_fits() {
+        let word = SPLASH.lines().count();
+        let size = |art: &str| (art.lines().count(), width(art));
+        for (i, art) in ARTS.iter().enumerate() {
+            let (rows, cols) = size(art);
+            assert_eq!(
+                splash_text(rows + 1 + word, cols),
+                format!("{art}\n{SPLASH}")
+            );
+            if let Some(smaller) = ARTS.get(i + 1) {
+                assert!(size(smaller).0 < rows && size(smaller).1 < cols);
+                // one column short: the next size down, with the wordmark
+                assert_eq!(
+                    splash_text(rows + 1 + word, cols - 1),
+                    format!("{smaller}\n{SPLASH}")
+                );
+            }
+        }
+        let smallest = ARTS[ARTS.len() - 1];
+        let (rows, cols) = size(smallest);
+        assert_eq!(
+            splash_text(rows, cols),
+            smallest,
+            "no room for the wordmark"
+        );
+        assert_eq!(
+            splash_text(rows - 1, cols),
+            SPLASH,
+            "no room for any picture"
+        );
+        assert_eq!(splash_text(0, 0), SPLASH);
+        // An 80x37 terminal (less the 3-row help box and the borders) shows
+        // the smallest picture and the wordmark.
+        assert!(rows + 1 + word <= 37 - 3 - 2 && cols <= 80 - 2);
+    }
+
+    #[test]
+    fn every_splash_block_keeps_one_width() {
+        // Centre alignment centres each line on its own width, so a block
+        // keeps its shape only when all its lines are one width.
+        for block in ARTS.iter().copied().chain([SPLASH]) {
+            let widths: Vec<usize> = block.lines().map(|l| l.chars().count()).collect();
+            assert!(widths.windows(2).all(|w| w[0] == w[1]), "{widths:?}");
+        }
+    }
 }
