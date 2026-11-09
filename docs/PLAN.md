@@ -5,12 +5,12 @@ This fork turns **Aurelia** (a CLI Steam client, `aurelia-steam` crate) and
 its output) into **gaki**, a lean, Linux-only Steam client. It ships as three crates
 in one workspace, plus `gaki-steam-cdn`, the download engine adopted in 7.4:
 
-| Crate      | Kind | Binary     | Role                                                    |
-| ---------- | ---- | ---------- | ------------------------------------------------------- |
-| `libgaki`  | lib  | —          | All logic: Steam session, library, install, cloud, launch, config/profiles |
-| `gaki-cli` | bin  | `gaki-cli` | Thin CLI over `libgaki`                                 |
-| `gaki-tui` | bin  | `gaki-tui` | Thin TUI over `libgaki` (imported from Aurelia-TUI)     |
-| `gaki-steam-cdn` | lib | — | Depot downloads for `libgaki` (adopted from `aurelia-steam-cdn`) |
+| Crate            | Kind | Binary     | Role                                                                       |
+| ---------------- | ---- | ---------- | -------------------------------------------------------------------------- |
+| `libgaki`        | lib  | —          | All logic: Steam session, library, install, cloud, launch, config/profiles |
+| `gaki-cli`       | bin  | `gaki-cli` | Thin CLI over `libgaki`                                                    |
+| `gaki-tui`       | bin  | `gaki-tui` | Thin TUI over `libgaki` (imported from Aurelia-TUI)                        |
+| `gaki-steam-cdn` | lib  | —          | Depot downloads for `libgaki` (adopted from `aurelia-steam-cdn`)           |
 
 Sources: the original upstream questions and request list (once
 `docs/aurelia-questions.md`, now folded into this plan), `../rust-template`
@@ -64,18 +64,18 @@ Request items are referenced as **R<n>** (the numbered "Agent request" list) and
 
 Each item has a default. The plan follows the default unless you say otherwise.
 
-| # | Question | Default |
-| - | -------- | ------- |
-| D1 | **macOS.** Upstream also builds for macOS, which R1 doesn't mention. | **Drop it.** A Proton-centric client that requires official Steam is effectively Linux-only. |
-| D2 | **`proto/` + `build.rs`** (R19, "propo"). `build.rs` runs pure-Rust protobuf codegen for 3 services that `steam-vent-proto` doesn't ship: `cloudconfigstore` (collections), `storequery`, and `wishlist` (store). | **Keep them, move them into `libgaki/`, and gate each proto by feature** (`CARGO_FEATURE_*` in `build.rs`). Collections is a default feature, so the codegen stays. First check whether the latest `steam-vent-proto` now ships these; if it does, delete both. |
-| D3 | **`assets/`.** Only `asciiart_banner.txt` is used (`include_str!` in `main.rs`). The SVG logo is used only by the README. | **Delete `assets/`** and drop the banner. |
-| D4 | **Daemon** (`aurelia daemon`). It holds one Steam session so separate CLI calls don't each log in again, which Steam rate-limits. | **Keep it in `gaki-cli`**, behind an `authentication` gate. The TUI holds its own in-process session and doesn't need it. Revisit after Phase 5. |
-| D5 | **TUI framework.** Aurelia-TUI uses `tui` 0.18 (abandoned), crossterm 0.25, `atty` (RustSec advisory), and reqwest 0.11 blocking. ARCHITECTURE §7.2 forbids abandoned crates. | **Migrate to `ratatui` + current crossterm**, drop `atty`, and use `libgaki`'s async stack. |
-| D6 | **Sync TUI vs async lib.** `libgaki` is tokio-async, while the TUI loop is synchronous. | The TUI owns a tokio runtime. It sends requests to `libgaki` tasks and receives results over channels, so the UI thread never blocks. |
-| D7 | **Binary names.** R7 calls the TUI `gaki`, while R13 calls its crate `gaki-tui`. | **Decided (plans2):** crate, directory and binary are all `gaki-tui` (step 4.6). The CLI crate and binary are both `gaki-cli`. |
-| D8 | **Store/wishlist/news/reviews/deals** commands. R24 doesn't list them. | Add a `store` feature (off). Also add `achievements` (on), unless you'd rather fold it into `library`. |
-| D9 | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings. | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). **Revised 2026-11-07 (user decision): share the model by depending on `liblootrs`, but not its runners; see 8.15.** The profile file format had already drifted (lootrs' `Runner` has no `proton`, so gaki's profiles don't load there), and one model crate ends the field-for-field copying. The launch side stays split: gaki's Proton launch is Steam's `proton run` and stays in gaki, and lootrs' wine and umu runners don't come to gaki (Non-goals). **Done in 8.15:** libgaki re-exports `liblootrs::model`'s `Profile` and parts (lootrs gained `runner = "proton"`, `[proton]` and `steam`); each tool keeps its own profile validation. |
-| D10 | **Credential storage.** See "Authentication and session security" below. | **The refresh token lives only in the OS keyring, or only in memory.** It's never in a file and never stored as plaintext. Re-authenticating for every action isn't the default (see that section for why). Sensitive actions can opt into a fresh login. |
+| #   | Question                                                                                                                                                                                                          | Default                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **macOS.** Upstream also builds for macOS, which R1 doesn't mention.                                                                                                                                              | **Drop it.** A Proton-centric client that requires official Steam is effectively Linux-only.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| D2  | **`proto/` + `build.rs`** (R19, "propo"). `build.rs` runs pure-Rust protobuf codegen for 3 services that `steam-vent-proto` doesn't ship: `cloudconfigstore` (collections), `storequery`, and `wishlist` (store). | **Keep them, move them into `libgaki/`, and gate each proto by feature** (`CARGO_FEATURE_*` in `build.rs`). Collections is a default feature, so the codegen stays. First check whether the latest `steam-vent-proto` now ships these; if it does, delete both.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D3  | **`assets/`.** Only `asciiart_banner.txt` is used (`include_str!` in `main.rs`). The SVG logo is used only by the README.                                                                                         | **Delete `assets/`** and drop the banner.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| D4  | **Daemon** (`aurelia daemon`). It holds one Steam session so separate CLI calls don't each log in again, which Steam rate-limits.                                                                                 | **Keep it in `gaki-cli`**, behind an `authentication` gate. The TUI holds its own in-process session and doesn't need it. Revisit after Phase 5.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D5  | **TUI framework.** Aurelia-TUI uses `tui` 0.18 (abandoned), crossterm 0.25, `atty` (RustSec advisory), and reqwest 0.11 blocking. ARCHITECTURE §7.2 forbids abandoned crates.                                     | **Migrate to `ratatui` + current crossterm**, drop `atty`, and use `libgaki`'s async stack.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| D6  | **Sync TUI vs async lib.** `libgaki` is tokio-async, while the TUI loop is synchronous.                                                                                                                           | The TUI owns a tokio runtime. It sends requests to `libgaki` tasks and receives results over channels, so the UI thread never blocks.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| D7  | **Binary names.** R7 calls the TUI `gaki`, while R13 calls its crate `gaki-tui`.                                                                                                                                  | **Decided (plans2):** crate, directory and binary are all `gaki-tui` (step 4.6). The CLI crate and binary are both `gaki-cli`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| D8  | **Store/wishlist/news/reviews/deals** commands. R24 doesn't list them.                                                                                                                                            | Add a `store` feature (off). Also add `achievements` (on), unless you'd rather fold it into `library`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| D9  | **Reuse `liblootrs` profiles?** Depending on `liblootrs` would let lootrs and gaki share profiles, and later let lootrs launch Steam games with the same settings.                                                | **Don't depend on `liblootrs` now. Share the file format instead.** The two launch models differ: lootrs runs an `exe` through wine, umu or native, while gaki runs a Steam `app_id` through Steam's own `proton run` with `STEAM_COMPAT_*` and the host Steam bridge. Their game entries differ too (`exe` vs `app_id`). `liblootrs` also carries the umu runner, which gaki dropped (R2), and it's an unpublished 0.1 crate whose releases would then gate gaki's. So gaki's `Profile` uses lootrs' field names and semantics (`name`, `runner`, `prefix`, `runner_args`, `wrappers`, `debug`, `env`, `dll_overrides`, `[anticheat]`) and adds `runner = "proton"` with a `[proton]` section. A `profiles_dir` key in `config.toml` can point at `~/.config/lootrs/profiles`, so one set of profile files serves both tools. Each tool keeps its own `games.toml` and credentials (lootrs never sees Steam auth). If the overlap grows, extract the model and validation (`Profile`, `Issue`, `validate_name`, `~` expansion) into a small crate that both depend on (step 5.1). **Revised 2026-11-07 (user decision): share the model by depending on `liblootrs`, but not its runners; see 8.15.** The profile file format had already drifted (lootrs' `Runner` has no `proton`, so gaki's profiles don't load there), and one model crate ends the field-for-field copying. The launch side stays split: gaki's Proton launch is Steam's `proton run` and stays in gaki, and lootrs' wine and umu runners don't come to gaki (Non-goals). **Done in 8.15:** libgaki re-exports `liblootrs::model`'s `Profile` and parts (lootrs gained `runner = "proton"`, `[proton]` and `steam`); each tool keeps its own profile validation. |
+| D10 | **Credential storage.** See "Authentication and session security" below.                                                                                                                                          | **The refresh token lives only in the OS keyring, or only in memory.** It's never in a file and never stored as plaintext. Re-authenticating for every action isn't the default (see that section for why). Sensitive actions can opt into a fresh login.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ---
 
@@ -133,21 +133,21 @@ views on it. `gaki-tui` always builds `authentication` and `library` (a TUI
 without a library has nothing to show), so it re-exports the other ten. The
 implemented matrix, per binary, is in `docs/FEATURES.md`.
 
-| Feature          | Default | Requires         | Covers (current code)                                          |
-| ---------------- | :-----: | ---------------- | -------------------------------------------------------------- |
-| *(core)*         | always  | —                | config/profiles, local library scan (ACF), proton discovery, the launch pipeline's stages and runners (decided in 6.1: starting a launch needs `library`) |
-| `authentication` | on      | —                | login (password, Steam Guard, QR), session store and crypto, keyring |
-| `library`        | on      | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, launching (PICS launch options) |
-| `install`        | on      | `library`        | install, update, verify, uninstall, move/relink/import, DLC, backlog, downloading official Proton |
-| `cloud`          | on      | `library`        | Steam Cloud sync (save paths come from PICS)                   |
-| `collections`    | on      | `library`        | library collections (CloudConfigStore)                         |
-| `versioning`     | off     | `install`        | branches, set-branch, downgrade, pin/unpin, manifests          |
-| `depot`          | off     | `install`        | depot browser, depot listing                                   |
-| `workshop`       | off     | `install`        | Workshop subscribe/download                                    |
-| `social`         | off     | `authentication` | friends, chat, presence (pulls in `steam-vent-chat`)           |
-| `inventory`      | off     | `authentication` | inventory, wallet                                              |
-| `market`         | off     | `inventory`      | Community Market                                               |
-| `store`          | off     | `library`        | search, price, deals, news, reviews, events, wishlist, similar, players (D8); reuses the StoreBrowse records |
+| Feature          | Default | Requires         | Covers (current code)                                                                                                                                     |
+| ---------------- | :-----: | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(core)_         | always  | —                | config/profiles, local library scan (ACF), proton discovery, the launch pipeline's stages and runners (decided in 6.1: starting a launch needs `library`) |
+| `authentication` |   on    | —                | login (password, Steam Guard, QR), session store and crypto, keyring                                                                                      |
+| `library`        |   on    | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, launching (PICS launch options)                                                                   |
+| `install`        |   on    | `library`        | install, update, verify, uninstall, move/relink/import, DLC, backlog, downloading official Proton                                                         |
+| `cloud`          |   on    | `library`        | Steam Cloud sync (save paths come from PICS)                                                                                                              |
+| `collections`    |   on    | `library`        | library collections (CloudConfigStore)                                                                                                                    |
+| `versioning`     |   off   | `install`        | branches, set-branch, downgrade, pin/unpin, manifests                                                                                                     |
+| `depot`          |   off   | `install`        | depot browser, depot listing                                                                                                                              |
+| `workshop`       |   off   | `install`        | Workshop subscribe/download                                                                                                                               |
+| `social`         |   off   | `authentication` | friends, chat, presence (pulls in `steam-vent-chat`)                                                                                                      |
+| `inventory`      |   off   | `authentication` | inventory, wallet                                                                                                                                         |
+| `market`         |   off   | `inventory`      | Community Market                                                                                                                                          |
+| `store`          |   off   | `library`        | search, price, deals, news, reviews, events, wishlist, similar, players (D8); reuses the StoreBrowse records                                              |
 
 Optional dependencies (`steam-vent-chat`, `steam-cdn`, `qrcode`, `keyring`,
 archive crates, and others) become `optional = true` and are enabled only by the
@@ -275,11 +275,11 @@ a refresh token, which is scoped and revocable. The safer equivalent:
 
 ### Target model
 
-| Setting (`config.toml`) | Default | Effect |
-| --- | --- | --- |
-| `session_store` | `keyring` | `keyring`: the refresh token and web token are separate Secret Service items. No file holds a secret. `memory`: nothing is persisted. |
-| `reauth_sensitive` | `false` | A fresh login before reading the inventory, wallet or market listings. |
-| `daemon_idle_timeout` | `1800` (seconds) | The daemon drops its session and exits after this much idle time. |
+| Setting (`config.toml`) | Default          | Effect                                                                                                                                |
+| ----------------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_store`         | `keyring`        | `keyring`: the refresh token and web token are separate Secret Service items. No file holds a secret. `memory`: nothing is persisted. |
+| `reauth_sensitive`      | `false`          | A fresh login before reading the inventory, wallet or market listings.                                                                |
+| `daemon_idle_timeout`   | `1800` (seconds) | The daemon drops its session and exits after this much idle time.                                                                     |
 
 If the keyring is unreachable, gaki **refuses to persist** and falls back to
 `memory` with a warning. It never writes plaintext. Non-secret metadata
@@ -297,237 +297,237 @@ I make the changes, and you review, commit, and push.
 ### Phase 0 — housekeeping
 
 - [x] **0.1** Rename the branch to `master` (R0). **You do this yourself:**
-  `git branch -m main master && git push -u origin master`, then switch the
-  default branch on GitHub and delete `main`.
+      `git branch -m main master && git push -u origin master`, then switch the
+      default branch on GitHub and delete `main`.
 - [x] **0.2** Remove `docs/` from `.gitignore`, and add this plan.
 - [x] **0.3** Remove repo cruft (R16, R17, R18): `flake.nix`, `SECURITY.md`,
-  `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `scripts/aur-push.sh`,
-  `.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/`, and the upstream
-  `release.yml`. Also remove the `result`/`result-*` (Nix) entries from
-  `.gitignore`.
+      `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `scripts/aur-push.sh`,
+      `.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/`, and the upstream
+      `release.yml`. Also remove the `result`/`result-*` (Nix) entries from
+      `.gitignore`.
 - [x] **0.4** Drop `[profile.release]` and `[package.metadata.deb]` from
-  `Cargo.toml` (R25). This probably also fixes the AUR LTO link error (Q2),
-  because the forced `lto = "thin"` and `panic = "abort"` combination goes away.
-  Recheck that error once a PKGBUILD exists.
+      `Cargo.toml` (R25). This probably also fixes the AUR LTO link error (Q2),
+      because the forced `lto = "thin"` and `panic = "abort"` combination goes away.
+      Recheck that error once a PKGBUILD exists.
 - [x] **0.5** Add `.typos.toml`, `deny.toml`, `.github/dependabot.yml`, and the
-  `build`/`lint`/`test`/`deny`/`typos`/`doc`/`deploy` workflows from
-  `rust-template` (R11, R12, Q3). Adapt the workflows to a single crate for
-  now. Add the typos allowlist entries that Steam/Proton jargon needs.
-  *Done.* CI installs `libdbus-1-dev`, which keyring's Secret Service backend
-  needs. `typos` and `cargo deny check licenses` pass. `aws-lc-sys` has an
-  OpenSSL-license exception (see 7.3). `test.yml` codecov points at
-  `aurelia-steam`, and `deploy.yml` already uses the final crate names; it runs
-  only on tags. The `lint` and `doc` workflows stay red until step 1.8.
+      `build`/`lint`/`test`/`deny`/`typos`/`doc`/`deploy` workflows from
+      `rust-template` (R11, R12, Q3). Adapt the workflows to a single crate for
+      now. Add the typos allowlist entries that Steam/Proton jargon needs.
+      _Done._ CI installs `libdbus-1-dev`, which keyring's Secret Service backend
+      needs. `typos` and `cargo deny check licenses` pass. `aws-lc-sys` has an
+      OpenSSL-license exception (see 7.3). `test.yml` codecov points at
+      `aurelia-steam`, and `deploy.yml` already uses the final crate names; it runs
+      only on tags. The `lint` and `doc` workflows stay red until step 1.8.
 - [x] **0.6** Copy `rust-template/docs/ARCHITECTURE.md` to `docs/ARCHITECTURE.md`
-  (R10). Add a short gaki section covering crate roles and the features table.
+      (R10). Add a short gaki section covering crate roles and the features table.
 - [x] **0.7** Make `LICENSE` the plain GPLv3 text. Drop the preamble: the
-  MIT-until-commit and SteamFlow-derivation notes and the Aurelia copyright
-  line. Git history already records all of it. Delete `gaki-tui/LICENSE`,
-  because its GPLv3 text is the same. "Only" vs "or later" is set by each
-  crate's `license` field, not by the text. **Caveat:** MIT requires its
-  copyright and permission notice to ship with "substantial portions" of the
-  code. While Aurelia's pre-GPL code is still in the tree, that notice moves
-  to the README acknowledgements (7.2), next to the SteamFlow credit, instead
-  of being deleted.
-  *Done.* `LICENSE` now starts at the GPLv3 title (its first line re-indented to
-  the canonical form), and `gaki-tui/LICENSE` is gone. The MIT notice, the Aurelia
-  fork note and the SteamFlow derivation note sit in the README's License section
-  for now, and the 7.2 split can move them. `gaki-tui/README.md` links the root
-  `LICENSE`.
+      MIT-until-commit and SteamFlow-derivation notes and the Aurelia copyright
+      line. Git history already records all of it. Delete `gaki-tui/LICENSE`,
+      because its GPLv3 text is the same. "Only" vs "or later" is set by each
+      crate's `license` field, not by the text. **Caveat:** MIT requires its
+      copyright and permission notice to ship with "substantial portions" of the
+      code. While Aurelia's pre-GPL code is still in the tree, that notice moves
+      to the README acknowledgements (7.2), next to the SteamFlow credit, instead
+      of being deleted.
+      _Done._ `LICENSE` now starts at the GPLv3 title (its first line re-indented to
+      the canonical form), and `gaki-tui/LICENSE` is gone. The MIT notice, the Aurelia
+      fork note and the SteamFlow derivation note sit in the README's License section
+      for now, and the 7.2 split can move them. `gaki-tui/README.md` links the root
+      `LICENSE`.
 
 ### Phase 1 — removal (single crate, before the restructure, so diffs stay readable)
 
 - [x] **1.1** Drop Windows (R1): about 46 `cfg(windows)` sites across 14 files,
-  the `windows-sys` dependency, the keyring `windows-native` feature, and
-  `.exe` handling that only exists for Windows hosts. Windows *games* run under
-  Proton and stay supported.
-  *Done.* Also removed the `--windows` flag of `play` (it ran the `.exe`
-  directly, which only works on a Windows host), `spawn_windows_native`, the
-  Windows registry helpers, the named-pipe daemon transport, `.bat` launch
-  scripts, and the `USERPROFILE` home fallback. `cfg(unix)` gates were removed,
-  keeping their code, and `cfg(not(unix))` branches were deleted.
-  Still deferred: `windows_steam_discovery_enabled`, which scans the *in-Wine*
-  Steam, goes in 1.4. The keyring `apple-native` feature and the
-  `target_os = "linux"` gates go in 1.2.
+      the `windows-sys` dependency, the keyring `windows-native` feature, and
+      `.exe` handling that only exists for Windows hosts. Windows _games_ run under
+      Proton and stay supported.
+      _Done._ Also removed the `--windows` flag of `play` (it ran the `.exe`
+      directly, which only works on a Windows host), `spawn_windows_native`, the
+      Windows registry helpers, the named-pipe daemon transport, `.bat` launch
+      scripts, and the `USERPROFILE` home fallback. `cfg(unix)` gates were removed,
+      keeping their code, and `cfg(not(unix))` branches were deleted.
+      Still deferred: `windows_steam_discovery_enabled`, which scans the _in-Wine_
+      Steam, goes in 1.4. The keyring `apple-native` feature and the
+      `target_os = "linux"` gates go in 1.2.
 - [x] **1.2** Drop macOS (D1): the 7 `target_os = "macos"` sites.
-  *Done.* Also removed every `target_os = "linux"` gate (code kept) and its
-  `not(linux)` fallback. Removed the `PROTON_SUPPORTED`/`STEAM_RUNTIME_SUPPORTED`
-  constants, `linux_only_msg`, `steam_runtime_unsupported_msg`, and
-  `ensure_steam_runtime_supported`, together with every "only runs on Linux"
-  guard and note in the commands. The JSON fields `steam_runtime_supported`,
-  `supported`, and the plugins `linux` field are gone. Also removed the
-  keyring `apple-native` feature and the macOS Steam root and `/Volumes`
-  probes. macOS *game* builds are still recognised and skipped.
+      _Done._ Also removed every `target_os = "linux"` gate (code kept) and its
+      `not(linux)` fallback. Removed the `PROTON_SUPPORTED`/`STEAM_RUNTIME_SUPPORTED`
+      constants, `linux_only_msg`, `steam_runtime_unsupported_msg`, and
+      `ensure_steam_runtime_supported`, together with every "only runs on Linux"
+      guard and note in the commands. The JSON fields `steam_runtime_supported`,
+      `supported`, and the plugins `linux` field are gone. Also removed the
+      keyring `apple-native` feature and the macOS Steam root and `/Volumes`
+      probes. macOS _game_ builds are still recognised and skipped.
 - [x] **1.3** Drop launch plugins (R2): `compat/{umu,luxtorpeda,plugin}.rs`,
-  `infra/runners/luxtorpeda.rs`, the `umu`/`luxtorpeda`/`plugins` commands, and
-  the related config fields and tests. Answers Q7.
-  *Done.* Removed the `play --native-engine/--umu` flags, the
-  `config game --native-engine/--no-native-engine/--umu/--no-umu` flags, the
-  `GameRunner` enum, and the per-game `runner` field (also from `config game
-  --json`). Removed the `luxtorpeda_*`/`umu_*` settings, the umu branch in the
-  Wine-TKG runner, the pipeline's `force_*`/`use_umu` plumbing, and plain `.tar`
-  extraction, which only umu used. Old config files that still contain these
-  keys keep loading, because serde ignores unknown fields; a regression test
-  covers this.
+      `infra/runners/luxtorpeda.rs`, the `umu`/`luxtorpeda`/`plugins` commands, and
+      the related config fields and tests. Answers Q7.
+      _Done._ Removed the `play --native-engine/--umu` flags, the
+      `config game --native-engine/--no-native-engine/--umu/--no-umu` flags, the
+      `GameRunner` enum, and the per-game `runner` field (also from `config game
+--json`). Removed the `luxtorpeda_*`/`umu_*` settings, the umu branch in the
+      Wine-TKG runner, the pipeline's `force_*`/`use_umu` plumbing, and plain `.tar`
+      extraction, which only umu used. Old config files that still contain these
+      keys keep loading, because serde ignores unknown fields; a regression test
+      covers this.
 - [x] **1.4** Drop the self-contained Windows Steam runtime (R21): the
-  `steam-runtime` command, `SteamRuntimePolicy`, the `steam_runtime_*` config,
-  and `tests/steam_runtime_*.rs`. Treat a missing host Steam installation as a
-  hard error with a clear message. Answers Q4 (see Phase 7 docs).
-  *Done.* Removed the `steam-runtime` command and the master Wine Steam
-  install/repair/login/stop code (`launch/mod.rs` now only declares modules),
-  `config steam-runtime-runner|steam-runtime-policy`, `play --steam-mode`, and
-  `config game --steam-runtime|--steam-prefix-mode`. Removed the config fields
-  `steam_runtime_runner`, `steam_prefix_mode`, `use_shared_compat_data`,
-  `windows_steam_discovery_enabled` and `steam_runtime_policy`, the per-game
-  `use_steam_runtime`/`steam_runtime_policy`/`steam_prefix_mode`/`steam_launch_config`,
-  Windows-Steam library discovery (`from_windows_steam`), and the dead
-  launch-verification fields. Every Proton/Wine game now runs in its own
-  `compatdata/<appid>/pfx` (`proton_compat_prefix`), and cloud sync and `stop`
-  use the same path. The Wine runner has two Steam modes: `HostBridge` (when
-  `--steam` is given or host Steam is running) and `Standalone` (fake-Steam
-  trap). `--steam` without a host Steam install is a hard error. Launch target
-  ids are now `windows-host` and `windows`. You can no longer force standalone
-  while host Steam is running; that becomes a profile setting in 5.6. The
-  README still describes the runtime; Phase 7 rewrites it.
+      `steam-runtime` command, `SteamRuntimePolicy`, the `steam_runtime_*` config,
+      and `tests/steam_runtime_*.rs`. Treat a missing host Steam installation as a
+      hard error with a clear message. Answers Q4 (see Phase 7 docs).
+      _Done._ Removed the `steam-runtime` command and the master Wine Steam
+      install/repair/login/stop code (`launch/mod.rs` now only declares modules),
+      `config steam-runtime-runner|steam-runtime-policy`, `play --steam-mode`, and
+      `config game --steam-runtime|--steam-prefix-mode`. Removed the config fields
+      `steam_runtime_runner`, `steam_prefix_mode`, `use_shared_compat_data`,
+      `windows_steam_discovery_enabled` and `steam_runtime_policy`, the per-game
+      `use_steam_runtime`/`steam_runtime_policy`/`steam_prefix_mode`/`steam_launch_config`,
+      Windows-Steam library discovery (`from_windows_steam`), and the dead
+      launch-verification fields. Every Proton/Wine game now runs in its own
+      `compatdata/<appid>/pfx` (`proton_compat_prefix`), and cloud sync and `stop`
+      use the same path. The Wine runner has two Steam modes: `HostBridge` (when
+      `--steam` is given or host Steam is running) and `Standalone` (fake-Steam
+      trap). `--steam` without a host Steam install is a hard error. Launch target
+      ids are now `windows-host` and `windows`. You can no longer force standalone
+      while host Steam is running; that becomes a profile setting in 5.6. The
+      README still describes the runtime; Phase 7 rewrites it.
 - [x] **1.5** Restrict runtime downloads to official Proton (R22). Remove the
-  Wine-TKG/GE downloaders (`infra/runners/wine_tkg.rs` and the related parts of
-  `commands/runtimes.rs`) and the `tar`/`xz2`/`flate2` dependencies if nothing
-  else uses them. Proton discovery checks, in order: system-wide
-  (`/usr/share/steam/compatibilitytools.d`, then `~/.steam/root/compatibilitytools.d`),
-  then Steam-installed official Proton apps. Installing official Proton
-  (Experimental, or a numbered release) goes through the normal Steam app
-  install path.
-  *Done.* `compat/proton.rs` lost the GitHub release fetching, asset
-  selection (arch/CachyOS microarch), tarball extraction and `remove`; it now
-  holds the official catalogue (`official_protons`, `find_official`) and
-  discovery (`search_dirs`, `list_installed`) in the order above. Every
-  directory in a `compatibilitytools.d` counts, so custom builds installed by
-  a distro package or by hand still run; only downloading them is gone.
-  `resolve_runner` uses the same order (the Lutris and
-  `<library>/compatibilitytools.d` lookups are dropped). `proton install` and
-  `proton uninstall` accept only official names and go through the Steam app
-  install/uninstall path; other names get an error pointing at the
-  `compatibilitytools.d` dirs. Removed `tar`, `flate2` and `xz2` and the
-  now-unused `byte_progress_printer`. `infra/runners/wine_tkg.rs` stays: it is
-  the Proton/Wine launch runner, not a downloader (it can be renamed with the
-  other identifiers in 2.4).
+      Wine-TKG/GE downloaders (`infra/runners/wine_tkg.rs` and the related parts of
+      `commands/runtimes.rs`) and the `tar`/`xz2`/`flate2` dependencies if nothing
+      else uses them. Proton discovery checks, in order: system-wide
+      (`/usr/share/steam/compatibilitytools.d`, then `~/.steam/root/compatibilitytools.d`),
+      then Steam-installed official Proton apps. Installing official Proton
+      (Experimental, or a numbered release) goes through the normal Steam app
+      install path.
+      _Done._ `compat/proton.rs` lost the GitHub release fetching, asset
+      selection (arch/CachyOS microarch), tarball extraction and `remove`; it now
+      holds the official catalogue (`official_protons`, `find_official`) and
+      discovery (`search_dirs`, `list_installed`) in the order above. Every
+      directory in a `compatibilitytools.d` counts, so custom builds installed by
+      a distro package or by hand still run; only downloading them is gone.
+      `resolve_runner` uses the same order (the Lutris and
+      `<library>/compatibilitytools.d` lookups are dropped). `proton install` and
+      `proton uninstall` accept only official names and go through the Steam app
+      install/uninstall path; other names get an error pointing at the
+      `compatibilitytools.d` dirs. Removed `tar`, `flate2` and `xz2` and the
+      now-unused `byte_progress_printer`. `infra/runners/wine_tkg.rs` stays: it is
+      the Proton/Wine launch runner, not a downloader (it can be renamed with the
+      other identifiers in 2.4).
 - [x] **1.6** Drop localized metadata (R20): `core/locale.rs`, the `--lang`
-  flag, the `language`/`country` settings, and `tag_names.<lang>.json` caches.
-  Keep the English defaults.
-  *Done.* Deleted `core/locale.rs` (env-locale detection). Every store and
-  community request now uses `core::STEAM_LANGUAGE` (`english`), so the
-  `language` parameters are gone from the `steam_client` store/tag/category/
-  achievement APIs, `web::store::fetch_requirements` and `ReviewQuery`.
-  Removed `--lang` from `info`, `price`, `search`, `deals`, `similar`,
-  `wishlist`, `achievements` and `reviews`, and the `config language` and
-  `config country` commands and settings (old configs still load). The
-  per-command `--country` flag stays, since it picks a price region rather
-  than localizing anything; without it the region is `US`.
-  `normalize_country` moved to `core::utils`. Caches are now
-  `tag_names.json`, `category_names.json` and `info_cache/<appid>.<cc>.json`.
+      flag, the `language`/`country` settings, and `tag_names.<lang>.json` caches.
+      Keep the English defaults.
+      _Done._ Deleted `core/locale.rs` (env-locale detection). Every store and
+      community request now uses `core::STEAM_LANGUAGE` (`english`), so the
+      `language` parameters are gone from the `steam_client` store/tag/category/
+      achievement APIs, `web::store::fetch_requirements` and `ReviewQuery`.
+      Removed `--lang` from `info`, `price`, `search`, `deals`, `similar`,
+      `wishlist`, `achievements` and `reviews`, and the `config language` and
+      `config country` commands and settings (old configs still load). The
+      per-command `--country` flag stays, since it picks a price region rather
+      than localizing anything; without it the region is `US`.
+      `normalize_country` moved to `core::utils`. Caches are now
+      `tag_names.json`, `category_names.json` and `info_cache/<appid>.<cc>.json`.
 - [x] **1.7** Act on D2 and D3: delete `assets/` and the banner, and decide the
-  fate of the protos. If they stay, they move in Phase 2.
-  *Done.* Deleted `assets/` (banner and SVG logo). A bare `aurelia` now just
-  prints the long help, and the README logo line is gone. Protos: the newest
-  `steam-vent-proto` (0.5.2, checked 2026-11-04) still doesn't ship
-  `storequery`, `wishlist` or `cloudconfigstore`, so `proto/` and `build.rs`
-  stay and move into `libgaki/` with per-feature gating in Phase 2.
+      fate of the protos. If they stay, they move in Phase 2.
+      _Done._ Deleted `assets/` (banner and SVG logo). A bare `aurelia` now just
+      prints the long help, and the README logo line is gone. Protos: the newest
+      `steam-vent-proto` (0.5.2, checked 2026-11-04) still doesn't ship
+      `storequery`, `wishlist` or `cloudconfigstore`, so `proto/` and `build.rs`
+      stay and move into `libgaki/` with per-feature gating in Phase 2.
 - [x] **1.8** Make the lint gates green. Fix the roughly 140 clippy findings
-  (`-D warnings`, at all three feature levels) left after the removals. Most
-  are collapsible `if` statements and field assignments outside initializers.
-  Also fix the rustdoc `-D warnings` errors, which are public docs linking to
-  private items. From here on, every ARCHITECTURE §8 gate stays green.
-  *Done.* There are no cargo features yet, so "all three levels" is the
-  default build until Phase 2 adds the gates. `clippy --fix` handled the
-  collapsible `if`s and other mechanical lints. Field assignments became
-  struct literals with `..Default::default()`. Complex types got aliases
-  (`DlcNames`, `Recorded`, `TargetResolvedHook`). The two
-  `mod tests { mod tests }` wrappers were flattened, and duplicate `if`
-  branches were merged. Updating `async-trait` to 0.1.92 cleared the macro's
-  `double_must_use`, and updating `binrw` to 0.15.2 cleared the
-  future-incompat warning. Eight functions with long argument lists carry
-  `#[expect(clippy::too_many_arguments, reason = ...)]` pointing at 2.3 or
-  Phase 5, where they get restructured. One test holds the script-dir env
-  lock across an `.await` on purpose (`#[expect(clippy::await_holding_lock)]`).
-  Nine private intra-doc links became plain code spans. fmt, typos,
-  `deny licenses`, clippy, rustdoc and tests all pass.
+      (`-D warnings`, at all three feature levels) left after the removals. Most
+      are collapsible `if` statements and field assignments outside initializers.
+      Also fix the rustdoc `-D warnings` errors, which are public docs linking to
+      private items. From here on, every ARCHITECTURE §8 gate stays green.
+      _Done._ There are no cargo features yet, so "all three levels" is the
+      default build until Phase 2 adds the gates. `clippy --fix` handled the
+      collapsible `if`s and other mechanical lints. Field assignments became
+      struct literals with `..Default::default()`. Complex types got aliases
+      (`DlcNames`, `Recorded`, `TargetResolvedHook`). The two
+      `mod tests { mod tests }` wrappers were flattened, and duplicate `if`
+      branches were merged. Updating `async-trait` to 0.1.92 cleared the macro's
+      `double_must_use`, and updating `binrw` to 0.15.2 cleared the
+      future-incompat warning. Eight functions with long argument lists carry
+      `#[expect(clippy::too_many_arguments, reason = ...)]` pointing at 2.3 or
+      Phase 5, where they get restructured. One test holds the script-dir env
+      lock across an `.await` on purpose (`#[expect(clippy::await_holding_lock)]`).
+      Nine private intra-doc links became plain code spans. fmt, typos,
+      `deny licenses`, clippy, rustdoc and tests all pass.
 - [x] **1.9** Fix the Steam-running guard, a leftover from the Windows
-  removal. `SteamClient::steam_is_running()` is hard-coded to `false`, so the
-  "Steam is running, close it first" guard in `commands/common.rs` never
-  fires, and `--restart-steam` (on `dlc enable|disable` and the
-  relink/import commands) is a silent no-op. A running Steam client can
-  therefore overwrite our appmanifest and `libraryfolders.vdf` edits. Wire
-  `steam_is_running` to the existing Linux host-Steam detection. Then either
-  implement stop/start (`steam -shutdown`, then a detached `steam -silent`)
-  or drop `--restart-steam` and keep only the refusal.
-  *Done: implemented stop/start.* `steam_is_running` uses
-  `core::utils::is_steam_running` (checks `~/.steam/steam.pid`, then scans
-  `/proc`). `shutdown_steam` runs `steam -shutdown` and waits up to 30s for
-  the client to exit (`wait_until`, which has tests). `start_steam` spawns a
-  detached `steam -silent`, sharing `start_steam_detached` with
-  `ensure_steam_running`. With Steam open, `move`, `relink` and `import` now
-  refuse unless given `--restart-steam`, and `dlc enable|disable` and DLC
-  installs warn that a restart is needed, as they were meant to. The
-  "(Windows)" wording is gone from the flag help.
+      removal. `SteamClient::steam_is_running()` is hard-coded to `false`, so the
+      "Steam is running, close it first" guard in `commands/common.rs` never
+      fires, and `--restart-steam` (on `dlc enable|disable` and the
+      relink/import commands) is a silent no-op. A running Steam client can
+      therefore overwrite our appmanifest and `libraryfolders.vdf` edits. Wire
+      `steam_is_running` to the existing Linux host-Steam detection. Then either
+      implement stop/start (`steam -shutdown`, then a detached `steam -silent`)
+      or drop `--restart-steam` and keep only the refusal.
+      _Done: implemented stop/start._ `steam_is_running` uses
+      `core::utils::is_steam_running` (checks `~/.steam/steam.pid`, then scans
+      `/proc`). `shutdown_steam` runs `steam -shutdown` and waits up to 30s for
+      the client to exit (`wait_until`, which has tests). `start_steam` spawns a
+      detached `steam -silent`, sharing `start_steam_detached` with
+      `ensure_steam_running`. With Steam open, `move`, `relink` and `import` now
+      refuse unless given `--restart-steam`, and `dlc enable|disable` and DLC
+      installs warn that a restart is needed, as they were meant to. The
+      "(Windows)" wording is gone from the flag help.
 
 ### Phase 2 — rename and restructure (R3, R4, R5, R13, R14, R15)
 
 - [x] **2.1** Convert to a workspace. The root `Cargo.toml` gets `[workspace]`,
-  `[workspace.package]` (edition 2024, GPL-3.0-or-later, and repository), and
-  `[workspace.dependencies]`. Create `libgaki/` from `src/lib.rs` and its
-  modules (`core`, `steam_client`, `library`, `web`, `launch`, `compat`, `infra`)
-  plus `proto/` and `build.rs`.
-  *Done.* The root `Cargo.toml` is now a workspace (`resolver = "3"`,
-  repository `Gigas002/gaki`, version 0.1.41) with every dependency in
-  `[workspace.dependencies]`. Each crate lists only the crates it uses, so the
-  unused `directories`, `prost`, `cbc` and `aes` were dropped. `libgaki/`
-  holds the library tree, `proto/` and `build.rs`. The CLI binary stays at the
-  root as package `aurelia-steam` until 2.2, and depends on
-  `aurelia = { package = "libgaki", ... }` so `aurelia::` paths and
-  `tests/` keep working unchanged. Three binary-only files that were pulled
-  out of the library tree with `#[path]` now live in `src/` as plain modules:
-  `core/output.rs` → `src/output.rs`, `compat/proc_admin.rs` →
-  `src/proc_admin.rs`, and `web/steam_urls.rs` → `src/steam_urls.rs`.
-  Rustdoc now builds the binary too, because it no longer shares the name
-  `aurelia` with the library, so three binary doc links were fixed.
+      `[workspace.package]` (edition 2024, GPL-3.0-or-later, and repository), and
+      `[workspace.dependencies]`. Create `libgaki/` from `src/lib.rs` and its
+      modules (`core`, `steam_client`, `library`, `web`, `launch`, `compat`, `infra`)
+      plus `proto/` and `build.rs`.
+      _Done._ The root `Cargo.toml` is now a workspace (`resolver = "3"`,
+      repository `Gigas002/gaki`, version 0.1.41) with every dependency in
+      `[workspace.dependencies]`. Each crate lists only the crates it uses, so the
+      unused `directories`, `prost`, `cbc` and `aes` were dropped. `libgaki/`
+      holds the library tree, `proto/` and `build.rs`. The CLI binary stays at the
+      root as package `aurelia-steam` until 2.2, and depends on
+      `aurelia = { package = "libgaki", ... }` so `aurelia::` paths and
+      `tests/` keep working unchanged. Three binary-only files that were pulled
+      out of the library tree with `#[path]` now live in `src/` as plain modules:
+      `core/output.rs` → `src/output.rs`, `compat/proc_admin.rs` →
+      `src/proc_admin.rs`, and `web/steam_urls.rs` → `src/steam_urls.rs`.
+      Rustdoc now builds the binary too, because it no longer shares the name
+      `aurelia` with the library, so three binary doc links were fixed.
 - [x] **2.2** Create `gaki-cli/` from `src/main.rs`, `cli.rs`, `commands/`, and
-  `daemon/`. Change `aurelia::` paths to `libgaki::`. Rename the binary to
-  `gaki-cli`.
-  *Done.* `src/` moved to `gaki-cli/src/` (package and binary `gaki-cli`), the
-  root `Cargo.toml` is now a pure workspace, and every `aurelia::` path is
-  `libgaki::`. The root package is gone, so the integration tests moved here
-  instead of in 2.5: `config_load_errors`, `login_warning` and
-  `session_encryption` drive the binary and went to `gaki-cli/tests/`
-  (`CARGO_BIN_EXE_gaki-cli`); the other 11 went to `libgaki/tests/`. The
-  codecov matrix in `test.yml` now lists `libgaki` and `gaki-cli`. Two things
-  had to follow the binary name now rather than in 2.4: clap's command name
-  and the `kill`/`daemon list` process matcher in `proc_admin.rs`. Both use
-  `env!("CARGO_BIN_NAME")`; otherwise `gaki-cli kill` would look for
-  processes named `aurelia`. User-facing strings and env vars still say
-  aurelia until 2.4. `deploy.yml` already lists `gaki-tui`, which arrives in
-  Phase 3; a release tag before then would fail on that row.
+      `daemon/`. Change `aurelia::` paths to `libgaki::`. Rename the binary to
+      `gaki-cli`.
+      _Done._ `src/` moved to `gaki-cli/src/` (package and binary `gaki-cli`), the
+      root `Cargo.toml` is now a pure workspace, and every `aurelia::` path is
+      `libgaki::`. The root package is gone, so the integration tests moved here
+      instead of in 2.5: `config_load_errors`, `login_warning` and
+      `session_encryption` drive the binary and went to `gaki-cli/tests/`
+      (`CARGO_BIN_EXE_gaki-cli`); the other 11 went to `libgaki/tests/`. The
+      codecov matrix in `test.yml` now lists `libgaki` and `gaki-cli`. Two things
+      had to follow the binary name now rather than in 2.4: clap's command name
+      and the `kill`/`daemon list` process matcher in `proc_admin.rs`. Both use
+      `env!("CARGO_BIN_NAME")`; otherwise `gaki-cli kill` would look for
+      processes named `aurelia`. User-facing strings and env vars still say
+      aurelia until 2.4. `deploy.yml` already lists `gaki-tui`, which arrives in
+      Phase 3; a release tag before then would fail on that row.
 - [x] **2.3** Move all logic out of `gaki-cli/src/commands/` into `libgaki`, so
-  commands keep only argument mapping and output formatting (R23). Expect the
-  heavy cases in `install.rs`, `info.rs`, `store.rs`, `auth.rs`, and
-  `common.rs`. Output formatting (`core/output.rs`) moves to the CLI.
-  The logic goes into a new `libgaki::ops` layer, one module per area, with
-  typed arguments and `Serialize` results. It never prints, prompts or reads
-  CLI flags, and it is the API `gaki-tui` will call in Phase 4. The CLI keeps
-  argument mapping, prompts, text and JSON rendering, the daemon (D4), and
-  its hints ("run `gaki-cli login`"). The `output.rs` move already happened
-  in 2.1, and `capabilities` stays in the CLI because it describes the CLI
-  itself. The work is split so each commit stays reviewable:
+      commands keep only argument mapping and output formatting (R23). Expect the
+      heavy cases in `install.rs`, `info.rs`, `store.rs`, `auth.rs`, and
+      `common.rs`. Output formatting (`core/output.rs`) moves to the CLI.
+      The logic goes into a new `libgaki::ops` layer, one module per area, with
+      typed arguments and `Serialize` results. It never prints, prompts or reads
+      CLI flags, and it is the API `gaki-tui` will call in Phase 4. The CLI keeps
+      argument mapping, prompts, text and JSON rendering, the daemon (D4), and
+      its hints ("run `gaki-cli login`"). The `output.rs` move already happened
+      in 2.1, and `capabilities` stays in the CLI because it describes the CLI
+      itself. The work is split so each commit stays reviewable:
   - [x] **2.3a** Shared helpers from `common.rs`. Session restore, require-auth
-    and the web-session fallback went to `ops::session`; the daemon branch
-    and login hints stay in the CLI wrappers. `load_library`,
-    `merge_family_shared`, `find_game` and `cached_game_name` went to
-    `ops::library`. The active-install registry and `InstallGuard` went to
-    `ops::install`. The stop/restart guard went to `ops::steam`, taking a
-    callback for the CLI's "Stopping Steam" message. `RateTracker` and
-    `percent_of` went to `ops::progress`, country resolution to `ops::store`,
-    and `available_space_for` to `core::utils`. Added 11 tests.
+        and the web-session fallback went to `ops::session`; the daemon branch
+        and login hints stay in the CLI wrappers. `load_library`,
+        `merge_family_shared`, `find_game` and `cached_game_name` went to
+        `ops::library`. The active-install registry and `InstallGuard` went to
+        `ops::install`. The stop/restart guard went to `ops::steam`, taking a
+        callback for the CLI's "Stopping Steam" message. `RateTracker` and
+        `percent_of` went to `ops::progress`, country resolution to `ops::store`,
+        and `available_space_for` to `core::utils`. Added 11 tests.
   - [x] **2.3b** `runtimes.rs`, `config.rs` and `scripts.rs`. New
-    `ops::config`:
+        `ops::config`:
     - `load`/`update` (load, edit, save) and `experimental`
       (`core::config::experimental_env_override` now owns the env-var check).
     - `update_proxy(ProxyChange)`, `games_with_settings` and
@@ -542,6 +542,7 @@ I make the changes, and you review, commit, and push.
     walk) moved from `commands/library.rs` to `libgaki::library::platform`,
     with tests, because `config game` needs it. `--json` output keeps its
     keys. Added 10 tests.
+
   - [x] **2.3c** `auth.rs`: login flows, logout, health. New `ops::auth`:
     - `login(client, &PasswordLogin)` makes one attempt and returns
       `LoginStep::{LoggedIn, CodeRequired(Email|Device), ApprovalRequired}`
@@ -557,55 +558,56 @@ I make the changes, and you review, commit, and push.
     sources, the NDJSON driver events and cancel watching, QR rendering,
     the experimental gate message, and `--reconnect` (daemon-only). Added 5
     tests.
-  - [x] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
-    *Done.* `ops::info` (cached batched `app_info`, DLC lists, branches,
-    depots, achievements, launch options, DRM check, artwork) and
-    `ops::store` (prices, search/deals/similar, wishlist, assets, news,
-    reviews, tags). JSON shapes unchanged.
-  - [x] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
-    move/relink/import, DLC, downgrade.
-    *Done.* `ops::install`: `prepare` → `PreparedInstall::run` (backlog
-    bookkeeping), `signal`/`list`/`resume_request`/`forget`, verify, update,
-    `check_updates`, move/relink/import, availability, manifests,
-    `downgrade`, pin/unpin. Progress goes through a caller-supplied `drive`
-    closure. Free space is checked before Steam is stopped.
-  - [x] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
-    *Done.* `ops::library` (`list` with filters and collection memberships,
-    `account`, `folders`), `ops::collections`, `ops::cloud` (`sync` →
-    `SyncReport`, `files`), `ops::launch` (`targets`, `play` reporting
-    `LaunchEvent`s, `running`, `stop`). Process admin (`kill`, `daemon
-    stop/list`) stays in the CLI.
-  - [x] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
-    `commands/` holds only mapping and rendering; tick 2.3.
-    *Done.* `ops::social` (friends, profiles, chat stream helpers, labels),
-    `ops::market`, `ops::workshop` (browse with `Sort`, resolve, install,
-    subscribe, `status` with update detection, ratings, comments). The last
-    direct client calls in `commands/` (logout, appinfo debug) went through
-    `ops` too.
-- [x] **2.4** Drop the `AURELIA_*` environment variables and rename to gaki.
-  Configuration comes only from CLI commands, flags and the config file.
-  - [x] **2.4a** Replace every env var gaki *reads* with a flag or a config key,
-    then delete the env lookup:
 
-    | Env var | Replacement |
-    | --- | --- |
-    | `AURELIA_CONFIG_DIR` | global `--config-dir <PATH>` |
-    | `AURELIA_NO_DAEMON` | global `--no-daemon` |
-    | `AURELIA_NO_SPAWN` | global `--no-spawn` (use a running daemon, never start one) |
-    | `AURELIA_DAEMON_SOCKET` | global `--socket <PATH>`; `daemon --socket` passes it in-process instead of via `set_var` |
-    | `AURELIA_LOG`, `RUST_LOG` | global `--log <FILTER>` (alongside the existing verbosity flags) |
-    | `AURELIA_EXPERIMENTAL` | `config experimental` only; drop `experimental_env_override` |
-    | `AURELIA_INFO_CACHE_TTL` | config key `info_cache_ttl` (seconds; `0` disables) |
-    | `AURELIA_SCRIPT_DIR` | config key `script_dir` |
-    | `AURELIA_DISABLE_KEYRING` | config key `use_keyring` (default true) |
-    | `AURELIA_PASSWORD` | `login --password-stdin` (or the prompt) |
-    | `AURELIA_WEB_TOKEN` | `login --web-token <TOKEN>` / stdin, which already exist |
+  - [x] **2.3d** `info.rs` and `store.rs`: metadata, cache, prices, search.
+        _Done._ `ops::info` (cached batched `app_info`, DLC lists, branches,
+        depots, achievements, launch options, DRM check, artwork) and
+        `ops::store` (prices, search/deals/similar, wishlist, assets, news,
+        reviews, tags). JSON shapes unchanged.
+  - [x] **2.3e** `install.rs`: install/update/verify/uninstall, backlog,
+        move/relink/import, DLC, downgrade.
+        _Done._ `ops::install`: `prepare` → `PreparedInstall::run` (backlog
+        bookkeeping), `signal`/`list`/`resume_request`/`forget`, verify, update,
+        `check_updates`, move/relink/import, availability, manifests,
+        `downgrade`, pin/unpin. Progress goes through a caller-supplied `drive`
+        closure. Free space is checked before Steam is stopped.
+  - [x] **2.3f** `library.rs`, `collections.rs`, `cloud.rs` and `launch.rs`.
+        _Done._ `ops::library` (`list` with filters and collection memberships,
+        `account`, `folders`), `ops::collections`, `ops::cloud` (`sync` →
+        `SyncReport`, `files`), `ops::launch` (`targets`, `play` reporting
+        `LaunchEvent`s, `running`, `stop`). Process admin (`kill`, `daemon
+stop/list`) stays in the CLI.
+  - [x] **2.3g** `social.rs`, `market.rs` and `workshop.rs`. Afterwards,
+        `commands/` holds only mapping and rendering; tick 2.3.
+        _Done._ `ops::social` (friends, profiles, chat stream helpers, labels),
+        `ops::market`, `ops::workshop` (browse with `Sort`, resolve, install,
+        subscribe, `status` with update detection, ratings, comments). The last
+        direct client calls in `commands/` (logout, appinfo debug) went through
+        `ops` too.
+- [x] **2.4** Drop the `AURELIA_*` environment variables and rename to gaki.
+      Configuration comes only from CLI commands, flags and the config file.
+  - [x] **2.4a** Replace every env var gaki _reads_ with a flag or a config key,
+        then delete the env lookup:
+
+    | Env var                   | Replacement                                                                               |
+    | ------------------------- | ----------------------------------------------------------------------------------------- |
+    | `AURELIA_CONFIG_DIR`      | global `--config-dir <PATH>`                                                              |
+    | `AURELIA_NO_DAEMON`       | global `--no-daemon`                                                                      |
+    | `AURELIA_NO_SPAWN`        | global `--no-spawn` (use a running daemon, never start one)                               |
+    | `AURELIA_DAEMON_SOCKET`   | global `--socket <PATH>`; `daemon --socket` passes it in-process instead of via `set_var` |
+    | `AURELIA_LOG`, `RUST_LOG` | global `--log <FILTER>` (alongside the existing verbosity flags)                          |
+    | `AURELIA_EXPERIMENTAL`    | `config experimental` only; drop `experimental_env_override`                              |
+    | `AURELIA_INFO_CACHE_TTL`  | config key `info_cache_ttl` (seconds; `0` disables)                                       |
+    | `AURELIA_SCRIPT_DIR`      | config key `script_dir`                                                                   |
+    | `AURELIA_DISABLE_KEYRING` | config key `use_keyring` (default true)                                                   |
+    | `AURELIA_PASSWORD`        | `login --password-stdin` (or the prompt)                                                  |
+    | `AURELIA_WEB_TOKEN`       | `login --web-token <TOKEN>` / stdin, which already exist                                  |
 
     Library code takes these as parameters or reads the config; only
     `gaki-cli` parses flags. Standard variables (`HOME`, `XDG_*`, proxy vars,
     `DISPLAY`, `COLUMNS`, `PATH`, `LD_*`) stay as they are. Update the docs,
     smoke-test recipe and CI that set these variables.
-    *Done.* The CLI parses before anything reads the config, then calls
+    _Done._ The CLI parses before anything reads the config, then calls
     `core::config::set_config_dir` and sets the daemon socket in-process. An
     auto-spawned daemon gets the client's `--config-dir`/`--socket`, and a
     forwarded command whose `--config-dir` differs from the daemon's is refused
@@ -617,850 +619,851 @@ I make the changes, and you review, commit, and push.
     longer has `env_override`. Smoke tests use
     `gaki-cli --config-dir <tmp> --no-daemon …` (a `--socket` path must be
     short: Unix sockets cap it near 108 bytes).
-  - [x] **2.4b** Variables gaki *exports* to launch scripts and the game process
-    (`AURELIA_APP_ID`, `_APP_NAME`, `_GAME_DIR`, `_LAUNCH_PROGRAM`,
-    `_LAUNCH_ARGS`, `_STDOUT_LOG`, `_STDERR_LOG`) are the script interface and
-    can't be flags: rename them to `GAKI_*`, including the generated script
-    template.
-    *Done.* Names live once as `launch_script::ENV_*` constants used by the
-    stages, the tests and (by name) the template. The README's stale
-    `AURELIA_CDN_CONCURRENCY` knob, which no code read, was dropped.
+
+  - [x] **2.4b** Variables gaki _exports_ to launch scripts and the game process
+        (`AURELIA_APP_ID`, `_APP_NAME`, `_GAME_DIR`, `_LAUNCH_PROGRAM`,
+        `_LAUNCH_ARGS`, `_STDOUT_LOG`, `_STDERR_LOG`) are the script interface and
+        can't be flags: rename them to `GAKI_*`, including the generated script
+        template.
+        _Done._ Names live once as `launch_script::ENV_*` constants used by the
+        stages, the tests and (by name) the template. The README's stale
+        `AURELIA_CDN_CONCURRENCY` knob, which no code read, was dropped.
   - [x] **2.4c** Rename the rest: user-facing strings and command hints say gaki,
-    the config dir moves to `gaki/`, the keyring service and user agent change.
-    Grep for `aurelia` until only acknowledgements remain.
-    *Done.* Command hints name `gaki-cli`, prose says gaki, and the config dir
-    is `~/.config/gaki` (default library `~/Games/gaki`). The keyring service,
-    user agent, session envelope tag (`gaki-session-v1`), daemon socket
-    (`gaki-<uid>.sock`), launch lockfile, OpenID nonce, store query names and
-    thread names all say gaki, and the process helpers are `GakiProcess` /
-    `find_gaki_processes`. `aurelia` remains only in the forked crate names
-    (`aurelia-steam-vent-chat`, `aurelia-steam-cdn`, Phase 6),
-    `docs/aurelia-questions.md`, and the README's upstream install, crates,
-    acknowledgement and link sections (Phase 7).
-    **Known issue (fixed in 2.5):** some lib unit tests (runners, preflight,
-    `steam_client`) write fixtures (`fake_env/`, `running/123.json`) into the
-    real config dir instead of a temp one.
+        the config dir moves to `gaki/`, the keyring service and user agent change.
+        Grep for `aurelia` until only acknowledgements remain.
+        _Done._ Command hints name `gaki-cli`, prose says gaki, and the config dir
+        is `~/.config/gaki` (default library `~/Games/gaki`). The keyring service,
+        user agent, session envelope tag (`gaki-session-v1`), daemon socket
+        (`gaki-<uid>.sock`), launch lockfile, OpenID nonce, store query names and
+        thread names all say gaki, and the process helpers are `GakiProcess` /
+        `find_gaki_processes`. `aurelia` remains only in the forked crate names
+        (`aurelia-steam-vent-chat`, `aurelia-steam-cdn`, Phase 6),
+        `docs/aurelia-questions.md`, and the README's upstream install, crates,
+        acknowledgement and link sections (Phase 7).
+        **Known issue (fixed in 2.5):** some lib unit tests (runners, preflight,
+        `steam_client`) write fixtures (`fake_env/`, `running/123.json`) into the
+        real config dir instead of a temp one.
 - [x] **2.5** Move integration tests to their owning crate's `tests/`. Create
-  `examples/` (empty placeholder until Phase 5) and move documentation into
-  `docs/` (leave the README content split for Phase 7). Point the codecov
-  matrix in `test.yml` at the new crates.
-  *Done.* The integration tests were already split in 2.1/2.2: the
-  `libgaki/tests/` ones use only the lib, and the three that drive the binary
-  sit in `gaki-cli/tests/`. `examples/` holds a README placeholder, and
-  `aurelia-questions.md` moved to `docs/`. The codecov matrix already covered
-  `libgaki` and `gaki-cli`; only its stale comment went. Also fixed the 2.4c
-  known issue: under `cfg(test)`, `config_dir()` returns a per-process temp
-  dir, so a full `cargo test` with a throwaway `HOME` writes nothing there.
+      `examples/` (empty placeholder until Phase 5) and move documentation into
+      `docs/` (leave the README content split for Phase 7). Point the codecov
+      matrix in `test.yml` at the new crates.
+      _Done._ The integration tests were already split in 2.1/2.2: the
+      `libgaki/tests/` ones use only the lib, and the three that drive the binary
+      sit in `gaki-cli/tests/`. `examples/` holds a README placeholder, and
+      `aurelia-questions.md` moved to `docs/`. The codecov matrix already covered
+      `libgaki` and `gaki-cli`; only its stale comment went. Also fixed the 2.4c
+      known issue: under `cfg(test)`, `config_dir()` returns a per-process temp
+      dir, so a full `cargo test` with a throwaway `HOME` writes nothing there.
 
 ### Phase 3 — import the TUI (R6, R7, R8, R9)
 
 - [x] **3.1** Copy the `../Aurelia-TUI` sources into `gaki-tui/` as they are
-  (record the upstream commit `d0af998` in the commit message). Name the crate
-  `gaki-tui` and the binary `gaki`. It keeps talking to the CLI as a
-  subprocess for now, but invokes `gaki-cli` instead of `aurelia`.
-  *Done.* Copied everything but `.git`, `Cargo.lock` (the workspace has one)
-  and the upstream `.gitignore` (it ignored `/docs` and `.c*`). The crate is a
-  workspace member with the workspace version; its license stays the
-  upstream `GPL-3.0-only` (now allowed in `deny.toml`), with the upstream
-  `LICENSE` kept in `gaki-tui/`. `aurelia_tui::` paths became `gaki_tui::`.
-  `bin()` looks for a `gaki-cli` next to its own executable, then on `PATH`;
-  `AURELIA_BIN` stays as an override until Phase 4 drops the subprocess (a
-  test relies on it). To pass the workspace gates: `cargo fmt`, clippy fixes
-  (collapsed `if`s, a `Slot<T>` alias, an iterator loop, explicit
-  `truncate(false)`), seven broken rustdoc links, one typo, `Dota` allowed in
-  `.typos.toml`. CI installs `libssl-dev` (reqwest 0.11 uses native-tls until
-  3.4) and codecov covers `gaki-tui`. Other aurelia names in the TUI (its
-  strings, `~/.config/aurelia-tui`, `AURELIA_TUI_*`) are left for Phase 4/5.
+      (record the upstream commit `d0af998` in the commit message). Name the crate
+      `gaki-tui` and the binary `gaki`. It keeps talking to the CLI as a
+      subprocess for now, but invokes `gaki-cli` instead of `aurelia`.
+      _Done._ Copied everything but `.git`, `Cargo.lock` (the workspace has one)
+      and the upstream `.gitignore` (it ignored `/docs` and `.c*`). The crate is a
+      workspace member with the workspace version; its license stays the
+      upstream `GPL-3.0-only` (now allowed in `deny.toml`), with the upstream
+      `LICENSE` kept in `gaki-tui/`. `aurelia_tui::` paths became `gaki_tui::`.
+      `bin()` looks for a `gaki-cli` next to its own executable, then on `PATH`;
+      `AURELIA_BIN` stays as an override until Phase 4 drops the subprocess (a
+      test relies on it). To pass the workspace gates: `cargo fmt`, clippy fixes
+      (collapsed `if`s, a `Slot<T>` alias, an iterator loop, explicit
+      `truncate(false)`), seven broken rustdoc links, one typo, `Dota` allowed in
+      `.typos.toml`. CI installs `libssl-dev` (reqwest 0.11 uses native-tls until
+      3.4) and codecov covers `gaki-tui`. Other aurelia names in the TUI (its
+      strings, `~/.config/aurelia-tui`, `AURELIA_TUI_*`) are left for Phase 4/5.
 - [x] **3.2** Strip Windows from the TUI: the `schannel` dependency, the
-  `cmd`/`open` browser branches, and Windows path code.
-  *Done.* Dropped the `schannel` dependency and its comments, the
-  `cmd`/`open` branches (the browser is `xdg-open`), the `cmd /c start` chat
-  window, `PlayOpts::windows` (`play --windows`, removed in 1.1), and the
-  "Windows discovery" config row (its field is gone from gaki-cli). There was
-  no Windows path code. `schannel` stays in `Cargo.lock` only as a
-  Windows-target dependency of native-tls, until reqwest goes in 3.4.
-  **Left for Phase 4:** the TUI still wraps commands removed in 1.4
-  (`steam-runtime status|install|repair`, `config game … steam-runtime`,
-  `play --steam-mode`) in the engine pane, game config and launch targets.
-  They fail at runtime and go away when `interface/aurelia.rs` is ported.
+      `cmd`/`open` browser branches, and Windows path code.
+      _Done._ Dropped the `schannel` dependency and its comments, the
+      `cmd`/`open` branches (the browser is `xdg-open`), the `cmd /c start` chat
+      window, `PlayOpts::windows` (`play --windows`, removed in 1.1), and the
+      "Windows discovery" config row (its field is gone from gaki-cli). There was
+      no Windows path code. `schannel` stays in `Cargo.lock` only as a
+      Windows-target dependency of native-tls, until reqwest goes in 3.4.
+      **Left for Phase 4:** the TUI still wraps commands removed in 1.4
+      (`steam-runtime status|install|repair`, `config game … steam-runtime`,
+      `play --steam-mode`) in the engine pane, game config and launch targets.
+      They fail at runtime and go away when `interface/aurelia.rs` is ported.
 - [x] **3.3** Strip HLTB: `interface/hltb.rs`, `ui/hltb.rs`,
-  `tests/hltb_view.rs`, `tests/fixtures/hltb/`, `docs/HOWLONGTOBEAT.md`, and
-  `scripts/test-hltb-terminal.py`. Also drop the TUI's `scripts/`, `assets/`
-  screenshots, `FUNDING.yml`, and workflows. CI is unified at the workspace
-  level.
-  *Done.* Besides the listed files: `interface/hltb_tests.rs`, the
-  `hltb_enabled` config switch (old configs that still carry it load fine),
-  the detail-pane row, the settings row and `h` key, the `,ct` chord, the
-  Actions entry, the help line, the HLTB state and tests in
-  `interface/game.rs`, the README sections, and the `regex` dependency
-  (HLTB-only). `assets/` keeps only `splash.txt`, which `app.rs` embeds; the
-  logo, screenshots and the unused ASCII banner went with `scripts/`.
+      `tests/hltb_view.rs`, `tests/fixtures/hltb/`, `docs/HOWLONGTOBEAT.md`, and
+      `scripts/test-hltb-terminal.py`. Also drop the TUI's `scripts/`, `assets/`
+      screenshots, `FUNDING.yml`, and workflows. CI is unified at the workspace
+      level.
+      _Done._ Besides the listed files: `interface/hltb_tests.rs`, the
+      `hltb_enabled` config switch (old configs that still carry it load fine),
+      the detail-pane row, the settings row and `h` key, the `,ct` chord, the
+      Actions entry, the help line, the HLTB state and tests in
+      `interface/game.rs`, the README sections, and the `regex` dependency
+      (HLTB-only). `assets/` keeps only `splash.txt`, which `app.rs` embeds; the
+      logo, screenshots and the unused ASCII banner went with `scripts/`.
 - [x] **3.4** Migrate `tui` 0.18 to `ratatui`, update crossterm, remove `atty`
-  (use `std::io::IsTerminal`), and replace `tui-image-rgba-updated` with a
-  maintained ratatui image widget, or drop images if none fits (D5).
-  *Done.* `tui` 0.18 → `ratatui` 0.30 (`serde` feature). Crossterm comes
-  re-exported as `ratatui::crossterm` (0.29), so the two can't drift.
-  Mechanical changes: `Spans` → `Line`, `Table::default().rows(..)`,
-  constraint/width arrays without `.as_ref()`, `Frame` without a backend
-  parameter, `frame.area()`, and `Buffer::cell` / `Cell::symbol()` in tests.
-  `atty` → `std::io::IsTerminal`. Images use `ratatui-image` 10 (ratatui org;
-  `crossterm` feature only, no chafa or AVIF encoder) with the half-block
-  protocol, built directly from the pre-sized art. Half-blocks keep the
-  existing look, where the detail text is drawn over the faded background;
-  kitty/sixel can't sit under text. `image` 0.24 → 0.25 (jpeg/png/webp).
-  Beyond the plan: reqwest 0.11 + native-tls → the workspace's rustls reqwest
-  0.13 with `blocking`, so OpenSSL leaves the tree and CI drops
-  `libssl-dev`; `pretty-bytes` (unmaintained, pulled `atty`) → a local
-  `util::bytes::convert` with the same output; `qrcode`, `serde` and
-  `serde_json` use the workspace versions. `schannel` remains in
-  `Cargo.lock` only as a Windows-target dependency of rustls-platform-verifier
-  (as for libgaki).
+      (use `std::io::IsTerminal`), and replace `tui-image-rgba-updated` with a
+      maintained ratatui image widget, or drop images if none fits (D5).
+      _Done._ `tui` 0.18 → `ratatui` 0.30 (`serde` feature). Crossterm comes
+      re-exported as `ratatui::crossterm` (0.29), so the two can't drift.
+      Mechanical changes: `Spans` → `Line`, `Table::default().rows(..)`,
+      constraint/width arrays without `.as_ref()`, `Frame` without a backend
+      parameter, `frame.area()`, and `Buffer::cell` / `Cell::symbol()` in tests.
+      `atty` → `std::io::IsTerminal`. Images use `ratatui-image` 10 (ratatui org;
+      `crossterm` feature only, no chafa or AVIF encoder) with the half-block
+      protocol, built directly from the pre-sized art. Half-blocks keep the
+      existing look, where the detail text is drawn over the faded background;
+      kitty/sixel can't sit under text. `image` 0.24 → 0.25 (jpeg/png/webp).
+      Beyond the plan: reqwest 0.11 + native-tls → the workspace's rustls reqwest
+      0.13 with `blocking`, so OpenSSL leaves the tree and CI drops
+      `libssl-dev`; `pretty-bytes` (unmaintained, pulled `atty`) → a local
+      `util::bytes::convert` with the same output; `qrcode`, `serde` and
+      `serde_json` use the workspace versions. `schannel` remains in
+      `Cargo.lock` only as a Windows-target dependency of rustls-platform-verifier
+      (as for libgaki).
 
 ### Phase 4 — TUI on `libgaki` (R23)
 
 - [x] **4.1** Add the async bridge (D6): an `app/` worker that owns the tokio
-  runtime and a `libgaki` session, plus typed request and response channels.
-  *Done.* `gaki-tui/src/app/worker.rs`: `Worker::start()` builds a
-  multi-thread runtime (16 MiB task stacks, like the CLI) and spawns the
-  request loop. `request(Request) -> Ticket` and the non-blocking
-  `poll() -> Option<Reply>` cross over channels; each request runs as its own
-  task against a clone of one shared `SteamClient` (restores serialise on its
-  lock); dropping the worker shuts the runtime down with a 1 s grace. The
-  first requests are `SessionStatus` and `Restore`; 4.2 adds one per view.
-  `app.rs` moved to `app/mod.rs` unchanged (its page builders go to `ui/` in
-  4.5). `tests/worker.rs` round-trips both requests against an empty temp
-  config dir, with no network. The worker isn't started from `main` yet: 4.2
-  wires it in along with the proxy-env setup it needs.
+      runtime and a `libgaki` session, plus typed request and response channels.
+      _Done._ `gaki-tui/src/app/worker.rs`: `Worker::start()` builds a
+      multi-thread runtime (16 MiB task stacks, like the CLI) and spawns the
+      request loop. `request(Request) -> Ticket` and the non-blocking
+      `poll() -> Option<Reply>` cross over channels; each request runs as its own
+      task against a clone of one shared `SteamClient` (restores serialise on its
+      lock); dropping the worker shuts the runtime down with a 1 s grace. The
+      first requests are `SessionStatus` and `Restore`; 4.2 adds one per view.
+      `app.rs` moved to `app/mod.rs` unchanged (its page builders go to `ui/` in
+      4.5). `tests/worker.rs` round-trips both requests against an empty temp
+      config dir, with no network. The worker isn't started from `main` yet: 4.2
+      wires it in along with the proxy-env setup it needs.
 - [x] **4.2** Port `interface/aurelia.rs` (subprocess calls plus output parsing)
-  to direct `libgaki` calls, one view at a time: library, details, install and
-  progress, launch and running, cloud, account and login, and the rest.
-  *Done.* Every command runs in-process; nothing in `interface/aurelia.rs`
-  spawns `gaki-cli` any more, and `run_json`/`json_error` are gone. Only the
-  startup version check (`bin`, `version`, `AURELIA_BIN`) still runs the
-  binary; 4.4 removes it. Pattern: each `interface/aurelia.rs` function keeps its
-  signature and result type, but its body calls `libgaki::ops` through
-  `in_process`, which runs the future on the shared worker
-  (`app::worker::global()`, `Worker::block_on`) against its one session.
-  Callers that were blocking on the subprocess block the same way for now;
-  moving the UI-thread ones onto `Request`/`poll` follows once every view is
-  in-process. `steam_urls` moved from `gaki-cli` to `libgaki::core`. `main`
-  installs the proxy env before any thread starts.
+      to direct `libgaki` calls, one view at a time: library, details, install and
+      progress, launch and running, cloud, account and login, and the rest.
+      _Done._ Every command runs in-process; nothing in `interface/aurelia.rs`
+      spawns `gaki-cli` any more, and `run_json`/`json_error` are gone. Only the
+      startup version check (`bin`, `version`, `AURELIA_BIN`) still runs the
+      binary; 4.4 removes it. Pattern: each `interface/aurelia.rs` function keeps its
+      signature and result type, but its body calls `libgaki::ops` through
+      `in_process`, which runs the future on the shared worker
+      (`app::worker::global()`, `Worker::block_on`) against its one session.
+      Callers that were blocking on the subprocess block the same way for now;
+      moving the UI-thread ones onto `Request`/`poll` follows once every view is
+      in-process. `steam_urls` moved from `gaki-cli` to `libgaki::core`. `main`
+      installs the proxy env before any thread starts.
   - [x] Session check, library list, library folders, store details, account
-    (`health`, `fetch_library`, `libraries`, `fetch_info`, `account`).
-    Also fixed a 2.4a regression: the standalone CLI calls passed the dropped
-    `AURELIA_NO_DAEMON` env var instead of `--no-daemon`. Classic login
-    still passes `AURELIA_PASSWORD`, which gaki-cli ignores since 2.4a; it
-    goes with the login port.
+        (`health`, `fetch_library`, `libraries`, `fetch_info`, `account`).
+        Also fixed a 2.4a regression: the standalone CLI calls passed the dropped
+        `AURELIA_NO_DAEMON` env var instead of `--no-daemon`. Classic login
+        still passes `AURELIA_PASSWORD`, which gaki-cli ignores since 2.4a; it
+        goes with the login port.
   - [x] Install and progress (`install`, `install_estimate`, `install_stop`,
-    new `install_pause`, `verify`, `update`, `uninstall`, `move_game`,
-    `relink`, `import_game`). A shared `drive_progress` turns `libgaki`'s
-    `DownloadProgress` into the same status text, with the CLI's
-    `RateTracker` ETA. Pause now records a resumable backlog entry
-    (`signal(id, pause = true)`) instead of a plain stop. Move, relink and
-    import refuse while Steam runs, as the CLI did without `--restart-steam`.
+        new `install_pause`, `verify`, `update`, `uninstall`, `move_game`,
+        `relink`, `import_game`). A shared `drive_progress` turns `libgaki`'s
+        `DownloadProgress` into the same status text, with the CLI's
+        `RateTracker` ETA. Pause now records a resumable backlog entry
+        (`signal(id, pause = true)`) instead of a plain stop. Move, relink and
+        import refuse while Steam runs, as the CLI did without `--restart-steam`.
   - [x] Launch and running (`play`, `play_with`, `launch_targets`,
-    `running`, `stop`). The status cell follows `LaunchEvent`s (pre-launch
-    update with progress, launching, the build picked). Games still outlive
-    the TUI (no kill-on-drop or parent-death signal), and their output stays
-    off the terminal (`child_stdio` is null at verbosity 0). Dropped
-    `PlayOpts::native_engine`/`umu`: never set, and `play` lost those flags in
-    Phase 1. `steam_mode` stays as a picker label. `libgaki`'s one stray
-    `println!` (MangoHud missing, `wine_tkg.rs`) is now `tracing::warn!`, so
-    it can't write over the TUI.
+        `running`, `stop`). The status cell follows `LaunchEvent`s (pre-launch
+        update with progress, launching, the build picked). Games still outlive
+        the TUI (no kill-on-drop or parent-death signal), and their output stays
+        off the terminal (`child_stdio` is null at verbosity 0). Dropped
+        `PlayOpts::native_engine`/`umu`: never set, and `play` lost those flags in
+        Phase 1. `steam_mode` stays as a picker label. `libgaki`'s one stray
+        `println!` (MangoHud missing, `wine_tkg.rs`) is now `tracing::warn!`, so
+        it can't write over the TUI.
   - [x] Cloud (`cloud_list`, `cloud_sync`). Fixed silent partial syncs: the
-    CLI's `--json` result carried conflicts, skipped and failed files with a
-    success exit, so the TUI said "synced". Now any of them comes back as an
-    error naming the count and the first file (worst first: failed,
-    diverged, skipped). Diverged saves are still only detected; both copies
-    are kept.
+        CLI's `--json` result carried conflicts, skipped and failed files with a
+        success exit, so the TUI said "synced". Now any of them comes back as an
+        error naming the count and the first file (worst first: failed,
+        diverged, skipped). Diverged saves are still only detected; both copies
+        are kept.
   - [x] Account and login (`login_qr`, `login_classic`, `logout`,
-    `set_presence`, `config_show`, the proxy settings). Fixed username/password
-    login, broken since 2.4a: the password went in an env var the CLI no
-    longer reads. Logins now run on the worker and hand their client to the
-    shared session, so later calls reuse it without restoring from disk.
-    Logout resets the session. Presence changes are announced at once when
-    logged in, instead of after a daemon restart. The QR flow now gets
-    challenge URLs straight from `libgaki`; its rendering bug is 4.3.
+        `set_presence`, `config_show`, the proxy settings). Fixed username/password
+        login, broken since 2.4a: the password went in an env var the CLI no
+        longer reads. Logins now run on the worker and hand their client to the
+        shared session, so later calls reuse it without restoring from disk.
+        Logout resets the session. Presence changes are announced at once when
+        logged in, instead of after a daemon restart. The QR flow now gets
+        challenge URLs straight from `libgaki`; its rendering bug is 4.3.
   - [x] The rest
     - [x] Local settings: per-game config, Proton, launch scripts. Removed
-      what Phase 1 had already dropped from the CLI, which the TUI still
-      called and which failed at runtime: the runtime-plugins overlay
-      (umu, luxtorpeda, Steam runtime; `ui/engine.rs`, the `E` key), the
-      Runner, Steam runtime and Steam prefix rows of Game settings, the
-      Prefix mode, Language, Shared compat data and Luxtorpeda settings
-      rows, and the "Steam runtime (in Wine)" launch-target label. Proton
-      matches 1.5: official builds install and uninstall through Steam and
-      become the default; custom builds are listed but only the package
-      manager removes them. The unused `scripts_dir`/`scripts_list` and
-      `config_game_set_launch_script` wrappers are gone.
+          what Phase 1 had already dropped from the CLI, which the TUI still
+          called and which failed at runtime: the runtime-plugins overlay
+          (umu, luxtorpeda, Steam runtime; `ui/engine.rs`, the `E` key), the
+          Runner, Steam runtime and Steam prefix rows of Game settings, the
+          Prefix mode, Language, Shared compat data and Luxtorpeda settings
+          rows, and the "Steam runtime (in Wine)" launch-target label. Proton
+          matches 1.5: official builds install and uninstall through Steam and
+          become the default; custom builds are listed but only the package
+          manager removes them. The unused `scripts_dir`/`scripts_list` and
+          `config_game_set_launch_script` wrappers are gone.
     - [x] Per-game Steam data: DLC, branches, depots, achievements, launch
-      options, manifests, pinning, downgrade. Downgrades stream progress
-      through the shared `drive_progress` (new `Downgrade` label); pin state
-      is still read from local files without a Steam logon. That was the
-      last streaming subprocess, so the NDJSON progress parser is gone too.
+          options, manifests, pinning, downgrade. Downgrades stream progress
+          through the shared `drive_progress` (new `Downgrade` label); pin state
+          is still read from local files without a Steam logon. That was the
+          last streaming subprocess, so the NDJSON progress parser is gone too.
     - [x] Social and market: friends, chat, wallet, inventory, market,
-      workshop. Fields are mapped from `libgaki` types directly instead of
-      parsing the CLI's JSON. That fixes Workshop comments, which never
-      loaded: the CLI gave the author as a numeric SteamID and the TUI
-      expected a string. Subscribe and unsubscribe resolve the item first,
-      so a collection covers its items, as in the CLI. Market search and
-      price keep their background threads; the unused blocking variants are
-      gone.
+          workshop. Fields are mapped from `libgaki` types directly instead of
+          parsing the CLI's JSON. That fixes Workshop comments, which never
+          loaded: the CLI gave the author as a numeric SteamID and the TUI
+          expected a string. Subscribe and unsubscribe resolve the item first,
+          so a collection covers its items, as in the CLI. Market search and
+          price keep their background threads; the unused blocking variants are
+          gone.
     - [x] Collections. The local store is edited directly (offline);
-      pull, push and sync use the session. Negative app ids are rejected
-      instead of being passed through.
+          pull, push and sync use the session. Negative app ids are rejected
+          instead of being passed through.
 - [x] **4.3** Fix the QR login bug (Q1). Render the QR challenge from the
-  `libgaki` auth flow directly, rather than scraping it from CLI output, which
-  is the most likely cause of the bug. Add a render test.
-  *Done.* Root cause: in `--json` mode `gaki-cli login --qr` watches stdin
-  for a `cancel` line and takes EOF as "driver gone". The TUI spawned it with
-  stdin set to null, so the login aborted ("stdin closed; QR login
-  abandoned"), usually before Steam sent a challenge. The 4.2 port removed
-  the subprocess; the challenge now comes from `ops::auth::login_qr`
-  directly. Also fixed: Esc didn't cancel, so an abandoned attempt kept
-  running for up to 10 minutes, overwrote a newer attempt's code with its
-  rotations, and threw you off the QR page when it timed out. Each attempt
-  now has a number; a stale one stops at once and its code and outcome are
-  dropped. The page shows only the code, centred, so it fits a standard
-  80×24 terminal with its quiet zone; a smaller terminal gets the size it
-  needs instead of a clipped code. `tests/qr_view.rs` decodes the drawn
-  cells back into modules and compares them with the QR matrix.
+      `libgaki` auth flow directly, rather than scraping it from CLI output, which
+      is the most likely cause of the bug. Add a render test.
+      _Done._ Root cause: in `--json` mode `gaki-cli login --qr` watches stdin
+      for a `cancel` line and takes EOF as "driver gone". The TUI spawned it with
+      stdin set to null, so the login aborted ("stdin closed; QR login
+      abandoned"), usually before Steam sent a challenge. The 4.2 port removed
+      the subprocess; the challenge now comes from `ops::auth::login_qr`
+      directly. Also fixed: Esc didn't cancel, so an abandoned attempt kept
+      running for up to 10 minutes, overwrote a newer attempt's code with its
+      rotations, and threw you off the QR page when it timed out. Each attempt
+      now has a number; a stale one stops at once and its code and outcome are
+      dropped. The page shows only the code, centred, so it fits a standard
+      80×24 terminal with its quiet zone; a smaller terminal gets the size it
+      needs instead of a clipped code. `tests/qr_view.rs` decodes the drawn
+      cells back into modules and compares them with the QR matrix.
 - [x] **4.4** Delete the subprocess layer and drop `reqwest` blocking and
-  `serde_json` CLI parsing from the TUI.
-  *Done.* Removed `bin`, `AURELIA_BIN`, `version`, `version_supported`,
-  `MIN_VERSION` and `STError::Process`; the footer badge shows the TUI's own
-  version (`gaki vX.Y.Z`) instead of probing a binary. The interface structs
-  lost their `Deserialize` derives, `#[serde]` attributes and lenient
-  deserializers (`de_steam_id`, `de_opt_u64`, `default_true`), and
-  `config_show` maps `LauncherConfig` directly. `serde_json` stays for the
-  TUI's own settings file, the library cache and ProtonDB responses.
-  Artwork and ProtonDB fetches go through `util::http`, one shared
-  `libgaki::core::net::http_client` on the worker runtime, so `reqwest`
-  lost its `blocking` feature. Docs and messages that still named the
-  `aurelia` CLI now describe the in-process calls; sign-in hints say
-  `gaki-cli login`. Still open: the TUI's own settings and cache live in
-  `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
+      `serde_json` CLI parsing from the TUI.
+      _Done._ Removed `bin`, `AURELIA_BIN`, `version`, `version_supported`,
+      `MIN_VERSION` and `STError::Process`; the footer badge shows the TUI's own
+      version (`gaki vX.Y.Z`) instead of probing a binary. The interface structs
+      lost their `Deserialize` derives, `#[serde]` attributes and lenient
+      deserializers (`de_steam_id`, `de_opt_u64`, `default_true`), and
+      `config_show` maps `LauncherConfig` directly. `serde_json` stays for the
+      TUI's own settings file, the library cache and ProtonDB responses.
+      Artwork and ProtonDB fetches go through `util::http`, one shared
+      `libgaki::core::net::http_client` on the worker runtime, so `reqwest`
+      lost its `blocking` feature. Docs and messages that still named the
+      `aurelia` CLI now describe the in-process calls; sign-in hints say
+      `gaki-cli login`. Still open: the TUI's own settings and cache live in
+      `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`).
 - [x] **4.5** Bring `gaki-tui` into line with the ARCHITECTURE layout: `cli/`,
-  `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
-  Split into four commits. Test files keep their current layout until 7.6.
+      `settings/`, `logger/`, `app/`, one file per element in `ui/`, and `utils/`.
+      Split into four commits. Test files keep their current layout until 7.6.
   - [x] **4.5a** Entry plumbing. `util/` → `utils/`. A clap `cli/` replaces the
-    hand-parsed `--chat <steamid> <name>` with `--chat <STEAMID> [--name <NAME>]`,
-    and adds `--log-level`. `settings/` resolves `CliOptions` (plus the proxy
-    config) into `Settings`. `logger/` sets up a `tracing` subscriber that writes
-    to `$XDG_STATE_HOME/gaki/gaki-tui.log` and never to the terminal. That
-    replaces the `log!` macro. `main` becomes parse → resolve → proxy → logger →
-    run.
-    *Done.* The log path comes from a new `libgaki::core::config::state_dir()`,
-    which honours `XDG_STATE_HOME` and ignores a relative value, as the XDG spec
-    says (D10's `account.toml` will use it too). The file is opened append-only
-    and `0600`, since it can hold account names and SteamIDs. The default level
-    is `info`, and `--log-level off` creates no file. A failure to set up logging
-    prints a warning and the TUI starts anyway. The Friends panel's `t` now
-    spawns `--chat <id> --name=<name>`, so a name starting with `-` isn't read as
-    a flag. Errors from the run loop go to the log and to stderr, and the exit
-    code is non-zero. **Found on the way:** `config_dir()` hard-codes
-    `~/.config/gaki` and ignores `XDG_CONFIG_HOME`, which §11.5 requires; that
-    fix fits 4.6, which moves the TUI's dirs anyway.
+        hand-parsed `--chat <steamid> <name>` with `--chat <STEAMID> [--name <NAME>]`,
+        and adds `--log-level`. `settings/` resolves `CliOptions` (plus the proxy
+        config) into `Settings`. `logger/` sets up a `tracing` subscriber that writes
+        to `$XDG_STATE_HOME/gaki/gaki-tui.log` and never to the terminal. That
+        replaces the `log!` macro. `main` becomes parse → resolve → proxy → logger →
+        run.
+        _Done._ The log path comes from a new `libgaki::core::config::state_dir()`,
+        which honours `XDG_STATE_HOME` and ignores a relative value, as the XDG spec
+        says (D10's `account.toml` will use it too). The file is opened append-only
+        and `0600`, since it can hold account names and SteamIDs. The default level
+        is `info`, and `--log-level off` creates no file. A failure to set up logging
+        prints a warning and the TUI starts anyway. The Friends panel's `t` now
+        spawns `--chat <id> --name=<name>`, so a name starting with `-` isn't read as
+        a flag. Errors from the run loop go to the log and to stderr, and the exit
+        code is non-zero. **Found on the way:** `config_dir()` hard-codes
+        `~/.config/gaki` and ignores `XDG_CONFIG_HOME`, which §11.5 requires; that
+        fix fits 4.6, which moves the TUI's dirs anyway.
   - [x] **4.5b** Move the two run loops (`entry`, `chat_entry`) out of `main.rs`.
-    Event handling and key dispatch go to `app/`, the frame drawing to `ui/`
-    (`ui::draw`), and the artwork helpers (`cover_resize`, `fade_bottom`,
-    `halfblock_art`) to `ui/artwork.rs`.
-    *Done.* `main.rs` is down to 41 lines. `app/library.rs` holds the loop and
-    the screen transitions (`advance`). `app/keys/` handles keys per screen
-    (`login`, `browse`, `overlays`, `actions`), and `app/keys/shared.rs` holds
-    install, pause/resume, cancel, favourite, hide and reload. Before, the
-    Actions menu and the accelerators each had their own copy of those.
-    `app/artwork.rs` and `app/marquee.rs` carry the art and marquee state that
-    used to be loose locals. `app/chat.rs` runs the `--chat` window, and
-    `app/terminal.rs` has a `TerminalGuard` that restores raw mode and the
-    mouse on drop, so `main` no longer has to. On the drawing side,
-    `ui::draw` dispatches to `ui/library.rs` (the layout), `ui/overlays.rs`
-    (the overlay stack) and `ui/login.rs` (the old `App::build_*` builders,
-    now free functions; the unused `build_login` is gone). The new
-    `Browser::overlay_open` replaces a 30-flag condition.
-    **Fixed on the way:** every quit exited with "The cursor position could
-    not be read within a normal duration". `Terminal::clear` queries the
-    cursor, and the input thread, blocked reading stdin, takes the reply. The
-    clears after a login or reload ran the same risk mid-session.
-    `app::terminal::clear` clears without asking (`clear_region(All)` plus
-    `swap_buffers`). **Dropped:** the 17 `show_cursor`/`hide_cursor` calls.
-    Nothing sets a cursor position, so each `draw` hid the cursor again and
-    the calls did nothing. Checked in a scripted pty: sign-in page, username
-    entry, Esc, quit with exit 0, and the `--chat` window. `HEAD` showed the
-    quit error under the same script.
+        Event handling and key dispatch go to `app/`, the frame drawing to `ui/`
+        (`ui::draw`), and the artwork helpers (`cover_resize`, `fade_bottom`,
+        `halfblock_art`) to `ui/artwork.rs`.
+        _Done._ `main.rs` is down to 41 lines. `app/library.rs` holds the loop and
+        the screen transitions (`advance`). `app/keys/` handles keys per screen
+        (`login`, `browse`, `overlays`, `actions`), and `app/keys/shared.rs` holds
+        install, pause/resume, cancel, favourite, hide and reload. Before, the
+        Actions menu and the accelerators each had their own copy of those.
+        `app/artwork.rs` and `app/marquee.rs` carry the art and marquee state that
+        used to be loose locals. `app/chat.rs` runs the `--chat` window, and
+        `app/terminal.rs` has a `TerminalGuard` that restores raw mode and the
+        mouse on drop, so `main` no longer has to. On the drawing side,
+        `ui::draw` dispatches to `ui/library.rs` (the layout), `ui/overlays.rs`
+        (the overlay stack) and `ui/login.rs` (the old `App::build_*` builders,
+        now free functions; the unused `build_login` is gone). The new
+        `Browser::overlay_open` replaces a 30-flag condition.
+        **Fixed on the way:** every quit exited with "The cursor position could
+        not be read within a normal duration". `Terminal::clear` queries the
+        cursor, and the input thread, blocked reading stdin, takes the reply. The
+        clears after a login or reload ran the same risk mid-session.
+        `app::terminal::clear` clears without asking (`clear_region(All)` plus
+        `swap_buffers`). **Dropped:** the 17 `show_cursor`/`hide_cursor` calls.
+        Nothing sets a cursor position, so each `draw` hid the cursor again and
+        the calls did nothing. Checked in a scripted pty: sign-in page, username
+        entry, Esc, quit with exit 0, and the `--chat` window. `HEAD` showed the
+        quit error under the same script.
   - [x] **4.5c** Split `browse.rs` (the `Browser` state machine) into
-    `app/browser/`, one file per view's state and actions.
-    *Done.* `browse.rs` is gone. `app/browser/mod.rs` keeps the `Browser`
-    struct, `new()` and the `Slot` type, and re-exports the public types. The
-    methods sit in 23 files, one per view (`library`, `install`, `actions`,
-    `relocate` for move/relink/import, `account` for account/settings/wallet,
-    then one per overlay). The types moved with their view (`Filter`, `View`,
-    `Sort`, `Counts` and `Badge` to `library`, `InstallPhase` to `install`,
-    `Action` and `ActionRow` to `actions`), and `install_tests` became
-    `install.rs`'s tests. Every `crate::browse::` path is now
-    `crate::app::browser::`. Only `reset_selection` and `clamp_selection`
-    became `pub(super)`; nothing else changed visibility. **Not done:** the
-    fields still all live on `Browser` rather than in per-view sub-structs.
-    That change would touch every `ui/` builder and integration test that
-    reads `browser.show_*` and friends, so it fits better with 7.6 or with
-    feature gating (6.x), where each view's state needs a `cfg` anyway. Some
-    integration-test comments still describe `main.rs` layouts that no longer
-    exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.6 covers them.
+        `app/browser/`, one file per view's state and actions.
+        _Done._ `browse.rs` is gone. `app/browser/mod.rs` keeps the `Browser`
+        struct, `new()` and the `Slot` type, and re-exports the public types. The
+        methods sit in 23 files, one per view (`library`, `install`, `actions`,
+        `relocate` for move/relink/import, `account` for account/settings/wallet,
+        then one per overlay). The types moved with their view (`Filter`, `View`,
+        `Sort`, `Counts` and `Badge` to `library`, `InstallPhase` to `install`,
+        `Action` and `ActionRow` to `actions`), and `install_tests` became
+        `install.rs`'s tests. Every `crate::browse::` path is now
+        `crate::app::browser::`. Only `reset_selection` and `clamp_selection`
+        became `pub(super)`; nothing else changed visibility. **Not done:** the
+        fields still all live on `Browser` rather than in per-view sub-structs.
+        That change would touch every `ui/` builder and integration test that
+        reads `browser.show_*` and friends, so it fits better with 7.6 or with
+        feature gating (6.x), where each view's state needs a `cfg` anyway. Some
+        integration-test comments still describe `main.rs` layouts that no longer
+        exist (`tests/browse_view.rs`, `tests/friends_chat.rs`); 7.6 covers them.
   - [x] **4.5d** Fold the rest: `client.rs` and `interface/` into `app/`,
-    `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
-    `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,
-    `app`, `ui` and `utils`.
-    *Done.* `interface/aurelia.rs` is now `app/steam.rs`, since it's the TUI's
-    view of Steam over `libgaki` and the `aurelia` name was left over from the
-    CLI it once shelled out to; `aurelia::` call sites read `steam::`.
-    `interface/game*.rs` became `app/game/` (`mod.rs` for `Game`, `status.rs`,
-    and `protondb.rs`, which was `proton_data`). `client.rs` is
-    `app/client.rs`, with its stale "shells out to the aurelia CLI" doc
-    rewritten. `config.rs` is `config/` with its test in `config/tests.rs`,
-    and `theme.rs` is `ui/theme.rs`. `tests/aurelia_integration.rs` became
-    `tests/steam_integration.rs`. **Left as is:** the `*Json` struct names in
-    `app/steam.rs` (`DlcJson`, `FriendJson`, …) date from parsing the CLI's
-    JSON output. They're plain view models now, and renaming them touches
-    every view, so that's a separate cleanup. The `aurelia-tui` directory
-    names wait for 4.6.
+        `config.rs` into `config/` (still JSON until Phase 5), and `theme.rs` into
+        `ui/theme.rs`. `lib.rs` is left with `cli`, `config`, `settings`, `logger`,
+        `app`, `ui` and `utils`.
+        _Done._ `interface/aurelia.rs` is now `app/steam.rs`, since it's the TUI's
+        view of Steam over `libgaki` and the `aurelia` name was left over from the
+        CLI it once shelled out to; `aurelia::` call sites read `steam::`.
+        `interface/game*.rs` became `app/game/` (`mod.rs` for `Game`, `status.rs`,
+        and `protondb.rs`, which was `proton_data`). `client.rs` is
+        `app/client.rs`, with its stale "shells out to the aurelia CLI" doc
+        rewritten. `config.rs` is `config/` with its test in `config/tests.rs`,
+        and `theme.rs` is `ui/theme.rs`. `tests/aurelia_integration.rs` became
+        `tests/steam_integration.rs`. **Left as is:** the `*Json` struct names in
+        `app/steam.rs` (`DlcJson`, `FriendJson`, …) date from parsing the CLI's
+        JSON output. They're plain view models now, and renaming them touches
+        every view, so that's a separate cleanup. The `aurelia-tui` directory
+        names wait for 4.6.
 - [x] **4.6** Rename the TUI binary from `gaki` to `gaki-tui` (D7): the `[[bin]]` name,
-  the clap command name, the footer badge (`gaki-tui vX.Y.Z`), help text,
-  `deploy.yml` artifacts, and docs. Move the TUI's own settings and cache from
-  `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`) to
-  `gaki/tui/` under the gaki XDG dirs, so both binaries share one config root.
-  *Done.* The binary, the clap name, the footer badge (`gaki-tui vX.Y.Z`), the
-  error prefixes, `deploy.yml` and the ARCHITECTURE table all say `gaki-tui`.
-  libgaki now has one `xdg_dir()` helper behind `config_dir()` (which now
-  honours `XDG_CONFIG_HOME`, the gap found in 4.5a), a new `cache_dir()`
-  (`XDG_CACHE_HOME`) and `state_dir()`. The TUI keeps its files in
-  `gaki/tui/` under the config and cache dirs. The `AURELIA_TUI_DIR`,
-  `AURELIA_TUI_CACHE_DIR` and `AURELIA_TUI_ICON_DIR` overrides are gone (per
-  2.4a), and so is the `shellexpand` dependency that expanded them. On the
-  first start, a `config.json` in the old `~/.config/aurelia-tui` is copied
-  over, so favourites and hidden games survive. The old file is left in
-  place, and a dir set with `set_config_dir` skips the copy. The old cache
-  isn't migrated, since it refills itself. The integration tests isolate
-  themselves through `set_config_dir` and `XDG_CACHE_HOME` instead of the old
-  variables. Also replaced the splash's AURELIA wordmark and its "terminal
-  client for the aurelia Steam CLI" tagline with GAKI and "a terminal Steam
-  client". **Behaviour change:** anyone with a non-default `XDG_CONFIG_HOME`
-  now gets `$XDG_CONFIG_HOME/gaki` rather than `~/.config/gaki`, so their
-  session and config have to move or be redone once. `data_dir()` still
-  returns the config dir; moving data to `XDG_DATA_HOME` belongs with
-  Phase 5. Most of `gaki-tui/README.md` still describes the subprocess era;
-  7.2 rewrites it.
+      the clap command name, the footer badge (`gaki-tui vX.Y.Z`), help text,
+      `deploy.yml` artifacts, and docs. Move the TUI's own settings and cache from
+      `~/.config/aurelia-tui` and `~/.cache/aurelia-tui` (`util/paths.rs`) to
+      `gaki/tui/` under the gaki XDG dirs, so both binaries share one config root.
+      _Done._ The binary, the clap name, the footer badge (`gaki-tui vX.Y.Z`), the
+      error prefixes, `deploy.yml` and the ARCHITECTURE table all say `gaki-tui`.
+      libgaki now has one `xdg_dir()` helper behind `config_dir()` (which now
+      honours `XDG_CONFIG_HOME`, the gap found in 4.5a), a new `cache_dir()`
+      (`XDG_CACHE_HOME`) and `state_dir()`. The TUI keeps its files in
+      `gaki/tui/` under the config and cache dirs. The `AURELIA_TUI_DIR`,
+      `AURELIA_TUI_CACHE_DIR` and `AURELIA_TUI_ICON_DIR` overrides are gone (per
+      2.4a), and so is the `shellexpand` dependency that expanded them. On the
+      first start, a `config.json` in the old `~/.config/aurelia-tui` is copied
+      over, so favourites and hidden games survive. The old file is left in
+      place, and a dir set with `set_config_dir` skips the copy. The old cache
+      isn't migrated, since it refills itself. The integration tests isolate
+      themselves through `set_config_dir` and `XDG_CACHE_HOME` instead of the old
+      variables. Also replaced the splash's AURELIA wordmark and its "terminal
+      client for the aurelia Steam CLI" tagline with GAKI and "a terminal Steam
+      client". **Behaviour change:** anyone with a non-default `XDG_CONFIG_HOME`
+      now gets `$XDG_CONFIG_HOME/gaki` rather than `~/.config/gaki`, so their
+      session and config have to move or be redone once. `data_dir()` still
+      returns the config dir; moving data to `XDG_DATA_HOME` belongs with
+      Phase 5. Most of `gaki-tui/README.md` still describes the subprocess era;
+      7.2 rewrites it.
 
 - [x] **4.7** Clean up leftover names from earlier generations (Aurelia, Aurelia-TUI,
-  steam-tui, OpenSteamClient) across the repo. *Done.* The 32 `*Json` view
-  models in `app/steam.rs` are named for what they hold (`DlcJson` → `Dlc`,
-  `ConfigJson` → `LauncherSettings`, `AvailableJson` → `PinState`, …), and
-  their comments no longer describe CLI keys and string fallbacks that 4.4
-  removed. `STError` (from steam-tui) is `TuiError`, and
-  `opensteam_image_cache_dir` is `image_cache_dir`. Comments that still said
-  "CLI call" for what is now in-process `libgaki` work are fixed, as are
-  module names that no longer exist (`interface`, `util::http`). The root
-  README lost Aurelia's install channels (AUR, Nix, crates.io, .deb,
-  releases), its published-crates table, wiki links, star history, dead
-  links to `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md`, a broken
-  `#why-gaki-cli` anchor, and false "related projects" claims. In their
-  place: build from source, the three workspace crates, and links into
-  `docs/`. The acknowledgments credit Aurelia, Aurelia-TUI and steam-tui
-  too. `gaki-tui/README.md` now describes the in-process design, not the
-  `aurelia` subprocess. `gaki-tui/docs/FEATURE_PLAN.md`, Aurelia-TUI's
-  branch-workflow notes, is deleted. **Kept on purpose:** the
-  `aurelia-steam-cdn`/`aurelia-steam-vent-chat` crate names (real
-  dependencies), license provenance, the `aurelia-tui` legacy-config
-  migration, and the credits. **Still stale, for 7.2:** the README's
-  Windows/macOS claims (title, the Windows paragraph, `%USERPROFILE%`) and
-  feature rows for code removed in Phase 1 (Windows Steam runtime, umu and
-  luxtorpeda plugins, the GE/CachyOS download manager).
+      steam-tui, OpenSteamClient) across the repo. _Done._ The 32 `*Json` view
+      models in `app/steam.rs` are named for what they hold (`DlcJson` → `Dlc`,
+      `ConfigJson` → `LauncherSettings`, `AvailableJson` → `PinState`, …), and
+      their comments no longer describe CLI keys and string fallbacks that 4.4
+      removed. `STError` (from steam-tui) is `TuiError`, and
+      `opensteam_image_cache_dir` is `image_cache_dir`. Comments that still said
+      "CLI call" for what is now in-process `libgaki` work are fixed, as are
+      module names that no longer exist (`interface`, `util::http`). The root
+      README lost Aurelia's install channels (AUR, Nix, crates.io, .deb,
+      releases), its published-crates table, wiki links, star history, dead
+      links to `CONTRIBUTING.md`, `SECURITY.md` and `CODE_OF_CONDUCT.md`, a broken
+      `#why-gaki-cli` anchor, and false "related projects" claims. In their
+      place: build from source, the three workspace crates, and links into
+      `docs/`. The acknowledgments credit Aurelia, Aurelia-TUI and steam-tui
+      too. `gaki-tui/README.md` now describes the in-process design, not the
+      `aurelia` subprocess. `gaki-tui/docs/FEATURE_PLAN.md`, Aurelia-TUI's
+      branch-workflow notes, is deleted. **Kept on purpose:** the
+      `aurelia-steam-cdn`/`aurelia-steam-vent-chat` crate names (real
+      dependencies), license provenance, the `aurelia-tui` legacy-config
+      migration, and the credits. **Still stale, for 7.2:** the README's
+      Windows/macOS claims (title, the Windows paragraph, `%USERPROFILE%`) and
+      feature rows for code removed in Phase 1 (Windows Steam runtime, umu and
+      luxtorpeda plugins, the GE/CachyOS download manager).
 
 ### Phase 5 — configuration overhaul (R26, R29, R30, R27)
 
 - [x] **5.1** Add a `libgaki::config` module with TOML types for `config.toml`,
-  `profiles/*.toml`, and `games.toml`, and loaders that discover XDG paths. Add
-  `examples/` files and a test that parses every example, as lootrs does in
-  `liblootrs/tests/examples.rs`.
-  *Done.* `Catalog::load(config_dir, home)` reads all three files
-  (`Catalog::load_user()` uses gaki's config dir). A missing file means
-  defaults; an unreadable or unparsable one becomes a `LoadError` and the rest
-  still loads. `Catalog::validate` returns lootrs-style `Issue`s: names,
-  absolute paths after `~`, profile `name` matching the file stem, lootrs-only
-  runners (`wine`, `umu`), duplicate app ids or aliases, all-digit aliases, and
-  dangling profile references. `config.toml` and `games.toml` reject unknown
-  keys; profiles ignore them, so lootrs' `dxvk`/`vkd3d`/`[wine]`/`[umu]` load.
-  `config.toml` takes over `LauncherConfig`'s keys except `proton_version`
-  (profiles replace it) and the keyring flags (5.9 replaces them). Pin state
-  stays out of `games.toml`: it is written by gaki, not the user. A proton
-  profile's `prefix` is optional; without one each game keeps its own Steam
-  `compatdata/<app id>`. Nothing reads the new files yet (5.2, 5.3).
+      `profiles/*.toml`, and `games.toml`, and loaders that discover XDG paths. Add
+      `examples/` files and a test that parses every example, as lootrs does in
+      `liblootrs/tests/examples.rs`.
+      _Done._ `Catalog::load(config_dir, home)` reads all three files
+      (`Catalog::load_user()` uses gaki's config dir). A missing file means
+      defaults; an unreadable or unparsable one becomes a `LoadError` and the rest
+      still loads. `Catalog::validate` returns lootrs-style `Issue`s: names,
+      absolute paths after `~`, profile `name` matching the file stem, lootrs-only
+      runners (`wine`, `umu`), duplicate app ids or aliases, all-digit aliases, and
+      dangling profile references. `config.toml` and `games.toml` reject unknown
+      keys; profiles ignore them, so lootrs' `dxvk`/`vkd3d`/`[wine]`/`[umu]` load.
+      `config.toml` takes over `LauncherConfig`'s keys except `proton_version`
+      (profiles replace it) and the keyring flags (5.9 replaces them). Pin state
+      stays out of `games.toml`: it is written by gaki, not the user. A proton
+      profile's `prefix` is optional; without one each game keeps its own Steam
+      `compatdata/<app id>`. Nothing reads the new files yet (5.2, 5.3).
 - [x] **5.2** Add a `libgaki::settings` resolver that merges the layers in the
-  order CLI > game > profile > config > defaults and produces a resolved
-  `LaunchSettings` for each game.
-  *Done.* `settings::resolve(catalog, app_id, &Overrides, home)` is pure: no
-  I/O, `~` expanded. The profile comes from the CLI, then the game, then
-  `default_profile`. The platform comes from the CLI (`--proton` implies
-  Windows), then the game, then an explicitly chosen profile's runner, then
-  `default_platform`; unset, the launch picks from the game's builds. An
-  explicit profile that contradicts the platform is an error, while the
-  default profile is just left out. Proton-only values (build, prefix, DLL
-  overrides, anti-cheat) sit in `LaunchSettings::proton`. Env merges profile
-  then game. The `scripts/<app id>.sh` fallback is left to 5.5, and the
-  launch path doesn't call the resolver yet (5.3).
+      order CLI > game > profile > config > defaults and produces a resolved
+      `LaunchSettings` for each game.
+      _Done._ `settings::resolve(catalog, app_id, &Overrides, home)` is pure: no
+      I/O, `~` expanded. The profile comes from the CLI, then the game, then
+      `default_profile`. The platform comes from the CLI (`--proton` implies
+      Windows), then the game, then an explicitly chosen profile's runner, then
+      `default_platform`; unset, the launch picks from the game's builds. An
+      explicit profile that contradicts the platform is an error, while the
+      default profile is just left out. Proton-only values (build, prefix, DLL
+      overrides, anti-cheat) sit in `LaunchSettings::proton`. Env merges profile
+      then game. The `scripts/<app id>.sh` fallback is left to 5.5, and the
+      launch path doesn't call the resolver yet (5.3).
 - [x] **5.3** Rework the launch pipeline (`launch/stages/resolve_profile.rs`,
-  `prepare_prefix.rs`, and `build_environment.rs`) to use the resolved profile:
-  the shared prefix becomes `STEAM_COMPAT_DATA_PATH`, and the pipeline adds
-  wrappers, env, and DLL overrides. Steam-style per-game `compatdata/<appid>`
-  is no longer created.
-  *Done.* `ops::launch::play` resolves `LaunchSettings` once (the CLI's
-  `--proton`/`--script`/`--no-script`/`--platform` as `Overrides`) and passes
-  them down; `ResolveProfileStage` resolves them for callers that didn't. A
-  profile's `prefix` becomes `STEAM_COMPAT_DATA_PATH` (`WINEPREFIX` is its
-  `pfx`) for the launch, the running-game record, cloud sync, and DLL
-  detection; `compatdata/<appid>` is only used, and created, for a game whose
-  profile has no prefix (5.1). The Proton runner merges the profile's
-  `dll_overrides` over the computed ones, puts `runner_args` before the game,
-  and sets `PROTON_LOG` for `debug` and `PROTON_EAC_RUNTIME` /
-  `PROTON_BATTLEYE_RUNTIME` for `[anticheat]` when those runtimes are
-  installed. The empty `BuildEnvironmentStage` is gone; a new
-  `ApplySettingsStage` (after preflight, before the launch script) adds env,
-  the game's `args`, and the wrappers for both runners. The profile's Proton
-  build is used when the launch runs the Windows build; choosing *which* build
-  from `settings.platform` is 5.4. A game's `script` from `games.toml` now
-  applies too; the alias and old-path fallback remain for 5.5.
+      `prepare_prefix.rs`, and `build_environment.rs`) to use the resolved profile:
+      the shared prefix becomes `STEAM_COMPAT_DATA_PATH`, and the pipeline adds
+      wrappers, env, and DLL overrides. Steam-style per-game `compatdata/<appid>`
+      is no longer created.
+      _Done._ `ops::launch::play` resolves `LaunchSettings` once (the CLI's
+      `--proton`/`--script`/`--no-script`/`--platform` as `Overrides`) and passes
+      them down; `ResolveProfileStage` resolves them for callers that didn't. A
+      profile's `prefix` becomes `STEAM_COMPAT_DATA_PATH` (`WINEPREFIX` is its
+      `pfx`) for the launch, the running-game record, cloud sync, and DLL
+      detection; `compatdata/<appid>` is only used, and created, for a game whose
+      profile has no prefix (5.1). The Proton runner merges the profile's
+      `dll_overrides` over the computed ones, puts `runner_args` before the game,
+      and sets `PROTON_LOG` for `debug` and `PROTON_EAC_RUNTIME` /
+      `PROTON_BATTLEYE_RUNTIME` for `[anticheat]` when those runtimes are
+      installed. The empty `BuildEnvironmentStage` is gone; a new
+      `ApplySettingsStage` (after preflight, before the launch script) adds env,
+      the game's `args`, and the wrappers for both runners. The profile's Proton
+      build is used when the launch runs the Windows build; choosing _which_ build
+      from `settings.platform` is 5.4. A game's `script` from `games.toml` now
+      applies too; the alias and old-path fallback remain for 5.5.
 - [x] **5.4** Add `default_platform` (R27/Q5). `--platform` overrides it, and
-  `games.toml` can set it per game.
-  *Done.* `play`, `launch-targets` and `install` all take the build from the
-  resolved `settings.platform`: `--platform` (or `--proton`, which means
-  Windows), then the `games.toml` entry, then an explicitly chosen profile,
-  then `default_platform`. The game's old `config.json` platform and forced
-  Proton still sit between the command line and `games.toml` until 5.7 moves
-  the TUI's game settings over. `install` only uses the configured platform
-  when the game ships it, otherwise it auto-selects as before (Windows first);
-  with no platform anywhere, a launch still runs the installed build. With a
-  Windows preference the profile's Proton build is used ahead of the global
-  `proton_version`.
+      `games.toml` can set it per game.
+      _Done._ `play`, `launch-targets` and `install` all take the build from the
+      resolved `settings.platform`: `--platform` (or `--proton`, which means
+      Windows), then the `games.toml` entry, then an explicitly chosen profile,
+      then `default_platform`. The game's old `config.json` platform and forced
+      Proton still sit between the command line and `games.toml` until 5.7 moves
+      the TUI's game settings over. `install` only uses the configured platform
+      when the game ships it, otherwise it auto-selects as before (Windows first);
+      with no platform anywhere, a launch still runs the installed build. With a
+      Windows preference the profile's Proton build is used ahead of the global
+      `proton_version`.
 - [x] **5.5** Add a named `script` path per game, with a fallback to
-  `scripts/<appid>.sh` (R30/Q8), and game `name` aliases accepted wherever the
-  CLI takes an app id.
-  *Done.* `launch_script::resolve` order: `--no-script`, `--script`, the game's
-  `script` in `games.toml`, the old `config.json` `launch_script`, then
-  `<script_dir>/<app id>.sh` if it exists; `script_dir` comes from
-  `config.toml` before `config.json`. `scripts show` and the launch agree.
-  Every CLI app-id argument (52 of them) goes through one `app_ref` value
-  parser, which takes an app id or a `games.toml` `name`
-  (`libgaki::config::resolve_app_ref`); plain ids read no file. `main` finds
-  `--config-dir` before clap runs so aliases resolve against the right
-  directory. The `scripts` and `config script-dir` commands still write
-  `config.json` until 5.7.
+      `scripts/<appid>.sh` (R30/Q8), and game `name` aliases accepted wherever the
+      CLI takes an app id.
+      _Done._ `launch_script::resolve` order: `--no-script`, `--script`, the game's
+      `script` in `games.toml`, the old `config.json` `launch_script`, then
+      `<script_dir>/<app id>.sh` if it exists; `script_dir` comes from
+      `config.toml` before `config.json`. `scripts show` and the launch agree.
+      Every CLI app-id argument (52 of them) goes through one `app_ref` value
+      parser, which takes an app id or a `games.toml` `name`
+      (`libgaki::config::resolve_app_ref`); plain ids read no file. `main` finds
+      `--config-dir` before clap runs so aliases resolve against the right
+      directory. The `scripts` and `config script-dir` commands still write
+      `config.json` until 5.7.
 - [x] **5.6** Add a per-profile/per-game Steam integration mode (`host`,
-  `none`, `auto`), replacing the dropped `--steam-mode`. `auto` keeps today's
-  behaviour: bridge to host Steam when it is running or `--steam` is given.
-  *Done.* `steam = "auto" | "host" | "none"` in a profile or a `games.toml`
-  entry, resolved `--steam` (host) > game > profile > `auto` into
-  `LaunchSettings::steam`. `host` does what `--steam` did (start Steam, wait
-  for logon, always bridge, skip the DRM preflight); `none` keeps the Proton
-  launch standalone even with Steam running; a Family-Shared game still
-  forces `host`, with a warning when `none` was asked for. `launch-targets`
-  marks its default the same way. Settings are now resolved before the
-  pre-launch update, so a config error fails before anything downloads.
+      `none`, `auto`), replacing the dropped `--steam-mode`. `auto` keeps today's
+      behaviour: bridge to host Steam when it is running or `--steam` is given.
+      _Done._ `steam = "auto" | "host" | "none"` in a profile or a `games.toml`
+      entry, resolved `--steam` (host) > game > profile > `auto` into
+      `LaunchSettings::steam`. `host` does what `--steam` did (start Steam, wait
+      for logon, always bridge, skip the DRM preflight); `none` keeps the Proton
+      launch standalone even with Steam running; a Family-Shared game still
+      forces `host`, with a warning when `none` was asked for. `launch-targets`
+      marks its default the same way. Settings are now resolved before the
+      pre-launch update, so a config error fails before anything downloads.
 - [x] **5.7** CLI: rewrite the `config` subcommand for the new model and add a
-  `profiles list|show` command. TUI: wire `ui/game_config.rs` to profile
-  selection and per-game overrides. Split into:
-  - [x] **5.7a** TOML writes and the `config` command. *Done.*
-    `libgaki::config::edit` edits `config.toml`/`games.toml` in place with
-    `toml_edit`, keeping comments; every save is parsed and validated against
-    the whole config dir first (an unknown `default_profile` or game
-    `profile` is refused) and written atomically. Until 5.8, the
-    `config.toml` keys present in the file are laid over the `config.json`
-    values they replace in `load_launcher_config` and the blocking readers, so
-    every reader sees them. `gaki-cli config`: `show` prints `config.toml`
-    with defaults, new `check`, `get`, `set`, `unset` cover every key, and
-    `presence`, `experimental`, `install-resume`, `proxy`, `script-dir`,
-    `info-cache-ttl` now write `config.toml` (the TUI's presence and proxy
-    too). `config game` edits the `games.toml` entry (`--profile`,
-    `--platform`, `--script`, `--steam`, `--name`, `--clear`) and drops that
-    game's old `config.json` launch settings, which would otherwise still
-    win; its `--proton` is gone (a per-game Proton is a profile). `keyring`
-    stays in `config.json` until 5.9. Known wrinkle until 5.8: a JSON save
-    (pins, keyring) writes the overlaid TOML values into `config.json` too.
-  - [x] **5.7b** `gaki-cli profiles list|show`. *Done.* `list` shows each
-    profile's runner and Proton build, how many games name it, its prefix,
-    the `default_profile` marker, profiles with errors, and profile files
-    that didn't load; `show` prints the file itself, the games using it
-    (with aliases), and its issues. Both take `--json` and run locally, not
-    through the daemon (they only read files), and follow `profiles_dir`.
-    Profiles with a lootrs-only runner now report just that error, not
-    warnings about fields that mean something else in lootrs.
+      `profiles list|show` command. TUI: wire `ui/game_config.rs` to profile
+      selection and per-game overrides. Split into:
+  - [x] **5.7a** TOML writes and the `config` command. _Done._
+        `libgaki::config::edit` edits `config.toml`/`games.toml` in place with
+        `toml_edit`, keeping comments; every save is parsed and validated against
+        the whole config dir first (an unknown `default_profile` or game
+        `profile` is refused) and written atomically. Until 5.8, the
+        `config.toml` keys present in the file are laid over the `config.json`
+        values they replace in `load_launcher_config` and the blocking readers, so
+        every reader sees them. `gaki-cli config`: `show` prints `config.toml`
+        with defaults, new `check`, `get`, `set`, `unset` cover every key, and
+        `presence`, `experimental`, `install-resume`, `proxy`, `script-dir`,
+        `info-cache-ttl` now write `config.toml` (the TUI's presence and proxy
+        too). `config game` edits the `games.toml` entry (`--profile`,
+        `--platform`, `--script`, `--steam`, `--name`, `--clear`) and drops that
+        game's old `config.json` launch settings, which would otherwise still
+        win; its `--proton` is gone (a per-game Proton is a profile). `keyring`
+        stays in `config.json` until 5.9. Known wrinkle until 5.8: a JSON save
+        (pins, keyring) writes the overlaid TOML values into `config.json` too.
+  - [x] **5.7b** `gaki-cli profiles list|show`. _Done._ `list` shows each
+        profile's runner and Proton build, how many games name it, its prefix,
+        the `default_profile` marker, profiles with errors, and profile files
+        that didn't load; `show` prints the file itself, the games using it
+        (with aliases), and its issues. Both take `--json` and run locally, not
+        through the daemon (they only read files), and follow `profiles_dir`.
+        Profiles with a lootrs-only runner now report just that error, not
+        warnings about fields that mean something else in lootrs.
   - [x] **5.7c** Drop launch scripts for per-game `wrappers`. A script was
-    already run exactly like a wrapper (the command as `"$@"`), so wrappers
-    cover it. *Done.* `games.toml` entries take `wrappers`, applied inside
-    the profile's (a leading `~/` is expanded); every launch exports the
-    `GAKI_*` variables (`launch::game_env`) before wrapping. Removed: the
-    `script` key, `script_dir`, the `scripts/<app id>.sh` fallback,
-    `launch_script`, `ApplyLaunchScriptStage`, `ops::scripts`, the
-    `scripts` command, `play --script/--no-script`, `config script-dir`,
-    `config game --script` (now `--wrapper`/`--no-wrappers`), and the
-    TUI's launch-script row. `config check` warns about each leftover
-    `<config dir>/scripts/*.sh` and how to keep it as a wrapper. An old
-    `script` key in `games.toml` fails to load with "unknown field".
+        already run exactly like a wrapper (the command as `"$@"`), so wrappers
+        cover it. _Done._ `games.toml` entries take `wrappers`, applied inside
+        the profile's (a leading `~/` is expanded); every launch exports the
+        `GAKI_*` variables (`launch::game_env`) before wrapping. Removed: the
+        `script` key, `script_dir`, the `scripts/<app id>.sh` fallback,
+        `launch_script`, `ApplyLaunchScriptStage`, `ops::scripts`, the
+        `scripts` command, `play --script/--no-script`, `config script-dir`,
+        `config game --script` (now `--wrapper`/`--no-wrappers`), and the
+        TUI's launch-script row. `config check` warns about each leftover
+        `<config dir>/scripts/*.sh` and how to keep it as a wrapper. An old
+        `script` key in `games.toml` fails to load with "unknown field".
   - [x] **5.7d** TUI: `game_config` on `games.toml` with profile selection;
-    drop the JSON `update_game`. *Done.* The Game settings overlay has
-    Profile, Platform and Steam rows, all written to the `games.toml` entry
-    through `update_game_entry` (so the game's old `config.json` forced
-    Proton and platform are dropped on the first change). An unset row
-    shows what it falls back to (`default_profile`, the profile's Steam
-    integration). The wrappers are shown read-only, with the CLI command
-    to change them. Removed: the TUI's forced-Proton row,
-    `GameSettingsChange`, `GameSettings`, `update_game`, `platform_name`
-    and `Change::apply_to` from `ops::config`.
-- [x] **5.8** Remove the JSON config code paths. *Decided:* every file gaki
-  stores becomes TOML, in the same directory under the same name, caches
-  included (`--json` output and Steam's JSON APIs are not files and stay).
-  No migration: `config check` warns about a leftover `config.json` or
-  `user_apps.json`. Split into:
-  - [x] **5.8a** Settings. *Done.* `config.json` is gone: its last settings
-    are `config.toml` keys, `default_proton` (what `proton default` sets; the
-    build for a Windows launch whose profile names none) and, until 5.9,
-    `keyring` and `encrypt_session`. `LauncherConfig` is now a plain view of
-    `config.toml` (`from_config`), so the `TomlOverlay` bridge, the blocking
-    JSON readers, `ops::config::update` and `save_launcher_config` are gone.
-    Version pins live in `<config dir>/pins.toml` (one table per app id,
-    depot = "manifest id", strings since manifest ids exceed TOML's integer
-    range), written atomically (`config::edit::write_atomic`). The old
-    per-game forced Proton and platform (`GameConfig`, `BuildPreference`)
-    and `user_apps.json` (launch options, env, graphics layers; nothing wrote
-    it) no longer reach the launch; the in-memory `UserAppConfig` plumbing
-    in the runner stays for now. The TUI's settings moved to
-    `tui/config.toml`; a broken file is logged and left alone instead of
-    being overwritten with defaults, and the copy-over of an
-    `~/.config/aurelia-tui/config.json` is gone.
+        drop the JSON `update_game`. _Done._ The Game settings overlay has
+        Profile, Platform and Steam rows, all written to the `games.toml` entry
+        through `update_game_entry` (so the game's old `config.json` forced
+        Proton and platform are dropped on the first change). An unset row
+        shows what it falls back to (`default_profile`, the profile's Steam
+        integration). The wrappers are shown read-only, with the CLI command
+        to change them. Removed: the TUI's forced-Proton row,
+        `GameSettingsChange`, `GameSettings`, `update_game`, `platform_name`
+        and `Change::apply_to` from `ops::config`.
+- [x] **5.8** Remove the JSON config code paths. _Decided:_ every file gaki
+      stores becomes TOML, in the same directory under the same name, caches
+      included (`--json` output and Steam's JSON APIs are not files and stay).
+      No migration: `config check` warns about a leftover `config.json` or
+      `user_apps.json`. Split into:
+  - [x] **5.8a** Settings. _Done._ `config.json` is gone: its last settings
+        are `config.toml` keys, `default_proton` (what `proton default` sets; the
+        build for a Windows launch whose profile names none) and, until 5.9,
+        `keyring` and `encrypt_session`. `LauncherConfig` is now a plain view of
+        `config.toml` (`from_config`), so the `TomlOverlay` bridge, the blocking
+        JSON readers, `ops::config::update` and `save_launcher_config` are gone.
+        Version pins live in `<config dir>/pins.toml` (one table per app id,
+        depot = "manifest id", strings since manifest ids exceed TOML's integer
+        range), written atomically (`config::edit::write_atomic`). The old
+        per-game forced Proton and platform (`GameConfig`, `BuildPreference`)
+        and `user_apps.json` (launch options, env, graphics layers; nothing wrote
+        it) no longer reach the launch; the in-memory `UserAppConfig` plumbing
+        in the runner stays for now. The TUI's settings moved to
+        `tui/config.toml`; a broken file is logged and left alone instead of
+        being overwritten with defaults, and the copy-over of an
+        `~/.config/aurelia-tui/config.json` is gone.
   - [x] **5.8b** gaki's state files to TOML, same paths:
-    `install_backlog`, `collections`, `running/<app id>`, the cloud-sync
-    state. (`session.json` goes in 5.9.) *Done.* All four go through
-    `core::store::{read, write}` (TOML, atomic temp-file-and-rename; a
-    missing file is `None`); collections and the cloud-sync baselines are
-    now written atomically too. A dynamic collection's `filter_spec` is
-    Steam's opaque JSON, which can hold `null`, so it is kept as JSON text
-    in a TOML string (`store::json_text`). `config check` also warns about
-    a leftover `collections.json` (unpushed edits are only there) and
-    `install_backlog.json`; old `running/*.json` and `cloud_sync/*.json`
-    are ignored (a missing baseline only means the next sync compares
-    from scratch).
+        `install_backlog`, `collections`, `running/<app id>`, the cloud-sync
+        state. (`session.json` goes in 5.9.) _Done._ All four go through
+        `core::store::{read, write}` (TOML, atomic temp-file-and-rename; a
+        missing file is `None`); collections and the cloud-sync baselines are
+        now written atomically too. A dynamic collection's `filter_spec` is
+        Steam's opaque JSON, which can hold `null`, so it is kept as JSON text
+        in a TOML string (`store::json_text`). `config check` also warns about
+        a leftover `collections.json` (unpushed edits are only there) and
+        `install_backlog.json`; old `running/*.json` and `cloud_sync/*.json`
+        are ignored (a missing baseline only means the next sync compares
+        from scratch).
   - [x] **5.8c** Caches and launch-log artifacts to TOML: `library_cache`,
-    the info and name caches, the TUI's `games` cache, `summary`,
-    `effective_env` and the other log files. Drop `serde_json` where only
-    files used it. *Done.* All go through `core::store` (the TUI writes its
-    cache with `write_atomic`). TOML can't hold a bare list or a missing
-    value inside an array, so the lists sit under a key (`[[games]]`,
-    `[[resolution]]`) and the info cache's DLC `(id, name)` pairs are
-    `[[dlc]]` tables. The launch event log is `events.toml`, one
-    `[[event]]` table appended per event, so the file stays valid TOML
-    (`EventLog::parse` reads it back). Old `.json` caches are ignored and
-    refill themselves. `serde_json` stays in all three crates: Steam's web
-    APIs, ProtonDB, `--json` output and `session.json` (until 5.9) use it.
-    The only JSON file gaki still writes is `session.json`.
+        the info and name caches, the TUI's `games` cache, `summary`,
+        `effective_env` and the other log files. Drop `serde_json` where only
+        files used it. _Done._ All go through `core::store` (the TUI writes its
+        cache with `write_atomic`). TOML can't hold a bare list or a missing
+        value inside an array, so the lists sit under a key (`[[games]]`,
+        `[[resolution]]`) and the info cache's DLC `(id, name)` pairs are
+        `[[dlc]]` tables. The launch event log is `events.toml`, one
+        `[[event]]` table appended per event, so the file stays valid TOML
+        (`EventLog::parse` reads it back). Old `.json` caches are ignored and
+        refill themselves. `serde_json` stays in all three crates: Steam's web
+        APIs, ProtonDB, `--json` output and `session.json` (until 5.9) use it.
+        The only JSON file gaki still writes is `session.json`.
 
 **Credentials (D10).** The following steps implement the model described in
 "Authentication and session security". They come after 5.1, which adds the
 `config.toml` keys.
 
 - [x] **5.9** Add a `libgaki::auth::store` module with a `SecretStore` trait
-  and two backends, `Keyring` (one Secret Service item per secret:
-  `gaki`/`refresh-token:<steamid>` and `gaki`/`web-token:<steamid>`) and
-  `Memory`. Add `session_store`. Delete `session.json`, the ChaCha/Argon2
-  envelope (`core/session_crypto.rs`), the legacy password mode,
-  `encrypt_session`, `use_keyring`, and the `argon2`, `chacha20poly1305` and
-  `hex` dependencies if nothing else uses them. Never fall back to plaintext.
-  Non-secret account metadata goes to `$XDG_STATE_HOME/gaki/account.toml`.
-  A user with an old `session.json` logs in once; gaki then deletes the file.
-  *Done.* `libgaki::auth`: `store` (the trait, `Keyring`, `Memory`,
-  `session_store`, `set_session_store`) and `session` (`load_session`,
-  `save_session`, `delete_session`, `stored_account`). `account.toml` holds
-  the names, SteamID and which tokens the store has, so a token the keyring
-  lost is a "log in again" error naming the store instead of a silent
-  logout; it sits in the config dir instead when one is set for the process
-  (`--config-dir`, tests). A save also removes the tokens of an account it
-  replaces, an old `session.json`, and the old `gaki`/`session-key` item.
-  An old `session.json` without `account.toml` asks for a login (`config
-  check` warns about it too). Without a keyring the error says so and
-  points at `secret_store = "memory"`, a new `config.toml` key (settings
-  are never environment variables) that keeps tokens in the running daemon
-  only. The daemon now watches `account.toml`. `logout` no longer restores
-  first, so a session that can't be restored can still be removed. Removed:
-  `config keyring`, the `keyring`/`encrypt_session` keys, `argon2`,
-  `chacha20poly1305`; `hex` stays (the depot browser uses it).
+      and two backends, `Keyring` (one Secret Service item per secret:
+      `gaki`/`refresh-token:<steamid>` and `gaki`/`web-token:<steamid>`) and
+      `Memory`. Add `session_store`. Delete `session.json`, the ChaCha/Argon2
+      envelope (`core/session_crypto.rs`), the legacy password mode,
+      `encrypt_session`, `use_keyring`, and the `argon2`, `chacha20poly1305` and
+      `hex` dependencies if nothing else uses them. Never fall back to plaintext.
+      Non-secret account metadata goes to `$XDG_STATE_HOME/gaki/account.toml`.
+      A user with an old `session.json` logs in once; gaki then deletes the file.
+      _Done._ `libgaki::auth`: `store` (the trait, `Keyring`, `Memory`,
+      `session_store`, `set_session_store`) and `session` (`load_session`,
+      `save_session`, `delete_session`, `stored_account`). `account.toml` holds
+      the names, SteamID and which tokens the store has, so a token the keyring
+      lost is a "log in again" error naming the store instead of a silent
+      logout; it sits in the config dir instead when one is set for the process
+      (`--config-dir`, tests). A save also removes the tokens of an account it
+      replaces, an old `session.json`, and the old `gaki`/`session-key` item.
+      An old `session.json` without `account.toml` asks for a login (`config
+check` warns about it too). Without a keyring the error says so and
+      points at `secret_store = "memory"`, a new `config.toml` key (settings
+      are never environment variables) that keeps tokens in the running daemon
+      only. The daemon now watches `account.toml`. `logout` no longer restores
+      first, so a session that can't be restored can still be removed. Removed:
+      `config keyring`, the `keyring`/`encrypt_session` keys, `argon2`,
+      `chacha20poly1305`; `hex` stays (the depot browser uses it).
 - [x] **5.10** Token hygiene. Wrap tokens in `secrecy::SecretString`:
-  redacted `Debug`, zeroized on drop, and no `Serialize`. Add a test that
-  `{:?}` of every session type contains no token. Grep `tracing` calls for
-  token fields.
-  *Done.* `SessionState`'s `refresh_token`/`web_token`, `WebTokenInfo::token`,
-  `WebSession`'s cookie header (it carries `steamLoginSecure`) and, beyond
-  the plan, `PasswordLogin::password` are `SecretString`s; `SessionState`
-  lost `Serialize`/`Deserialize` (`account.toml` has its own type), and
-  `WebSession` got a `Debug` that shows only the SteamID and the redacted
-  cookie. `auth::redaction_tests` checks `{:?}` and `{:#?}` of all four.
-  The `tracing`/print grep found no token values logged (the CDN auth token
-  is logged by length only), and no token is put in a URL, so request
-  errors can't echo one. Left as is: the plain copies handed to
-  steam-vent's `Connection::access`/login and the TUI's password input
-  buffer.
+      redacted `Debug`, zeroized on drop, and no `Serialize`. Add a test that
+      `{:?}` of every session type contains no token. Grep `tracing` calls for
+      token fields.
+      _Done._ `SessionState`'s `refresh_token`/`web_token`, `WebTokenInfo::token`,
+      `WebSession`'s cookie header (it carries `steamLoginSecure`) and, beyond
+      the plan, `PasswordLogin::password` are `SecretString`s; `SessionState`
+      lost `Serialize`/`Deserialize` (`account.toml` has its own type), and
+      `WebSession` got a `Debug` that shows only the SteamID and the redacted
+      cookie. `auth::redaction_tests` checks `{:?}` and `{:#?}` of all four.
+      The `tracing`/print grep found no token values logged (the CDN auth token
+      is logged by length only), and no token is put in a URL, so request
+      errors can't echo one. Left as is: the plain copies handed to
+      steam-vent's `Connection::access`/login and the TUI's password input
+      buffer.
 - [x] **5.11** Make logout revoke at Steam. Call
-  `Authentication.RevokeRefreshToken` before deleting the local copy. If
-  steam-vent doesn't expose it, hand-wire it as the CloudConfigStore RPC is.
-  If revocation fails, delete locally anyway and say the token may still be
-  valid until it expires.
-  *Done.* steam-vent already exposes `Authentication.RevokeToken#1`
-  (`CAuthentication_Token_Revoke_Request`: the token plus a revoke action),
-  which is how a client revokes its own refresh token, so nothing needed
-  hand-wiring; `RevokeRefreshToken` takes a token id and a device signature
-  and is for revoking other sessions. `SteamClient::revoke_refresh_token`
-  sends it as `k_EAuthTokenRevokePermanent`. `ops::auth::logout` restores
-  the session if needed (the daemon and the TUI use their live one), revokes
-  within 20 s, then deletes the local session whatever happened, and returns
-  a `Revocation` (`revoked`, `no_token`, `failed` with the reason). The CLI
-  prints it (`--json`: `"token": {"revocation": ...}`); on failure it warns
-  that a copy may work until it expires. The TUI's logout no longer needs a
-  restorable session either. A browser web token can't be revoked; it
-  expires on its own. Not tested against Steam (needs an account).
+      `Authentication.RevokeRefreshToken` before deleting the local copy. If
+      steam-vent doesn't expose it, hand-wire it as the CloudConfigStore RPC is.
+      If revocation fails, delete locally anyway and say the token may still be
+      valid until it expires.
+      _Done._ steam-vent already exposes `Authentication.RevokeToken#1`
+      (`CAuthentication_Token_Revoke_Request`: the token plus a revoke action),
+      which is how a client revokes its own refresh token, so nothing needed
+      hand-wiring; `RevokeRefreshToken` takes a token id and a device signature
+      and is for revoking other sessions. `SteamClient::revoke_refresh_token`
+      sends it as `k_EAuthTokenRevokePermanent`. `ops::auth::logout` restores
+      the session if needed (the daemon and the TUI use their live one), revokes
+      within 20 s, then deletes the local session whatever happened, and returns
+      a `Revocation` (`revoked`, `no_token`, `failed` with the reason). The CLI
+      prints it (`--json`: `"token": {"revocation": ...}`); on failure it warns
+      that a copy may work until it expires. The TUI's logout no longer needs a
+      restorable session either. A browser web token can't be revoked; it
+      expires on its own. Not tested against Steam (needs an account).
 - [x] **5.12** Harden the daemon. The socket lives only under
-  `$XDG_RUNTIME_DIR` (with no `/tmp` fallback; refuse to start without it).
-  Create it `0600` inside a `0700` `gaki/` directory, check `SO_PEERCRED` so
-  only the same uid can connect, and enforce `daemon_idle_timeout`. The daemon
-  reads the token from the store itself; it never travels over the socket.
-  *Done.* The socket is `$XDG_RUNTIME_DIR/gaki/daemon.sock`; an unset, empty
-  or relative `XDG_RUNTIME_DIR` means no daemon (`gaki-cli daemon` fails, a
-  client runs the command locally without trying to spawn one). `gaki/` is
-  created `0700`; an existing one we own is tightened, anything else is
-  refused. The socket is chmod `0600` after bind, `--socket` paths included,
-  and `accept` drops a peer whose `SO_PEERCRED` uid isn't ours, with a
-  warning. `daemon_idle_timeout` is a `config.toml` key in seconds (default
-  1800, `0` never, like `info_cache_ttl`), re-read every 30 s check; the
-  daemon exits when no request, install or game is running and it has been
-  quiet that long, removing its marker and socket. The version marker is now
-  `daemon.toml` next to the socket (it was JSON at `gaki-<uid>.info`). The
-  socket protocol carries argv, stdio and an exit code, never a token.
+      `$XDG_RUNTIME_DIR` (with no `/tmp` fallback; refuse to start without it).
+      Create it `0600` inside a `0700` `gaki/` directory, check `SO_PEERCRED` so
+      only the same uid can connect, and enforce `daemon_idle_timeout`. The daemon
+      reads the token from the store itself; it never travels over the socket.
+      _Done._ The socket is `$XDG_RUNTIME_DIR/gaki/daemon.sock`; an unset, empty
+      or relative `XDG_RUNTIME_DIR` means no daemon (`gaki-cli daemon` fails, a
+      client runs the command locally without trying to spawn one). `gaki/` is
+      created `0700`; an existing one we own is tightened, anything else is
+      refused. The socket is chmod `0600` after bind, `--socket` paths included,
+      and `accept` drops a peer whose `SO_PEERCRED` uid isn't ours, with a
+      warning. `daemon_idle_timeout` is a `config.toml` key in seconds (default
+      1800, `0` never, like `info_cache_ttl`), re-read every 30 s check; the
+      daemon exits when no request, install or game is running and it has been
+      quiet that long, removing its marker and socket. The version marker is now
+      `daemon.toml` next to the socket (it was JSON at `gaki-<uid>.info`). The
+      socket protocol carries argv, stdio and an exit code, never a token.
 - [x] **5.13** Add `reauth_sensitive`. A `Sensitive` marker on the
-  market/wallet/trade `ops` makes them demand a fresh `LoginStep` flow
-  before they run. The CLI prompts, and the TUI opens the login page and
-  resumes the action afterwards. Document the threat model in `docs/FAQ.md`
-  (7.2).
-  *Done.* gaki has no buy, sell, cancel or trade action, so (your call) the
-  gate covers the account reads: `ops::market::{inventory, wallet,
-  listings}` take a `SensitiveGrant` by value, and only
-  `ops::auth::sensitive_grant()` makes one. With the `reauth_sensitive`
-  key off it is free; with it on it needs a password or QR login
-  (`ops::auth::login`/`login_qr`) finished in this process within
-  `REAUTH_WINDOW` (5 min), and each login is good for one grant. A
-  restored session never counts. Prices and search stay open. The CLI runs
-  an interactive sensitive command locally (it needs the terminal, like
-  `login`), signs in as the stored account (empty password means a QR
-  code) and uses that fresh client for the web session; `--json` fails
-  with `auth_required` unless the process has an unused fresh login (the
-  daemon after `login --json`). The TUI's wallet, inventory and listings
-  go through `App::open_sensitive`: the sign-in page names the view, `Esc`
-  goes back, and the view opens once the library is back. Open: each
-  fresh login, like every `login`, mints a new refresh token and leaves the
-  previous one valid at Steam until it expires (not revoked). The FAQ
-  write-up stays with 7.2. (Superseded 2026-11-07: there will be no
-  buy/sell/trade op, see Non-goals.)
+      market/wallet/trade `ops` makes them demand a fresh `LoginStep` flow
+      before they run. The CLI prompts, and the TUI opens the login page and
+      resumes the action afterwards. Document the threat model in `docs/FAQ.md`
+      (7.2).
+      _Done._ gaki has no buy, sell, cancel or trade action, so (your call) the
+      gate covers the account reads: `ops::market::{inventory, wallet,
+listings}` take a `SensitiveGrant` by value, and only
+      `ops::auth::sensitive_grant()` makes one. With the `reauth_sensitive`
+      key off it is free; with it on it needs a password or QR login
+      (`ops::auth::login`/`login_qr`) finished in this process within
+      `REAUTH_WINDOW` (5 min), and each login is good for one grant. A
+      restored session never counts. Prices and search stay open. The CLI runs
+      an interactive sensitive command locally (it needs the terminal, like
+      `login`), signs in as the stored account (empty password means a QR
+      code) and uses that fresh client for the web session; `--json` fails
+      with `auth_required` unless the process has an unused fresh login (the
+      daemon after `login --json`). The TUI's wallet, inventory and listings
+      go through `App::open_sensitive`: the sign-in page names the view, `Esc`
+      goes back, and the view opens once the library is back. Open: each
+      fresh login, like every `login`, mints a new refresh token and leaves the
+      previous one valid at Steam until it expires (not revoked). The FAQ
+      write-up stays with 7.2. (Superseded 2026-11-07: there will be no
+      buy/sell/trade op, see Non-goals.)
 
 ### Phase 6 — feature gates (R24)
 
 - [x] **6.1** Declare the features in `libgaki` and gate modules at their
-  boundaries. Make heavy dependencies optional.
-  *Done.* `libgaki/Cargo.toml` declares the matrix above, with defaults
-  `authentication`, `library`, `install`, `cloud` and `collections`.
-  `--no-default-features` builds without steam-vent, its protos, protobuf,
-  reqwest, keyring, secrecy, steam-cdn, steam-vent-chat, zip and the rest.
-  `build.rs` generates each proto only for its feature (`cloudconfigstore`
-  → `collections`, `storequery`/`wishlist` → `store`). **Your call:** launching
-  stays behind `library`, because launch options come from a live PICS request.
-  Offline launching from `appcache/appinfo.vdf` would be a later step. So the
-  minimal build has config, profiles, Proton discovery, the local library
-  scan and the pipeline (`LaunchInfo`/`LaunchTarget` moved to `core::models`,
-  `find_mangohud_lib` to `core::utils`). Two dependency edges differ from
-  the first draft: `cloud` and `store` need `library` (Cloud save paths come
-  from PICS; store records are the library's StoreBrowse types).
-  Gates sit on `auth`, `web`, `steam_client` and `core::net` (all
-  `authentication`), on the `ops`, `library` and `steam_client` submodules,
-  and on the helpers they share inside `steam_client.rs`. Moves made to get
-  there: the own-persona announce/request (login needs the display name)
-  went from `friends.rs` to a new `steam_client/persona.rs`;
-  `SteamClient::web_session` went from `market.rs` to `client.rs`;
-  `is_game_available` went from `manage.rs` to `manifests.rs`; and
-  `DEFAULT_COUNTRY` went to `ops::info` (re-exported by `ops::store`).
-  `play`'s Cloud pull/push became a `cloud`-gated `LaunchCloud` helper.
-  `play` skips the pre-launch update without `install`. Filtering the library
-  by collection without `collections` is an `InvalidInput` error.
-  `ops::session::resolve_user_ident` needs `social` (names match friends).
-  `branches`/`set_branch` need `versioning`. The depot browser methods need
-  `depot`. The legacy no-runner launch fallback (unreachable, since
-  `ResolveComponents` always sets a runner) needs `library`, and its tests
-  follow it. Until 6.2, `gaki-cli` and `gaki-tui` enable every libgaki
-  feature they use, so the workspace builds. Checked: clippy and docs for
-  libgaki with each feature alone, none, default and all; the §8 gates for
-  the workspace.
+      boundaries. Make heavy dependencies optional.
+      _Done._ `libgaki/Cargo.toml` declares the matrix above, with defaults
+      `authentication`, `library`, `install`, `cloud` and `collections`.
+      `--no-default-features` builds without steam-vent, its protos, protobuf,
+      reqwest, keyring, secrecy, steam-cdn, steam-vent-chat, zip and the rest.
+      `build.rs` generates each proto only for its feature (`cloudconfigstore`
+      → `collections`, `storequery`/`wishlist` → `store`). **Your call:** launching
+      stays behind `library`, because launch options come from a live PICS request.
+      Offline launching from `appcache/appinfo.vdf` would be a later step. So the
+      minimal build has config, profiles, Proton discovery, the local library
+      scan and the pipeline (`LaunchInfo`/`LaunchTarget` moved to `core::models`,
+      `find_mangohud_lib` to `core::utils`). Two dependency edges differ from
+      the first draft: `cloud` and `store` need `library` (Cloud save paths come
+      from PICS; store records are the library's StoreBrowse types).
+      Gates sit on `auth`, `web`, `steam_client` and `core::net` (all
+      `authentication`), on the `ops`, `library` and `steam_client` submodules,
+      and on the helpers they share inside `steam_client.rs`. Moves made to get
+      there: the own-persona announce/request (login needs the display name)
+      went from `friends.rs` to a new `steam_client/persona.rs`;
+      `SteamClient::web_session` went from `market.rs` to `client.rs`;
+      `is_game_available` went from `manage.rs` to `manifests.rs`; and
+      `DEFAULT_COUNTRY` went to `ops::info` (re-exported by `ops::store`).
+      `play`'s Cloud pull/push became a `cloud`-gated `LaunchCloud` helper.
+      `play` skips the pre-launch update without `install`. Filtering the library
+      by collection without `collections` is an `InvalidInput` error.
+      `ops::session::resolve_user_ident` needs `social` (names match friends).
+      `branches`/`set_branch` need `versioning`. The depot browser methods need
+      `depot`. The legacy no-runner launch fallback (unreachable, since
+      `ResolveComponents` always sets a runner) needs `library`, and its tests
+      follow it. Until 6.2, `gaki-cli` and `gaki-tui` enable every libgaki
+      feature they use, so the workspace builds. Checked: clippy and docs for
+      libgaki with each feature alone, none, default and all; the §8 gates for
+      the workspace.
 - [x] **6.2** Forward the features from `gaki-cli` and `gaki-tui`, and gate their
-  commands, views, keybindings, and help text.
-  *Done.* The workspace `libgaki` dependency is `default-features = false`.
-  `gaki-cli` forwards all twelve features with the same defaults;
-  `authentication` brings `qrcode`/`rpassword` and `social` brings
-  `steam-vent-chat`/`tokio-stream`. Every command variant, its args and its
-  handler are gated (`Capabilities`, `Config`, `Profiles` and `proton
-  list/default` are always built). The daemon (`daemon`, `kill`, request
-  forwarding, `output`'s routing) needs `authentication`; `--no-daemon`,
-  `--no-spawn` and `--socket` stay accepted but hidden without it. Moves:
-  `image`/`appinfo`/`tags` from `commands/store.rs` to `commands/info.rs`, and
-  their libgaki side (`record_with_media`, `assets`, `probe_assets`, `tags`,
-  `resolve_country`) from `ops::store` to `ops::info`; `kill`/`daemon stop`/
-  `daemon list` from `launch.rs` to a new `commands/daemon.rs`. A new
-  `ops::session::resolve_user_id` takes a SteamID or `me` (a name needs
-  `social`), so `store` builds without `social`. `capabilities` reports the
-  build's features as `build_features`. `gaki-tui` always builds
-  `authentication` + `library` and forwards the other ten (defaults `install`,
-  `cloud`, `collections`). Its worker calls, `Browser` view modules and private
-  state, `Action` rows, `SensitiveView`s, the Friends tab, `--chat`, overlay
-  key handlers and draws, the help entries, and the status/Proton key hints
-  are gated per feature. The overlay key chain became early-return blocks so
-  each can carry a cfg. Play on a game that isn't installed says so without
-  `install`. Tests are gated with what they exercise. Checked: clippy for
-  each crate with each feature alone, plus the §8 gates.
+      commands, views, keybindings, and help text.
+      _Done._ The workspace `libgaki` dependency is `default-features = false`.
+      `gaki-cli` forwards all twelve features with the same defaults;
+      `authentication` brings `qrcode`/`rpassword` and `social` brings
+      `steam-vent-chat`/`tokio-stream`. Every command variant, its args and its
+      handler are gated (`Capabilities`, `Config`, `Profiles` and `proton
+list/default` are always built). The daemon (`daemon`, `kill`, request
+      forwarding, `output`'s routing) needs `authentication`; `--no-daemon`,
+      `--no-spawn` and `--socket` stay accepted but hidden without it. Moves:
+      `image`/`appinfo`/`tags` from `commands/store.rs` to `commands/info.rs`, and
+      their libgaki side (`record_with_media`, `assets`, `probe_assets`, `tags`,
+      `resolve_country`) from `ops::store` to `ops::info`; `kill`/`daemon stop`/
+      `daemon list` from `launch.rs` to a new `commands/daemon.rs`. A new
+      `ops::session::resolve_user_id` takes a SteamID or `me` (a name needs
+      `social`), so `store` builds without `social`. `capabilities` reports the
+      build's features as `build_features`. `gaki-tui` always builds
+      `authentication` + `library` and forwards the other ten (defaults `install`,
+      `cloud`, `collections`). Its worker calls, `Browser` view modules and private
+      state, `Action` rows, `SensitiveView`s, the Friends tab, `--chat`, overlay
+      key handlers and draws, the help entries, and the status/Proton key hints
+      are gated per feature. The overlay key chain became early-return blocks so
+      each can carry a cfg. Play on a game that isn't installed says so without
+      `install`. Tests are gated with what they exercise. Checked: clippy for
+      each crate with each feature alone, plus the §8 gates.
 - [x] **6.3** Get the three-level matrix (`--no-default-features`, default,
-  `--all-features`) green for clippy and tests, and document it in
-  `docs/FEATURES.md`.
-  *Done.* The matrix was already green after 6.2 (clippy, tests, docs at all
-  three levels). New `docs/FEATURES.md`: each feature with what it requires,
-  its optional dependencies and protos, the commands it gates in `gaki-cli`
-  (taken from `capabilities` in single-feature builds), the views and keys it
-  gates in `gaki-tui`, slim-build examples, the matrix, a single-feature
-  clippy sweep, and how to add a feature. `depot` and the TUI's `store` have no
-  binary surface yet, and the doc says so. CI's doc job now runs at all three
-  levels (it was `--all-features` only, which missed doc links to gated-out
-  items). `ARCHITECTURE.md` §11.3 and the PLAN feature matrix point at
-  `FEATURES.md`. 7.2 still owns the README split.
+      `--all-features`) green for clippy and tests, and document it in
+      `docs/FEATURES.md`.
+      _Done._ The matrix was already green after 6.2 (clippy, tests, docs at all
+      three levels). New `docs/FEATURES.md`: each feature with what it requires,
+      its optional dependencies and protos, the commands it gates in `gaki-cli`
+      (taken from `capabilities` in single-feature builds), the views and keys it
+      gates in `gaki-tui`, slim-build examples, the matrix, a single-feature
+      clippy sweep, and how to add a feature. `depot` and the TUI's `store` have no
+      binary surface yet, and the doc says so. CI's doc job now runs at all three
+      levels (it was `--all-features` only, which missed doc links to gated-out
+      items). `ARCHITECTURE.md` §11.3 and the PLAN feature matrix point at
+      `FEATURES.md`. 7.2 still owns the README split.
 
 ### Phase 7 — small features, docs, dependencies, tests
 
 - [x] **7.1** Add hotkeys that open ProtonDB (`https://www.protondb.com/app/<id>`)
-  and a GitHub issue search for the app id in `ValveSoftware/Proton` (R28/Q9).
-  They run `xdg-open` through `std::process::Command`, with no new crate, and
-  are added to the TUI help. A CLI equivalent, `gaki-cli open protondb <app>`,
-  is optional.
-  **HLTB (plans2):** add it only if it can search by Steam app id, and it
-  can't. HowLongToBeat has no public URL that looks up a game by Steam app id.
-  Its own search takes a title, and the community tools that map app ids
-  scrape HLTB pages. A title search (`howlongtobeat.com/?q=<name>`) would be
-  name-based and can match the wrong game, so it stays out unless you want it
-  anyway.
-  *Done.* `core::steam_urls` gained `protondb_url` and `proton_issues_url`
-  (`ValveSoftware/Proton/issues?q=is%3Aissue+<id>`), with tests. In the TUI,
-  `B` opens the selected game's ProtonDB page and `T` the Proton issue search;
-  both are also Actions-menu rows under a new "Links" category, and in the
-  help. A new `browser/links.rs` (`Link`, `open_link`, `poll_links`) runs the
-  existing `utils::browser::open` (`xdg-open`, previously unused) on a thread
-  and shows a notice, or the failure once the thread reports it. They need no
-  feature. The optional CLI `open` command was left out. The help's stale
-  "p then h — toggle HowLongToBeat" entry (no key behind it) is gone.
-  Added later (after 7.6): `E` opens the game's Steam store page
-  (`Link::Steam`, from `steam_urls::store_url`), first in the menu's "Links"
-  group and in the help.
+      and a GitHub issue search for the app id in `ValveSoftware/Proton` (R28/Q9).
+      They run `xdg-open` through `std::process::Command`, with no new crate, and
+      are added to the TUI help. A CLI equivalent, `gaki-cli open protondb <app>`,
+      is optional.
+      **HLTB (plans2):** add it only if it can search by Steam app id, and it
+      can't. HowLongToBeat has no public URL that looks up a game by Steam app id.
+      Its own search takes a title, and the community tools that map app ids
+      scrape HLTB pages. A title search (`howlongtobeat.com/?q=<name>`) would be
+      name-based and can match the wrong game, so it stays out unless you want it
+      anyway.
+      _Done._ `core::steam_urls` gained `protondb_url` and `proton_issues_url`
+      (`ValveSoftware/Proton/issues?q=is%3Aissue+<id>`), with tests. In the TUI,
+      `B` opens the selected game's ProtonDB page and `T` the Proton issue search;
+      both are also Actions-menu rows under a new "Links" category, and in the
+      help. A new `browser/links.rs` (`Link`, `open_link`, `poll_links`) runs the
+      existing `utils::browser::open` (`xdg-open`, previously unused) on a thread
+      and shows a notice, or the failure once the thread reports it. They need no
+      feature. The optional CLI `open` command was left out. The help's stale
+      "p then h — toggle HowLongToBeat" entry (no key behind it) is gone.
+      Added later (after 7.6): `E` opens the game's Steam store page
+      (`Link::Steam`, from `steam_urls::store_url`), first in the menu's "Links"
+      group and in the help.
 - [x] **7.2** Split the README (R34) into `docs/CONFIG.md`, `docs/GAKI-CLI.md`,
-  `docs/GAKI-TUI.md`, `docs/FEATURES.md`, and `docs/FAQ.md`. `FAQ.md` covers
-  prerequisites: Steam must be installed, Proton must be installed
-  system-wide or official (Q4). Trim the README to an overview, install
-  instructions, and links, and keep the credits and acknowledgements to
-  upstream.
-  *Done.* New `docs/GAKI-CLI.md` (commands by area, `--json`, QR login,
-  progress, errors, the daemon, logs), `docs/CONFIG.md` (directories,
-  precedence, every `config.toml` key, profiles, `games.toml`, wrappers, Steam
-  integration, the session and daemon, installs), `docs/GAKI-TUI.md` (from
-  `gaki-tui/README.md`, which is now a short pointer for crates.io) and
-  `docs/FAQ.md` (prerequisites first). The README keeps the disclaimer, a
-  short overview, install, the doc and crate tables, the acknowledgments and
-  credits, and the license. Most of the old README described Aurelia and was
-  stale: Windows and macOS, `umu`/`luxtorpeda`, `steam-runtime`, GE and
-  CachyOS downloads, `--lang`, `config language`/`country`, `--steam-mode`,
-  `config game --proton`, "no Steam client needed", and the GUI build
-  dependencies (only `libdbus-1-dev` is needed). All of that is gone, along with the
-  comparison table and the RAM figures, which nothing here measures, and the
-  related-projects list. Every `gaki-cli` example in the new docs was checked
-  against the binary's command tree and flags (`capabilities`), and every
-  relative link and anchor resolves.
+      `docs/GAKI-TUI.md`, `docs/FEATURES.md`, and `docs/FAQ.md`. `FAQ.md` covers
+      prerequisites: Steam must be installed, Proton must be installed
+      system-wide or official (Q4). Trim the README to an overview, install
+      instructions, and links, and keep the credits and acknowledgements to
+      upstream.
+      _Done._ New `docs/GAKI-CLI.md` (commands by area, `--json`, QR login,
+      progress, errors, the daemon, logs), `docs/CONFIG.md` (directories,
+      precedence, every `config.toml` key, profiles, `games.toml`, wrappers, Steam
+      integration, the session and daemon, installs), `docs/GAKI-TUI.md` (from
+      `gaki-tui/README.md`, which is now a short pointer for crates.io) and
+      `docs/FAQ.md` (prerequisites first). The README keeps the disclaimer, a
+      short overview, install, the doc and crate tables, the acknowledgments and
+      credits, and the license. Most of the old README described Aurelia and was
+      stale: Windows and macOS, `umu`/`luxtorpeda`, `steam-runtime`, GE and
+      CachyOS downloads, `--lang`, `config language`/`country`, `--steam-mode`,
+      `config game --proton`, "no Steam client needed", and the GUI build
+      dependencies (only `libdbus-1-dev` is needed). All of that is gone, along with the
+      comparison table and the RAM figures, which nothing here measures, and the
+      related-projects list. Every `gaki-cli` example in the new docs was checked
+      against the binary's command tree and flags (`capabilities`), and every
+      relative link and anchor resolves.
 - [x] **7.3** Update all dependencies to their latest versions (R31) through
-  `[workspace.dependencies]`. Watch the coupled pins: `steam-vent`,
-  `steam-vent-proto`, `-proto-common`, `protobuf`, `rand`, and `directories`
-  are matched to steam-vent on purpose. The forks `aurelia-steam-vent-chat` and
-  `aurelia-steam-cdn` may need gaki-owned forks, or replacement with upstream
-  crates if those have caught up. Get `cargo deny check` green, covering
-  advisories as well as licenses. Known issues: `webpki-roots` (the
-  distrusted emSign roots advisory), yanked `spin` and `chacha20`, duplicate
-  `rand` and `getrandom` versions, and a future-incompat warning in `binrw`.
-  **`aws-lc-sys` stays (plans2).** Its license is
-  `ISC AND (Apache-2.0 OR ISC) AND OpenSSL`. You've decided this is acceptable
-  for GPLv3. Keep the `OpenSSL` exception in `deny.toml` and reword its comment
-  so it records the decision instead of pointing here as a to-do. (For the
-  record: the FSF considers the old OpenSSL license GPL-incompatible. Switching
-  rustls to `ring` remains a one-feature change if that ever matters, for
-  example for a distro package.) Once `cargo deny check` passes in full, switch
-  `deny.yml` from `check licenses` to `check`.
-  *Done.* `cargo update`, then the majors: `sysinfo` 0.40 (constructors
-  return `Result`), `ratatui` 0.30, `ratatui-image` 11, `toml_edit` 0.25,
-  `zip` 9, `sha1` 0.11, `image` 0.25 and `fuzzy-matcher` moved into
-  `[workspace.dependencies]`. keyring 4 split into `keyring-core` plus store
-  crates, so libgaki now uses `keyring-core` with
-  `dbus-secret-service-keyring-store` (`crypto-rust`), the same libdbus
-  Secret Service backend keyring 3 used. Items are found by `service` and
-  `username`, so tokens stored by keyring 3 still load. `zip` is down to
-  `deflate-flate2-zlib-rs`, which drops bzip2 (an unlisted license) and the
-  AES stack. `aws-lc-sys` 0.47 no longer carries the OpenSSL license, so the
-  exception is gone rather than reworded. `cargo deny check` passes in full,
-  and `deny.yml` runs it. Seven advisories are ignored in `deny.toml`, each
-  with a reason: protobuf (pinned `=3.5.1` by steam-vent), rsa Marvin (no fix
-  exists; steam-vent only encrypts with Steam's public key), and ruzstd 0.7
-  plus four zip 2 `extract()` advisories through `aurelia-steam-cdn` (it never
-  calls `extract`, and ruzstd only reads depot-key-decrypted chunks). The
-  forks stay: upstream `steam-cdn` 1.0.0 is still on an old steam-vent, and
-  `aurelia-steam-vent-chat` has no upstream. A gaki-owned `steam-cdn` fork
-  bumping zip and ruzstd would clear five of the ignores. The webpki-roots
-  and yanked-crate advisories and the `binrw` future-incompat warning are
-  gone after the update. The duplicate `rand` (0.8, 0.9, 0.10) and
-  `getrandom` versions come from steam-vent-crypto, ratatui-image and
-  tungstenite, so they stay as warnings.
+      `[workspace.dependencies]`. Watch the coupled pins: `steam-vent`,
+      `steam-vent-proto`, `-proto-common`, `protobuf`, `rand`, and `directories`
+      are matched to steam-vent on purpose. The forks `aurelia-steam-vent-chat` and
+      `aurelia-steam-cdn` may need gaki-owned forks, or replacement with upstream
+      crates if those have caught up. Get `cargo deny check` green, covering
+      advisories as well as licenses. Known issues: `webpki-roots` (the
+      distrusted emSign roots advisory), yanked `spin` and `chacha20`, duplicate
+      `rand` and `getrandom` versions, and a future-incompat warning in `binrw`.
+      **`aws-lc-sys` stays (plans2).** Its license is
+      `ISC AND (Apache-2.0 OR ISC) AND OpenSSL`. You've decided this is acceptable
+      for GPLv3. Keep the `OpenSSL` exception in `deny.toml` and reword its comment
+      so it records the decision instead of pointing here as a to-do. (For the
+      record: the FSF considers the old OpenSSL license GPL-incompatible. Switching
+      rustls to `ring` remains a one-feature change if that ever matters, for
+      example for a distro package.) Once `cargo deny check` passes in full, switch
+      `deny.yml` from `check licenses` to `check`.
+      _Done._ `cargo update`, then the majors: `sysinfo` 0.40 (constructors
+      return `Result`), `ratatui` 0.30, `ratatui-image` 11, `toml_edit` 0.25,
+      `zip` 9, `sha1` 0.11, `image` 0.25 and `fuzzy-matcher` moved into
+      `[workspace.dependencies]`. keyring 4 split into `keyring-core` plus store
+      crates, so libgaki now uses `keyring-core` with
+      `dbus-secret-service-keyring-store` (`crypto-rust`), the same libdbus
+      Secret Service backend keyring 3 used. Items are found by `service` and
+      `username`, so tokens stored by keyring 3 still load. `zip` is down to
+      `deflate-flate2-zlib-rs`, which drops bzip2 (an unlisted license) and the
+      AES stack. `aws-lc-sys` 0.47 no longer carries the OpenSSL license, so the
+      exception is gone rather than reworded. `cargo deny check` passes in full,
+      and `deny.yml` runs it. Seven advisories are ignored in `deny.toml`, each
+      with a reason: protobuf (pinned `=3.5.1` by steam-vent), rsa Marvin (no fix
+      exists; steam-vent only encrypts with Steam's public key), and ruzstd 0.7
+      plus four zip 2 `extract()` advisories through `aurelia-steam-cdn` (it never
+      calls `extract`, and ruzstd only reads depot-key-decrypted chunks). The
+      forks stay: upstream `steam-cdn` 1.0.0 is still on an old steam-vent, and
+      `aurelia-steam-vent-chat` has no upstream. A gaki-owned `steam-cdn` fork
+      bumping zip and ruzstd would clear five of the ignores. The webpki-roots
+      and yanked-crate advisories and the `binrw` future-incompat warning are
+      gone after the update. The duplicate `rand` (0.8, 0.9, 0.10) and
+      `getrandom` versions come from steam-vent-crypto, ratatui-image and
+      tungstenite, so they stay as warnings.
 - [x] **7.4** Adopt `aurelia-steam-cdn` into the workspace as `gaki-steam-cdn`,
-  so its pins stop holding gaki's dependencies back and the `cargo deny`
-  ignores for its zip and ruzstd advisories can go.
-  *Done.* `gaki-steam-cdn/` is the fork's 1.0.0 source (git `5ed5ed9`),
-  ported to edition 2024 and the workspace's dependencies: zip 9 (deflate
-  only, which is all Steam uses), ruzstd 0.9.1, aes 0.9 + cbc 0.2 (the
-  cipher 0.5 API), base64 0.23, itertools 0.15, sha1 0.11. libgaki depends on
-  it by path, under `install`. Cleanups: the `AURELIA_CDN_CONCURRENCY`
-  variable is gone (gaki has no env-var settings; 16 chunk requests per
-  depot, `CONCURRENCY`), along with the unused `TryBuf` trait, magic
-  constants, commented-out code and `#[macro_use]`. Deprecated calls are
-  replaced and clippy is clean; `download_depot` keeps its 11 parameters
-  under a reasoned `allow`, since an options struct is an API change for
-  later. A new test caught a fork bug: `AppDepots::app_name` kept the VDF
-  quotes (`"\"Some Game\""`); fixed (libgaki doesn't read it). 18 tests now
-  cover the AES format, VSZ/zip chunk decoding, base64, appinfo depot
-  parsing, and the server pool. Licensing: the crate is GPL-3.0-or-later,
-  keeps upstream steam-cdn's `LICENSE-APACHE`, credits OccamyLab and Aurelia
-  in its README, and every source file says it was modified. Five `deny.toml`
-  ignores are gone; protobuf and rsa (both pinned by steam-vent) remain. CI
-  covers the crate through `--workspace`, codecov gets its own entry, and
-  `deploy.yml` publishes it first. Follow-ups: `lzma-rs` (legacy VZ chunks)
-  hasn't released since January 2023, which fails ARCHITECTURE §7.2, so a
-  maintained LZMA decoder should replace it in its own change; and no crate
-  ships a `LICENSE` file in its package yet, which matters before the first
-  publish.
+      so its pins stop holding gaki's dependencies back and the `cargo deny`
+      ignores for its zip and ruzstd advisories can go.
+      _Done._ `gaki-steam-cdn/` is the fork's 1.0.0 source (git `5ed5ed9`),
+      ported to edition 2024 and the workspace's dependencies: zip 9 (deflate
+      only, which is all Steam uses), ruzstd 0.9.1, aes 0.9 + cbc 0.2 (the
+      cipher 0.5 API), base64 0.23, itertools 0.15, sha1 0.11. libgaki depends on
+      it by path, under `install`. Cleanups: the `AURELIA_CDN_CONCURRENCY`
+      variable is gone (gaki has no env-var settings; 16 chunk requests per
+      depot, `CONCURRENCY`), along with the unused `TryBuf` trait, magic
+      constants, commented-out code and `#[macro_use]`. Deprecated calls are
+      replaced and clippy is clean; `download_depot` keeps its 11 parameters
+      under a reasoned `allow`, since an options struct is an API change for
+      later. A new test caught a fork bug: `AppDepots::app_name` kept the VDF
+      quotes (`"\"Some Game\""`); fixed (libgaki doesn't read it). 18 tests now
+      cover the AES format, VSZ/zip chunk decoding, base64, appinfo depot
+      parsing, and the server pool. Licensing: the crate is GPL-3.0-or-later,
+      keeps upstream steam-cdn's `LICENSE-APACHE`, credits OccamyLab and Aurelia
+      in its README, and every source file says it was modified. Five `deny.toml`
+      ignores are gone; protobuf and rsa (both pinned by steam-vent) remain. CI
+      covers the crate through `--workspace`, codecov gets its own entry, and
+      `deploy.yml` publishes it first. Follow-ups: `lzma-rs` (legacy VZ chunks)
+      hasn't released since January 2023, which fails ARCHITECTURE §7.2, so a
+      maintained LZMA decoder should replace it in its own change; and no crate
+      ships a `LICENSE` file in its package yet, which matters before the first
+      publish.
 - [x] **7.5** Harden depot downloads in `gaki-steam-cdn`. The fork trusted
-  the manifest's file list, and manifests often came over plain HTTP, so a
-  network attacker could forge one: entries with absolute or `..` paths
-  landed outside the game directory, and a symlink entry ran `remove_file`
-  on its path and linked it anywhere, so it could replace a file such as
-  `~/.bashrc`. Chunk contents were never at risk (they're encrypted with the
-  depot key). Upstream steam-cdn and aurelia-steam-cdn have the same flaw.
-  *Done.*
+      the manifest's file list, and manifests often came over plain HTTP, so a
+      network attacker could forge one: entries with absolute or `..` paths
+      landed outside the game directory, and a symlink entry ran `remove_file`
+      on its path and linked it anywhere, so it could replace a file such as
+      `~/.bashrc`. Chunk contents were never at risk (they're encrypted with the
+      depot key). Upstream steam-cdn and aurelia-steam-cdn have the same flaw.
+      _Done._
   - **Paths** (`cdn/paths.rs`): every entry is placed by `paths::place`
     under the canonical install directory. An empty, absolute or `..`
     entry fails the depot (`Error::UnsafePath`). Before anything is made,
@@ -1489,37 +1492,37 @@ I make the changes, and you review, commit, and push.
     protection. With HTTPS and path confinement, a forged manifest can at
     worst fail or garble an install. Left open as a follow-up.
 - [x] **7.6** Refactor tests to the ARCHITECTURE layout (R32): convert the
-  `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
-  integration tests under each crate's `tests/`.
-  *Done.* Every unit test now sits in `<module>/tests.rs` beside its
-  `<module>/mod.rs`, across all four crates: the 54 `#[path]`-loaded
-  `*_tests.rs` files, the stray `launch/verification_tests.rs`, and 16
-  inline `mod tests { ... }` blocks (13 named `tests`, plus
-  `auth::redaction_tests` and gaki-tui `steam`'s `progress_tests` and
-  `cloud_tests`). No `#[path]` and no inline test module is left. Modules
-  with several test files keep `tests.rs` as an index, with one file per
-  area: `core/utils/tests/` (8 areas), `core/config/tests/runtime_settings.rs`
-  and gaki-tui `app/steam/tests/` (`progress`, `versioning`-gated; `cloud`,
-  `cloud`-gated). `gaki-cli`'s crate-root tests are `src/tests.rs`. Modules
-  without tests stay single files, since folders for the 199 of them would
-  be churn with nothing in them; ARCHITECTURE §11.6 records that rule.
-  Files moved with `mv`, not `git mv`, so git pairs the renames at commit
-  time. One test changed: capabilities' `events_match_the_source` scans
-  `src/` for emitted events and skipped `*_tests.rs`, so it now skips
-  `tests.rs` and `tests/`. Integration tests under each crate's `tests/`
-  are unchanged. Test counts match before and after (424 / 532 / 585 at
-  the three levels, all-features 585 before the move).
+      `*_tests.rs` siblings into `<module>/mod.rs` and `<module>/tests.rs`, and keep
+      integration tests under each crate's `tests/`.
+      _Done._ Every unit test now sits in `<module>/tests.rs` beside its
+      `<module>/mod.rs`, across all four crates: the 54 `#[path]`-loaded
+      `*_tests.rs` files, the stray `launch/verification_tests.rs`, and 16
+      inline `mod tests { ... }` blocks (13 named `tests`, plus
+      `auth::redaction_tests` and gaki-tui `steam`'s `progress_tests` and
+      `cloud_tests`). No `#[path]` and no inline test module is left. Modules
+      with several test files keep `tests.rs` as an index, with one file per
+      area: `core/utils/tests/` (8 areas), `core/config/tests/runtime_settings.rs`
+      and gaki-tui `app/steam/tests/` (`progress`, `versioning`-gated; `cloud`,
+      `cloud`-gated). `gaki-cli`'s crate-root tests are `src/tests.rs`. Modules
+      without tests stay single files, since folders for the 199 of them would
+      be churn with nothing in them; ARCHITECTURE §11.6 records that rule.
+      Files moved with `mv`, not `git mv`, so git pairs the renames at commit
+      time. One test changed: capabilities' `events_match_the_source` scans
+      `src/` for emitted events and skipped `*_tests.rs`, so it now skips
+      `tests.rs` and `tests/`. Integration tests under each crate's `tests/`
+      are unchanged. Test counts match before and after (424 / 532 / 585 at
+      the three levels, all-features 585 before the move).
 - [x] **7.7** Raise coverage (R33). Priorities: config/settings resolution,
-  profile merging, proton discovery order, launch command building, and
-  feature-gated modules. Add coverage upload to `test.yml` as the template
-  does.
-  *Done.* Line coverage (all features, whole workspace) went from 33.65% to
-  36.10%: libgaki 40.1% → 44.3%, gaki-steam-cdn 25.2% → 30.0%; gaki-cli
-  and gaki-tui unchanged. The upload already existed: `test.yml`'s
-  `codecov` job runs `cargo llvm-cov` per package and uploads the lcov,
-  with gaki-steam-cdn in its matrix since 7.4. Settings (95%), config
-  (83–100%) and proton discovery (96%) were already covered, so the new
-  tests went to the gaps:
+      profile merging, proton discovery order, launch command building, and
+      feature-gated modules. Add coverage upload to `test.yml` as the template
+      does.
+      _Done._ Line coverage (all features, whole workspace) went from 33.65% to
+      36.10%: libgaki 40.1% → 44.3%, gaki-steam-cdn 25.2% → 30.0%; gaki-cli
+      and gaki-tui unchanged. The upload already existed: `test.yml`'s
+      `codecov` job runs `cargo llvm-cov` per package and uploads the lcov,
+      with gaki-steam-cdn in its matrix since 7.4. Settings (95%), config
+      (83–100%) and proton discovery (96%) were already covered, so the new
+      tests went to the gaps:
   - Launch invariants A–D, the D3D12 path check, the WineD3D policy and
     DLL-failure parsing (`launch/validators/invariants`, 11% → 98%).
   - Proton and Wine command building: program, args, working dir and env
@@ -1538,16 +1541,16 @@ I make the changes, and you review, commit, and push.
     hand the response to `parse_reviews`, `parse_news` and
     `requirements_from`. Their modules became `<module>/mod.rs` and
     `tests.rs`.
-  The rest of the uncovered code mostly needs a live CM or web session
-  (`SteamClient`, `ops`, the CLI commands, TUI screens), which §11.6
-  keeps out of tests. Measuring locally needs LLVM tools: without rustup's
-  `llvm-tools-preview`, set `LLVM_COV=/usr/bin/llvm-cov` and
-  `LLVM_PROFDATA=/usr/bin/llvm-profdata`. Tests: 457 / 565 / 633 at the
-  three levels.
+    The rest of the uncovered code mostly needs a live CM or web session
+    (`SteamClient`, `ops`, the CLI commands, TUI screens), which §11.6
+    keeps out of tests. Measuring locally needs LLVM tools: without rustup's
+    `llvm-tools-preview`, set `LLVM_COV=/usr/bin/llvm-cov` and
+    `LLVM_PROFDATA=/usr/bin/llvm-profdata`. Tests: 457 / 565 / 633 at the
+    three levels.
 - [x] **7.8** Final pass: run every ARCHITECTURE §8 gate, check that `typos` is
-  clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
-  `luxtorpeda`, `hltb`, and `locale`.
-  *Done.* The grep turned up three things to fix:
+      clean, and grep for leftover references to `aurelia`, `windows`, `umu`,
+      `luxtorpeda`, `hltb`, and `locale`.
+      _Done._ The grep turned up three things to fix:
   - **Steam-mode leftovers in gaki-tui.** The "Play as…" overlay still had a
     label for a `none` mode that libgaki no longer emits, while the `auto`
     target fell through to a lowercase `windows · auto`; it now reads
@@ -1562,27 +1565,27 @@ I make the changes, and you review, commit, and push.
     calls `std::os::unix` without them, so they were removed.
   - A doc comment promising "a plain copy on non-unix" for DLL deployment,
     which has no such branch.
-  The remaining hits are intended. `aurelia` appears in credits, the
-  forked crate names, the gaki-steam-cdn headers, the old-config note and
-  PLAN's history. `windows` is the game platform, Wine prefix paths and
-  Steam's `libraryfolders.vdf` samples. `umu` is the lootrs runner that
-  profiles parse and `config check` rejects. `luxtorpeda`, `hltb` and
-  `locale` remain only in PLAN. Gates: fmt, typos and `cargo deny check`
-  are clean; clippy, tests (457 / 565 / 633) and docs pass at all three
-  levels. `docs/aurelia-questions.md` was deleted: it was never tracked,
-  and its questions and answers already live in this plan.
+    The remaining hits are intended. `aurelia` appears in credits, the
+    forked crate names, the gaki-steam-cdn headers, the old-config note and
+    PLAN's history. `windows` is the game platform, Wine prefix paths and
+    Steam's `libraryfolders.vdf` samples. `umu` is the lootrs runner that
+    profiles parse and `config check` rejects. `luxtorpeda`, `hltb` and
+    `locale` remain only in PLAN. Gates: fmt, typos and `cargo deny check`
+    are clean; clippy, tests (457 / 565 / 633) and docs pass at all three
+    levels. `docs/aurelia-questions.md` was deleted: it was never tracked,
+    and its questions and answers already live in this plan.
 - [x] **7.9** Library export and import as TOML. `gaki-cli library export
-  library.toml` writes the library (by default the installed games, `--all`
-  for every owned one) as `[[game]]` entries with `app_id`, `name`, the
-  installed `platform` and the branch. `gaki-cli library import library.toml`
-  installs every entry that isn't installed yet, one after another through the
-  install backlog, so it can be paused, resumed and survives a restart.
-  `--library` picks the target as for a single install. Entries that are
-  already installed, or not owned, are skipped and reported. The format gets
-  an example in `examples/` and a parse test. Decided: a `library` command
-  group with `export` and `import`, rather than a file argument to
-  `install`. Rerun the §8 gates afterwards.
-  *Done.*
+library.toml` writes the library (by default the installed games, `--all`
+      for every owned one) as `[[game]]` entries with `app_id`, `name`, the
+      installed `platform` and the branch. `gaki-cli library import library.toml`
+      installs every entry that isn't installed yet, one after another through the
+      install backlog, so it can be paused, resumed and survives a restart.
+      `--library` picks the target as for a single install. Entries that are
+      already installed, or not owned, are skipped and reported. The format gets
+      an example in `examples/` and a parse test. Decided: a `library` command
+      group with `export` and `import`, rather than a file argument to
+      `install`. Rerun the §8 gates afterwards.
+      _Done._
   - **libgaki `library::transfer`.** It holds the file model (`LibraryFile`
     and `LibraryEntry`; only `app_id` is required, and `platform` uses
     config's `windows`/`linux`), plus `export`, `to_toml`, `parse`, `read`
@@ -1603,7 +1606,7 @@ I make the changes, and you review, commit, and push.
     entry's library is empty.
   - **Restarts.** Auto-resume still takes only `interrupted` entries. If an
     import dies, its current game resumes automatically, and `install
-    resume --all` installs the queued rest.
+resume --all` installs the queued rest.
   - **Branches.** Installs take the default branch, since `install` has no
     branch option. Entries that were on a beta branch get a
     `set-branch` + `update` hint after the import. A build without
@@ -1617,7 +1620,7 @@ I make the changes, and you review, commit, and push.
     usual line, so no new event type was needed.
   - **Found on the way:** commands forwarded to the daemon resolved
     relative paths in the daemon's working directory. So `library export
-    lib.toml`, and the existing `import`/`move`/`relink` library paths,
+lib.toml`, and the existing `import`/`move`/`relink` library paths,
     `install --library`, `image -o` and `cloud sync --path`, all pointed at
     the wrong place. The request header now carries the client's `cwd`;
     `#[serde(default)]` keeps older clients working. `OutputCtx` holds it,
@@ -1645,12 +1648,12 @@ views and keys on the matching feature, adds them to the help, the Actions
 menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
 
 - [x] **8.1** Fix the TUI's Updates tab. The library loads with
-  `ListOptions::default()`, so `check_updates` is false, every game keeps
-  `update_available = false`, the Updates tab stays empty and the `▲` badge
-  never shows. Run the update check in the background after the list loads
-  (it fetches a manifest per installed game) and patch the games when it
-  lands.
-  *Done.*
+      `ListOptions::default()`, so `check_updates` is false, every game keeps
+      `update_available = false`, the Updates tab stays empty and the `▲` badge
+      never shows. Run the update check in the background after the list loads
+      (it fetches a manifest per installed game) and patch the games when it
+      lands.
+      _Done._
   - **The check.** `steam::fetch_updates` runs `ops::install::check_updates`,
     the same check as `gaki-cli update`, so pinned games are skipped.
     `Browser::request_update_check` runs it on a thread after the library
@@ -1669,11 +1672,11 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     it from `config.toml`, which fixes the two `session_store` integration
     tests on keyring-less CI runners.
 - [x] **8.2a** Depot browser, library and CLI. `SteamClient::fetch_depots`,
-  `fetch_manifest_files` and `download_single_file` (the `depot` feature) had
-  no `ops` wrapper and no surface, and couldn't work: `depot_browser.rs` built
-  `CDNClient::new` with no servers, no manifest request code and no depot key
-  (so filenames stayed encrypted).
-  *Done.*
+      `fetch_manifest_files` and `download_single_file` (the `depot` feature) had
+      no `ops` wrapper and no surface, and couldn't work: `depot_browser.rs` built
+      `CDNClient::new` with no servers, no manifest request code and no depot key
+      (so filenames stayed encrypted).
+      _Done._
   - **Library.** `SteamClient::depot_manifest_files` and
     `download_depot_file` replace the old three. Both fetch the manifest the
     way an install does: depot key, manifest request code, then the content
@@ -1699,8 +1702,8 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     directory, not the daemon's. Documented in `docs/GAKI-CLI.md` and
     `docs/FEATURES.md`.
 - [x] **8.2b** Depot browser, TUI. A file view opened from the depots
-  overlay (`o`), using `ops::depot` from 8.2a.
-  *Done.*
+      overlay (`o`), using `ops::depot` from 8.2a.
+      _Done._
   - **Off the UI thread.** The depot list (`o`) used to block while it
     loaded; it now opens at once with "Loading depots…". The manifest and
     downloads load the same way: a small `Load<T>` (loading, ready, failed)
@@ -1723,13 +1726,13 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   - Help line, `docs/GAKI-TUI.md` ("Depot files") and `docs/FEATURES.md`.
     No Actions-menu row: the menu already opens the depots overlay.
 - [x] **8.3** Remove dead code: `ops::library::cached_game_name` had no
-  callers. Sweep for other unused `pub` items in `libgaki` while there.
-  *Done.* Scope (the user's choice): delete only what nothing in the
-  workspace uses, leave the visibility of everything else alone, and leave
-  `gaki-steam-cdn` close to upstream. Found two ways: a name scan of every
-  `pub` item against all workspace sources, and the compiler's dead-code
-  lint on a scratch copy where every `pub` item the binaries never name was
-  made crate-private. Removed:
+      callers. Sweep for other unused `pub` items in `libgaki` while there.
+      _Done._ Scope (the user's choice): delete only what nothing in the
+      workspace uses, leave the visibility of everything else alone, and leave
+      `gaki-steam-cdn` close to upstream. Found two ways: a name scan of every
+      `pub` item against all workspace sources, and the compiler's dead-code
+      lint on a scratch copy where every `pub` item the binaries never name was
+      made crate-private. Removed:
   - `ops::library::cached_game_name`, `auth::store::set_session_store`,
     `SteamClient::start_steam`, `SteamClient::active_cm` (the field stays;
     it is still read internally), `library::scan_library_info` and the
@@ -1748,8 +1751,8 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `#[cfg(test)]` helpers `parse_last_owner_from_acf` and
     `manifest_update_pending`.
 - [x] **8.4a** TUI store views, per game. Split at the user's request:
-  8.4a is the selected game's views, 8.4b the store-wide ones.
-  *Done.*
+      8.4a is the selected game's views, 8.4b the store-wide ones.
+      _Done._
   - **The Store overlay.** `Y`, or **Store** in the Actions menu, opens
     the selected game's store data in five sections: Price, Players, News,
     Reviews, Similar. `Tab`/`Shift-Tab` (and `h`/`l`, `←`/`→`) switch
@@ -1773,8 +1776,8 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   - Help line, `docs/GAKI-TUI.md` ("Store" and the config table) and
     `docs/FEATURES.md`.
 - [x] **8.4b** TUI store views, store-wide: search, deals, events, and the
-  wishlist with add/remove.
-  *Done.*
+      wishlist with add/remove.
+      _Done._
   - **The Steam Store overlay.** `J` opens its own overlay (the user's
     choice; `Y` stays per-game) with four sections: Search, Deals, Events,
     Wishlist. It needs no selected game. Sections load in the background
@@ -1795,13 +1798,13 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     ("Store") and `docs/FEATURES.md`. No Actions-menu row, since the menu
     is per game.
 - [x] **8.5** TUI install backlog view: list running and backlog installs,
-  including interrupted ones from earlier runs or from `gaki-cli`, and
-  resume, resume all, stop and forget them.
-  *Done.*
+      including interrupted ones from earlier runs or from `gaki-cli`, and
+      resume, resume all, stop and forget them.
+      _Done._
   - **Cross-process lock (found at the start).** "Running" lived only in
     each process's registry, and the TUI installs in-process while
     `gaki-cli` installs in its daemon. So a CLI install looked
-    *interrupted* to the TUI, which could resume it a second time or
+    _interrupted_ to the TUI, which could resume it a second time or
     forget-and-delete its folder mid-download. Now `InstallGuard` also
     takes an OS file lock (`File::try_lock`) on
     `$XDG_STATE_HOME/gaki/installs/<app>.lock`, released when the process
@@ -1826,12 +1829,12 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
   - Help line, `docs/GAKI-TUI.md` ("Installs"), `docs/GAKI-CLI.md` (the
     lock) and `docs/FEATURES.md`.
 - [x] **8.6** TUI Workshop parity: download (`workshop install`, collections
-  expanding), uninstall, `status` with update detection, and posting a
-  comment.
-  *Done.* One step, all TUI wiring (the ops existed):
+      expanding), uninstall, `status` with update detection, and posting a
+      comment.
+      _Done._ One step, all TUI wiring (the ops existed):
   - **The status list.** `W` now opens on `workshop::status` rows
     (installed `●` / subscribed-only `○`, `update available`, `not
-    subscribed`), loaded in the background (`job::Load`) instead of the
+subscribed`), loaded in the background (`job::Load`) instead of the
     blocking subscribed fetch. The list has a highlight that stays on
     screen (`ui::workshop::workshop` takes the row count, like the market
     search). `i` installs or updates the highlighted item, `u` uninstalls
@@ -1857,204 +1860,204 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `tests/browse_view.rs`. Help lines, `docs/GAKI-TUI.md` ("Workshop"),
     `docs/FEATURES.md`.
 - [x] **8.7** Open a game's **SteamDB** page (`https://steamdb.info/app/<id>/`)
-  from the library, next to the Steam store (`E`) and ProtonDB (`B`) links.
-  Add `steam_urls::steamdb_url` (and `steamdb_depot_url`, then use it for
-  the depot manifest hints the CLI and TUI print today), a TUI key, an
-  Actions-menu row, the help line, and a `steamdb_url` field next to
-  `store_url` in `list --json` and `info --json`. Always on, like the other
-  links. Opening it is just a link the user follows: gaki never scrapes
-  SteamDB. Pick the key at the start of the step (it has to be free in the
-  library and the Actions menu).
-  *Done.* `steam_urls::steamdb_url` (`/app/<id>/`) and `steamdb_depot_url`
-  (`/depot/<id>/manifests/`), tested. The CLI `manifests` hint uses the
-  depot URL; `list --json`, `info --json` and its DLC entries gained
-  `steamdb_url` (additive, so the schema number stays). TUI: `Z` in the
-  library and a **SteamDB page** Actions row (Links, `Z`) open
-  `Link::SteamDb`; `Z` in the Depots overlay and the Versions overlay opens
-  the highlighted depot's manifest history (`Link::SteamDbDepot`, whose id
-  is the depot's), and the Versions downgrade prompt prints that depot's
-  URL. Help line, key hints, `docs/GAKI-TUI.md`, `docs/GAKI-CLI.md`.
+      from the library, next to the Steam store (`E`) and ProtonDB (`B`) links.
+      Add `steam_urls::steamdb_url` (and `steamdb_depot_url`, then use it for
+      the depot manifest hints the CLI and TUI print today), a TUI key, an
+      Actions-menu row, the help line, and a `steamdb_url` field next to
+      `store_url` in `list --json` and `info --json`. Always on, like the other
+      links. Opening it is just a link the user follows: gaki never scrapes
+      SteamDB. Pick the key at the start of the step (it has to be free in the
+      library and the Actions menu).
+      _Done._ `steam_urls::steamdb_url` (`/app/<id>/`) and `steamdb_depot_url`
+      (`/depot/<id>/manifests/`), tested. The CLI `manifests` hint uses the
+      depot URL; `list --json`, `info --json` and its DLC entries gained
+      `steamdb_url` (additive, so the schema number stays). TUI: `Z` in the
+      library and a **SteamDB page** Actions row (Links, `Z`) open
+      `Link::SteamDb`; `Z` in the Depots overlay and the Versions overlay opens
+      the highlighted depot's manifest history (`Link::SteamDbDepot`, whose id
+      is the depot's), and the Versions downgrade prompt prints that depot's
+      URL. Help line, key hints, `docs/GAKI-TUI.md`, `docs/GAKI-CLI.md`.
 - [x] **8.8** TUI collection rename. The worker already has
-  `steam::collection_rename`; only a key and a prompt are missing.
-  *Done.* `e` in the Collections overlay opens a prompt prefilled with the
-  highlighted collection's name (`collections_renaming` holds the old
-  name; create and rename share `commit_collection_input` /
-  `cancel_collection_input`). An empty name is refused and keeps the
-  prompt; an unchanged one just closes it; the highlight follows the
-  renamed collection. Also, as agreed, `x` now asks before deleting
-  (`collections_delete`, "its games stay"). Tests in
-  `tests/actions_view.rs`; help line and `docs/GAKI-TUI.md`.
+      `steam::collection_rename`; only a key and a prompt are missing.
+      _Done._ `e` in the Collections overlay opens a prompt prefilled with the
+      highlighted collection's name (`collections_renaming` holds the old
+      name; create and rename share `commit_collection_input` /
+      `cancel_collection_input`). An empty name is refused and keeps the
+      prompt; an unchanged one just closes it; the highlight follows the
+      renamed collection. Also, as agreed, `x` now asks before deleting
+      (`collections_delete`, "its games stay"). Tests in
+      `tests/actions_view.rs`; help line and `docs/GAKI-TUI.md`.
 - [x] **8.9** TUI Cloud conflict resolution. A sync with diverged saves only
-  tells you to run `gaki-cli cloud sync --resolve`; offer "keep cloud" and
-  "keep local" in the Cloud overlay.
-  *Done.* Whole-game, as agreed (no libgaki change). `steam::cloud_sync`
-  takes a `CloudResolve` (`Detect` / `KeepCloud` / `KeepLocal`, mapped to
-  `ConflictPolicy`) and returns a `CloudSyncResult`: the diverged saves
-  (`CloudConflict`, sizes and timestamps), the worst other problem, and the
-  re-read file list. The overlay keeps a `CloudState` (`browser/cloud.rs`):
-  the list and syncs run as `job::Load`s (`poll_cloud` on each tick), so
-  opening and syncing no longer block the UI; the overlay works on the game
-  it was opened for. After conflicts, `c` / `l` ask "Overwrite the local /
-  cloud copies…?" and `y` syncs both ways with that side winning.
-  `ui::cloud::draw` puts the status and conflicts (each side's size and
-  UTC time, the newer marked `newer`) in a wrapped header above the file
-  table, which gained a modified column. Tests in `tests/browse_view.rs` and
-  `steam/tests/cloud.rs`; help line, `docs/GAKI-TUI.md` ("Cloud saves").
+      tells you to run `gaki-cli cloud sync --resolve`; offer "keep cloud" and
+      "keep local" in the Cloud overlay.
+      _Done._ Whole-game, as agreed (no libgaki change). `steam::cloud_sync`
+      takes a `CloudResolve` (`Detect` / `KeepCloud` / `KeepLocal`, mapped to
+      `ConflictPolicy`) and returns a `CloudSyncResult`: the diverged saves
+      (`CloudConflict`, sizes and timestamps), the worst other problem, and the
+      re-read file list. The overlay keeps a `CloudState` (`browser/cloud.rs`):
+      the list and syncs run as `job::Load`s (`poll_cloud` on each tick), so
+      opening and syncing no longer block the UI; the overlay works on the game
+      it was opened for. After conflicts, `c` / `l` ask "Overwrite the local /
+      cloud copies…?" and `y` syncs both ways with that side winning.
+      `ui::cloud::draw` puts the status and conflicts (each side's size and
+      UTC time, the newer marked `newer`) in a wrapped header above the file
+      table, which gained a modified column. Tests in `tests/browse_view.rs` and
+      `steam/tests/cloud.rs`; help line, `docs/GAKI-TUI.md` ("Cloud saves").
 - [x] **8.10** TUI settings parity. Settings edits only presence and proxy.
-  Add the other `config.toml` keys (`default_profile`, `default_platform`,
-  `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,
-  `daemon_idle_timeout`, `info_cache_ttl`, `secret_store`, ...), a profiles
-  view (`profiles list/show`, the games using each), and `config check`.
-  Split in two:
-  - [x] **8.10a** Every key. *Done.* Settings (`p`) is now a list of all
-    `ops::config::KEYS` (`browser/settings`: one `Spec` per key with its
-    label, its default, how it's edited, when it applies, and an optional
-    confirm; a unit test keeps `SPECS` in step with `KEYS`). `Enter` flips
-    a toggle, steps a choice (`next_value`; optional choices step through
-    unset, `default_profile` through the profiles), or opens a prefilled
-    prompt; `x` unsets. Saves go through `steam::settings_set`: presence
-    via `set_presence` (announced now), proxy and bypass via `update_proxy`
-    (URL checked), the rest via `set_global`, so errors are the CLI's. An
-    unchanged value isn't saved; `secret_store` asks first. Values are read
-    with the new `ops::config::get_global_text` (strings without TOML
-    quotes). The old presence/proxy fields, `LauncherSettings` and
-    `steam::config_show` are gone. Tests: `settings/tests.rs`,
-    `tests/actions_view.rs`, and the offline settings round trip. Help
-    line, `docs/GAKI-TUI.md` ("Settings").
+      Add the other `config.toml` keys (`default_profile`, `default_platform`,
+      `default_proton`, `cloud_sync`, `install_resume`, `reauth_sensitive`,
+      `daemon_idle_timeout`, `info_cache_ttl`, `secret_store`, ...), a profiles
+      view (`profiles list/show`, the games using each), and `config check`.
+      Split in two:
+  - [x] **8.10a** Every key. _Done._ Settings (`p`) is now a list of all
+        `ops::config::KEYS` (`browser/settings`: one `Spec` per key with its
+        label, its default, how it's edited, when it applies, and an optional
+        confirm; a unit test keeps `SPECS` in step with `KEYS`). `Enter` flips
+        a toggle, steps a choice (`next_value`; optional choices step through
+        unset, `default_profile` through the profiles), or opens a prefilled
+        prompt; `x` unsets. Saves go through `steam::settings_set`: presence
+        via `set_presence` (announced now), proxy and bypass via `update_proxy`
+        (URL checked), the rest via `set_global`, so errors are the CLI's. An
+        unchanged value isn't saved; `secret_store` asks first. Values are read
+        with the new `ops::config::get_global_text` (strings without TOML
+        quotes). The old presence/proxy fields, `LauncherSettings` and
+        `steam::config_show` are gone. Tests: `settings/tests.rs`,
+        `tests/actions_view.rs`, and the offline settings round trip. Help
+        line, `docs/GAKI-TUI.md` ("Settings").
   - [x] **8.10b** Settings tabs (`Tab`): Profiles (each profile, its
-    settings, the games using it, its issues) and Check (load errors and
-    issues, errors first).
-    *Done.* `settings::Tab` with a tab bar; `Tab` / `Shift-Tab` switch.
-    Profiles (`ProfilesTab`, loaded the first time it's shown, from
-    `steam::profiles`) lists them, default marked and `!` on ones with
-    issues, beside the highlighted one's path, issues, games
-    (`GameRef` display) and its TOML (`toml::to_string_pretty` of the
-    profile); `PgUp`/`PgDn` scroll; `d` sets `default_profile` and reloads.
-    Profiles that failed to load are listed under the detail. Check
-    (`CheckTab`, from `steam::config_check`: load errors, then issues by
-    severity) runs each time it's shown and on `r`. Tests in
-    `tests/actions_view.rs` and the offline round trip; help line,
-    `docs/GAKI-TUI.md`.
+        settings, the games using it, its issues) and Check (load errors and
+        issues, errors first).
+        _Done._ `settings::Tab` with a tab bar; `Tab` / `Shift-Tab` switch.
+        Profiles (`ProfilesTab`, loaded the first time it's shown, from
+        `steam::profiles`) lists them, default marked and `!` on ones with
+        issues, beside the highlighted one's path, issues, games
+        (`GameRef` display) and its TOML (`toml::to_string_pretty` of the
+        profile); `PgUp`/`PgDn` scroll; `d` sets `default_profile` and reloads.
+        Profiles that failed to load are listed under the detail. Check
+        (`CheckTab`, from `steam::config_check`: load errors, then issues by
+        severity) runs each time it's shown and on `r`. Tests in
+        `tests/actions_view.rs` and the offline round trip; help line,
+        `docs/GAKI-TUI.md`.
 - [x] **8.11** TUI odds and ends that only the CLI has: `drm` check,
-  `duplicates`, `available`, saving artwork (`image -o`), user profiles
-  (`user`), the extended `info` fields, and daemon management
-  (`daemon list/stop`, `kill`). Split in two:
-  - [x] **8.11a** Per game. *Done.* A Game info overlay on `n` (and a
-    **Game info** Actions row under Content) with three tabs
-    (`browser/game_info`, `ui/game_info.rs`), each a `job::Load`:
-    Details (`steam::game_info`: `app_info` with `extended`, the whole
-    `StoreAppInfo` and `ExtendedInfo`; prices stay read-only), Checks
-    (`steam::drm_check` and, with `install`, `steam::files_check`, run the
-    first time the tab is shown and on `r`), and Artwork (the asset URLs;
-    `s` saves them through the new `ops::info::save_artwork`, which writes
-    `<app id>_<kind>.<ext>` with `create_new` and never overwrites; `o`
-    edits the folder, prefilled with XDG Pictures). The XDG folder lookup
-    moved from the depot file view into `utils/xdg` (`user_dir`,
-    `parse_user_dir`, `expand_dir`) so both use it. Tests:
-    `tests/game_info_view.rs`, `ops/info/tests.rs` (file names),
-    `utils/xdg/tests.rs`, the offline test; help line, `docs/GAKI-TUI.md`
-    ("Game info").
-  - [x] **8.11b** The rest. *Done.* Daemon discovery moved from
-    `gaki-cli/src/proc_admin` into libgaki `ops::daemon` (`GakiProcess`,
-    `is_daemon_command`, `find_gaki_processes`, `daemons`, `kill_pids`):
-    an argv rule (the only positional is `daemon`, skipping the values of
-    `--log`/`--config-dir`/`--socket`) replaces the clap parse, and
-    `gaki-cli/src/tests.rs` checks the rule against clap. Settings gains a
-    **Daemons** tab (`DaemonsTab`: PID, config dir, socket, command; `s`
-    stops the highlighted one, `S` all, after a y/n; `r` re-reads; no
-    `kill`). The Installs overlay gains a read-only **Duplicates** tab
-    (`steam::duplicates` over `library::find_duplicate_installs` with
-    `relocate::dir_size`, a `job::Load`; keep copy, stale copies with
-    sizes, reclaimable space; `r` rescans). A user profile overlay
-    (`browser/user_profile`, `ui/user_profile.rs`, cfg `social`): `v` on a
-    friend, `/` in the Friends tab or the overlay looks up a SteamID64,
-    profile URL, friend name or `me` (`steam::user_profile`), `E` opens
-    the page (new `Browser::open_url`). `ui::date_time` moved out of the
-    cloud view for the Duplicates tab. Tests: settings, installs and
-    user_profile unit tests, `tests/actions_view.rs`,
-    `tests/installs_view.rs`, `tests/friends_chat.rs`; help lines,
-    `docs/GAKI-TUI.md` (Installs, Settings, "User profiles").
+      `duplicates`, `available`, saving artwork (`image -o`), user profiles
+      (`user`), the extended `info` fields, and daemon management
+      (`daemon list/stop`, `kill`). Split in two:
+  - [x] **8.11a** Per game. _Done._ A Game info overlay on `n` (and a
+        **Game info** Actions row under Content) with three tabs
+        (`browser/game_info`, `ui/game_info.rs`), each a `job::Load`:
+        Details (`steam::game_info`: `app_info` with `extended`, the whole
+        `StoreAppInfo` and `ExtendedInfo`; prices stay read-only), Checks
+        (`steam::drm_check` and, with `install`, `steam::files_check`, run the
+        first time the tab is shown and on `r`), and Artwork (the asset URLs;
+        `s` saves them through the new `ops::info::save_artwork`, which writes
+        `<app id>_<kind>.<ext>` with `create_new` and never overwrites; `o`
+        edits the folder, prefilled with XDG Pictures). The XDG folder lookup
+        moved from the depot file view into `utils/xdg` (`user_dir`,
+        `parse_user_dir`, `expand_dir`) so both use it. Tests:
+        `tests/game_info_view.rs`, `ops/info/tests.rs` (file names),
+        `utils/xdg/tests.rs`, the offline test; help line, `docs/GAKI-TUI.md`
+        ("Game info").
+  - [x] **8.11b** The rest. _Done._ Daemon discovery moved from
+        `gaki-cli/src/proc_admin` into libgaki `ops::daemon` (`GakiProcess`,
+        `is_daemon_command`, `find_gaki_processes`, `daemons`, `kill_pids`):
+        an argv rule (the only positional is `daemon`, skipping the values of
+        `--log`/`--config-dir`/`--socket`) replaces the clap parse, and
+        `gaki-cli/src/tests.rs` checks the rule against clap. Settings gains a
+        **Daemons** tab (`DaemonsTab`: PID, config dir, socket, command; `s`
+        stops the highlighted one, `S` all, after a y/n; `r` re-reads; no
+        `kill`). The Installs overlay gains a read-only **Duplicates** tab
+        (`steam::duplicates` over `library::find_duplicate_installs` with
+        `relocate::dir_size`, a `job::Load`; keep copy, stale copies with
+        sizes, reclaimable space; `r` rescans). A user profile overlay
+        (`browser/user_profile`, `ui/user_profile.rs`, cfg `social`): `v` on a
+        friend, `/` in the Friends tab or the overlay looks up a SteamID64,
+        profile URL, friend name or `me` (`steam::user_profile`), `E` opens
+        the page (new `Browser::open_url`). `ui::date_time` moved out of the
+        cloud view for the Duplicates tab. Tests: settings, installs and
+        user_profile unit tests, `tests/actions_view.rs`,
+        `tests/installs_view.rs`, `tests/friends_chat.rs`; help lines,
+        `docs/GAKI-TUI.md` (Installs, Settings, "User profiles").
 - **8.12** ~~Market buying and selling.~~ **Dropped, never to be done.**
   gaki doesn't move real money or items (see Non-goals). Inventory and
   market stay read-only.
 - [x] **8.13** Configurable key bindings in gaki-tui. Today every binding is
-  hard-coded (mostly `gaki-tui/src/app/keys/browse.rs`, plus each overlay's
-  handler), and the help, status-bar hints and Actions-menu key column are
-  fixed strings. Bindings go in their **own file**,
-  `$XDG_CONFIG_HOME/gaki/tui/keybinds.toml`, never in `config.toml` (the
-  user's requirement). Sketch: one table per context (the library, each
-  overlay), mapping action names to keys; anything left out keeps its
-  default, so an empty or missing file changes nothing. Load once at
-  startup, and refuse to start (with the offending line) on an unknown
-  action, an unparseable key or two actions on one key in the same context.
-  The help, hints and Actions menu read the live map. Ship a commented
-  `examples/keybinds.toml` with every default, and document it in
-  `docs/GAKI-TUI.md`. Open questions for the start of the step: the key
-  syntax (`"E"`, `"ctrl+r"`, `"PageDown"`), whether one action may have
-  several keys, and which bindings stay fixed (`q`, `?` and `Esc` are
-  candidates, so a bad file can't lock anyone out).
-  Settled at the start: case-sensitive characters plus names, with
-  `ctrl+`/`alt+` (Shift lives in the character, or `BackTab`); a string
-  or a list per action, `[]` unbinds; `Esc`, `?`, the arrows and Ctrl+C
-  are fixed. Split in two:
-  - [x] **8.13a** The file and the library context. *Done.* New
-    `gaki-tui/src/keymap` (`Key` with parse/display and `from_event`;
-    `LibraryAction`, one variant per library key with its name and
-    defaults; `Keymap::{defaults, load, parse}` with `toml::Spanned` line
-    numbers, refusing unknown sections/actions, bad keys, reserved keys
-    and clashes; a `OnceLock` set by `main` via `install`, `get` falls
-    back to the defaults). The input thread sends `Key` (modifiers
-    included) instead of a `KeyCode`; Ctrl+C now quits from anywhere,
-    chat included, rather than turning into `q`. `keys/browse.rs` looks
-    keys up in the map (`?` and the arrows stay fixed); the help
-    (`Entry::Keys`), the status hints and the Actions menu
-    (`ActionRow::key()` via `Action::shortcut`) read the live map.
-    `examples/keybinds.toml` lists every default, commented; a test
-    checks it against `LibraryAction`. Tests: `keymap/tests.rs`,
-    `tests/keymap_live.rs` (a custom map in the help, hints and menu);
-    `docs/GAKI-TUI.md` ("Key bindings"), `examples/README.md`.
-  - [x] **8.13b** The overlay framework and half the overlays. *Done.*
-    The keymap is generic over an `Actions` trait (section, all, name,
-    default keys, optional tab `group`, fixed `alias`, `TEXT` and
-    `SHARES_OVERLAY` flags), each context declared with the `actions!`
-    macro; `Bindings<A>` per section, `Keymap::find::<A>(key, group)`.
-    Clash checks: within a section among actions on the same tab, and
-    against `[overlay]` for overlay sections; `TEXT` sections refuse keys
-    that type (plain characters, `Enter`, `Backspace`). New sections:
-    `[overlay]` (close, down, up, page_down, page_up, next_tab,
-    previous_tab), `[installs]`, `[settings]`, `[workshop]`,
-    `[workshop_browse]`, `[workshop_comments]`, `[store]`,
-    `[steam_store]`, `[depots]`, `[depot_files]`, `[game_info]`,
-    `[cloud]`, `[collections]`. Their handlers in `keys/overlays.rs` look
-    up their own section, then `[overlay]` (`common`, `own`); Esc, the
-    arrows, prompts and y/n stay fixed. Their footers build hints with
-    `keymap::{hints, key_of, pair}`. `examples/keybinds.toml` lists every
-    section; the test checks each against its `Actions`. Tests:
-    `keymap/tests.rs` (tabs, `[overlay]` clashes, text sections),
-    `tests/keymap_live.rs` (a rebound Installs key in its footer).
-  - [x] **8.13c** The rest. *Done.* Sections `[versions]`,
-    `[launch_targets]`, `[game_settings]`, `[install_picker]`, `[dlc]`,
-    `[branches]`, `[running]`, `[proton]`, `[account]`,
-    `[market_search]` (text), `[friends]` (shares `[overlay]` for moving
-    and leaving, `[library]`'s tab keys cycle tabs), `[user_profile]` and
-    `[actions_menu]` (text; `run` Enter, `next`/`previous` unbound).
-    `Actions::taken` lists keys a section keeps (a text pane's Enter and
-    Backspace; the menu keeps only Backspace), and `TEXT` now refuses
-    only plain characters. Achievements, inventory, launch options,
-    market listings and the help use `[overlay]` alone; prompts, y/n,
-    the filter and the wallet stay fixed. Every overlay title/footer hint
-    and the Friends panel title read the map; the help drops inline
-    overlay keys (each footer has them) and builds the Friends lines and
-    its own title from the map. Tests: `keymap/tests.rs` (taken keys,
-    the menu), the example covering all 27 sections,
-    `tests/keymap_live.rs` (`[friends]`, `[dlc]`).
+      hard-coded (mostly `gaki-tui/src/app/keys/browse.rs`, plus each overlay's
+      handler), and the help, status-bar hints and Actions-menu key column are
+      fixed strings. Bindings go in their **own file**,
+      `$XDG_CONFIG_HOME/gaki/tui/keybinds.toml`, never in `config.toml` (the
+      user's requirement). Sketch: one table per context (the library, each
+      overlay), mapping action names to keys; anything left out keeps its
+      default, so an empty or missing file changes nothing. Load once at
+      startup, and refuse to start (with the offending line) on an unknown
+      action, an unparseable key or two actions on one key in the same context.
+      The help, hints and Actions menu read the live map. Ship a commented
+      `examples/keybinds.toml` with every default, and document it in
+      `docs/GAKI-TUI.md`. Open questions for the start of the step: the key
+      syntax (`"E"`, `"ctrl+r"`, `"PageDown"`), whether one action may have
+      several keys, and which bindings stay fixed (`q`, `?` and `Esc` are
+      candidates, so a bad file can't lock anyone out).
+      Settled at the start: case-sensitive characters plus names, with
+      `ctrl+`/`alt+` (Shift lives in the character, or `BackTab`); a string
+      or a list per action, `[]` unbinds; `Esc`, `?`, the arrows and Ctrl+C
+      are fixed. Split in two:
+  - [x] **8.13a** The file and the library context. _Done._ New
+        `gaki-tui/src/keymap` (`Key` with parse/display and `from_event`;
+        `LibraryAction`, one variant per library key with its name and
+        defaults; `Keymap::{defaults, load, parse}` with `toml::Spanned` line
+        numbers, refusing unknown sections/actions, bad keys, reserved keys
+        and clashes; a `OnceLock` set by `main` via `install`, `get` falls
+        back to the defaults). The input thread sends `Key` (modifiers
+        included) instead of a `KeyCode`; Ctrl+C now quits from anywhere,
+        chat included, rather than turning into `q`. `keys/browse.rs` looks
+        keys up in the map (`?` and the arrows stay fixed); the help
+        (`Entry::Keys`), the status hints and the Actions menu
+        (`ActionRow::key()` via `Action::shortcut`) read the live map.
+        `examples/keybinds.toml` lists every default, commented; a test
+        checks it against `LibraryAction`. Tests: `keymap/tests.rs`,
+        `tests/keymap_live.rs` (a custom map in the help, hints and menu);
+        `docs/GAKI-TUI.md` ("Key bindings"), `examples/README.md`.
+  - [x] **8.13b** The overlay framework and half the overlays. _Done._
+        The keymap is generic over an `Actions` trait (section, all, name,
+        default keys, optional tab `group`, fixed `alias`, `TEXT` and
+        `SHARES_OVERLAY` flags), each context declared with the `actions!`
+        macro; `Bindings<A>` per section, `Keymap::find::<A>(key, group)`.
+        Clash checks: within a section among actions on the same tab, and
+        against `[overlay]` for overlay sections; `TEXT` sections refuse keys
+        that type (plain characters, `Enter`, `Backspace`). New sections:
+        `[overlay]` (close, down, up, page_down, page_up, next_tab,
+        previous_tab), `[installs]`, `[settings]`, `[workshop]`,
+        `[workshop_browse]`, `[workshop_comments]`, `[store]`,
+        `[steam_store]`, `[depots]`, `[depot_files]`, `[game_info]`,
+        `[cloud]`, `[collections]`. Their handlers in `keys/overlays.rs` look
+        up their own section, then `[overlay]` (`common`, `own`); Esc, the
+        arrows, prompts and y/n stay fixed. Their footers build hints with
+        `keymap::{hints, key_of, pair}`. `examples/keybinds.toml` lists every
+        section; the test checks each against its `Actions`. Tests:
+        `keymap/tests.rs` (tabs, `[overlay]` clashes, text sections),
+        `tests/keymap_live.rs` (a rebound Installs key in its footer).
+  - [x] **8.13c** The rest. _Done._ Sections `[versions]`,
+        `[launch_targets]`, `[game_settings]`, `[install_picker]`, `[dlc]`,
+        `[branches]`, `[running]`, `[proton]`, `[account]`,
+        `[market_search]` (text), `[friends]` (shares `[overlay]` for moving
+        and leaving, `[library]`'s tab keys cycle tabs), `[user_profile]` and
+        `[actions_menu]` (text; `run` Enter, `next`/`previous` unbound).
+        `Actions::taken` lists keys a section keeps (a text pane's Enter and
+        Backspace; the menu keeps only Backspace), and `TEXT` now refuses
+        only plain characters. Achievements, inventory, launch options,
+        market listings and the help use `[overlay]` alone; prompts, y/n,
+        the filter and the wallet stay fixed. Every overlay title/footer hint
+        and the Friends panel title read the map; the help drops inline
+        overlay keys (each footer has them) and builds the Friends lines and
+        its own title from the map. Tests: `keymap/tests.rs` (taken keys,
+        the menu), the example covering all 27 sections,
+        `tests/keymap_live.rs` (`[friends]`, `[dlc]`).
 - [x] **8.15** Share the profile model with lootrs (D9 revised). libgaki
-  depends on `liblootrs` for the profile model and its validation only;
-  the runners and launch code stay in each tool. Done before 8.14, so the
-  audit covers it. Two commits, one in each repo (the user commits both):
+      depends on `liblootrs` for the profile model and its validation only;
+      the runners and launch code stay in each tool. Done before 8.14, so the
+      audit covers it. Two commits, one in each repo (the user commits both):
   - [x] **8.15a** (`../lootrs`) Teach `liblootrs::model` gaki's parts as
-    "parsed, not launched by lootrs", mirroring how gaki treats `wine` and
-    `umu` today:
+        "parsed, not launched by lootrs", mirroring how gaki treats `wine` and
+        `umu` today:
     - `Runner::Proton`, a `[proton]` section (gaki's `ProtonSection`:
       `build`, and the rest of its fields) and a `[steam]` section
       (`SteamIntegration`: `auto`, `host`, `none`) on `Profile`. lootrs
@@ -2076,9 +2079,9 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
       `default-features = false` (no `wine`/`umu`), since that is what gaki
       will use.
   - [x] **8.15b** (gaki) Depend on `liblootrs` (`default-features =
-    false`; a path dependency `../lootrs/liblootrs` while both are
-    unpublished, a git or crates.io version before gaki is published,
-    noted in `docs/ARCHITECTURE.md`). Then:
+false`; a path dependency `../lootrs/liblootrs` while both are
+        unpublished, a git or crates.io version before gaki is published,
+        noted in `docs/ARCHITECTURE.md`). Then:
     - Replace `libgaki/src/config/profile.rs`'s types with re-exports of
       `liblootrs::model::{Profile, Runner, Anticheat, ...}` and
       `liblootrs::paths::expand_tilde`; keep `Runner::is_supported` (true
@@ -2128,8 +2131,8 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
       to the 8.15a commit `cbb22ee`) and `deny.toml` allows that source; a
       crates.io version replaces it before gaki is published.
 - [x] **8.14** Final audit, after 8.1–8.13 and 8.15. Write the findings to
-  `docs/AUDIT.md`, fix what's small within this step, and add a step for
-  anything bigger. Three parts:
+      `docs/AUDIT.md`, fix what's small within this step, and add a step for
+      anything bigger. Three parts:
   - **Security.** Secrets and the session: keyring and memory store, the
     daemon socket and its permissions, refresh-token lifetime and
     revocation, `reauth_sensitive`, logs never holding a token. Untrusted
@@ -2149,100 +2152,100 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     expose. Note the reason for every gap: not done yet, a non-goal (money,
     see Non-goals), not possible, or needs official Steam running (R21).
     Check that `docs/FEATURES.md` and the help match the matrix.
-  Rerun the §8 gates afterwards.
-  Split into one commit per part (user decision, 2026-11-08). Findings too
-  big for the audit become steps 8.16 onward, done before Phase 9. For the
-  performance runs the user only logs in; the account is a test account,
-  so installs, updates and launches on it need no asking.
+    Rerun the §8 gates afterwards.
+    Split into one commit per part (user decision, 2026-11-08). Findings too
+    big for the audit become steps 8.16 onward, done before Phase 9. For the
+    performance runs the user only logs in; the account is a test account,
+    so installs, updates and launches on it need no asking.
   - [x] **8.14a** Security: `docs/AUDIT.md` §1. Fixed: downloaded chunks
-    are checked against the manifest's SHA-1 and size before they're
-    written; chunk, manifest and Cloud decompression are bounded (and the
-    VZ length underflow is gone); `LaunchContext`'s raw
-    `verification_ptr` and its `unsafe impl Send`/`Sync` are replaced by
-    an `Arc<Mutex<_>>`; the browser launchers accept only `http(s)` URLs;
-    `import_install` checks the PICS `installdir`; the protobuf note in
-    `deny.toml` now says CDN manifests are parsed with it too.
+        are checked against the manifest's SHA-1 and size before they're
+        written; chunk, manifest and Cloud decompression are bounded (and the
+        VZ length underflow is gone); `LaunchContext`'s raw
+        `verification_ptr` and its `unsafe impl Send`/`Sync` are replaced by
+        an `Arc<Mutex<_>>`; the browser launchers accept only `http(s)` URLs;
+        `import_install` checks the PICS `installdir`; the protobuf note in
+        `deny.toml` now says CDN manifests are parsed with it too.
   - [x] **8.14b** Performance: `docs/AUDIT.md` §2. Measured startup,
-    install, verify, launch, request counts and TUI latency on the test
-    account, and one install against the official client (same speed).
-    Fixed: chunks are written as they finish (peak install memory 276 →
-    149 MiB); PICS appinfo replies are reused for 10 s (5 → 1 request per
-    install); CDN auth tokens are asked for only from `CDN`-type servers;
-    native launches skip the Wine runner lookup; `config` runs in-process
-    instead of starting a daemon; the TUI's move, relink, import and
-    uninstall run as a background disk job instead of freezing the UI.
+        install, verify, launch, request counts and TUI latency on the test
+        account, and one install against the official client (same speed).
+        Fixed: chunks are written as they finish (peak install memory 276 →
+        149 MiB); PICS appinfo replies are reused for 10 s (5 → 1 request per
+        install); CDN auth tokens are asked for only from `CDN`-type servers;
+        native launches skip the Wine runner lookup; `config` runs in-process
+        instead of starting a daemon; the TUI's move, relink, import and
+        uninstall run as a background disk job instead of freezing the UI.
   - [x] **8.14c** Supported features: `docs/AUDIT.md` §3. A matrix of
-    the official client's features against `libgaki`, `gaki-cli` and
-    `gaki-tui`, each gap with its reason, checked against the code. Fixed:
-    `docs/GAKI-CLI.md` now lists the ten subcommands it left out, and
-    `docs/FEATURES.md` the CLI's `library export`/`import` and the TUI's
-    game info, SteamDB link, settings tabs, Duplicates tab and user
-    profiles. The TUI's favourites and hidden games, kept apart from
-    Steam's, became 8.18. The §8 gates pass.
+        the official client's features against `libgaki`, `gaki-cli` and
+        `gaki-tui`, each gap with its reason, checked against the code. Fixed:
+        `docs/GAKI-CLI.md` now lists the ten subcommands it left out, and
+        `docs/FEATURES.md` the CLI's `library export`/`import` and the TUI's
+        game info, SteamDB link, settings tabs, Duplicates tab and user
+        profiles. The TUI's favourites and hidden games, kept apart from
+        Steam's, became 8.18. The §8 gates pass.
 - [x] **8.16** Verify depot manifest signatures (8.14a follow-up). Find
-  the scheme `ContentManifestSignature` uses and Valve's public key, then
-  refuse a manifest whose signature doesn't verify. If neither can be
-  established, record why in `docs/AUDIT.md` and close the step.
-  *Done (closed without a check):* the section holds a 128-byte RSA-1024
-  signature, but Valve's public system key doesn't verify it and no public
-  source names the manifest key or scheme. Taking the key from the
-  official client's binary was ruled out (user decision, 2026-11-08).
-  Recorded in `docs/AUDIT.md` §1.5; the chunk SHA-1 check stays the
-  protection.
+      the scheme `ContentManifestSignature` uses and Valve's public key, then
+      refuse a manifest whose signature doesn't verify. If neither can be
+      established, record why in `docs/AUDIT.md` and close the step.
+      _Done (closed without a check):_ the section holds a 128-byte RSA-1024
+      signature, but Valve's public system key doesn't verify it and no public
+      source names the manifest key or scheme. Taking the key from the
+      official client's binary was ruled out (user decision, 2026-11-08).
+      Recorded in `docs/AUDIT.md` §1.5; the chunk SHA-1 check stays the
+      protection.
 - [x] **8.17** Replace `lzma-rs` (unmaintained) for VZ chunks with a
-  maintained decoder (8.14a follow-up), keeping the bounded output and the
-  CRC check.
-  *Done:* `gaki-steam-cdn` now decodes VZ chunks with `lzma-rust2` 0.25
-  (`std` and `optimization` features only; the `encoder` feature is on
-  for tests only), using its raw `LzmaReader::new_with_props`. It sizes the
-  dictionary to the claimed output size. A claim larger than the chunk is
-  refused before decoding (as before), and a stream shorter than its
-  claim, a corrupt stream or a wrong CRC32 are now all
-  `Error::Decompress`. The `From<lzma_rs::Error>` impl is gone. New tests
-  build real VZ containers (round trip, wrong CRC, too-large claim, short
-  stream, garbled stream). `docs/AUDIT.md` §1.3 row updated.
+      maintained decoder (8.14a follow-up), keeping the bounded output and the
+      CRC check.
+      _Done:_ `gaki-steam-cdn` now decodes VZ chunks with `lzma-rust2` 0.25
+      (`std` and `optimization` features only; the `encoder` feature is on
+      for tests only), using its raw `LzmaReader::new_with_props`. It sizes the
+      dictionary to the claimed output size. A claim larger than the chunk is
+      refused before decoding (as before), and a stream shorter than its
+      claim, a corrupt stream or a wrong CRC32 are now all
+      `Error::Decompress`. The `From<lzma_rs::Error>` impl is gone. New tests
+      build real VZ containers (round trip, wrong CRC, too-large claim, short
+      stream, garbled stream). `docs/AUDIT.md` §1.3 row updated.
 - [x] **8.18** TUI favourites and hidden games as Steam's own (8.14c
-  follow-up). `f` and `H` keep lists in `tui/config.toml`, while
-  `libgaki`'s collections, and `gaki-cli collections`, have Steam's
-  built-in favourite and hidden collections. Make the keys and the
-  Favourites tab use those collections, and move any existing local lists
-  into them once.
-  *Done (user choices: push in the background; move the lists once and
-  drop the keys):* new `gaki-tui` module `app::marks` caches the members
-  of Steam's `favorite` and `hidden` collections for the list; `f`, `H`,
-  the Favourites tab, the `♡` marker and the hidden filter read it. A toggle
-  edits the local collections store and queues a sync (pull, then push) on
-  one background thread, which folds a burst of toggles into one sync. A
-  failed sync becomes the status-bar notice, and the change stays local
-  for the next sync. Steam's collections are pulled after the library
-  loads, and the cache reloads after a sync and after collections-overlay
-  edits. On start, `favorite_games`/`hidden_games` from `tui/config.toml`
-  are added to the collections once and the keys are dropped (empty lists
-  aren't written). A build without `collections` keeps the config lists.
-  libgaki: `add`/`remove` create a missing built-in collection
-  (`gaki-cli collections add favorite 570` works before any pull); a new
-  `Collection::changed` list (app ids edited since the last push, never
-  sent) makes a pull keep the local membership of those apps. Before this,
-  re-adding a game removed earlier was undone by the old `removed` entry
-  still on Steam. Pull and push no longer hold a copy of the store across
-  the network: they reload and merge under an in-process lock
-  (`collections::edit`), so an edit made while a sync runs isn't saved
-  over. New `ops::collections::{BuiltIn, builtin_members}`. Tests for
-  creating built-ins, local changes surviving a pull, remote changes
-  winning for untouched apps, and clearing only what was uploaded. Docs:
-  GAKI-TUI.md, GAKI-CLI.md, AUDIT.md §3.
+      follow-up). `f` and `H` keep lists in `tui/config.toml`, while
+      `libgaki`'s collections, and `gaki-cli collections`, have Steam's
+      built-in favourite and hidden collections. Make the keys and the
+      Favourites tab use those collections, and move any existing local lists
+      into them once.
+      _Done (user choices: push in the background; move the lists once and
+      drop the keys):_ new `gaki-tui` module `app::marks` caches the members
+      of Steam's `favorite` and `hidden` collections for the list; `f`, `H`,
+      the Favourites tab, the `♡` marker and the hidden filter read it. A toggle
+      edits the local collections store and queues a sync (pull, then push) on
+      one background thread, which folds a burst of toggles into one sync. A
+      failed sync becomes the status-bar notice, and the change stays local
+      for the next sync. Steam's collections are pulled after the library
+      loads, and the cache reloads after a sync and after collections-overlay
+      edits. On start, `favorite_games`/`hidden_games` from `tui/config.toml`
+      are added to the collections once and the keys are dropped (empty lists
+      aren't written). A build without `collections` keeps the config lists.
+      libgaki: `add`/`remove` create a missing built-in collection
+      (`gaki-cli collections add favorite 570` works before any pull); a new
+      `Collection::changed` list (app ids edited since the last push, never
+      sent) makes a pull keep the local membership of those apps. Before this,
+      re-adding a game removed earlier was undone by the old `removed` entry
+      still on Steam. Pull and push no longer hold a copy of the store across
+      the network: they reload and merge under an in-process lock
+      (`collections::edit`), so an edit made while a sync runs isn't saved
+      over. New `ops::collections::{BuiltIn, builtin_members}`. Tests for
+      creating built-ins, local changes surviving a pull, remote changes
+      winning for untouched apps, and clearing only what was uploaded. Docs:
+      GAKI-TUI.md, GAKI-CLI.md, AUDIT.md §3.
 
 - [x] **8.19** Shader caches: where a game's compiled shaders go, and a
-  setting for it (user request, 2026-11-08). Today gaki sets nothing, so
-  DXVK, VKD3D-Proton and the Mesa/NVIDIA drivers each pick their own
-  default (often inside the prefix or the working directory), and nothing
-  removes them. Steam keeps them per game in
-  `<library>/steamapps/shadercache/<app_id>` and hands that to Proton as
-  `STEAM_COMPAT_SHADER_PATH`; the Proton script then points
-  `DXVK_STATE_CACHE_PATH`, `VKD3D_SHADER_CACHE_PATH`,
-  `__GL_SHADER_DISK_CACHE_PATH` and `MESA_SHADER_CACHE_DIR` under it (check
-  this against the script first). Do the same for Proton launches, and set
-  the driver variables directly for native ones.
+      setting for it (user request, 2026-11-08). Today gaki sets nothing, so
+      DXVK, VKD3D-Proton and the Mesa/NVIDIA drivers each pick their own
+      default (often inside the prefix or the working directory), and nothing
+      removes them. Steam keeps them per game in
+      `<library>/steamapps/shadercache/<app_id>` and hands that to Proton as
+      `STEAM_COMPAT_SHADER_PATH`; the Proton script then points
+      `DXVK_STATE_CACHE_PATH`, `VKD3D_SHADER_CACHE_PATH`,
+      `__GL_SHADER_DISK_CACHE_PATH` and `MESA_SHADER_CACHE_DIR` under it (check
+      this against the script first). Do the same for Proton launches, and set
+      the driver variables directly for native ones.
   - A `shader_cache` key in `config.toml`: unset keeps Steam's per-library
     layout, a path puts every game's cache under `<path>/<app_id>`, and
     `off` sets nothing (today's behaviour). A profile or a `games.toml`
@@ -2251,97 +2254,97 @@ menu where it fits, `docs/GAKI-TUI.md` and `docs/FEATURES.md`.
     `available` and the TUI's Game info Checks tab show its size.
   - `gaki-cli config set`, the TUI Settings tab, `config check` (a path
     that can't be created) and `docs/CONFIG.md` cover the new key.
-  *Done (user choices: default `$XDG_CACHE_HOME/gaki/shadercache/<app id>`,
-  not Steam's layout; no `steam` value; old caches left alone; the profile
-  field lives in liblootrs):* the Proton check turned up a difference.
-  proton-cachyos only reads `STEAM_COMPAT_SHADER_PATH` when
-  `PROTON_LOCAL_SHADER_CACHE` is set (`protonfixes/utilities.py`
-  `setup_local_shader_cache`); otherwise the official client sets the
-  driver variables itself. So gaki sets them directly for every launch,
-  with Proton's own layout: `DXVK_STATE_CACHE_PATH` (`DXVK_state_cache/`),
-  `VKD3D_SHADER_CACHE_PATH` (`VKD3D_shader_cache/`),
-  `MESA_SHADER_CACHE_DIR`, `__GL_SHADER_DISK_CACHE_PATH` (`nvidiav1/`),
-  `AMD_VK_PIPELINE_CACHE_PATH` (`AMDv1/`), plus `STEAM_COMPAT_SHADER_PATH`
-  for Proton. lootrs (uncommitted, needs a push): `liblootrs::model::ShaderCache`
-  (`off` or a directory, with `env`/`create_dirs`), `Profile::shader_cache`,
-  validation, lootrs' own launches use `<dir>/<game>` (unset stays off
-  there), TUI form field, CHANGELOG, example profile. gaki:
-  `shader_cache` in `config.toml` (`KEYS`, Settings tab), `games.toml`,
-  and profiles; `settings::ShaderCachePlace` and
-  `LaunchSettings::shader_cache_dir`; `ApplySettingsStage` creates the
-  directories and adds the variables before the profile and game `env`,
-  skipping any the runner, a fixup or gaki's own environment already set.
-  `config check` reports a relative path or one under a file.
-  `ops::install::uninstall` deletes the cache, and `availability` (`gaki-cli
-  available`, the TUI Checks tab) shows its path and size. Checked by
-  hand: a native launch of Buckshot Roulette got all five variables, and
-  RADV wrote 6 MB into `~/.cache/gaki/shadercache/2835570`. A Proton
-  launch was not run by hand. Docs: CONFIG.md (new "Shader caches"
-  section), GAKI-CLI.md, GAKI-TUI.md, examples.
+    _Done (user choices: default `$XDG_CACHE_HOME/gaki/shadercache/<app id>`,
+    not Steam's layout; no `steam` value; old caches left alone; the profile
+    field lives in liblootrs):_ the Proton check turned up a difference.
+    proton-cachyos only reads `STEAM_COMPAT_SHADER_PATH` when
+    `PROTON_LOCAL_SHADER_CACHE` is set (`protonfixes/utilities.py`
+    `setup_local_shader_cache`); otherwise the official client sets the
+    driver variables itself. So gaki sets them directly for every launch,
+    with Proton's own layout: `DXVK_STATE_CACHE_PATH` (`DXVK_state_cache/`),
+    `VKD3D_SHADER_CACHE_PATH` (`VKD3D_shader_cache/`),
+    `MESA_SHADER_CACHE_DIR`, `__GL_SHADER_DISK_CACHE_PATH` (`nvidiav1/`),
+    `AMD_VK_PIPELINE_CACHE_PATH` (`AMDv1/`), plus `STEAM_COMPAT_SHADER_PATH`
+    for Proton. lootrs (uncommitted, needs a push): `liblootrs::model::ShaderCache`
+    (`off` or a directory, with `env`/`create_dirs`), `Profile::shader_cache`,
+    validation, lootrs' own launches use `<dir>/<game>` (unset stays off
+    there), TUI form field, CHANGELOG, example profile. gaki:
+    `shader_cache` in `config.toml` (`KEYS`, Settings tab), `games.toml`,
+    and profiles; `settings::ShaderCachePlace` and
+    `LaunchSettings::shader_cache_dir`; `ApplySettingsStage` creates the
+    directories and adds the variables before the profile and game `env`,
+    skipping any the runner, a fixup or gaki's own environment already set.
+    `config check` reports a relative path or one under a file.
+    `ops::install::uninstall` deletes the cache, and `availability` (`gaki-cli
+available`, the TUI Checks tab) shows its path and size. Checked by
+    hand: a native launch of Buckshot Roulette got all five variables, and
+    RADV wrote 6 MB into `~/.cache/gaki/shadercache/2835570`. A Proton
+    launch was not run by hand. Docs: CONFIG.md (new "Shader caches"
+    section), GAKI-CLI.md, GAKI-TUI.md, examples.
 
 - [x] **8.20** `gaki-cli clean`: remove gaki's caches and leftovers in
-  one go (user request, 2026-11-08). It lists what it would delete, with
-  sizes, and deletes only after a confirm or `--yes`; `--dry-run` only
-  lists. The things to clean:
+      one go (user request, 2026-11-08). It lists what it would delete, with
+      sizes, and deletes only after a confirm or `--yes`; `--dry-run` only
+      lists. The things to clean:
   - the image and artwork cache, the `info` cache and the library cache;
   - the TUI's cache (`$XDG_CACHE_HOME/gaki/tui`);
   - old logs (the current one is kept) and install lock files no live
     process holds;
   - shader caches of games that aren't installed any more (8.19),
     and, with `--shaders`, every game's.
-  Flags choose a subset (`--images`, `--info`, `--logs`, ...). It never
-  touches the config, the session, the install backlog, installed games,
-  Cloud saves or prefixes; partial downloads stay with `install forget
-  --delete-files`. `--json` reports what was freed. The TUI gets the same
-  as a **Clean** action in Settings, after a y/n. A running daemon keeps
-  working: it reloads what it needs.
-  *Done (user choices: old logs = every launch log but each game's newest;
-  plain `clean` takes every safe kind):* new `libgaki::ops::clean`
-  (`Kind`, `Selection`, `plan`/`plan_in`, `delete`, `totals`, `Layout`).
-  Images, `info_cache` (plus `tag_names`/`category_names`), the library
-  cache, the TUI cache, launch logs (a log without `summary.toml` is kept
-  for 24 h in case the game still runs), unheld `installs/*.lock`, and
-  shader caches under the default root and every root `config.toml`, the
-  profiles or `games.toml` name. A numbered folder counts as a shader
-  cache only when it has a folder gaki or Mesa make, so a user's own
-  folder is left alone. Cache directories are emptied and kept, so a
-  running daemon or TUI keeps writing. `gaki-cli clean` with `--images`,
-  `--info`, `--library`, `--tui`, `--logs`, `--locks`, `--shaders`
-  (uninstalled games only; this is a kind flag, not the plan's "every
-  game"), `--all-shaders` (installed games too), `-n/--dry-run`,
-  `-y/--yes` and `--json`. TUI: a fifth Settings tab, **Clean**, scans in
-  the background (`x` delete after y/n, `a` every game's shaders, `r` scan
-  again; `[settings]` keybinds `clean`, `all_shaders`, `rescan_clean`).
-  `Load` got `Clone`/`Debug`. Program logs: only `gaki-tui.log` exists and
-  it isn't rotated, so there's nothing old to delete. Checked by hand: a
-  dry run on the real directories, and a real delete in throwaway
-  directories. Docs: GAKI-CLI.md ("Cleaning up"), GAKI-TUI.md,
-  FEATURES.md, examples/keybinds.toml.
+    Flags choose a subset (`--images`, `--info`, `--logs`, ...). It never
+    touches the config, the session, the install backlog, installed games,
+    Cloud saves or prefixes; partial downloads stay with `install forget
+--delete-files`. `--json` reports what was freed. The TUI gets the same
+    as a **Clean** action in Settings, after a y/n. A running daemon keeps
+    working: it reloads what it needs.
+    _Done (user choices: old logs = every launch log but each game's newest;
+    plain `clean` takes every safe kind):_ new `libgaki::ops::clean`
+    (`Kind`, `Selection`, `plan`/`plan_in`, `delete`, `totals`, `Layout`).
+    Images, `info_cache` (plus `tag_names`/`category_names`), the library
+    cache, the TUI cache, launch logs (a log without `summary.toml` is kept
+    for 24 h in case the game still runs), unheld `installs/*.lock`, and
+    shader caches under the default root and every root `config.toml`, the
+    profiles or `games.toml` name. A numbered folder counts as a shader
+    cache only when it has a folder gaki or Mesa make, so a user's own
+    folder is left alone. Cache directories are emptied and kept, so a
+    running daemon or TUI keeps writing. `gaki-cli clean` with `--images`,
+    `--info`, `--library`, `--tui`, `--logs`, `--locks`, `--shaders`
+    (uninstalled games only; this is a kind flag, not the plan's "every
+    game"), `--all-shaders` (installed games too), `-n/--dry-run`,
+    `-y/--yes` and `--json`. TUI: a fifth Settings tab, **Clean**, scans in
+    the background (`x` delete after y/n, `a` every game's shaders, `r` scan
+    again; `[settings]` keybinds `clean`, `all_shaders`, `rescan_clean`).
+    `Load` got `Clone`/`Debug`. Program logs: only `gaki-tui.log` exists and
+    it isn't rotated, so there's nothing old to delete. Checked by hand: a
+    dry run on the real directories, and a real delete in throwaway
+    directories. Docs: GAKI-CLI.md ("Cleaning up"), GAKI-TUI.md,
+    FEATURES.md, examples/keybinds.toml.
 
 - [x] **8.21** Switch `steam-vent` 0.5 and `aurelia-steam-vent-chat` 0.5 to
-  the Aurelia fork, `aurelia-steam-vent` 0.7 and `aurelia-steam-vent-chat` 0.8
-  (user request, 2026-11-08). The fork gives each session its own logon ID
-  (0.5 always sends 0, so two sessions of one account may replace each
-  other), carries upstream's unreleased 0.6 work (Steam Guard retries,
-  anonymous logons fixed, the core traits split off), and chat 0.8 adds game
-  invites, other chat entries and the BBCode flag. It doesn't unpin
-  `protobuf` 3.5.1 or `generic-array` 0.14.7: both still come through
-  `steam-vent-proto-common` 0.5.1 and `rsa` 0.9. Port login, auth and the
-  message-trait uses; all §8 gates; test on the test account.
-  *Done:* the `steam-vent` and `steam-vent-chat` names in Cargo.toml now
-  point at the fork packages, so no `use` changed. Logons go through
-  `login_with_logon_id` and `login_with_refresh_token_and_logon_id` with
-  `steam_client::logon_id()`, a random nonzero ID per process; the stored
-  token is checked by `RefreshToken::new` first, so a bad one says to log in
-  again. `ClientInfo::default()` keeps the old device name. Guard handlers
-  are tuples now (`.or` is gone); the session token is
-  `refresh_token().token()`; `ip_country_code()` is a `&str`, empty when
-  unknown. Chat: `event_partner` returns `Option` (`ChatEvent` is
-  non-exhaustive), and `chat open` prints game invites (JSON `invite`, added
-  to `capabilities`). Gates green (539/681/808 tests). On the test account,
-  a `chat open` connection stayed online while three `--no-daemon` commands
-  logged in beside it. Not tried by hand: password and QR logins, which
-  need the user.
+      the Aurelia fork, `aurelia-steam-vent` 0.7 and `aurelia-steam-vent-chat` 0.8
+      (user request, 2026-11-08). The fork gives each session its own logon ID
+      (0.5 always sends 0, so two sessions of one account may replace each
+      other), carries upstream's unreleased 0.6 work (Steam Guard retries,
+      anonymous logons fixed, the core traits split off), and chat 0.8 adds game
+      invites, other chat entries and the BBCode flag. It doesn't unpin
+      `protobuf` 3.5.1 or `generic-array` 0.14.7: both still come through
+      `steam-vent-proto-common` 0.5.1 and `rsa` 0.9. Port login, auth and the
+      message-trait uses; all §8 gates; test on the test account.
+      _Done:_ the `steam-vent` and `steam-vent-chat` names in Cargo.toml now
+      point at the fork packages, so no `use` changed. Logons go through
+      `login_with_logon_id` and `login_with_refresh_token_and_logon_id` with
+      `steam_client::logon_id()`, a random nonzero ID per process; the stored
+      token is checked by `RefreshToken::new` first, so a bad one says to log in
+      again. `ClientInfo::default()` keeps the old device name. Guard handlers
+      are tuples now (`.or` is gone); the session token is
+      `refresh_token().token()`; `ip_country_code()` is a `&str`, empty when
+      unknown. Chat: `event_partner` returns `Option` (`ChatEvent` is
+      non-exhaustive), and `chat open` prints game invites (JSON `invite`, added
+      to `capabilities`). Gates green (539/681/808 tests). On the test account,
+      a `chat open` connection stayed online while three `--no-daemon` commands
+      logged in beside it. Not tried by hand: password and QR logins, which
+      need the user.
 
 ### Phase 9 — Steam rules audit
 
@@ -2351,120 +2354,119 @@ advice;** say so wherever the result is published. Before starting, ask the
 user whether to do this phase and how.
 
 - [x] **9.1** Collect the rules that apply, saving a link and the date
-  checked for each: the Steam Subscriber Agreement, the Steam Online Conduct
-  rules, the Steam Web API Terms of Use, the Steam trademark and brand
-  guidelines, the Steamworks and partner terms, and the Community Market
-  and trading terms (gaki only reads those, see Non-goals). Note which apply
-  to gaki itself, which to its users, and which to neither.
-  *Done 2026-11-08:* docs/STEAM-RULES.md §1, with link, version and
-  applicability for each, the quoted clauses, and the robots.txt of every
-  host gaki contacts. (User's choices: audit first, decide each gray area
-  together, findings in STEAM-RULES.md.)
+      checked for each: the Steam Subscriber Agreement, the Steam Online Conduct
+      rules, the Steam Web API Terms of Use, the Steam trademark and brand
+      guidelines, the Steamworks and partner terms, and the Community Market
+      and trading terms (gaki only reads those, see Non-goals). Note which apply
+      to gaki itself, which to its users, and which to neither.
+      _Done 2026-11-08:_ docs/STEAM-RULES.md §1, with link, version and
+      applicability for each, the quoted clauses, and the robots.txt of every
+      host gaki contacts. (User's choices: audit first, decide each gray area
+      together, findings in STEAM-RULES.md.)
 - [x] **9.2** Go through every feature against those rules: logging in as a
-  non-official client (steam-vent, the CM protocol, QR and Steam Guard), the
-  daemon holding a session, depot and manifest downloads, installs outside
-  the official client, Steam Cloud sync, presence and chat, store, price
-  and market scraping and its request rate, the web API keys and the web
-  session, ProtonDB, SteamGridDB and the other third-party services, art
-  caching, and the names and logos gaki uses. For each one: **OK**, **gray
-  area**, or **breaks a rule**, quoting the clause.
-  *Done 2026-11-08:* docs/STEAM-RULES.md §2 rates 22 features. Nothing
-  breaks a rule. The gray areas are the unofficial client itself (SSA
-  §4.B, §2.G(ii)), the market and inventory endpoints, and
-  `steam_appid.txt`; the rest are low. §3 lists items A–F for 9.3.
-  *Done 2026-11-08:* items A–F decided with the user (STEAM-RULES.md §3):
-  three code changes, 9.3a–9.3c below; D and E docs only (9.4); F kept.
-  Nothing dropped or gated off.
+      non-official client (steam-vent, the CM protocol, QR and Steam Guard), the
+      daemon holding a session, depot and manifest downloads, installs outside
+      the official client, Steam Cloud sync, presence and chat, store, price
+      and market scraping and its request rate, the web API keys and the web
+      session, ProtonDB, SteamGridDB and the other third-party services, art
+      caching, and the names and logos gaki uses. For each one: **OK**, **gray
+      area**, or **breaks a rule**, quoting the clause.
+      _Done 2026-11-08:_ docs/STEAM-RULES.md §2 rates 22 features. Nothing
+      breaks a rule. The gray areas are the unofficial client itself (SSA
+      §4.B, §2.G(ii)), the market and inventory endpoints, and
+      `steam_appid.txt`; the rest are low. §3 lists items A–F for 9.3.
+      _Done 2026-11-08:_ items A–F decided with the user (STEAM-RULES.md §3):
+      three code changes, 9.3a–9.3c below; D and E docs only (9.4); F kept.
+      Nothing dropped or gated off.
 - [x] **9.3a** Item A: log on as device "gaki" (`ClientInfo::new`) instead
-  of steam-vent's "DESKTOP-VENT". (User decision, 2026-11-08.)
-  *Done 2026-11-08:* `steam_client::DEVICE_NAME` ("gaki") and
-  `client_info()`. Password logons pass it to `login_with_logon_id`, and the
-  QR request uses it too (it said "gaki-cli", even from the TUI). Test
-  `logs_on_as_gaki`. Gates green (540/682/809 tests). Only a new password or
-  QR login creates a device entry, so the saved session keeps its old name
-  until the next `gaki-cli login`; not tried by hand (needs the user).
+      of steam-vent's "DESKTOP-VENT". (User decision, 2026-11-08.)
+      _Done 2026-11-08:_ `steam_client::DEVICE_NAME` ("gaki") and
+      `client_info()`. Password logons pass it to `login_with_logon_id`, and the
+      QR request uses it too (it said "gaki-cli", even from the TUI). Test
+      `logs_on_as_gaki`. Gates green (540/682/809 tests). Only a new password or
+      QR login creates a device entry, so the saved session keeps its old name
+      until the next `gaki-cli login`; not tried by hand (needs the user).
 - [x] **9.3b** Item B: market, inventory and listings get a short cache and a
-  minimum interval between calls; they stay on. (User decision, 2026-11-08.)
-  *Done 2026-11-08:* libgaki `ops::market::pace`. Prices and searches are
-  reused for 5 minutes (`PUBLIC_TTL`); inventory, wallet and listings for 1
-  minute (`ACCOUNT_TTL`), keyed by SteamID. Requests from one process are at
-  least 3 s apart (`MIN_INTERVAL`, queued in order). Memory only, never on
-  disk; failures aren't cached. Every `ops::market` call goes through it, so
-  the CLI, the daemon and the TUI all do. GAKI-CLI.md explains it. Gates
-  green (540/682/812 tests). By hand through the daemon: first price
-  306 ms, the same again 15 ms (cache), two new items about 3 s each.
+      minimum interval between calls; they stay on. (User decision, 2026-11-08.)
+      _Done 2026-11-08:_ libgaki `ops::market::pace`. Prices and searches are
+      reused for 5 minutes (`PUBLIC_TTL`); inventory, wallet and listings for 1
+      minute (`ACCOUNT_TTL`), keyed by SteamID. Requests from one process are at
+      least 3 s apart (`MIN_INTERVAL`, queued in order). Memory only, never on
+      disk; failures aren't cached. Every `ops::market` call goes through it, so
+      the CLI, the daemon and the TUI all do. GAKI-CLI.md explains it. Gates
+      green (540/682/812 tests). By hand through the daemon: first price
+      306 ms, the same again 15 ms (cache), two new items about 3 s each.
 - [x] **9.3c** Item C: write `steam_appid.txt` only when the game's working
-  folder has none; never overwrite or delete one (native and Wine launches,
-  `steam_client/process.rs` and `infra/runners/wine_tkg.rs`). (User decision,
-  2026-11-08.)
-  *Done 2026-11-08:* `core::utils::ensure_steam_appid` opens the file with
-  `create_new`, so an existing one is kept and two launches can't race;
-  both writers use it and log a failure instead of dropping it. In practice
-  only Proton/Wine launches write it: native games go through the
-  pipeline's `NativeRunner`, which sets `SteamAppId` and writes no file (the
-  native writer is in the fallback `internal_legacy_launch_adhoc`). Tests in
-  `core/utils/tests/steam_appid.rs`. Gates green (543/685/815 tests). Not
-  launched by hand: the behaviour is the file open, covered by the tests.
+      folder has none; never overwrite or delete one (native and Wine launches,
+      `steam_client/process.rs` and `infra/runners/wine_tkg.rs`). (User decision,
+      2026-11-08.)
+      _Done 2026-11-08:_ `core::utils::ensure_steam_appid` opens the file with
+      `create_new`, so an existing one is kept and two launches can't race;
+      both writers use it and log a failure instead of dropping it. In practice
+      only Proton/Wine launches write it: native games go through the
+      pipeline's `NativeRunner`, which sets `SteamAppId` and writes no file (the
+      native writer is in the fallback `internal_legacy_launch_adhoc`). Tests in
+      `core/utils/tests/steam_appid.rs`. Gates green (543/685/815 tests). Not
+      launched by hand: the behaviour is the file open, covered by the tests.
 - [x] **9.3** For each gray area or broken rule, find a way to keep the
-  feature without breaking the rule (an official endpoint instead of
-  scraping, a lower request rate or a cache, needing the official client
-  running, doing it only when the user asks, attribution, an off-by-default
-  feature gate). If no compliant way exists, decide with the user: drop the
-  feature, or keep it behind a clear warning and a gate that's off by
-  default. Each change becomes its own step (9.x).
+      feature without breaking the rule (an official endpoint instead of
+      scraping, a lower request rate or a cache, needing the official client
+      running, doing it only when the user asks, attribution, an off-by-default
+      feature gate). If no compliant way exists, decide with the user: drop the
+      feature, or keep it behind a clear warning and a gate that's off by
+      default. Each change becomes its own step (9.x).
 - [x] **9.4** Document the result for users. Add a **"Steam rules and
-  risks"** section to `README.md` and a full page at `docs/STEAM-RULES.md`:
-  what gaki does that the official client doesn't, which rules it touches,
-  what could happen to an account (from nothing to a ban) and how likely
-  that is, which features are off by default for this reason and why, the
-  "never moves money" policy, the existing "not affiliated with Valve"
-  notice, and the date of the review. Link it from `docs/FAQ.md`, from the
-  help of every gated command, and from the TUI help.
-  *Done 2026-11-08:* STEAM-RULES.md now opens with the user guide (in short;
-  what gaki does that the client doesn't; what it never does; your part:
-  automation, proxies, sharing; features off by default: none), then "The
-  review in detail" (§1 rules, §2 ratings, §3 what was done). README has a
-  "Steam rules and risks" section, the caution box no longer says
-  "unchecked", and the docs table lists the page. Links: FAQ (with a VAC
-  note), CONFIG.md `proxy`, GAKI-CLI.md chat and market, `--help` footers
-  of `chat`, `inventory`, `wallet`, `market` and the `config proxy` doc,
-  and a "Steam rules" block in the TUI help (test `shows_the_steam_rules`).
-  Gates green (544/686/816 tests). Found on the way, not fixed (before
-  this step): several TUI help descriptions are over the 28-character
-  column and get cut off, e.g. "workshop (status, browse, comments)".
+      risks"** section to `README.md` and a full page at `docs/STEAM-RULES.md`:
+      what gaki does that the official client doesn't, which rules it touches,
+      what could happen to an account (from nothing to a ban) and how likely
+      that is, which features are off by default for this reason and why, the
+      "never moves money" policy, the existing "not affiliated with Valve"
+      notice, and the date of the review. Link it from `docs/FAQ.md`, from the
+      help of every gated command, and from the TUI help.
+      _Done 2026-11-08:_ STEAM-RULES.md now opens with the user guide (in short;
+      what gaki does that the client doesn't; what it never does; your part:
+      automation, proxies, sharing; features off by default: none), then "The
+      review in detail" (§1 rules, §2 ratings, §3 what was done). README has a
+      "Steam rules and risks" section, the caution box no longer says
+      "unchecked", and the docs table lists the page. Links: FAQ (with a VAC
+      note), CONFIG.md `proxy`, GAKI-CLI.md chat and market, `--help` footers
+      of `chat`, `inventory`, `wallet`, `market` and the `config proxy` doc,
+      and a "Steam rules" block in the TUI help (test `shows_the_steam_rules`).
+      Gates green (544/686/816 tests). Found on the way, not fixed (before
+      this step): several TUI help descriptions are over the 28-character
+      column and get cut off, e.g. "workshop (status, browse, comments)".
 
 - [x] **9.5** Make the rules audit part of the release checklist: rerun
-  9.1–9.4 when a rule changes or a feature that talks to Steam is added.
-  *Done 2026-11-08:* ARCHITECTURE.md gets §12 "Releases" (gates and CI,
-  version bump, the rules review current, no AUDIT.md finding left open) and a §10
-  item: a change in how gaki talks to Steam or another service updates its
-  STEAM-RULES.md §2 row in the same change. STEAM-RULES.md §4 says when and
-  how to rerun the review. On the way: the 9.4 TUI help test was an inline
-  `mod tests` (§11.6 forbids that), so `ui/help.rs` became `ui/help/mod.rs`
-  and `tests.rs`. Phase 9 complete.
-
+      9.1–9.4 when a rule changes or a feature that talks to Steam is added.
+      _Done 2026-11-08:_ ARCHITECTURE.md gets §12 "Releases" (gates and CI,
+      version bump, the rules review current, no AUDIT.md finding left open) and a §10
+      item: a change in how gaki talks to Steam or another service updates its
+      STEAM-RULES.md §2 row in the same change. STEAM-RULES.md §4 says when and
+      how to rerun the review. On the way: the 9.4 TUI help test was an inline
+      `mod tests` (§11.6 forbids that), so `ui/help.rs` became `ui/help/mod.rs`
+      and `tests.rs`. Phase 9 complete.
 
 ---
 
 ## Q&A carried over from `docs/aurelia-questions.md`
 
-| Q | Resolution |
-| - | ---------- |
-| Q1 QR in TUI broken | Step 4.3 |
-| Q2 AUR `!lto` | Step 0.4. Re-verify when packaging. |
-| Q3 CI/CD | Step 0.5 |
-| Q4 Steam required? | Yes, by design (R21). Documented in step 7.2. |
-| Q5 default platform | Step 5.4 |
-| Q6 slim builds | Phase 6 |
-| Q7 umu download / PATH | Moot. umu support is removed (step 1.3). |
-| Q8 named scripts | Steps 5.5, 5.7c (scripts became per-game `wrappers`) |
-| Q9 ProtonDB/GitHub hotkey | Step 7.1 |
-| Profiles / shared prefixes | Phase 5 |
-| plans2: reuse liblootrs profiles | D9: shared file format (5.1); revised: `liblootrs` model dependency (8.15) |
-| plans2: rename binary to `gaki-tui` | Step 4.6 |
-| plans2: pure GPLv3 `LICENSE` | Step 0.7 |
-| plans2: HLTB link by app id | Not possible; stays a non-goal (7.1) |
-| plans2: `aws-lc-sys` with GPLv3 | Moot: 0.47 dropped the OpenSSL license (7.3) |
-| plans2: auth and session safety | D10, steps 5.9–5.13 |
+| Q                                   | Resolution                                                                 |
+| ----------------------------------- | -------------------------------------------------------------------------- |
+| Q1 QR in TUI broken                 | Step 4.3                                                                   |
+| Q2 AUR `!lto`                       | Step 0.4. Re-verify when packaging.                                        |
+| Q3 CI/CD                            | Step 0.5                                                                   |
+| Q4 Steam required?                  | Yes, by design (R21). Documented in step 7.2.                              |
+| Q5 default platform                 | Step 5.4                                                                   |
+| Q6 slim builds                      | Phase 6                                                                    |
+| Q7 umu download / PATH              | Moot. umu support is removed (step 1.3).                                   |
+| Q8 named scripts                    | Steps 5.5, 5.7c (scripts became per-game `wrappers`)                       |
+| Q9 ProtonDB/GitHub hotkey           | Step 7.1                                                                   |
+| Profiles / shared prefixes          | Phase 5                                                                    |
+| plans2: reuse liblootrs profiles    | D9: shared file format (5.1); revised: `liblootrs` model dependency (8.15) |
+| plans2: rename binary to `gaki-tui` | Step 4.6                                                                   |
+| plans2: pure GPLv3 `LICENSE`        | Step 0.7                                                                   |
+| plans2: HLTB link by app id         | Not possible; stays a non-goal (7.1)                                       |
+| plans2: `aws-lc-sys` with GPLv3     | Moot: 0.47 dropped the OpenSSL license (7.3)                               |
+| plans2: auth and session safety     | D10, steps 5.9–5.13                                                        |
 
 `docs/aurelia-questions.md` has been deleted (7.8); this section holds its content.

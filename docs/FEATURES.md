@@ -8,21 +8,21 @@ have.
 
 ## The features
 
-| Feature          | Default | Requires         | `libgaki`                                                                    |
-| ---------------- | :-----: | ---------------- | ---------------------------------------------------------------------------- |
-| *(core)*         | always  | —                | config and profiles, local library scan (ACF), Proton discovery, launch-pipeline stages and runners |
-| `authentication` | on      | —                | login (password, Steam Guard, QR), session store and crypto, keyring, the CM connection |
-| `library`        | on      | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, DLC toggles, launching, library export |
-| `install`        | on      | `library`        | install, update, verify, uninstall, move/relink/import, backlog, library import, official Proton downloads |
-| `cloud`          | on      | `library`        | Steam Cloud save sync                                                        |
-| `collections`    | on      | `library`        | library collections (CloudConfigStore)                                       |
-| `versioning`     | off     | `install`        | branches, set-branch, downgrade, pin/unpin, manifests                        |
-| `depot`          | off     | `install`        | depot browser: depot listings, manifest file lists, single-file downloads    |
-| `workshop`       | off     | `install`        | Workshop status, install, uninstall, browse, subscribe, rate, comments       |
-| `social`         | off     | `authentication` | friends, chat, presence, persona lookups by name                             |
-| `inventory`      | off     | `authentication` | inventory, wallet                                                            |
-| `market`         | off     | `inventory`      | Community Market listings, search, prices                                    |
-| `store`          | off     | `library`        | search, price, deals, news, reviews, events, wishlist, similar, players      |
+| Feature          | Default | Requires         | `libgaki`                                                                                                  |
+| ---------------- | :-----: | ---------------- | ---------------------------------------------------------------------------------------------------------- |
+| _(core)_         | always  | —                | config and profiles, local library scan (ACF), Proton discovery, launch-pipeline stages and runners        |
+| `authentication` |   on    | —                | login (password, Steam Guard, QR), session store and crypto, keyring, the CM connection                    |
+| `library`        |   on    | `authentication` | owned apps, appinfo/PICS, tags, achievements, licenses, DLC toggles, launching, library export             |
+| `install`        |   on    | `library`        | install, update, verify, uninstall, move/relink/import, backlog, library import, official Proton downloads |
+| `cloud`          |   on    | `library`        | Steam Cloud save sync                                                                                      |
+| `collections`    |   on    | `library`        | library collections (CloudConfigStore)                                                                     |
+| `versioning`     |   off   | `install`        | branches, set-branch, downgrade, pin/unpin, manifests                                                      |
+| `depot`          |   off   | `install`        | depot browser: depot listings, manifest file lists, single-file downloads                                  |
+| `workshop`       |   off   | `install`        | Workshop status, install, uninstall, browse, subscribe, rate, comments                                     |
+| `social`         |   off   | `authentication` | friends, chat, presence, persona lookups by name                                                           |
+| `inventory`      |   off   | `authentication` | inventory, wallet                                                                                          |
+| `market`         |   off   | `inventory`      | Community Market listings, search, prices                                                                  |
+| `store`          |   off   | `library`        | search, price, deals, news, reviews, events, wishlist, similar, players                                    |
 
 A feature turns on what it requires (`install` brings `library`, which brings
 `authentication`), so no combination fails to build. Launching needs
@@ -33,13 +33,13 @@ A feature turns on what it requires (`install` brings `library`, which brings
 Each heavy dependency is `optional = true` and comes only with the feature that
 uses it.
 
-| Feature          | Brings in                                                                        |
-| ---------------- | -------------------------------------------------------------------------------- |
+| Feature          | Brings in                                                                                                                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `authentication` | `steam-vent` (+ protos), `protobuf` (+ codegen), `reqwest`, `keyring-core` + `dbus-secret-service-keyring-store`, `secrecy`, `steam-vdf-parser`, `keyvalues-serde`, `tokio-stream`; in `gaki-cli` also `qrcode`, `rpassword` |
-| `install`        | `gaki-steam-cdn` (the workspace's download engine)                               |
-| `cloud`          | `zip`, `filetime`, `sha1`                                                        |
-| `depot`          | `hex`, `sha1`                                                                    |
-| `social`         | `steam-vent-chat`, `steamid-ng`; in `gaki-cli` also `tokio-stream`               |
+| `install`        | `gaki-steam-cdn` (the workspace's download engine)                                                                                                                                                                           |
+| `cloud`          | `zip`, `filetime`, `sha1`                                                                                                                                                                                                    |
+| `depot`          | `hex`, `sha1`                                                                                                                                                                                                                |
+| `social`         | `steam-vent-chat`, `steamid-ng`; in `gaki-cli` also `tokio-stream`                                                                                                                                                           |
 
 `build.rs` generates a protobuf only for the feature that uses it:
 `collections` gets CloudConfigStore, and `store` gets StoreQuery and Wishlist.
@@ -48,21 +48,21 @@ uses it.
 
 `gaki-cli` forwards all twelve features with the same defaults.
 
-| Feature          | Commands                                                                         |
-| ---------------- | -------------------------------------------------------------------------------- |
-| *(always)*       | `capabilities`, `clean`, `config`, `profiles`, `proton list`, `proton default`   |
-| `authentication` | `login`, `logout`, `daemon`, `kill`                                              |
+| Feature          | Commands                                                                                                                                                                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(always)_       | `capabilities`, `clean`, `config`, `profiles`, `proton list`, `proton default`                                                                                                                                                    |
+| `authentication` | `login`, `logout`, `daemon`, `kill`                                                                                                                                                                                               |
 | `library`        | `list`, `info`, `account`, `library export`, `play`, `launch-targets`, `stop`, `running`, `drm`, `dlc`, `enable`, `disable`, `achievements`, `image`, `depots`, `launch-options`, `libraries` (plus the hidden `appinfo`, `tags`) |
-| `install`        | `install`, `update`, `library import`, `uninstall`, `verify`, `available`, `move`, `relink`, `import`, `duplicates`, `proton install`, `proton uninstall` |
-| `versioning`     | `branches`, `set-branch`, `manifests`, `downgrade`, `pin`, `unpin`               |
-| `cloud`          | `cloud`                                                                          |
-| `collections`    | `collections`                                                                    |
-| `workshop`       | `workshop`                                                                       |
-| `social`         | `friends`, `chat`, `user`                                                        |
-| `inventory`      | `inventory`, `wallet`                                                            |
-| `market`         | `market`                                                                         |
-| `store`          | `price`, `search`, `deals`, `players`, `events`, `news`, `reviews`, `wishlist`, `similar` |
-| `depot`          | `depots files`, `depots download`                                                |
+| `install`        | `install`, `update`, `library import`, `uninstall`, `verify`, `available`, `move`, `relink`, `import`, `duplicates`, `proton install`, `proton uninstall`                                                                         |
+| `versioning`     | `branches`, `set-branch`, `manifests`, `downgrade`, `pin`, `unpin`                                                                                                                                                                |
+| `cloud`          | `cloud`                                                                                                                                                                                                                           |
+| `collections`    | `collections`                                                                                                                                                                                                                     |
+| `workshop`       | `workshop`                                                                                                                                                                                                                        |
+| `social`         | `friends`, `chat`, `user`                                                                                                                                                                                                         |
+| `inventory`      | `inventory`, `wallet`                                                                                                                                                                                                             |
+| `market`         | `market`                                                                                                                                                                                                                          |
+| `store`          | `price`, `search`, `deals`, `players`, `events`, `news`, `reviews`, `wishlist`, `similar`                                                                                                                                         |
+| `depot`          | `depots files`, `depots download`                                                                                                                                                                                                 |
 
 The session daemon needs `authentication`, because without a login there is no
 session to keep. `--no-daemon`, `--no-spawn` and `--socket` are still accepted in
@@ -78,19 +78,19 @@ A TUI without a library has nothing to show, so `gaki-tui` always builds
 `authentication` and `library` and forwards the other ten. Its defaults are
 `install`, `cloud` and `collections`.
 
-| Feature       | Views and keys                                                                     |
-| ------------- | ---------------------------------------------------------------------------------- |
-| *(always)*    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, game info `n` (details, checks, artwork), SteamDB `Z`, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p` (with the Profiles, Check, Daemons and Clean tabs), favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T` |
-| `install`     | install `d` (with the library picker), pause/resume `Space`, cancel `c`, uninstall `x`, move `M`, relink `K`, import `N`, verify `v`, update `U`, the Installs overlay `X` (resume, resume all, pause, stop, forget, and the Duplicates tab), the background update check (Updates tab, `▲` badges), Proton install/uninstall (`P` then `i`/`u`), the "install now?" prompt |
-| `versioning`  | versions and pinning `V`, beta branches `b`                                        |
-| `cloud`       | cloud saves `C`                                                                    |
-| `collections` | collections `O`                                                                    |
-| `workshop`    | Workshop `W`                                                                       |
-| `social`      | the Friends tab (`5`, `F`, the Tab ring), chat, add/remove friend, user profiles (`v`, `/`), `--chat` window |
-| `inventory`   | inventory `I`, wallet `w`                                                          |
-| `market`      | market listings `m`, market search `S`                                             |
-| `store`       | the Store overlay `Y` (price with region compare, players, news, reviews, similar) and the Steam Store overlay `J` (search, deals, events, wishlist add/remove) |
-| `depot`       | the depot file view (`Enter` in depots `o`): filter, branch, single-file download  |
+| Feature       | Views and keys                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| _(always)_    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, game info `n` (details, checks, artwork), SteamDB `Z`, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p` (with the Profiles, Check, Daemons and Clean tabs), favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T` |
+| `install`     | install `d` (with the library picker), pause/resume `Space`, cancel `c`, uninstall `x`, move `M`, relink `K`, import `N`, verify `v`, update `U`, the Installs overlay `X` (resume, resume all, pause, stop, forget, and the Duplicates tab), the background update check (Updates tab, `▲` badges), Proton install/uninstall (`P` then `i`/`u`), the "install now?" prompt                                                                  |
+| `versioning`  | versions and pinning `V`, beta branches `b`                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `cloud`       | cloud saves `C`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `collections` | collections `O`                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `workshop`    | Workshop `W`                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `social`      | the Friends tab (`5`, `F`, the Tab ring), chat, add/remove friend, user profiles (`v`, `/`), `--chat` window                                                                                                                                                                                                                                                                                                                                 |
+| `inventory`   | inventory `I`, wallet `w`                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `market`      | market listings `m`, market search `S`                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `store`       | the Store overlay `Y` (price with region compare, players, news, reviews, similar) and the Steam Store overlay `J` (search, deals, events, wishlist add/remove)                                                                                                                                                                                                                                                                              |
+| `depot`       | the depot file view (`Enter` in depots `o`): filter, branch, single-file download                                                                                                                                                                                                                                                                                                                                                            |
 
 The help overlay, the status-bar hints and the Proton overlay's title list only
 the keys the build has. If the build lacks `install`, Play on a game that isn't
@@ -117,10 +117,10 @@ cargo build -p gaki-tui --release --no-default-features
 CI runs build, clippy, tests and docs at three levels (see `ARCHITECTURE.md`
 §1.4 and §8):
 
-| Level   | Flag                    | What it validates                               |
-| ------- | ----------------------- | ----------------------------------------------- |
-| Minimal | `--no-default-features` | the core builds with no optional surface        |
-| Default | *(none)*                | what a user installs                            |
+| Level   | Flag                    | What it validates                                    |
+| ------- | ----------------------- | ---------------------------------------------------- |
+| Minimal | `--no-default-features` | the core builds with no optional surface             |
+| Default | _(none)_                | what a user installs                                 |
 | Full    | `--all-features`        | every optional integration builds and tests together |
 
 The three levels don't catch a feature that only builds alongside another one.

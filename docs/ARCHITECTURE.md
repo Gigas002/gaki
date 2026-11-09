@@ -56,11 +56,11 @@ All crates must separate **logical features** into optional Cargo features whene
 
 Workspace CI already runs build, clippy, and test jobs across all three levels on every push and pull request:
 
-| Level | Flag | What it validates |
-| ----- | ---- | ----------------- |
-| Minimal | `--no-default-features` | Core compiles with no optional surface enabled |
-| Default | *(none)* | Typical end-user consumption |
-| Full | `--all-features` | Every optional integration compiles and tests together |
+| Level   | Flag                    | What it validates                                      |
+| ------- | ----------------------- | ------------------------------------------------------ |
+| Minimal | `--no-default-features` | Core compiles with no optional surface enabled         |
+| Default | _(none)_                | Typical end-user consumption                           |
+| Full    | `--all-features`        | Every optional integration compiles and tests together |
 
 A new feature is not done until it passes **all three** levels locally (see §8). Do not merge feature-gated code that only builds under `--all-features`.
 
@@ -178,14 +178,14 @@ Rendering, event handling, and layout for a TUI (e.g. ratatui) or GUI framework 
 
 ### 4.2 Supporting modules
 
-| Module       | Responsibility                                              |
-| ------------ | ----------------------------------------------------------- |
-| `cli/`       | Argument and subcommand definitions; parsed only in `main`  |
-| `config/`    | TOML discovery, read, deserialize                           |
-| `settings/`  | Merge cli + config + defaults → `Settings`                  |
-| `logger/`    | `tracing` subscriber init from `Settings`                   |
-| `app/`       | Application state machine, domain orchestration, I/O loops  |
-| `utils/`     | Pure helpers with no settings or UI dependencies            |
+| Module      | Responsibility                                             |
+| ----------- | ---------------------------------------------------------- |
+| `cli/`      | Argument and subcommand definitions; parsed only in `main` |
+| `config/`   | TOML discovery, read, deserialize                          |
+| `settings/` | Merge cli + config + defaults → `Settings`                 |
+| `logger/`   | `tracing` subscriber init from `Settings`                  |
+| `app/`      | Application state machine, domain orchestration, I/O loops |
+| `utils/`    | Pure helpers with no settings or UI dependencies           |
 
 `app/` coordinates between domain logic and `ui/` but does not render or parse CLI.
 
@@ -261,18 +261,18 @@ Justify every new dependency in the change that introduces it. Prefer std and ex
 
 **All** checks below must pass locally before committing. Do not push commits that fail any gate.
 
-| Check | Command |
-| ----- | ------- |
-| Formatting | `cargo fmt --all -- --check` |
-| Spelling | `typos` |
-| Licenses / advisories | `cargo deny check` |
+| Check                        | Command                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------- |
+| Formatting                   | `cargo fmt --all -- --check`                                                  |
+| Spelling                     | `typos`                                                                       |
+| Licenses / advisories        | `cargo deny check`                                                            |
 | Clippy (no default features) | `cargo clippy --workspace --all-targets --no-default-features -- -D warnings` |
-| Clippy (default features) | `cargo clippy --workspace --all-targets -- -D warnings` |
-| Clippy (all features) | `cargo clippy --workspace --all-targets --all-features -- -D warnings` |
-| Tests (no default features) | `cargo test --workspace --no-default-features` |
-| Tests (default features) | `cargo test --workspace` |
-| Tests (all features) | `cargo test --workspace --all-features` |
-| Documentation | `cargo doc --workspace --no-deps` |
+| Clippy (default features)    | `cargo clippy --workspace --all-targets -- -D warnings`                       |
+| Clippy (all features)        | `cargo clippy --workspace --all-targets --all-features -- -D warnings`        |
+| Tests (no default features)  | `cargo test --workspace --no-default-features`                                |
+| Tests (default features)     | `cargo test --workspace`                                                      |
+| Tests (all features)         | `cargo test --workspace --all-features`                                       |
+| Documentation                | `cargo doc --workspace --no-deps`                                             |
 
 CI runs the same gates on push and pull request across the **three-level feature matrix** (§1.4): `--no-default-features`, default, and `--all-features`. A green local run should match a green CI run.
 
@@ -282,10 +282,10 @@ CI runs the same gates on push and pull request across the **three-level feature
 
 When splitting a workspace into library and binary crates:
 
-| Layer | Responsibility | Typical dependencies |
-| ----- | -------------- | -------------------- |
-| **Library** | Domain types, algorithms, protocol logic | `thiserror`, `tracing` (events only), serde if needed |
-| **Binary** | CLI, settings, logging, app wiring, optional UI | Library crate, `clap`, `tracing-subscriber`, UI crates |
+| Layer       | Responsibility                                  | Typical dependencies                                   |
+| ----------- | ----------------------------------------------- | ------------------------------------------------------ |
+| **Library** | Domain types, algorithms, protocol logic        | `thiserror`, `tracing` (events only), serde if needed  |
+| **Binary**  | CLI, settings, logging, app wiring, optional UI | Library crate, `clap`, `tracing-subscriber`, UI crates |
 
 **Forbidden crossings:**
 
@@ -325,12 +325,12 @@ layout is tracked in [`PLAN.md`](PLAN.md).
 
 ### 11.1 Crates
 
-| Crate      | Kind | Binary     | Depends on | Responsibility |
-| ---------- | ---- | ---------- | ---------- | -------------- |
-| `gaki-steam-cdn` | lib | — | — | Steam content delivery: content-server pool, depot keys, manifests, chunk download and decompression (adopted from `aurelia-steam-cdn`) |
-| `libgaki`  | lib  | —          | `gaki-steam-cdn` (with `install`), `liblootrs` | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config model and resolver |
-| `gaki-cli` | bin  | `gaki-cli` | `libgaki`  | Argument parsing, output formatting, session daemon |
-| `gaki-tui` | bin  | `gaki-tui` | `libgaki`  | Terminal UI (ratatui) |
+| Crate            | Kind | Binary     | Depends on                                     | Responsibility                                                                                                                          |
+| ---------------- | ---- | ---------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `gaki-steam-cdn` | lib  | —          | —                                              | Steam content delivery: content-server pool, depot keys, manifests, chunk download and decompression (adopted from `aurelia-steam-cdn`) |
+| `libgaki`        | lib  | —          | `gaki-steam-cdn` (with `install`), `liblootrs` | Steam session and protocol, library, install, cloud, launch pipeline, Proton discovery, config model and resolver                       |
+| `gaki-cli`       | bin  | `gaki-cli` | `libgaki`                                      | Argument parsing, output formatting, session daemon                                                                                     |
+| `gaki-tui`       | bin  | `gaki-tui` | `libgaki`                                      | Terminal UI (ratatui)                                                                                                                   |
 
 - `libgaki` is the **only** source of logic. The binaries never shell out to each
   other or parse each other's output.
@@ -412,5 +412,6 @@ Before tagging a release (`v*`, which runs `deploy.yml`):
 
   Each gray area or broken rule a rerun finds is decided before the release:
   changed, gated off by default with a warning, or dropped.
+
 - [ ] Every finding in [AUDIT.md](AUDIT.md) has a status other than open
       (fixed, accepted with a reason, and so on).

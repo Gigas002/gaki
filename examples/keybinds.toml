@@ -5,7 +5,8 @@
 #
 #   install = "i"
 #   sort = ["s", "ctrl+s"]
-#   hide = []                # no key; the Actions menu still has it
+#   # no key; the Actions menu still has it
+#   hide = []
 #
 # Keys: one character, case-sensitive ("E" is Shift+e), or a name: Enter,
 # Esc, Tab, BackTab (Shift+Tab), Backspace, Delete, Insert, Home, End,
@@ -105,26 +106,33 @@
 
 # The Installs overlay (`X`): the queue and the Duplicates tab.
 [installs]
-# resume = ["r", "Enter"]         # queue tab
-# resume_all = "R"                # queue tab
-# pause = "p"                     # queue tab
-# stop = "s"                      # queue tab
-# forget = "f"                    # queue tab
-# forget_and_delete = "F"         # queue tab
-# rescan = "r"                    # duplicates tab
+# Queue tab:
+# resume = ["r", "Enter"]
+# resume_all = "R"
+# pause = "p"
+# stop = "s"
+# forget = "f"
+# forget_and_delete = "F"
+# Duplicates tab:
+# rescan = "r"
 
 # The Settings overlay (`p`), by tab.
 [settings]
-# edit = "Enter"                  # settings tab
-# unset = "x"                     # settings tab
-# make_default = "d"              # profiles tab
-# check_again = "r"               # check tab
-# stop_daemon = "s"               # daemons tab
-# stop_all_daemons = "S"          # daemons tab
-# refresh_daemons = "r"           # daemons tab
-# clean = "x"                     # clean tab
-# all_shaders = "a"               # clean tab
-# rescan_clean = "r"              # clean tab
+# Settings tab:
+# edit = "Enter"
+# unset = "x"
+# Profiles tab:
+# make_default = "d"
+# Check tab:
+# check_again = "r"
+# Daemons tab:
+# stop_daemon = "s"
+# stop_all_daemons = "S"
+# refresh_daemons = "r"
+# Clean tab:
+# clean = "x"
+# all_shaders = "a"
+# rescan_clean = "r"
 
 # The Workshop overlay's status list (`W`).
 [workshop]
@@ -176,9 +184,11 @@
 
 # The Game info overlay (`n`), by tab.
 [game_info]
-# check_again = "r"               # checks tab
-# save_artwork = "s"              # artwork tab
-# artwork_folder = "o"            # artwork tab
+# Checks tab:
+# check_again = "r"
+# Artwork tab:
+# save_artwork = "s"
+# artwork_folder = "o"
 
 # The Cloud saves overlay (`C`).
 [cloud]

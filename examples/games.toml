@@ -3,15 +3,18 @@
 
 [[game]]
 app_id = 292030
-name = "witcher3"                 # alias usable everywhere an app id is
+# alias usable everywhere an app id is
+name = "witcher3"
 profile = "proton-cachyos"
 platform = "windows"
 args = ["-skipIntro"]
 # Wrapped inside the profile's wrappers. A script works: it gets the game
 # command as "$@" (end it with `exec "$@"`) and GAKI_APP_ID, GAKI_GAME_DIR, ...
 wrappers = ["~/games/run_scripts/witcher3/script.sh"]
-steam = "host"                    # auto | host | none; host = always bridge to Steam
-# shader_cache = "/mnt/fast/shaders"  # this game's shader caches: <dir>/292030, or "off"
+# auto | host | none; host = always bridge to Steam
+steam = "host"
+# This game's shader caches: <dir>/292030, or "off"
+# shader_cache = "/mnt/fast/shaders"
 [game.env]
 DXVK_HUD = "fps"
 

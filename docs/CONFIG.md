@@ -7,14 +7,14 @@ check them with `gaki-cli config check`.
 
 ## Where things live
 
-| Directory                                      | Contents                                                       |
-| ---------------------------------------------- | -------------------------------------------------------------- |
-| `$XDG_CONFIG_HOME/gaki/` (`~/.config/gaki/`)   | `config.toml`, `games.toml`, `profiles/`, plus what gaki writes there: `pins.toml`, `install_backlog.toml`, `collections.toml`, `cloud_sync/` |
+| Directory                                        | Contents                                                                                                                                                                                                    |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$XDG_CONFIG_HOME/gaki/` (`~/.config/gaki/`)     | `config.toml`, `games.toml`, `profiles/`, plus what gaki writes there: `pins.toml`, `install_backlog.toml`, `collections.toml`, `cloud_sync/`                                                               |
 | `$XDG_STATE_HOME/gaki/` (`~/.local/state/gaki/`) | `account.toml` (the session, without its tokens), `gaki-tui.log`, launch `logs/`, `running/` (games gaki launched, for `gaki-cli stop`), `libraries/` (records of [gaki-layout libraries](#library-layout)) |
-| `$XDG_CACHE_HOME/gaki/` (`~/.cache/gaki/`)     | what gaki can fetch again: `library_cache.toml`, `info_cache/`, `tag_names.toml`, `category_names.toml`, `images/`, `shadercache/` |
-| `$XDG_CONFIG_HOME/gaki/tui/`                   | `gaki-tui`'s own `config.toml` ([GAKI-TUI.md](GAKI-TUI.md))     |
-| `$XDG_CACHE_HOME/gaki/tui/`                    | `gaki-tui`'s cached library and cover art                       |
-| `$XDG_RUNTIME_DIR/gaki/`                       | the session daemon's socket                                    |
+| `$XDG_CACHE_HOME/gaki/` (`~/.cache/gaki/`)       | what gaki can fetch again: `library_cache.toml`, `info_cache/`, `tag_names.toml`, `category_names.toml`, `images/`, `shadercache/`                                                                          |
+| `$XDG_CONFIG_HOME/gaki/tui/`                     | `gaki-tui`'s own `config.toml` ([GAKI-TUI.md](GAKI-TUI.md))                                                                                                                                                 |
+| `$XDG_CACHE_HOME/gaki/tui/`                      | `gaki-tui`'s cached library and cover art                                                                                                                                                                   |
+| `$XDG_RUNTIME_DIR/gaki/`                         | the session daemon's socket                                                                                                                                                                                 |
 
 `--config-dir <PATH>` moves the config directory, `account.toml` included, and
 keeps the caches, launch logs and `running/` in it too. An
@@ -39,24 +39,24 @@ Settings apply in this order, later ones winning:
 Global settings. `gaki-cli config set <key> <value>` checks a value before it
 writes it, and `config unset <key>` removes one.
 
-| Key                   | Default              | Meaning                                                    |
-| --------------------- | -------------------- | ---------------------------------------------------------- |
-| `steam_library`       | the detected library | where games install. A folder Steam doesn't know (no `steamapps/` in it) gets gaki's own layout: see [Library layout](#library-layout) |
-| `profiles_dir`        | `<config>/profiles`  | where profiles live; point it at `~/.config/lootrs/profiles` to share lootrs' |
-| `default_profile`     | —                    | the profile a game uses when `games.toml` names none       |
-| `default_platform`    | —                    | `windows` or `linux`: the build to install and run when a game has both. Unset installs the Windows build and runs whichever is installed |
-| `default_proton`      | `experimental`       | the Proton build for a Windows launch whose profile names none: an official build name or a path. `gaki-cli proton default` sets it |
-| `cloud_sync`          | `true`               | sync Steam Cloud saves around a launch                     |
-| `presence`            | `offline`            | your Steam presence while gaki is signed in: `offline` or `online` |
-| `proxy`               | —                    | a proxy for all HTTP(S) traffic, e.g. `socks5://127.0.0.1:1080`. Steam's rules forbid using one to disguise your country ([STEAM-RULES.md](STEAM-RULES.md#your-part)) |
-| `no_proxy`            | —                    | comma-separated hosts that bypass it                       |
-| `install_resume`      | `manual`             | `auto` resumes interrupted installs when the daemon starts |
-| `experimental`        | `false`              | turn on experimental features                              |
-| `info_cache_ttl`      | 6 hours              | seconds a cached `info` record lives; `0` turns the cache off |
-| `daemon_idle_timeout` | 30 minutes           | seconds the daemon idles before it exits; `0` never        |
-| `reauth_sensitive`    | `false`              | ask for a fresh sign-in before showing the inventory, wallet or market listings |
-| `secret_store`        | `keyring`            | where tokens are kept: `keyring` or `memory`               |
-| `shader_cache`        | `<cache>/shadercache` | where games' compiled shaders go: a directory that gets one `<app id>/` per game, or `off` (see [Shader caches](#shader-caches)) |
+| Key                   | Default               | Meaning                                                                                                                                                               |
+| --------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steam_library`       | the detected library  | where games install. A folder Steam doesn't know (no `steamapps/` in it) gets gaki's own layout: see [Library layout](#library-layout)                                |
+| `profiles_dir`        | `<config>/profiles`   | where profiles live; point it at `~/.config/lootrs/profiles` to share lootrs'                                                                                         |
+| `default_profile`     | —                     | the profile a game uses when `games.toml` names none                                                                                                                  |
+| `default_platform`    | —                     | `windows` or `linux`: the build to install and run when a game has both. Unset installs the Windows build and runs whichever is installed                             |
+| `default_proton`      | `experimental`        | the Proton build for a Windows launch whose profile names none: an official build name or a path. `gaki-cli proton default` sets it                                   |
+| `cloud_sync`          | `true`                | sync Steam Cloud saves around a launch                                                                                                                                |
+| `presence`            | `offline`             | your Steam presence while gaki is signed in: `offline` or `online`                                                                                                    |
+| `proxy`               | —                     | a proxy for all HTTP(S) traffic, e.g. `socks5://127.0.0.1:1080`. Steam's rules forbid using one to disguise your country ([STEAM-RULES.md](STEAM-RULES.md#your-part)) |
+| `no_proxy`            | —                     | comma-separated hosts that bypass it                                                                                                                                  |
+| `install_resume`      | `manual`              | `auto` resumes interrupted installs when the daemon starts                                                                                                            |
+| `experimental`        | `false`               | turn on experimental features                                                                                                                                         |
+| `info_cache_ttl`      | 6 hours               | seconds a cached `info` record lives; `0` turns the cache off                                                                                                         |
+| `daemon_idle_timeout` | 30 minutes            | seconds the daemon idles before it exits; `0` never                                                                                                                   |
+| `reauth_sensitive`    | `false`               | ask for a fresh sign-in before showing the inventory, wallet or market listings                                                                                       |
+| `secret_store`        | `keyring`             | where tokens are kept: `keyring` or `memory`                                                                                                                          |
+| `shader_cache`        | `<cache>/shadercache` | where games' compiled shaders go: a directory that gets one `<app id>/` per game, or `off` (see [Shader caches](#shader-caches))                                      |
 
 ### Library layout
 
@@ -98,20 +98,20 @@ PROTON_ENABLE_WAYLAND = "1"
 winhttp = "n,b"
 ```
 
-| Key             | Meaning                                                                   |
-| --------------- | ------------------------------------------------------------------------- |
-| `name`          | the profile's name, the same as its file name                             |
-| `runner`        | `proton` or `native`. `wine` and `umu` parse, so lootrs profiles load, but gaki can't launch them and `config check` says so |
+| Key             | Meaning                                                                                                                                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`          | the profile's name, the same as its file name                                                                                                                                                             |
+| `runner`        | `proton` or `native`. `wine` and `umu` parse, so lootrs profiles load, but gaki can't launch them and `config check` says so                                                                              |
 | `prefix`        | for `proton`, the `STEAM_COMPAT_DATA_PATH` (its `pfx/` is the Wine prefix). Leave it out to give each game its own Steam `compatdata/<app id>`. For lootrs' `wine` and `umu` it is the Wine prefix itself |
-| `runner_args`   | extra arguments for the runner, before the game's own                     |
-| `wrappers`      | commands the launch is wrapped in, outermost first                        |
-| `debug`         | turn on the runner's own logging                                          |
-| `env`           | environment variables for the game                                        |
-| `dll_overrides` | DLL name to Wine override mode (`n`, `b`, `n,b`, or `""` to disable)      |
-| `proton.build`  | an official build name (`experimental`, `9.0`, ...) or the path of a Proton directory, such as a GE-Proton or proton-cachyos build from your package manager |
-| `steam`         | the Steam integration for games using the profile (see below)             |
-| `anticheat`     | `battleye` and `eac` (booleans): anti-cheat runtimes to make available    |
-| `shader_cache`  | `off` or a directory, over `config.toml`'s (see [Shader caches](#shader-caches)) |
+| `runner_args`   | extra arguments for the runner, before the game's own                                                                                                                                                     |
+| `wrappers`      | commands the launch is wrapped in, outermost first                                                                                                                                                        |
+| `debug`         | turn on the runner's own logging                                                                                                                                                                          |
+| `env`           | environment variables for the game                                                                                                                                                                        |
+| `dll_overrides` | DLL name to Wine override mode (`n`, `b`, `n,b`, or `""` to disable)                                                                                                                                      |
+| `proton.build`  | an official build name (`experimental`, `9.0`, ...) or the path of a Proton directory, such as a GE-Proton or proton-cachyos build from your package manager                                              |
+| `steam`         | the Steam integration for games using the profile (see below)                                                                                                                                             |
+| `anticheat`     | `battleye` and `eac` (booleans): anti-cheat runtimes to make available                                                                                                                                    |
+| `shader_cache`  | `off` or a directory, over `config.toml`'s (see [Shader caches](#shader-caches))                                                                                                                          |
 
 The format is lootrs': gaki reads profiles through lootrs' own model, so one
 profile directory can serve both tools. lootrs' fields (`dxvk`, `vkd3d`,
@@ -138,17 +138,17 @@ steam = "host"
 DXVK_HUD = "fps"
 ```
 
-| Key        | Meaning                                                             |
-| ---------- | ------------------------------------------------------------------- |
-| `app_id`   | the game                                                            |
-| `name`     | an alias for the app id                                             |
-| `profile`  | the profile to run it with                                          |
-| `platform` | `windows` or `linux`: the build to install and run                  |
-| `args`     | extra arguments for the game                                        |
-| `wrappers` | commands wrapped around the launch, inside the profile's            |
-| `env`      | environment variables, over the profile's                           |
-| `steam`    | the Steam integration, over the profile's                           |
-| `shader_cache` | `off` or a directory, over the profile's                        |
+| Key            | Meaning                                                  |
+| -------------- | -------------------------------------------------------- |
+| `app_id`       | the game                                                 |
+| `name`         | an alias for the app id                                  |
+| `profile`      | the profile to run it with                               |
+| `platform`     | `windows` or `linux`: the build to install and run       |
+| `args`         | extra arguments for the game                             |
+| `wrappers`     | commands wrapped around the launch, inside the profile's |
+| `env`          | environment variables, over the profile's                |
+| `steam`        | the Steam integration, over the profile's                |
+| `shader_cache` | `off` or a directory, over the profile's                 |
 
 ### Wrappers
 
@@ -163,11 +163,11 @@ gets the rest of the command as its arguments, so a script ends with
 `steam` (in a profile or a game entry) decides whether a launch bridges to the
 host Steam client, which Steamworks features and some DRM need:
 
-| Value  | Behavior                                                 |
-| ------ | -------------------------------------------------------- |
-| `auto` | bridge when Steam is running (the default)               |
+| Value  | Behavior                                                   |
+| ------ | ---------------------------------------------------------- |
+| `auto` | bridge when Steam is running (the default)                 |
 | `host` | always bridge, starting Steam when needed (`play --steam`) |
-| `none` | never bridge                                             |
+| `none` | never bridge                                               |
 
 Family-Shared games always bridge: they need the host Steam client.
 
@@ -178,13 +178,13 @@ so a game doesn't stutter compiling them again. gaki gives each game its own
 cache directory, `$XDG_CACHE_HOME/gaki/shadercache/<app id>` by default, and
 points them at it for Proton and native launches alike:
 
-| Variable                      | In the game's directory |
-| ----------------------------- | ----------------------- |
-| `DXVK_STATE_CACHE_PATH`       | `DXVK_state_cache/`     |
-| `VKD3D_SHADER_CACHE_PATH`     | `VKD3D_shader_cache/`   |
-| `MESA_SHADER_CACHE_DIR`       | the directory itself    |
-| `__GL_SHADER_DISK_CACHE_PATH` | `nvidiav1/` (NVIDIA)    |
-| `AMD_VK_PIPELINE_CACHE_PATH`  | `AMDv1/` (AMDVLK)       |
+| Variable                      | In the game's directory            |
+| ----------------------------- | ---------------------------------- |
+| `DXVK_STATE_CACHE_PATH`       | `DXVK_state_cache/`                |
+| `VKD3D_SHADER_CACHE_PATH`     | `VKD3D_shader_cache/`              |
+| `MESA_SHADER_CACHE_DIR`       | the directory itself               |
+| `__GL_SHADER_DISK_CACHE_PATH` | `nvidiav1/` (NVIDIA)               |
+| `AMD_VK_PIPELINE_CACHE_PATH`  | `AMDv1/` (AMDVLK)                  |
 | `STEAM_COMPAT_SHADER_PATH`    | the directory itself (Proton only) |
 
 This is the layout Proton uses for its local shader cache. `shader_cache` in

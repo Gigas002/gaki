@@ -9,7 +9,8 @@ wrappers = ["gamemoderun"]
 steam = "auto"
 
 [proton]
-build = "experimental"            # a Steam build name, or a path
+# a Steam build name, or a path
+build = "experimental"
 
 [env]
 PROTON_ENABLE_WAYLAND = "1"

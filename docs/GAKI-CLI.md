@@ -354,14 +354,14 @@ one-line `{"logged_in":true,...}` object comes just before it. stdin is the
 driver's control channel: send a `cancel` line to stop, and keep stdin open
 while waiting, because EOF ends the login.
 
-| `type`         | Meaning                                                    | Exit code |
-| -------------- | ---------------------------------------------------------- | --------- |
-| `approved`     | Signed in (`ok: true`, with `account` and `steam_id`)      | 0         |
-| `login_denied` | Declined in the app, or Steam dropped the session          | 80        |
-| `login_expired`| Scanned, but not approved before the code expired          | 81        |
-| `timeout`      | No approval within `--timeout` (default 600 s)             | 82        |
-| `cancelled`    | The driver sent `cancel`                                   | 83        |
-| `input_closed` | stdin reached EOF                                          | 84        |
+| `type`          | Meaning                                               | Exit code |
+| --------------- | ----------------------------------------------------- | --------- |
+| `approved`      | Signed in (`ok: true`, with `account` and `steam_id`) | 0         |
+| `login_denied`  | Declined in the app, or Steam dropped the session     | 80        |
+| `login_expired` | Scanned, but not approved before the code expired     | 81        |
+| `timeout`       | No approval within `--timeout` (default 600 s)        | 82        |
+| `cancelled`     | The driver sent `cancel`                              | 83        |
+| `input_closed`  | stdin reached EOF                                     | 84        |
 
 ### Progress
 
@@ -373,13 +373,13 @@ a `{"event":"result",...}` line on stdout.
 
 ### Errors
 
-| `type`                | Exit code | Meaning                                                |
-| --------------------- | --------- | ------------------------------------------------------ |
-| `auth_required`       | 77        | Not signed in, or a sensitive view needs a fresh sign-in |
-| `rate_limited`        | 75        | Steam is throttling this client                        |
-| `disk_full`           | 85        | No space or quota left, including `install`'s check before it starts |
-| `offline`             | 86        | No network route or DNS, or Steam is unreachable and gaki is using its cached library |
-| the rest              | 1         | `invalid_input`, `not_found`, `access_denied`, `network_timeout`, ... |
+| `type`          | Exit code | Meaning                                                                               |
+| --------------- | --------- | ------------------------------------------------------------------------------------- |
+| `auth_required` | 77        | Not signed in, or a sensitive view needs a fresh sign-in                              |
+| `rate_limited`  | 75        | Steam is throttling this client                                                       |
+| `disk_full`     | 85        | No space or quota left, including `install`'s check before it starts                  |
+| `offline`       | 86        | No network route or DNS, or Steam is unreachable and gaki is using its cached library |
+| the rest        | 1         | `invalid_input`, `not_found`, `access_denied`, `network_timeout`, ...                 |
 
 A stopped install (`install stop`) ends as `cancelled` (83).
 `gaki-cli capabilities` lists every type, with its code and hint.
@@ -398,11 +398,11 @@ gaki-cli daemon stop <pid>
 gaki-cli kill                         # kill every running gaki-cli process, the daemon included
 ```
 
-| Flag              | Effect                                                         |
-| ----------------- | -------------------------------------------------------------- |
-| `--no-daemon`     | Run the command in this process                                |
-| `--no-spawn`      | Use a running daemon, but never start one                      |
-| `--socket <PATH>` | Talk to the daemon at this socket                              |
+| Flag              | Effect                                    |
+| ----------------- | ----------------------------------------- |
+| `--no-daemon`     | Run the command in this process           |
+| `--no-spawn`      | Use a running daemon, but never start one |
+| `--socket <PATH>` | Talk to the daemon at this socket         |
 
 [CONFIG.md](CONFIG.md#the-session-daemon) has the socket's location and its
 security.

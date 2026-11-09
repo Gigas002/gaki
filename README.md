@@ -2,21 +2,6 @@
 
 **A fast, lightweight, headless Steam launcher and library manager written in Rust. Install, update and play your Steam games entirely from the terminal.**
 
-[![License: GPL-3.0-only](https://img.shields.io/badge/License-GPL--3.0--only-blue.svg)](LICENSE)
-[![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
-[![Status: Beta](https://img.shields.io/badge/status-experimental%20beta-yellow.svg)](#gaki-a-command-line-steam-client-for-linux)
-
-<br clear="left" />
-
-> [!WARNING]
-> **Disclaimer: read before use.**
-> gaki is an **independent, unofficial project** and is **not affiliated with, authorized, sponsored, or endorsed by Valve or Steam** in any way. "Steam" and "Valve" are trademarks of Valve Corporation.
->
-> - **It modifies Steam's files directly.** Doing so may corrupt or damage your Steam installation, potentially forcing a full reinstallation. Back up your data first.
-> - **No warranty for games launched outside the official Steam launcher.** Titles started through gaki bypass the normal Steam client and may not behave as expected.
->
-> Use gaki entirely **at your own risk**. The authors accept no liability for damage to your Steam installation, lost data, or banned or suspended accounts.
-
 > [!CAUTION]
 > **gaki is experimental, and we don't recommend using it yet.** Commands,
 > config files and behaviour still change without notice, and like every
@@ -115,24 +100,6 @@ gaki is in **experimental beta**; see the caution above.
 
 ---
 
-## Install
-
-gaki isn't packaged or published yet. Build it from source with a
-[Rust toolchain](https://rustup.rs/) (edition 2024). The keyring needs D-Bus
-headers (Ubuntu: `sudo apt-get install pkg-config libdbus-1-dev`).
-
-```bash
-git clone https://github.com/Gigas002/gaki.git
-cd gaki
-cargo build --release
-```
-
-That builds `target/release/gaki-cli` and `target/release/gaki-tui` with the
-default features. [FEATURES.md](docs/FEATURES.md) shows how to build more, or
-less.
-
----
-
 ## Steam rules and risks
 
 gaki was checked against Steam's rules on 2026-11-08: the Subscriber
@@ -158,29 +125,29 @@ The full review, with every feature rated and the clauses quoted, is in
 
 ## Documentation
 
-| Document | Contents |
-| --- | --- |
-| [docs/GAKI-CLI.md](docs/GAKI-CLI.md) | Every `gaki-cli` command, `--json` scripting, the session daemon, logs |
-| [docs/GAKI-TUI.md](docs/GAKI-TUI.md) | The terminal UI: signing in, keys, the Actions menu, its settings |
-| [docs/CONFIG.md](docs/CONFIG.md) | `config.toml`, profiles, `games.toml`, where files live, the session |
-| [docs/FEATURES.md](docs/FEATURES.md) | The Cargo features and what each one builds |
-| [docs/FAQ.md](docs/FAQ.md) | Prerequisites and common questions |
-| [docs/STEAM-RULES.md](docs/STEAM-RULES.md) | Steam's rules and what gaki does about them; the risks to an account |
-| [docs/AUDIT.md](docs/AUDIT.md) | Security, performance and feature audit, with a matrix against the official client |
-| [examples/](examples) | Commented example configuration |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows |
-| [docs/PLAN.md](docs/PLAN.md) | The fork plan: what changed from Aurelia, step by step |
+| Document                                     | Contents                                                                           |
+| -------------------------------------------- | ---------------------------------------------------------------------------------- |
+| [docs/GAKI-CLI.md](docs/GAKI-CLI.md)         | Every `gaki-cli` command, `--json` scripting, the session daemon, logs             |
+| [docs/GAKI-TUI.md](docs/GAKI-TUI.md)         | The terminal UI: signing in, keys, the Actions menu, its settings                  |
+| [docs/CONFIG.md](docs/CONFIG.md)             | `config.toml`, profiles, `games.toml`, where files live, the session               |
+| [docs/FEATURES.md](docs/FEATURES.md)         | The Cargo features and what each one builds                                        |
+| [docs/FAQ.md](docs/FAQ.md)                   | Prerequisites and common questions                                                 |
+| [docs/STEAM-RULES.md](docs/STEAM-RULES.md)   | Steam's rules and what gaki does about them; the risks to an account               |
+| [docs/AUDIT.md](docs/AUDIT.md)               | Security, performance and feature audit, with a matrix against the official client |
+| [examples/](examples)                        | Commented example configuration                                                    |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows                                   |
+| [docs/PLAN.md](docs/PLAN.md)                 | The fork plan: what changed from Aurelia, step by step                             |
 
 ---
 
 ## Crates
 
-| Crate | What it is |
-| --- | --- |
-| `libgaki` | All the logic: Steam session, library, installs, cloud, launch, config |
+| Crate            | What it is                                                                       |
+| ---------------- | -------------------------------------------------------------------------------- |
+| `libgaki`        | All the logic: Steam session, library, installs, cloud, launch, config           |
 | `gaki-steam-cdn` | The depot download engine `libgaki` installs with: manifests, depot keys, chunks |
-| `gaki-cli` | The `gaki-cli` command, a thin layer over `libgaki` |
-| `gaki-tui` | The `gaki-tui` terminal UI, a thin layer over `libgaki` |
+| `gaki-cli`       | The `gaki-cli` command, a thin layer over `libgaki`                              |
+| `gaki-tui`       | The `gaki-tui` terminal UI, a thin layer over `libgaki`                          |
 
 None is on crates.io yet, and `libgaki`'s API may change before 1.0.
 `gaki-steam-cdn` is gaki's own copy of

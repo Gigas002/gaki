@@ -1,13 +1,18 @@
 [default.extend-words]
 ratatui = "ratatui"
 # Steam/Valve spellings we don't control
-sav = "sav"                 # `.sav` save-game files
-packageid = "packageid"     # Steam proto/KeyValues field
-unvailable = "unvailable"   # sic, Valve proto field `unvailable_for_country_restriction`
-Dota = "Dota"               # the game title, in TUI test fixtures
+# `.sav` save-game files
+sav = "sav"
+# Steam proto/KeyValues field
+packageid = "packageid"
+# sic, Valve proto field `unvailable_for_country_restriction`
+unvailable = "unvailable"
+# the game title, in TUI test fixtures
+Dota = "Dota"
 # Valid spelling variants / crate names
 unparseable = "unparseable"
-flate = "flate"             # `flate2` crate
+# `flate2` crate
+flate = "flate"
 
 [files]
 extend-exclude = [ "target/", ]

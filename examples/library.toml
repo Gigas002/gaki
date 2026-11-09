@@ -4,15 +4,19 @@
 
 [[game]]
 app_id = 1245620
-name = "ELDEN RING"       # for reading; import doesn't need it
-platform = "windows"      # windows | linux; unset picks it as `install` would
+# for reading; import doesn't need it
+name = "ELDEN RING"
+# windows | linux; unset picks it as `install` would
+platform = "windows"
 
 [[game]]
 app_id = 570
 name = "Dota 2"
 platform = "linux"
-branch = "beta"           # the beta branch it was on; installs take the default
-                          # branch, and import prints how to switch
+# the beta branch it was on; installs take the default
+branch = "beta"
+# branch, and import prints how to switch
 
 [[game]]
-app_id = 620              # only app_id is required
+# only app_id is required
+app_id = 620

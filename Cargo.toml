@@ -15,17 +15,23 @@ libgaki = { path = "libgaki", version = "0.1.0", default-features = false }
 # wine/umu runner code, so the runner features stay off.
 liblootrs = { git = "https://github.com/Gigas002/lootrs", branch = "master", default-features = false }
 
-aes = "0.9" # gaki-steam-cdn: AES-256 for depot chunks and encrypted manifest file names
+# gaki-steam-cdn: AES-256 for depot chunks and encrypted manifest file names
+aes = "0.9"
 anyhow = "1"
 async-trait = "0.1"
-base64 = "0.23" # gaki-steam-cdn: encrypted manifest file names
+# gaki-steam-cdn: encrypted manifest file names
+base64 = "0.23"
 bytes = "1"
-cbc = "0.2" # gaki-steam-cdn: the CBC mode those use
+# gaki-steam-cdn: the CBC mode those use
+cbc = "0.2"
 clap = { version = "4", features = ["derive"] }
-crc32fast = "1" # gaki-steam-cdn: VZ chunk checksums
-filetime = "0.2" # Stamp downloaded Cloud saves with their cloud mtime so re-sync doesn't churn
+# gaki-steam-cdn: VZ chunk checksums
+crc32fast = "1"
+# Stamp downloaded Cloud saves with their cloud mtime so re-sync doesn't churn
+filetime = "0.2"
 futures = "0.3"
-fuzzy-matcher = "0.3" # gaki-tui's fuzzy library filter
+# gaki-tui's fuzzy library filter
+fuzzy-matcher = "0.3"
 hex = "0.4"
 image = { version = "0.25", default-features = false, features = [
     "jpeg",
@@ -33,20 +39,28 @@ image = { version = "0.25", default-features = false, features = [
     "webp",
 ] }
 itertools = "0.15"
+# The Secret Service backend keyring 3's `sync-secret-service` used (libdbus)
 dbus-secret-service-keyring-store = { version = "1", features = [
     "crypto-rust",
-] } # The Secret Service backend keyring 3's `sync-secret-service` used (libdbus)
-keyring-core = "1" # The keyring `Entry` API; the store above backs it
-keyvalues-parser = "0.2" # gaki-steam-cdn: text VDF from PICS
-keyvalues-serde = "0.2" # Text VDF deserialization into structs
+] }
+# The keyring `Entry` API; the store above backs it
+keyring-core = "1"
+# gaki-steam-cdn: text VDF from PICS
+keyvalues-parser = "0.2"
+# Text VDF deserialization into structs
+keyvalues-serde = "0.2"
 libc = "0.2"
+# gaki-steam-cdn: Steam's VZ (LZMA) chunk containers
 lzma-rust2 = { version = "0.25", default-features = false, features = [
     "std",
     "optimization",
-] } # gaki-steam-cdn: Steam's VZ (LZMA) chunk containers
-protobuf = "3.5" # rust-protobuf runtime; matches steam-vent-proto's MessageField/EnumOrUnknown
-protobuf-codegen = "3.5" # Pure-Rust codegen (no protoc); tracks the `protobuf` runtime
-qrcode = { version = "0.14", default-features = false } # Terminal QR rendering for `login --qr`
+] }
+# rust-protobuf runtime; matches steam-vent-proto's MessageField/EnumOrUnknown
+protobuf = "3"
+# Pure-Rust codegen (no protoc); tracks the `protobuf` runtime
+protobuf-codegen = "3"
+# Terminal QR rendering for `login --qr`
+qrcode = { version = "0.14", default-features = false }
 # Crossterm comes re-exported as `ratatui::crossterm`, which keeps the two in step.
 # `unstable-rendered-line-info`: `Paragraph::line_count`, the wrapped height
 # the Store overlay clamps its scroll to.
@@ -57,7 +71,8 @@ ratatui = { version = "0.30", features = [
 ratatui-image = { version = "11", default-features = false, features = [
     "crossterm",
 ] }
-rand = "0.10" # Match steam-vent's rand version so only one copy is linked
+# Match steam-vent's rand version so only one copy is linked
+rand = "0.10"
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = [
     "json",
@@ -66,21 +81,29 @@ reqwest = { version = "0.13", default-features = false, features = [
     "socks",
 ] }
 rpassword = "7"
-ruzstd = "0.9" # gaki-steam-cdn: Steam's VSZ (Zstandard) chunk containers
+# gaki-steam-cdn: Steam's VSZ (Zstandard) chunk containers
+ruzstd = "0.9"
 secrecy = "0.10"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha1 = "0.11"
-steam-vdf-parser = "0.1" # Raw binary PICS VDF parsing (not supported by keyvalues-serde or steam-vent)
-steam-vent = { package = "aurelia-steam-vent", version = "0.7" } # Aurelia fork: per-session logon IDs, upstream 0.6 API
-steam-vent-chat = { package = "aurelia-steam-vent-chat", version = "0.8" } # Aurelia fork, built on aurelia-steam-vent 0.7
-steam-vent-proto = "0.5" # Not re-exported as steam_vent::proto since 0.5
-steam-vent-proto-common = "0.5" # RpcMethod/RpcMessage traits for the hand-wired CloudConfigStore RPC
-steamid-ng = "3" # Matches steam-vent's steamid-ng
+# Raw binary PICS VDF parsing (not supported by keyvalues-serde or steam-vent)
+steam-vdf-parser = "0.1"
+# Aurelia fork: per-session logon IDs, upstream 0.6 API
+steam-vent = { package = "aurelia-steam-vent", version = "0.7" }
+# Aurelia fork, built on aurelia-steam-vent 0.7
+steam-vent-chat = { package = "aurelia-steam-vent-chat", version = "0.8" }
+# Not re-exported as steam_vent::proto since 0.5
+steam-vent-proto = "0.5"
+# RpcMethod/RpcMessage traits for the hand-wired CloudConfigStore RPC
+steam-vent-proto-common = "0.5"
+# Matches steam-vent's steamid-ng
+steamid-ng = "3"
+# Process listing for `kill`/`daemon`; `disk` for free-space checks
 sysinfo = { version = "0.40", default-features = false, features = [
     "system",
     "disk",
-] } # Process listing for `kill`/`daemon`; `disk` for free-space checks
+] }
 tempfile = "3"
 thiserror = "2"
 tokio = { version = "1", features = [
@@ -96,10 +119,12 @@ tokio = { version = "1", features = [
 ] }
 toml = "1"
 toml_edit = "0.25"
-tokio-stream = "0.1" # Consume steam-vent's notification broadcast streams (friend chat events)
+# Consume steam-vent's notification broadcast streams (friend chat events)
+tokio-stream = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 walkdir = "2"
+# Steam Cloud serves deflate-compressed single-file archives; nothing else is read
 zip = { version = "9", default-features = false, features = [
     "deflate-flate2-zlib-rs",
-] } # Steam Cloud serves deflate-compressed single-file archives; nothing else is read
+] }

@@ -1,10 +1,9 @@
 [package]
 name = "gaki-tui"
 description = "Terminal UI for the gaki Steam client."
-readme = "README.md"
+readme = "../README.md"
 version.workspace = true
 edition.workspace = true
-# Upstream Aurelia-TUI is GPL-3.0 (only); the text is the root LICENSE.
 license.workspace = true
 repository.workspace = true
 keywords = ["tui", "steam", "gaki", "gaming"]
