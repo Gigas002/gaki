@@ -1,11 +1,11 @@
 //! Current player count over the CM (`ClientGetNumberOfCurrentPlayersDP`).
 use super::*;
-use std::io::{Read, Write};
-use steam_vent_proto::enums_clientserver::EMsg;
-use steam_vent_proto::steammessages_clientserver_2::{
+use gaki_steam_vent_proto::enums_clientserver::EMsg;
+use gaki_steam_vent_proto::steammessages_clientserver_2::{
     CMsgDPGetNumberOfCurrentPlayers, CMsgDPGetNumberOfCurrentPlayersResponse,
 };
-use steam_vent_proto_common::{RpcMessage, RpcMessageWithKind};
+use gaki_steam_vent_proto::{RpcMessage, RpcMessageWithKind};
+use std::io::{Read, Write};
 
 /// Newtypes give the DP messages their `EMsg` kind.
 #[derive(Debug, Default)]

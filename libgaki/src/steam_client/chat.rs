@@ -7,8 +7,8 @@
 //! submodules, the struct and shared imports live in the parent module and are
 //! pulled in via `use super::*`.
 use super::*;
-use steam_vent_chat::ChatClient;
-use steam_vent_proto::steammessages_friendmessages_steamclient::{
+use gaki_steam_vent::chat::ChatClient;
+use gaki_steam_vent_proto::steammessages_friendmessages_steamclient::{
     CFriendMessages_GetRecentMessages_Request, CFriendMessages_GetRecentMessages_Response,
 };
 use steamid_ng::SteamID;

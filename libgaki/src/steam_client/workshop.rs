@@ -10,13 +10,13 @@
 use super::*;
 
 use crate::core::models::{WorkshopComment, WorkshopItem, WorkshopItemKind};
-use steam_vent_proto::enums::ECommentThreadType;
-use steam_vent_proto::steammessages_clientserver_ucm::CMsgClientUCMEnumerateUserSubscribedFilesWithUpdates;
-use steam_vent_proto::steammessages_community_steamclient::{
+use gaki_steam_vent_proto::enums::ECommentThreadType;
+use gaki_steam_vent_proto::steammessages_clientserver_ucm::CMsgClientUCMEnumerateUserSubscribedFilesWithUpdates;
+use gaki_steam_vent_proto::steammessages_community_steamclient::{
     CCommunity_GetCommentThread_Request, CCommunity_GetCommentThread_Response,
     CCommunity_PostCommentToThread_Request, CCommunity_PostCommentToThread_Response,
 };
-use steam_vent_proto::steammessages_publishedfile_steamclient::{
+use gaki_steam_vent_proto::steammessages_publishedfile_steamclient::{
     CPublishedFile_GetDetails_Request, CPublishedFile_GetDetails_Response,
     CPublishedFile_QueryFiles_Request, CPublishedFile_QueryFiles_Response,
     CPublishedFile_Subscribe_Request, CPublishedFile_Subscribe_Response,
@@ -238,7 +238,7 @@ impl SteamClient {
         request.set_app_id(app_id);
         request.set_start_index(0);
 
-        let response: steam_vent_proto::steammessages_clientserver_ucm::CMsgClientUCMEnumerateUserSubscribedFilesWithUpdatesResponse = connection
+        let response: gaki_steam_vent_proto::steammessages_clientserver_ucm::CMsgClientUCMEnumerateUserSubscribedFilesWithUpdatesResponse = connection
             .job(request)
             .await
             .context("failed enumerating subscribed Workshop files")?;

@@ -1,6 +1,6 @@
 //! Store-wide sales and events (marketing messages).
 use super::*;
-use steam_vent_proto::steammessages_marketingmessages_steamclient::{
+use gaki_steam_vent_proto::steammessages_marketingmessages_steamclient::{
     CMarketingMessages_GetActiveMarketingMessages_Request,
     CMarketingMessages_GetActiveMarketingMessages_Response,
 };

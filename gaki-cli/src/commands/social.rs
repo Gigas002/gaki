@@ -199,8 +199,8 @@ pub(crate) async fn cmd_chat_history(steamid: u64, count: u32, json: bool) -> Re
 /// Render one incoming chat event for `gaki-cli chat open`, filtered to the
 /// conversation with `target`. Plain mode prints a friendly line; `--json` emits
 /// one NDJSON event for GUI drivers.
-pub(crate) fn render_chat_event(target: u64, event: steam_vent_chat::ChatEvent, json: bool) {
-    use steam_vent_chat::ChatEvent;
+pub(crate) fn render_chat_event(target: u64, event: gaki_steam_vent::chat::ChatEvent, json: bool) {
+    use gaki_steam_vent::chat::ChatEvent;
     // Every event carries the conversation partner's SteamID; ignore events for
     // other conversations sharing this connection's notification stream.
     if social::event_partner(&event) != Some(target) {

@@ -2,12 +2,12 @@
 use bytes::{Buf, Bytes};
 use error::ManifestError;
 use file::{ChunkData, ManifestFile};
-use std::sync::Arc;
-use std::{io::Cursor, str};
-use steam_vent_proto::{
+use gaki_steam_vent_proto::{
     content_manifest::{ContentManifestMetadata, ContentManifestPayload},
     protobuf::Message,
 };
+use std::sync::Arc;
+use std::{io::Cursor, str};
 use zip::ZipArchive;
 
 use super::inner::InnerClient;

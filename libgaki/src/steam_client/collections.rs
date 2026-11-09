@@ -9,7 +9,7 @@ use super::cloudconfig::{
     CCloudConfigStore_Download_Request, CCloudConfigStore_Entry, CCloudConfigStore_NamespaceData,
     CCloudConfigStore_NamespaceVersion, CCloudConfigStore_Upload_Request,
 };
-use steam_vent::ConnectionTrait;
+use gaki_steam_vent::ConnectionTrait;
 
 /// The user-collections namespace in CloudConfigStore.
 const COLLECTIONS_NAMESPACE: u32 = 1;

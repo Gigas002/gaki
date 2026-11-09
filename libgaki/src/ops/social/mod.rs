@@ -82,7 +82,7 @@ pub async fn history(client: &SteamClient, steam_id: u64, count: u32) -> Result<
 
 /// Go online (so Steam delivers messages) and open the chat notification
 /// stream. Presence failures are logged, not fatal.
-pub async fn open_chat(client: &SteamClient) -> Result<steam_vent_chat::ChatClient> {
+pub async fn open_chat(client: &SteamClient) -> Result<gaki_steam_vent::chat::ChatClient> {
     if let Err(e) = client.announce_configured_presence().await {
         tracing::warn!("could not announce presence: {e:#}");
     }
@@ -91,8 +91,8 @@ pub async fn open_chat(client: &SteamClient) -> Result<steam_vent_chat::ChatClie
 
 /// The conversation partner an incoming chat event belongs to, or `None`
 /// for a kind of event this version doesn't know.
-pub fn event_partner(event: &steam_vent_chat::ChatEvent) -> Option<u64> {
-    use steam_vent_chat::ChatEvent;
+pub fn event_partner(event: &gaki_steam_vent::chat::ChatEvent) -> Option<u64> {
+    use gaki_steam_vent::chat::ChatEvent;
     match event {
         ChatEvent::Message(e) | ChatEvent::EchoMessage(e) | ChatEvent::GameInvite(e) => {
             Some(u64::from(e.source))

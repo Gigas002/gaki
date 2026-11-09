@@ -26,7 +26,7 @@ use tracing_subscriber::EnvFilter;
 /// clean for `--json` output.
 ///
 /// `verbosity` is the count of `-v` flags passed on the command line (0 = none).
-/// `filter`, an `EnvFilter` directive string such as `debug,steam_vent=info`,
+/// `filter`, an `EnvFilter` directive string such as `debug,gaki_steam_vent=info`,
 /// takes precedence over `verbosity`.
 pub fn init_cli_logging(verbosity: u8, filter: Option<&str>) {
     super::relay::set_local_verbosity(verbosity);
@@ -194,8 +194,8 @@ pub fn validate_filter(filter: &str) -> Result<String, String> {
 fn default_directives(verbosity: u8) -> &'static str {
     match verbosity {
         0 => "warn",
-        1 => "debug,steam_vent=info,steam_vent_proto=info",
-        2 => "debug,steam_vent=debug,steam_vent_proto=debug",
+        1 => "debug,gaki_steam_vent=info,gaki_steam_vent_proto=info",
+        2 => "debug,gaki_steam_vent=debug,gaki_steam_vent_proto=debug",
         _ => "trace",
     }
 }

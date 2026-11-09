@@ -2,7 +2,7 @@
 use std::io::Write;
 
 use base64::Engine;
-use steam_vent_proto::content_manifest::content_manifest_payload::{
+use gaki_steam_vent_proto::content_manifest::content_manifest_payload::{
     FileMapping, file_mapping::ChunkData as ProtoChunk,
 };
 

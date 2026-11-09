@@ -62,3 +62,22 @@ fn a_failed_or_missing_app_has_no_requirements() {
     assert!(requirements_from(&map, 10).is_none());
     assert!(requirements_from(&map, 20).is_none());
 }
+
+#[test]
+fn bbcode_tags_go_and_blocks_break() {
+    assert_eq!(
+        strip_bbcode(
+            "[h2]About[/h2][p]A [b]bold[/b] [url=https://x.y]link[/url].[/p]\
+             [img src=\"{STEAM_APP_IMAGE}/a.avif\" fromclient=1][/img][list][*]one[*]two[/list]"
+        ),
+        "\nAbout\n\nA bold link.\n\n\n• one\n• two\n"
+    );
+}
+
+#[test]
+fn bracketed_text_is_not_a_tag() {
+    assert_eq!(
+        strip_bbcode("Agent [REDACTED] cites [1] and [x y"),
+        "Agent [REDACTED] cites [1] and [x y"
+    );
+}

@@ -64,7 +64,7 @@ pub(crate) struct Cli {
     /// command shows where it is stuck. `--log` overrides the logs.
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     pub(crate) verbose: u8,
-    /// Log filter directives (e.g. `debug,steam_vent=info`), overriding `-v`.
+    /// Log filter directives (e.g. `debug,gaki_steam_vent=info`), overriding `-v`.
     #[arg(long, global = true, value_name = "FILTER", value_parser = libgaki::infra::logging::validate_filter)]
     pub(crate) log: Option<String>,
     /// Use this config directory instead of `~/.config/gaki`. A daemon serves

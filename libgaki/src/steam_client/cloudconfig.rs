@@ -5,8 +5,8 @@
 //! `RpcMessage`/`RpcMethod` impls are hand-written here, mirroring steam-vent-proto's own
 //! generated wiring. `Connection::service_method` accepts any `T: RpcMethod`.
 
+use gaki_steam_vent_proto::{RpcMessage, RpcMethod};
 use std::io::{Read, Write};
-use steam_vent_proto_common::{RpcMessage, RpcMethod};
 
 // Pull in the generated code via its `mod.rs` (`pub mod service_cloudconfigstore;`). Including
 // the mod.rs (rather than the .rs directly) loads the generated file as a proper module file.

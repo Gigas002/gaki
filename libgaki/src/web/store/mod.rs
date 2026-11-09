@@ -124,5 +124,50 @@ pub fn strip_html(input: &str) -> String {
         .to_string()
 }
 
+/// Plain text from Steam's store BBCode (`StoreItem.full_description_bbcode`).
+///
+/// Tags are dropped: `[p]`, `[br]`, headings and list ends become line breaks
+/// and `[*]` a bullet. Only lowercase tag names count as tags, so bracketed
+/// text such as `[REDACTED]` or `[1]` survives.
+pub fn strip_bbcode(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut rest = input;
+    while let Some(open) = rest.find('[') {
+        out.push_str(&rest[..open]);
+        let after = &rest[open + 1..];
+        let tag = after.find(']').map(|close| &after[..close]);
+        match tag.and_then(bbcode_tag_name) {
+            Some(name) => {
+                match name {
+                    "p" | "/p" | "br" | "hr" | "h1" | "/h1" | "h2" | "/h2" | "h3" | "/h3"
+                    | "list" | "/list" | "olist" | "/olist" => out.push('\n'),
+                    "*" => out.push_str("\n• "),
+                    _ => {}
+                }
+                rest = &after[tag.map_or(0, str::len) + 1..];
+            }
+            None => {
+                out.push('[');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
+}
+
+/// The tag name of `[tag attr=…]` / `[/tag]` contents, if they look like one.
+fn bbcode_tag_name(inner: &str) -> Option<&str> {
+    let name = inner.split([' ', '=']).next().unwrap_or_default();
+    let bare = name.strip_prefix('/').unwrap_or(name);
+    let is_tag = bare == "*"
+        || (!bare.is_empty()
+            && bare.starts_with(|c: char| c.is_ascii_lowercase())
+            && bare
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()));
+    is_tag.then_some(name)
+}
+
 #[cfg(test)]
 mod tests;

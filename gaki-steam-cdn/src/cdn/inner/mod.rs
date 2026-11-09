@@ -1,14 +1,14 @@
 // Based on steam-cdn (Apache-2.0), modified by Aurelia and gaki; see README.md.
-use reqwest::{Client, Response};
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
-use std::time::Duration;
-use steam_vent::{Connection, ConnectionTrait};
-use steam_vent_proto::steammessages_clientserver_appinfo::{
+use gaki_steam_vent::{Connection, ConnectionTrait};
+use gaki_steam_vent_proto::steammessages_clientserver_appinfo::{
     CMsgClientPICSAccessTokenRequest, CMsgClientPICSAccessTokenResponse,
     CMsgClientPICSProductInfoRequest, CMsgClientPICSProductInfoResponse,
     cmsg_client_picsproduct_info_request::AppInfo,
 };
+use reqwest::{Client, Response};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
+use std::time::Duration;
 
 use crate::{Error, web_api::content_service::CDNServer};
 

@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn directives_escalate_with_verbosity() {
     assert_eq!(default_directives(0), "warn");
-    assert!(default_directives(1).contains("steam_vent=info"));
-    assert!(default_directives(2).contains("steam_vent=debug"));
+    assert!(default_directives(1).contains("gaki_steam_vent=info"));
+    assert!(default_directives(2).contains("gaki_steam_vent=debug"));
     assert_eq!(default_directives(3), "trace");
     assert_eq!(default_directives(9), "trace");
 }
@@ -97,6 +97,6 @@ async fn relay_follows_the_requesters_verbosity() {
 
 #[test]
 fn explicit_filters_are_validated() {
-    assert!(validate_filter("debug,steam_vent=info").is_ok());
+    assert!(validate_filter("debug,gaki_steam_vent=info").is_ok());
     assert!(validate_filter("debug,=[").is_err());
 }

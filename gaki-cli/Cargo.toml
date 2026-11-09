@@ -19,13 +19,14 @@ collections = ["library", "libgaki/collections"]
 versioning = ["install", "libgaki/versioning"]
 depot = ["install", "libgaki/depot"]
 workshop = ["install", "libgaki/workshop"]
-social = ["authentication", "libgaki/social", "dep:steam-vent-chat", "dep:tokio-stream"]
+social = ["authentication", "libgaki/social", "dep:gaki-steam-vent", "gaki-steam-vent/chat", "dep:tokio-stream"]
 inventory = ["authentication", "libgaki/inventory"]
 market = ["inventory", "libgaki/market"]
 store = ["library", "libgaki/store"]
 
 [dependencies]
 libgaki = { workspace = true, default-features = false }
+gaki-steam-vent = { workspace = true, optional = true }
 anyhow.workspace = true
 clap.workspace = true
 libc.workspace = true
@@ -33,7 +34,6 @@ qrcode = { workspace = true, optional = true }
 rpassword = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
-steam-vent-chat = { workspace = true, optional = true }
 sysinfo.workspace = true
 tokio.workspace = true
 tokio-stream = { workspace = true, optional = true }

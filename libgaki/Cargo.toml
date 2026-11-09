@@ -20,9 +20,8 @@ authentication = [
     "dep:reqwest",
     "dep:secrecy",
     "dep:steam-vdf-parser",
-    "dep:steam-vent",
-    "dep:steam-vent-proto",
-    "dep:steam-vent-proto-common",
+    "dep:gaki-steam-vent",
+    "dep:gaki-steam-vent-proto",
     "dep:tokio-stream",
 ]
 # Owned apps, appinfo/PICS, tags, achievements, licenses, launching.
@@ -40,7 +39,7 @@ depot = ["install", "dep:hex", "dep:sha1"]
 # Workshop subscribe/download.
 workshop = ["install"]
 # Friends, chat, presence.
-social = ["authentication", "dep:steam-vent-chat", "dep:steamid-ng"]
+social = ["authentication", "gaki-steam-vent?/chat", "dep:steamid-ng"]
 # Inventory and wallet.
 inventory = ["authentication"]
 # Community Market.
@@ -67,11 +66,9 @@ serde.workspace = true
 serde_json.workspace = true
 sha1 = { workspace = true, optional = true }
 gaki-steam-cdn = { workspace = true, optional = true }
+gaki-steam-vent = { workspace = true, optional = true }
+gaki-steam-vent-proto = { workspace = true, optional = true }
 steam-vdf-parser = { workspace = true, optional = true }
-steam-vent = { workspace = true, optional = true }
-steam-vent-chat = { workspace = true, optional = true }
-steam-vent-proto = { workspace = true, optional = true }
-steam-vent-proto-common = { workspace = true, optional = true }
 steamid-ng = { workspace = true, optional = true }
 sysinfo.workspace = true
 thiserror.workspace = true

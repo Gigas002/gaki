@@ -8,12 +8,12 @@
 //! helper. As with the other `SteamClient` submodules, the struct and shared
 //! imports live in the parent module and are pulled in via `use super::*`.
 use super::*;
-use std::sync::RwLock;
-use steam_vent::ReceivableMessage;
-use steam_vent_proto::steammessages_clientserver_friends::{
+use gaki_steam_vent::ReceivableMessage;
+use gaki_steam_vent_proto::steammessages_clientserver_friends::{
     CMsgClientAddFriend, CMsgClientAddFriendResponse, CMsgClientFriendsList,
     CMsgClientPersonaState, CMsgClientRemoveFriend,
 };
+use std::sync::RwLock;
 use tokio_stream::StreamExt;
 
 /// EFriendRelationship value for an accepted friend.

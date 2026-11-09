@@ -5,11 +5,11 @@
 use super::*;
 use crate::core::error::{ErrorKind, TypedError};
 use crate::web::web_session::WebSession;
-use steam_vent_proto::steammessages_auth_steamclient::{
+use gaki_steam_vent_proto::steammessages_auth_steamclient::{
     CAuthentication_AccessToken_GenerateForApp_Request,
     CAuthentication_AccessToken_GenerateForApp_Response,
 };
-use steam_vent_proto::steammessages_clientserver_friends::CMsgClientPersonaState;
+use gaki_steam_vent_proto::steammessages_clientserver_friends::CMsgClientPersonaState;
 use tokio_stream::StreamExt;
 
 impl SteamClient {
@@ -106,8 +106,8 @@ impl SteamClient {
     /// Revoke `refresh_token` at Steam for good (`Authentication.RevokeToken`,
     /// permanent), so a copy of it stops working too. Needs a live connection.
     pub async fn revoke_refresh_token(&self, refresh_token: &str) -> Result<()> {
-        use steam_vent::ConnectionTrait;
-        use steam_vent_proto::steammessages_auth_steamclient::{
+        use gaki_steam_vent::ConnectionTrait;
+        use gaki_steam_vent_proto::steammessages_auth_steamclient::{
             CAuthentication_Token_Revoke_Request, EAuthTokenRevokeAction,
         };
         let connection = self.require_connection()?;
@@ -127,7 +127,7 @@ impl SteamClient {
         let mut request = CMsgClientGetAppOwnershipTicket::new();
         request.set_app_id(appid);
 
-        let response: steam_vent_proto::steammessages_clientserver::CMsgClientGetAppOwnershipTicketResponse =
+        let response: gaki_steam_vent_proto::steammessages_clientserver::CMsgClientGetAppOwnershipTicketResponse =
             connection
                 .job(request)
                 .await
@@ -147,7 +147,7 @@ impl SteamClient {
         let mut request = CMsgClientRequestEncryptedAppTicket::new();
         request.set_app_id(appid);
 
-        let response: steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse =
+        let response: gaki_steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse =
             connection
                 .job(request)
                 .await
@@ -379,18 +379,21 @@ impl SteamClient {
         self.state = LoginState::AwaitingPollResult;
         self.state = LoginState::AwaitingAccessTokenLogon;
 
+        let guard_data = guard_data_path(&crate::core::config::cache_dir()?);
+
         // One login, three guard handlers.
         async fn login_with<H: AuthConfirmationHandler>(
             server_list: &ServerList,
             account_name: &str,
             password: &str,
+            guard_data: &std::path::Path,
             handler: H,
         ) -> std::result::Result<Connection, ConnectionError> {
             Connection::login_with_logon_id(
                 server_list,
                 account_name,
                 password,
-                FileGuardDataStore::user_cache(),
+                FileGuardDataStore::new(guard_data.to_path_buf()),
                 handler,
                 &client_info(),
                 logon_id(),
@@ -411,7 +414,7 @@ impl SteamClient {
                 DeviceConfirmationHandler,
             );
 
-            login_with(&server_list, &account_name, &password, handler).await
+            login_with(&server_list, &account_name, &password, &guard_data, handler).await
         } else if interactive_pin {
             // Read the Steam Guard code from stdin when Steam asks for it; fall back
             // to mobile-app approval if the account only allows that.
@@ -421,12 +424,13 @@ impl SteamClient {
                 DeviceConfirmationHandler,
             );
 
-            login_with(&server_list, &account_name, &password, handler).await
+            login_with(&server_list, &account_name, &password, &guard_data, handler).await
         } else {
             login_with(
                 &server_list,
                 &account_name,
                 &password,
+                &guard_data,
                 DeviceConfirmationHandler,
             )
             .await
@@ -465,7 +469,7 @@ impl SteamClient {
     where
         F: FnMut(QrEvent),
     {
-        use steam_vent_proto::steammessages_auth_steamclient::{
+        use gaki_steam_vent_proto::steammessages_auth_steamclient::{
             CAuthentication_BeginAuthSessionViaQR_Request,
             CAuthentication_BeginAuthSessionViaQR_Response,
             CAuthentication_PollAuthSessionStatus_Request,
@@ -548,7 +552,7 @@ impl SteamClient {
                     match tokio::time::timeout(CM_CONNECT_TIMEOUT, anon.service_method(poll)).await
                     {
                         Ok(Ok(resp)) => resp,
-                        Ok(Err(steam_vent::NetworkError::ApiError(result))) => {
+                        Ok(Err(gaki_steam_vent::NetworkError::ApiError(result))) => {
                             match qr_poll_step(result, scanned) {
                                 Some(QrPollStep::Regenerate) => {
                                     tracing::info!(
@@ -559,7 +563,7 @@ impl SteamClient {
                                 }
                                 Some(QrPollStep::Fail(e)) => return Err(anyhow!(e)),
                                 None => {
-                                    return Err(anyhow!(steam_vent::NetworkError::ApiError(
+                                    return Err(anyhow!(gaki_steam_vent::NetworkError::ApiError(
                                         result
                                     )))
                                     .context("Authentication.PollAuthSessionStatus failed");
@@ -651,8 +655,8 @@ pub(crate) enum QrPollStep {
 }
 
 /// Next step for a poll EResult.
-pub(crate) fn qr_poll_step(result: steam_vent::EResult, scanned: bool) -> Option<QrPollStep> {
-    use steam_vent::EResult;
+pub(crate) fn qr_poll_step(result: gaki_steam_vent::EResult, scanned: bool) -> Option<QrPollStep> {
+    use gaki_steam_vent::EResult;
     Some(match result {
         EResult::Expired if scanned => QrPollStep::Fail(TypedError::new(
             ErrorKind::LoginExpired,
@@ -671,7 +675,7 @@ pub(crate) fn qr_poll_step(result: steam_vent::EResult, scanned: bool) -> Option
 
 /// Whole serialized envelope; consumers need it.
 pub(crate) fn extract_encrypted_ticket(
-    response: &steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse,
+    response: &gaki_steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse,
     appid: u32,
 ) -> Result<EncryptedTicketOutcome> {
     let eresult = response.eresult();

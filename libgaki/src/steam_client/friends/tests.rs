@@ -1,5 +1,5 @@
 use super::*;
-use steam_vent_proto::steammessages_clientserver_friends::{
+use gaki_steam_vent_proto::steammessages_clientserver_friends::{
     cmsg_client_friends_list, cmsg_client_persona_state,
 };
 

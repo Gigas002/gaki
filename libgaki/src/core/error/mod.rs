@@ -4,7 +4,7 @@ use std::fmt;
 use std::time::Duration;
 
 #[cfg(feature = "authentication")]
-use steam_vent::{EResult, LoginError, NetworkError};
+use gaki_steam_vent::{EResult, LoginError, NetworkError};
 
 /// Machine-readable kind (`"type"` in JSON errors).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]

@@ -1,7 +1,7 @@
 //! Store category names via `StoreBrowse.GetStoreCategories`.
 use super::*;
 use crate::core::config::{load_name_cache, save_name_cache};
-use steam_vent_proto::steammessages_storebrowse_steamclient::{
+use gaki_steam_vent_proto::steammessages_storebrowse_steamclient::{
     CStoreBrowse_GetStoreCategories_Request, CStoreBrowse_GetStoreCategories_Response,
 };
 

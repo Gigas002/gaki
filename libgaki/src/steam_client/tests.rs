@@ -488,7 +488,7 @@ fn select_launch_entry_matches_executable_case_insensitively() {
 
 #[test]
 fn encrypted_ticket_refusal_maps_eresult() {
-    use steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse;
+    use gaki_steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse;
 
     let mut response = CMsgClientRequestEncryptedAppTicketResponse::new();
     response.set_eresult(15);
@@ -507,9 +507,9 @@ fn encrypted_ticket_refusal_maps_eresult() {
 
 #[test]
 fn encrypted_ticket_success_keeps_envelope() {
+    use gaki_steam_vent_proto::encrypted_app_ticket::EncryptedAppTicket;
+    use gaki_steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse;
     use protobuf::Message;
-    use steam_vent_proto::encrypted_app_ticket::EncryptedAppTicket;
-    use steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse;
 
     let mut envelope = EncryptedAppTicket::new();
     envelope.set_ticket_version_no(4);
@@ -539,8 +539,8 @@ fn encrypted_ticket_success_keeps_envelope() {
 
 #[test]
 fn encrypted_ticket_ok_without_ticket_errors() {
-    use steam_vent_proto::encrypted_app_ticket::EncryptedAppTicket;
-    use steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse;
+    use gaki_steam_vent_proto::encrypted_app_ticket::EncryptedAppTicket;
+    use gaki_steam_vent_proto::steammessages_clientserver::CMsgClientRequestEncryptedAppTicketResponse;
 
     // OK but no envelope at all.
     let mut response = CMsgClientRequestEncryptedAppTicketResponse::new();
@@ -659,7 +659,7 @@ fn launch_targets_lists_installed_builds_and_steam_modes() {
 fn qr_poll_unscanned_expiry_regenerates() {
     use client::{QrPollStep, qr_poll_step};
     assert!(matches!(
-        qr_poll_step(steam_vent::EResult::Expired, false),
+        qr_poll_step(gaki_steam_vent::EResult::Expired, false),
         Some(QrPollStep::Regenerate)
     ));
 }
@@ -667,7 +667,7 @@ fn qr_poll_unscanned_expiry_regenerates() {
 #[test]
 fn qr_poll_scanned_expiry_is_expired() {
     use client::{QrPollStep, qr_poll_step};
-    match qr_poll_step(steam_vent::EResult::Expired, true) {
+    match qr_poll_step(gaki_steam_vent::EResult::Expired, true) {
         Some(QrPollStep::Fail(e)) => {
             assert_eq!(e.kind, crate::core::error::ErrorKind::LoginExpired)
         }
@@ -679,8 +679,8 @@ fn qr_poll_scanned_expiry_is_expired() {
 fn qr_poll_scanned_cancel_is_denied() {
     use client::{QrPollStep, qr_poll_step};
     for r in [
-        steam_vent::EResult::FileNotFound,
-        steam_vent::EResult::Cancelled,
+        gaki_steam_vent::EResult::FileNotFound,
+        gaki_steam_vent::EResult::Cancelled,
     ] {
         match qr_poll_step(r, true) {
             Some(QrPollStep::Fail(e)) => {
@@ -696,8 +696,8 @@ fn qr_poll_scanned_cancel_is_denied() {
 fn qr_poll_unscanned_session_end_regenerates() {
     use client::{QrPollStep, qr_poll_step};
     for r in [
-        steam_vent::EResult::FileNotFound,
-        steam_vent::EResult::Cancelled,
+        gaki_steam_vent::EResult::FileNotFound,
+        gaki_steam_vent::EResult::Cancelled,
     ] {
         assert!(
             matches!(qr_poll_step(r, false), Some(QrPollStep::Regenerate)),
@@ -708,7 +708,7 @@ fn qr_poll_unscanned_session_end_regenerates() {
 
 #[test]
 fn qr_poll_other_results_pass_through() {
-    assert!(client::qr_poll_step(steam_vent::EResult::Busy, true).is_none());
+    assert!(client::qr_poll_step(gaki_steam_vent::EResult::Busy, true).is_none());
 }
 
 #[test]
@@ -831,4 +831,95 @@ fn logs_on_as_gaki() {
     let id = logon_id();
     assert_ne!(id, 0, "0 is steam-vent's shared default");
     assert_eq!(logon_id(), id, "one ID per process");
+}
+
+#[cfg(feature = "library")]
+#[test]
+fn trailer_url_prefers_hls_then_dash_then_microtrailer() {
+    use gaki_steam_vent_proto::steammessages_storebrowse_steamclient::store_item::trailers::{
+        AdaptiveTrailer, Trailer, VideoSource,
+    };
+    let base = "620/3746/0f4b/1750108721";
+    let adaptive = |encoding: &str, file: &str| AdaptiveTrailer {
+        cdn_path: Some(format!("{base}/{file}")),
+        encoding: Some(encoding.into()),
+        ..Default::default()
+    };
+    let micro = VideoSource {
+        filename: Some(format!("{base}/microtrailer.mp4")),
+        type_: Some("video/mp4".into()),
+        ..Default::default()
+    };
+    let mut t = Trailer {
+        adaptive_trailers: vec![
+            adaptive("dash_av1", "dash_av1.mpd"),
+            adaptive("dash_h264", "dash_h264.mpd"),
+            adaptive("hls_h264", "hls_264_master.m3u8"),
+        ],
+        microtrailer: vec![micro],
+        ..Default::default()
+    };
+    let cdn = "https://video.fastly.steamstatic.com/store_trailers/";
+    assert_eq!(
+        trailer_video_url(&t).as_deref(),
+        Some(format!("{cdn}{base}/hls_264_master.m3u8").as_str())
+    );
+    t.adaptive_trailers.pop();
+    assert_eq!(
+        trailer_video_url(&t).as_deref(),
+        Some(format!("{cdn}{base}/dash_h264.mpd").as_str())
+    );
+    t.adaptive_trailers.clear();
+    assert_eq!(
+        trailer_video_url(&t).as_deref(),
+        Some(format!("{cdn}{base}/microtrailer.mp4").as_str())
+    );
+    t.microtrailer.clear();
+    assert_eq!(trailer_video_url(&t), None);
+}
+
+#[test]
+fn guard_data_moves_from_the_old_steam_vent_cache_once() {
+    let base = tempfile::tempdir().unwrap();
+    let legacy = base.path().join("steam-vent/machine_tokens.json");
+    std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+    std::fs::write(&legacy, r#"{"alice":"token"}"#).unwrap();
+    let cache = base.path().join("gaki");
+
+    let path = guard_data_path(&cache);
+    assert_eq!(path, cache.join("machine_tokens.json"));
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        r#"{"alice":"token"}"#
+    );
+    assert!(!legacy.exists());
+}
+
+#[test]
+fn guard_data_keeps_gakis_own_file() {
+    let base = tempfile::tempdir().unwrap();
+    let legacy = base.path().join("steam-vent/machine_tokens.json");
+    std::fs::create_dir_all(legacy.parent().unwrap()).unwrap();
+    std::fs::write(&legacy, "old").unwrap();
+    let cache = base.path().join("gaki");
+    std::fs::create_dir_all(&cache).unwrap();
+    std::fs::write(cache.join("machine_tokens.json"), "new").unwrap();
+
+    let path = guard_data_path(&cache);
+    assert_eq!(std::fs::read_to_string(path).unwrap(), "new");
+    assert!(
+        legacy.exists(),
+        "an existing gaki file wins; the old one is left alone"
+    );
+}
+
+#[test]
+fn guard_data_without_old_file_is_just_a_path() {
+    let base = tempfile::tempdir().unwrap();
+    let cache = base.path().join("gaki");
+    assert_eq!(guard_data_path(&cache), cache.join("machine_tokens.json"));
+    assert!(
+        !cache.exists(),
+        "nothing is created until a token is stored"
+    );
 }

@@ -3,8 +3,8 @@
 //! Generated from `proto/service_storequery.proto` (see `build.rs`); the
 //! `RpcMessage`/`RpcMethod` impls are hand-written like `cloudconfig.rs`.
 use super::*;
+use gaki_steam_vent_proto::{RpcMessage, RpcMethod};
 use std::io::{Read, Write};
-use steam_vent_proto_common::{RpcMessage, RpcMethod};
 
 include!(concat!(env!("OUT_DIR"), "/storequery/mod.rs"));
 

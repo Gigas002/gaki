@@ -1,7 +1,7 @@
 // Based on steam-cdn (Apache-2.0), modified by Aurelia and gaki; see README.md.
 use aes::cipher::block_padding;
+use gaki_steam_vent::NetworkError;
 use reqwest::StatusCode;
-use steam_vent::NetworkError;
 use tokio::{sync::AcquireError, task::JoinError};
 use zip::result::ZipError;
 

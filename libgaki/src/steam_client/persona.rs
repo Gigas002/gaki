@@ -1,7 +1,7 @@
 //! Announcing the account's own persona and asking for persona data. Login
 //! needs this to learn the display name, so it isn't part of `social`.
 use super::*;
-use steam_vent_proto::steammessages_clientserver_friends::{
+use gaki_steam_vent_proto::steammessages_clientserver_friends::{
     CMsgClientChangeStatus, CMsgClientRequestFriendData,
 };
 

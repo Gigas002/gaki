@@ -4,7 +4,7 @@ use crate::core::config::{load_name_cache, save_name_cache};
 
 /// Name-cache file for tag names.
 const TAG_NAMES: &str = "tag_names";
-use steam_vent_proto::steammessages_store_steamclient::{
+use gaki_steam_vent_proto::steammessages_store_steamclient::{
     CStore_GetLocalizedNameForTags_Request, CStore_GetLocalizedNameForTags_Response,
     CStore_GetTagList_Request, CStore_GetTagList_Response,
 };

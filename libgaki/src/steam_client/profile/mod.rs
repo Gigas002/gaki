@@ -1,9 +1,9 @@
 //! User profiles over the CM.
 use super::*;
-use steam_vent_proto::steammessages_clientserver_friends::{
+use gaki_steam_vent_proto::steammessages_clientserver_friends::{
     CMsgClientFriendProfileInfo, CMsgClientFriendProfileInfoResponse, CMsgClientPersonaState,
 };
-use steam_vent_proto::steammessages_player_steamclient::{
+use gaki_steam_vent_proto::steammessages_player_steamclient::{
     CPlayer_GetPlayerLinkDetails_Request, CPlayer_GetPlayerLinkDetails_Response,
 };
 use tokio_stream::StreamExt;

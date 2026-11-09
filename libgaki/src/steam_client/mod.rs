@@ -30,33 +30,30 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use protobuf::Message;
-#[cfg(feature = "library")]
-use protobuf::MessageField;
-use steam_vent::auth::{
+use gaki_steam_vent::auth::{
     AuthConfirmationHandler, ClientInfo, ConfirmationMethod, DeviceConfirmationHandler,
     FileGuardDataStore, RefreshToken, UserProvidedAuthConfirmationHandler,
 };
-use steam_vent::connection::Connection;
-use steam_vent::{ConnectionError, ConnectionTrait, LoginError, ServerList};
-use steam_vent_proto::steammessages_clientserver::{
+use gaki_steam_vent::connection::Connection;
+use gaki_steam_vent::{ConnectionError, ConnectionTrait, LoginError, ServerList};
+use gaki_steam_vent_proto::steammessages_clientserver::{
     CMsgClientGetAppOwnershipTicket, CMsgClientRequestEncryptedAppTicket,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_clientserver_2::{
+use gaki_steam_vent_proto::steammessages_clientserver_2::{
     CMsgClientGetDepotDecryptionKey, CMsgClientGetDepotDecryptionKeyResponse,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_clientserver_appinfo::{
+use gaki_steam_vent_proto::steammessages_clientserver_appinfo::{
     CMsgClientPICSProductInfoRequest, CMsgClientPICSProductInfoResponse,
     cmsg_client_picsproduct_info_request,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_clientserver_userstats::{
+use gaki_steam_vent_proto::steammessages_clientserver_userstats::{
     CMsgClientGetUserStats, CMsgClientGetUserStatsResponse,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_contentsystem_steamclient::{
+use gaki_steam_vent_proto::steammessages_contentsystem_steamclient::{
     CContentServerDirectory_GetCDNAuthToken_Request,
     CContentServerDirectory_GetCDNAuthToken_Response,
     CContentServerDirectory_GetManifestRequestCode_Request,
@@ -64,23 +61,27 @@ use steam_vent_proto::steammessages_contentsystem_steamclient::{
     CContentServerDirectory_GetServersForSteamPipe_Request,
     CContentServerDirectory_GetServersForSteamPipe_Response,
 };
-use steam_vent_proto::steammessages_familygroups_steamclient::{
+use gaki_steam_vent_proto::steammessages_familygroups_steamclient::{
     CFamilyGroups_GetFamilyGroupForUser_Request, CFamilyGroups_GetFamilyGroupForUser_Response,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_familygroups_steamclient::{
+use gaki_steam_vent_proto::steammessages_familygroups_steamclient::{
     CFamilyGroups_GetSharedLibraryApps_Request, CFamilyGroups_GetSharedLibraryApps_Response,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_player_steamclient::{
+use gaki_steam_vent_proto::steammessages_player_steamclient::{
     CPlayer_GetGameAchievements_Request, CPlayer_GetGameAchievements_Response,
     CPlayer_GetOwnedGames_Request, CPlayer_GetOwnedGames_Response,
 };
 #[cfg(feature = "library")]
-use steam_vent_proto::steammessages_storebrowse_steamclient::{
+use gaki_steam_vent_proto::steammessages_storebrowse_steamclient::{
     CStoreBrowse_GetItems_Request, CStoreBrowse_GetItems_Response, EStoreAppType,
     StoreBrowseContext, StoreBrowseItemDataRequest, StoreItem, StoreItemID,
+    store_item::trailers::Trailer,
 };
+use protobuf::Message;
+#[cfg(feature = "library")]
+use protobuf::MessageField;
 use tokio::io::{AsyncWriteExt, duplex, sink};
 #[cfg(feature = "install")]
 use tokio::sync::mpsc::Receiver;
@@ -109,6 +110,28 @@ pub(crate) const DEVICE_NAME: &str = "gaki";
 /// which a CM logon needs).
 pub(crate) fn client_info() -> ClientInfo {
     ClientInfo::new(DEVICE_NAME.to_string())
+}
+
+/// Where Steam Guard machine tokens live: `<cache dir>/machine_tokens.json`.
+///
+/// steam-vent used to write them to `$XDG_CACHE_HOME/steam-vent/`; a file
+/// left there is moved over once, so the device stays remembered.
+pub(crate) fn guard_data_path(cache_dir: &std::path::Path) -> std::path::PathBuf {
+    let path = cache_dir.join("machine_tokens.json");
+    let legacy = cache_dir
+        .parent()
+        .map(|base| base.join("steam-vent").join("machine_tokens.json"));
+    if let Some(legacy) = legacy.filter(|legacy| !path.exists() && legacy.is_file()) {
+        let moved = std::fs::create_dir_all(cache_dir).and_then(|()| std::fs::copy(&legacy, &path));
+        match moved {
+            Ok(_) => {
+                let _ = std::fs::remove_file(&legacy);
+                tracing::info!(from = %legacy.display(), to = %path.display(), "moved Steam Guard machine tokens");
+            }
+            Err(e) => tracing::warn!(error = %e, "could not move Steam Guard machine tokens"),
+        }
+    }
+    path
 }
 
 /// The logon ID this process sends with every CM logon.
@@ -320,7 +343,7 @@ pub struct StoreLink {
     pub url: String,
 }
 
-/// A store trailer; video URL rarely present.
+/// A store trailer. `url` is an HLS/DASH stream, or the short mp4 microtrailer.
 #[cfg(feature = "library")]
 #[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct StoreTrailer {
@@ -350,7 +373,7 @@ pub struct StorePurchaseOption {
 
 #[cfg(feature = "library")]
 fn purchase_option_summary(
-    p: &steam_vent_proto::steammessages_storebrowse_steamclient::store_item::PurchaseOption,
+    p: &gaki_steam_vent_proto::steammessages_storebrowse_steamclient::store_item::PurchaseOption,
 ) -> StorePurchaseOption {
     let (kind, id) = if p.bundleid() > 0 {
         ("bundle", p.bundleid())
@@ -766,7 +789,7 @@ fn apply_dlc_disabled(content: &str, dlc_appid: u32, disabled: bool) -> String {
 /// (developers / publishers / franchises in a `StoreItem.basic_info`).
 #[cfg(feature = "library")]
 fn creator_names(
-    creators: &[steam_vent_proto::steammessages_storebrowse_steamclient::store_item::basic_info::CreatorHomeLink],
+    creators: &[gaki_steam_vent_proto::steammessages_storebrowse_steamclient::store_item::basic_info::CreatorHomeLink],
 ) -> Vec<String> {
     creators
         .iter()
@@ -866,7 +889,9 @@ fn store_item_to_app_info(item: &StoreItem, country: &str) -> StoreAppInfo {
         short_description: basic
             .map(|b| b.short_description().to_string())
             .unwrap_or_default(),
-        full_description: crate::web::store::strip_html(item.full_description()),
+        full_description: crate::web::store::strip_html(
+            crate::web::store::strip_bbcode(item.full_description_bbcode()).trim(),
+        ),
         developers: basic
             .map(|b| creator_names(&b.developers))
             .unwrap_or_default(),
@@ -946,7 +971,7 @@ fn store_rating(item: &StoreItem) -> Option<StoreRating> {
 
 #[cfg(feature = "library")]
 fn store_links(item: &StoreItem) -> Vec<StoreLink> {
-    use steam_vent_proto::steammessages_storebrowse_steamclient::EStoreLinkType as L;
+    use gaki_steam_vent_proto::steammessages_storebrowse_steamclient::EStoreLinkType as L;
     item.links
         .iter()
         .filter(|l| !l.url().is_empty())
@@ -1020,14 +1045,6 @@ fn store_trailers(item: &StoreItem) -> Vec<StoreTrailer> {
         .iter()
         .chain(trailers.other_trailers.iter())
         .map(|t| {
-            // Prefer the mp4 rendition at max quality.
-            let source = t
-                .trailer_max
-                .iter()
-                .chain(t.trailer_480p.iter())
-                .find(|s| s.type_().contains("mp4"))
-                .or_else(|| t.trailer_max.first())
-                .or_else(|| t.trailer_480p.first());
             // Thumbnail path is `<movie id>/<hash>/movie_600x337.jpg`.
             let movie_id = t
                 .screenshot_medium()
@@ -1037,11 +1054,40 @@ fn store_trailers(item: &StoreItem) -> Vec<StoreTrailer> {
             StoreTrailer {
                 name: t.trailer_name().to_string(),
                 movie_id,
-                url: source.and_then(|s| asset_url(t.trailer_url_format(), s.filename())),
+                url: trailer_video_url(t),
                 thumbnail: asset_url(t.trailer_url_format(), t.screenshot_medium()),
             }
         })
         .collect()
+}
+
+/// Steam's video CDN. Trailer paths (`adaptive_trailers[].cdn_path`,
+/// `microtrailer[].filename`) are relative to it, not to `trailer_url_format`.
+#[cfg(feature = "library")]
+const TRAILER_CDN: &str = "https://video.fastly.steamstatic.com/store_trailers/";
+
+/// A trailer's playable URL: the HLS H.264 stream (mpv, browsers), then DASH
+/// H.264, then any other adaptive stream, then the short mp4 microtrailer.
+/// The store stopped sending plain mp4 renditions (`trailer_max`/`_480p`).
+#[cfg(feature = "library")]
+fn trailer_video_url(t: &Trailer) -> Option<String> {
+    let adaptive = |encoding: &str| {
+        t.adaptive_trailers
+            .iter()
+            .find(|a| a.encoding() == encoding)
+            .map(|a| a.cdn_path())
+    };
+    adaptive("hls_h264")
+        .or_else(|| adaptive("dash_h264"))
+        .or_else(|| t.adaptive_trailers.first().map(|a| a.cdn_path()))
+        .or_else(|| {
+            t.microtrailer
+                .iter()
+                .find(|m| m.type_() == "video/mp4")
+                .map(|m| m.filename())
+        })
+        .filter(|path| !path.is_empty())
+        .map(|path| format!("{TRAILER_CDN}{path}"))
 }
 
 /// Resolve a `StoreItem`'s artwork URLs. Each is built from the StoreBrowse
