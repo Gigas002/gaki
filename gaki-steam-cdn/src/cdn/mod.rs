@@ -89,14 +89,9 @@ impl CDNClient {
             })
             .await?;
         match response.depot_encryption_key {
-            Some(bytes) if bytes.len() == 32 => {
-                let mut key = [0u8; 32];
-                key.copy_from_slice(&bytes[..]);
-                Ok(Some(key))
-            }
-            Some(_) => Err(Error::Unexpected(
-                "depot key has unexpected size".to_string(),
-            )),
+            Some(bytes) => <[u8; 32]>::try_from(bytes.as_slice())
+                .map(Some)
+                .map_err(|_| Error::Unexpected("depot key has unexpected size".to_string())),
             None => Ok(None),
         }
     }
@@ -147,8 +142,10 @@ impl CDNClient {
                 .ok()
         };
 
-        let mut key_arr = [0u8; 32];
-        key_arr.copy_from_slice(&depot_key[..32]);
+        let key_arr: [u8; 32] = depot_key
+            .get(..32)
+            .and_then(|key| key.try_into().ok())
+            .ok_or_else(|| Error::Unexpected("depot key is shorter than 32 bytes".to_string()))?;
 
         let manifest = self
             .get_manifest(app_id, depot_id, manifest_id, request_code, Some(key_arr))

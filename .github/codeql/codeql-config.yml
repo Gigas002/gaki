@@ -1,0 +1,8 @@
+name: gaki CodeQL config
+
+# Test code holds fixed keys and logs fake secrets on purpose; scanning it
+# only produces false positives. Rust is extracted without a build, so
+# paths-ignore applies to it.
+paths-ignore:
+  - "**/tests/**"
+  - "**/tests.rs"
