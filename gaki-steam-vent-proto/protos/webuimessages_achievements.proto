@@ -1,0 +1,56 @@
+import "steammessages_base.proto";
+import "webuimessages_base.proto";
+
+option optimize_for = SPEED;
+option cc_generic_services = true;
+
+message CAchievements_GetInfo_Request {
+	optional uint64 gameid = 1;
+}
+
+message CAchievements_GetInfo_Response {
+	message Info {
+		optional string id = 1;
+		optional string name = 2;
+		optional string desc = 3;
+		optional string image_url_achieved = 4;
+		optional string image_url_not_achieved = 5;
+		optional bool achieved = 6;
+		optional uint32 unlock_time = 7;
+	}
+
+	repeated .CAchievements_GetInfo_Response.Info achievements = 1;
+}
+
+message CAchievements_GetUserAchievements_Request {
+	optional uint64 gameid = 1;
+}
+
+message CAchievements_GetUserAchievements_Response {
+	message Achievement {
+		optional uint32 internal_key = 1;
+		optional bool unlocked = 2;
+		optional fixed32 unlock_time = 3;
+		optional int32 progress_int = 4;
+		optional float progress_float = 5;
+	}
+
+	message Group {
+		optional uint32 groupid = 1;
+		optional bool is_achievable = 2;
+		optional uint32 completed_achievements = 3;
+		optional bool is_completed = 4;
+		optional fixed32 time_completed = 9;
+	}
+
+	repeated .CAchievements_GetUserAchievements_Response.Achievement achievements = 1;
+	repeated .CAchievements_GetUserAchievements_Response.Group groups = 2;
+	optional int32 schema_version = 3;
+}
+
+service Achievements {
+	option (webui_service_execution_site) = k_EClientExecutionSiteClientdll;
+
+	rpc GetInfo (.CAchievements_GetInfo_Request) returns (.CAchievements_GetInfo_Response);
+	rpc GetUserAchievements (.CAchievements_GetUserAchievements_Request) returns (.CAchievements_GetUserAchievements_Response);
+}

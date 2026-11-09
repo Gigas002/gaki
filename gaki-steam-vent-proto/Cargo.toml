@@ -1,0 +1,25 @@
+[package]
+name = "gaki-steam-vent-proto"
+description = "Steam client protobuf messages for gaki-steam-vent (fork of steam-vent-proto)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+# The generated bindings are built from these; no protoc needed.
+include = [
+    "build.rs",
+    "protos/*.proto",
+    "src/**/*.rs",
+    "tests/**/*.rs",
+    "README.md",
+    "LICENSE-MIT",
+]
+
+[dependencies]
+protobuf = { workspace = true, features = ["with-bytes"] }
+
+[build-dependencies]
+protobuf.workspace = true
+protobuf-codegen.workspace = true
+protobuf-parse.workspace = true
