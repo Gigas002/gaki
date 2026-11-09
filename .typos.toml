@@ -15,4 +15,8 @@ unparseable = "unparseable"
 flate = "flate"
 
 [files]
-extend-exclude = [ "target/", ]
+extend-exclude = [
+    "target/",
+    # Valve's protos, vendored as-is: their typos are field and enum names
+    "gaki-steam-vent-proto/protos/",
+]

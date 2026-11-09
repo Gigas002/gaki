@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [gaki-steam-cdn, libgaki, gaki-cli, gaki-tui]
+        package: [gaki-steam-vent-proto, gaki-steam-vent-crypto, gaki-steam-vent, gaki-steam-cdn, libgaki, gaki-cli, gaki-tui]
 
     name: codecov (${{ matrix.package }})
     runs-on: ubuntu-latest
