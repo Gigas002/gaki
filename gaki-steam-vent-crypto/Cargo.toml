@@ -1,0 +1,21 @@
+[package]
+name = "gaki-steam-vent-crypto"
+description = "Steam login cryptography: password RSA, Steam Guard TOTP, machine IDs (fork of steam-vent-crypto)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+
+[dependencies]
+base64.workspace = true
+hex.workspace = true
+hmac.workspace = true
+rand.workspace = true
+rsa.workspace = true
+sha1.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# PEM decoding for the fixed test key
+rsa = { workspace = true, features = ["encoding"] }
