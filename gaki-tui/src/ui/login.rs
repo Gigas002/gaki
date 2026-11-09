@@ -16,13 +16,13 @@ use crate::ui::theme;
 
 /// The GAKI wordmark and tagline.
 const SPLASH: &str = include_str!("../../assets/splash.txt");
-/// The splash picture in density ASCII, largest first: the splash shows the
+/// The splash picture in braille art, largest first: the splash shows the
 /// largest that fits.
 const ARTS: [&str; 4] = [
-    include_str!("../../assets/splash_art_160.txt"),
-    include_str!("../../assets/splash_art_128.txt"),
-    include_str!("../../assets/splash_art_96.txt"),
-    include_str!("../../assets/splash_art_64.txt"),
+    include_str!("../../assets/splash_art_144.txt"),
+    include_str!("../../assets/splash_art_112.txt"),
+    include_str!("../../assets/splash_art_88.txt"),
+    include_str!("../../assets/splash_art_60.txt"),
 ];
 
 /// Draw the screen for `app.mode`. The library (`Mode::Browse`) is drawn by
