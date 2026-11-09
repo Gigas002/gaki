@@ -201,20 +201,21 @@ fn state_subdir(name: &str) -> Result<PathBuf> {
     Ok(state_dir()?.join(name))
 }
 
-/// Where launch logs go: `<state dir>/logs` (see [`state_subdir`]).
+/// Where launch logs go: `<state dir>/logs`, or `logs` in a config directory
+/// set with [`set_config_dir`].
 pub fn launch_logs_dir() -> Result<PathBuf> {
     state_subdir("logs")
 }
 
-/// Where records of running games go: `<state dir>/running` (see
-/// [`state_subdir`]).
+/// Where records of running games go: `<state dir>/running`, or `running` in
+/// a config directory set with [`set_config_dir`].
 pub fn running_games_dir() -> Result<PathBuf> {
     state_subdir("running")
 }
 
 /// Where the libraries with gaki's own layout keep their records:
-/// `<state dir>/libraries` (see [`state_subdir`] and
-/// [`crate::library::layout`]).
+/// `<state dir>/libraries`, or `libraries` in a config directory set with
+/// [`set_config_dir`] (see [`crate::library::layout`]).
 pub fn library_records_dir() -> Result<PathBuf> {
     state_subdir("libraries")
 }

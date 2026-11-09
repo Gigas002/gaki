@@ -125,7 +125,7 @@ pub fn no_session() -> Paragraph<'static> {
 
 /// The splash, centred vertically in `area` so it keeps clear of the
 /// panel's borders: the picture over the wordmark, or as much of that as
-/// fits ([`splash_text`]).
+/// fits.
 pub fn splash(area: Rect) -> Paragraph<'static> {
     let inner = usize::from(area.height.saturating_sub(2));
     let text = splash_text(inner, usize::from(area.width.saturating_sub(2)));
