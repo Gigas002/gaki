@@ -414,7 +414,7 @@ progress and debug logs and a launched game's own output, and `-vv`/`-vvv`
 unmute the Steam networking stack, which helps when a command seems stuck.
 Commands run through the daemon show the same logs at your `-v` level, and a
 verbose `play` also shows the daemon's own activity, prefixed `[daemon]`.
-`--log <FILTER>` (e.g. `--log debug,steam_vent=info`) overrides the level.
+`--log <FILTER>` (e.g. `--log debug,gaki_steam_vent=info`) overrides the level.
 
 Each launch's output is saved under `~/.local/state/gaki/logs/`; `gaki-cli
 clean --logs` deletes all but each game's newest.

@@ -33,13 +33,13 @@ A feature turns on what it requires (`install` brings `library`, which brings
 Each heavy dependency is `optional = true` and comes only with the feature that
 uses it.
 
-| Feature          | Brings in                                                                                                                                                                                                                    |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `authentication` | `steam-vent` (+ protos), `protobuf` (+ codegen), `reqwest`, `keyring-core` + `dbus-secret-service-keyring-store`, `secrecy`, `steam-vdf-parser`, `keyvalues-serde`, `tokio-stream`; in `gaki-cli` also `qrcode`, `rpassword` |
-| `install`        | `gaki-steam-cdn` (the workspace's download engine)                                                                                                                                                                           |
-| `cloud`          | `zip`, `filetime`, `sha1`                                                                                                                                                                                                    |
-| `depot`          | `hex`, `sha1`                                                                                                                                                                                                                |
-| `social`         | `steam-vent-chat`, `steamid-ng`; in `gaki-cli` also `tokio-stream`                                                                                                                                                           |
+| Feature          | Brings in                                                                                                                                                                                                                                                                    |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `authentication` | `gaki-steam-vent` (+ `gaki-steam-vent-proto`, `gaki-steam-vent-crypto`), `protobuf` (+ codegen), `reqwest`, `keyring-core` + `dbus-secret-service-keyring-store`, `secrecy`, `steam-vdf-parser`, `keyvalues-serde`, `tokio-stream`; in `gaki-cli` also `qrcode`, `rpassword` |
+| `install`        | `gaki-steam-cdn` (the workspace's download engine)                                                                                                                                                                                                                           |
+| `cloud`          | `zip`, `filetime`, `sha1`                                                                                                                                                                                                                                                    |
+| `depot`          | `hex`, `sha1`                                                                                                                                                                                                                                                                |
+| `social`         | `gaki-steam-vent`'s `chat` feature, `steamid-ng`; in `gaki-cli` also `tokio-stream`                                                                                                                                                                                          |
 
 `build.rs` generates a protobuf only for the feature that uses it:
 `collections` gets CloudConfigStore, and `store` gets StoreQuery and Wishlist.
