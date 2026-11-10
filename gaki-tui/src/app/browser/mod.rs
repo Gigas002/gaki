@@ -20,7 +20,7 @@ pub mod depots;
 mod dlc;
 #[cfg(feature = "social")]
 mod friends;
-mod game_config;
+pub(crate) mod game_config;
 pub mod game_info;
 mod help;
 #[cfg(feature = "install")]
@@ -461,6 +461,9 @@ pub struct Browser {
     game_config_app_id: i32,
     /// A transient status line for the settings overlay.
     pub game_config_status: String,
+    /// When `Some`, the highlighted text row (Args, Env, Shader cache) is
+    /// being typed; the buffer is what the user has typed so far.
+    pub game_config_input: Option<String>,
 
     // --- Collections overlay ---
     /// Whether the collections overlay is open.
@@ -675,6 +678,7 @@ impl Browser {
             game_config_index: 0,
             game_config_app_id: 0,
             game_config_status: String::new(),
+            game_config_input: None,
             show_collections: false,
             collections: Vec::new(),
             collections_index: 0,

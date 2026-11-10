@@ -1,20 +1,22 @@
 //! The per-game settings overlay (modal popup): a game's `games.toml`
-//! settings — profile, platform, Steam integration — each a selectable row
-//! that Enter cycles, plus its wrappers (read-only).
+//! settings — profile, platform, Steam integration, each a row Enter
+//! cycles; launch arguments, variables and shader cache, each a row Enter
+//! types — plus its wrappers (read-only).
 
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
 use crate::app::browser::Browser;
+use crate::app::browser::game_config::{GameConfigRow, join_words};
 use crate::app::steam::GameSettings;
 use crate::keymap::{GameSettingsAction as Gs, hints, key_of};
 use crate::ui::theme;
 use crate::ui::{paneled_paragraph, selection_marker};
 
 /// Build the game-settings overlay from the browser's open game-config state.
-/// Three rows (Profile, Platform, Steam) show the entry's value, or what an
-/// unset one falls back to; the highlighted row gets a selection bar. The
-/// wrappers and a status/hint line close it.
+/// Each row shows the entry's value, or what an unset one falls back to; the
+/// highlighted row gets a selection bar. The wrappers and a prompt or a
+/// status/hint line close it.
 pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     let cfg = browser.game_config.as_ref();
     let profile = match cfg {
@@ -37,14 +39,44 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
             .unwrap_or_else(|| format!("(profile: {})", c.effective_steam)),
         None => "(auto)".to_string(),
     };
-    let rows: [(&str, String); 3] = [
-        ("Profile", profile),
-        ("Platform", platform),
-        ("Steam", steam),
-    ];
+    let args = match cfg {
+        Some(c) if !c.args.is_empty() => join_words(&c.args),
+        _ => "(none)".to_string(),
+    };
+    let env = match cfg {
+        Some(c) if !c.env.is_empty() => {
+            let own: Vec<String> = c.env.iter().map(|(k, v)| format!("{k}={v}")).collect();
+            join_words(&own)
+        }
+        Some(c) if !c.effective_env.is_empty() => format!(
+            "(profile: {})",
+            c.effective_env
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(" ")
+        ),
+        _ => "(none)".to_string(),
+    };
+    let shader_cache = match cfg {
+        Some(GameSettings {
+            shader_cache: Some(s),
+            ..
+        }) => s.clone(),
+        Some(GameSettings {
+            effective_shader_cache: Some(dir),
+            ..
+        }) => format!("(profile: {})", dir.display()),
+        _ => "(profile: off)".to_string(),
+    };
+    let rows: Vec<(GameConfigRow, String)> = GameConfigRow::ALL
+        .into_iter()
+        .zip([profile, platform, steam, args, env, shader_cache])
+        .collect();
 
     let mut lines: Vec<Line<'static>> = Vec::new();
-    for (i, (label, value)) in rows.iter().enumerate() {
+    for (i, (row, value)) in rows.iter().enumerate() {
+        let label = row.label();
         let selected = i == browser.game_config_index;
         let style = if selected {
             theme::selection(theme::ACCENT)
@@ -78,6 +110,25 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
     )));
 
     lines.push(Line::from(""));
+    if let Some(input) = &browser.game_config_input {
+        let prompt = match browser.game_config_row() {
+            GameConfigRow::Args => "Arguments: ",
+            GameConfigRow::Env => "Variables (KEY=VALUE): ",
+            _ => "Shader cache (directory or off): ",
+        };
+        lines.push(Line::from(vec![
+            Span::styled(prompt.to_string(), theme::label()),
+            Span::styled(input.clone(), theme::accent()),
+            Span::styled("_".to_string(), theme::key()),
+        ]));
+        let hint = if browser.game_config_status.is_empty() {
+            "Enter to save (empty clears) · Esc to cancel · quote words with spaces".to_string()
+        } else {
+            browser.game_config_status.clone()
+        };
+        lines.push(Line::from(Span::styled(hint, theme::dim())));
+        return paneled_paragraph(lines, "Game settings".to_string());
+    }
     let status = if !browser.game_config_status.is_empty() {
         browser.game_config_status.clone()
     } else {

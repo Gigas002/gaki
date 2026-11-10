@@ -108,7 +108,10 @@ game: type to narrow it, `Enter` to run. Three entries live only here:
   to that launch only, and an unavailable one says what's missing.
 - **Game settings** edits the game's `games.toml` entry: `Enter` cycles the
   profile, the platform (auto, windows, linux) and the Steam integration (the
-  profile's, auto, host, none). Wrappers are shown read-only; change them with
+  profile's, auto, host, none), and types the launch arguments, the variables
+  (`KEY=VALUE`, over the profile's) and the shader cache (a directory or
+  `off`). Typed values split on spaces; quote a word that has some. Saving an
+  empty one clears it. Wrappers are shown read-only; change them with
   `gaki-cli config game <id> --wrapper …`.
 
 ### Installs

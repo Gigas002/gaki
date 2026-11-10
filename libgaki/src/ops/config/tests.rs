@@ -56,3 +56,56 @@ fn leftover_launch_scripts_are_reported() {
         issues[0].message
     );
 }
+
+#[test]
+fn env_vars_parse_as_key_value() {
+    assert_eq!(
+        parse_env_var("DXVK_HUD=fps,gpuload").unwrap(),
+        ("DXVK_HUD".to_owned(), "fps,gpuload".to_owned())
+    );
+    assert_eq!(
+        parse_env_var("A=b=c").unwrap(),
+        ("A".to_owned(), "b=c".to_owned()),
+        "only the first = splits"
+    );
+    assert_eq!(parse_env_var("EMPTY=").unwrap().1, "");
+    assert!(parse_env_var("NOEQUALS").is_err());
+    assert!(parse_env_var("=value").is_err());
+    assert!(parse_env_var("TWO WORDS=x").is_err());
+}
+
+#[test]
+fn env_edits_clear_unset_then_set() {
+    use std::collections::BTreeMap;
+    use toml_edit::{DocumentMut, Item};
+
+    let mut doc: DocumentMut = "env = { A = \"1\", B = \"2\" }\n".parse().unwrap();
+    let table = doc.as_table_mut();
+    let none = BTreeMap::new();
+    assert!(!edit::edit_env(table, false, &[], &none), "a no-op");
+
+    let set = BTreeMap::from([("C".to_owned(), "3".to_owned())]);
+    assert!(edit::edit_env(table, false, &["A".to_owned()], &set));
+    let env = table.get("env").and_then(Item::as_table).unwrap();
+    let keys: Vec<_> = env.iter().map(|(k, _)| k).collect();
+    assert_eq!(keys, ["B", "C"]);
+
+    assert!(
+        !edit::edit_env(table, false, &["GONE".to_owned()], &none),
+        "unsetting a missing key changes nothing"
+    );
+
+    let replace = EnvChange::replace(BTreeMap::from([("D".to_owned(), "4".to_owned())]));
+    assert!(edit::edit_env(
+        table,
+        replace.clear,
+        &replace.unset,
+        &replace.set
+    ));
+    let env = table.get("env").and_then(Item::as_table).unwrap();
+    assert_eq!(env.len(), 1);
+    assert_eq!(env.get("D").and_then(Item::as_str), Some("4"));
+
+    assert!(edit::edit_env(table, true, &[], &none));
+    assert!(table.get("env").is_none(), "an emptied env is removed");
+}

@@ -80,6 +80,17 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         return Ok(true);
     }
     if browser.show_game_config {
+        // Typing a text row (Args, Env, Shader cache): keys edit the text.
+        if browser.game_config_input.is_some() {
+            match input {
+                KeyCode::Esc => browser.game_config_input_cancel(),
+                KeyCode::Char('\n') | KeyCode::Enter => browser.game_config_input_submit(),
+                KeyCode::Backspace => browser.game_config_input_pop(),
+                KeyCode::Char(c) => browser.game_config_input_push(c),
+                _ => {}
+            }
+            return Ok(true);
+        }
         use crate::keymap::GameSettingsAction as Gs;
         match own::<Gs>(key, None) {
             _ if input == KeyCode::Esc => browser.close_game_config(),

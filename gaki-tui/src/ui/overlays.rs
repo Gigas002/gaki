@@ -124,7 +124,7 @@ pub fn draw(frame: &mut Frame, browser: &Browser) {
 
     // Per-game settings overlay floats above everything.
     if browser.show_game_config {
-        let area = ui::centered_rect(58, 45, frame.area());
+        let area = ui::centered_rect(64, 55, frame.area());
         frame.render_widget(Clear, area);
         frame.render_widget(ui::game_config::game_config(browser), area);
     }

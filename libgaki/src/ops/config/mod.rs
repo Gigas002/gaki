@@ -474,20 +474,81 @@ pub struct GameEntryChange {
     pub platform: Change<Platform>,
     pub wrappers: Change<Vec<String>>,
     pub steam: Change<SteamIntegration>,
+    /// Arguments passed to the game; an empty list clears them.
+    pub args: Change<Vec<String>>,
+    pub env: EnvChange,
+    pub shader_cache: Change<crate::config::ShaderCache>,
+}
+
+/// An edit of a game's `env`: drop every variable (`clear`), then those in
+/// `unset`, then set those in `set`.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct EnvChange {
+    pub clear: bool,
+    pub unset: Vec<String>,
+    pub set: std::collections::BTreeMap<String, String>,
+}
+
+impl EnvChange {
+    /// Replace the whole `env` with `vars`.
+    pub fn replace(vars: std::collections::BTreeMap<String, String>) -> Self {
+        Self {
+            clear: true,
+            unset: Vec::new(),
+            set: vars,
+        }
+    }
+
+    fn is_noop(&self) -> bool {
+        !self.clear && self.unset.is_empty() && self.set.is_empty()
+    }
+}
+
+/// Parse `KEY=VALUE` into its parts. The key can't be empty or hold `=` or
+/// whitespace; the value may be empty.
+pub fn parse_env_var(text: &str) -> Result<(String, String)> {
+    let (key, value) = text.split_once('=').ok_or_else(|| {
+        TypedError::new(
+            ErrorKind::InvalidInput,
+            format!("`{text}` is not KEY=VALUE"),
+        )
+    })?;
+    if key.is_empty() || key.chars().any(char::is_whitespace) {
+        return Err(TypedError::new(
+            ErrorKind::InvalidInput,
+            format!("`{key}` is not a variable name"),
+        )
+        .into());
+    }
+    Ok((key.to_owned(), value.to_owned()))
 }
 
 impl GameEntryChange {
     fn is_noop(&self) -> bool {
         !self.reset
+            && self.env.is_noop()
             && [
                 matches!(self.name, Change::Keep),
                 matches!(self.profile, Change::Keep),
                 matches!(self.platform, Change::Keep),
                 matches!(self.wrappers, Change::Keep),
                 matches!(self.steam, Change::Keep),
+                matches!(self.args, Change::Keep),
+                matches!(self.shader_cache, Change::Keep),
             ]
             .iter()
             .all(|keep| *keep)
+    }
+}
+
+/// A list key's new TOML value: `None` keeps it, `Some(None)` removes it
+/// (an empty list too).
+fn list(change: Change<Vec<String>>) -> Option<Option<toml_edit::Value>> {
+    match change {
+        Change::Keep => None,
+        Change::Clear => Some(None),
+        Change::Set(list) if list.is_empty() => Some(None),
+        Change::Set(list) => Some(Some(toml_edit::Value::Array(list.into_iter().collect()))),
     }
 }
 
@@ -504,6 +565,12 @@ pub struct GameEntry {
     pub steam: SteamIntegration,
     /// Every wrapper, the profile's first.
     pub wrappers: Vec<String>,
+    /// The arguments passed to the game.
+    pub args: Vec<String>,
+    /// The launch variables: the profile's, then the game's on top.
+    pub env: std::collections::BTreeMap<String, String>,
+    /// The game's shader cache; `None` when it's `off`.
+    pub shader_cache: Option<PathBuf>,
     /// Which platform payloads are installed, as `(linux, windows)`.
     #[serde(skip)]
     pub installed_platforms: Option<(bool, bool)>,
@@ -531,16 +598,11 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
                 text(change.platform.map(|p| p.as_str().to_owned())),
             ),
             ("steam", text(change.steam.map(|s| s.as_str().to_owned()))),
+            ("wrappers", list(change.wrappers)),
+            ("args", list(change.args)),
             (
-                "wrappers",
-                match change.wrappers {
-                    Change::Keep => None,
-                    Change::Clear => Some(None),
-                    Change::Set(list) if list.is_empty() => Some(None),
-                    Change::Set(list) => {
-                        Some(Some(toml_edit::Value::Array(list.into_iter().collect())))
-                    }
-                },
+                "shader_cache",
+                text(change.shader_cache.map(|c| c.as_text())),
             ),
         ];
         for (key, value) in fields {
@@ -548,6 +610,8 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
                 changed |= edit::set_in(table, key, value);
             }
         }
+        let env = change.env;
+        changed |= edit::edit_env(table, env.clear, &env.unset, &env.set);
         edit::prune_game(&mut file.doc, app_id);
     }
 
@@ -578,6 +642,7 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
         &home,
     )
     .map_err(|e| TypedError::new(ErrorKind::InvalidInput, e.to_string()))?;
+    let shader_cache = settings.shader_cache_dir();
     Ok((
         GameEntry {
             app_id,
@@ -585,7 +650,10 @@ pub async fn update_game_entry(app_id: u32, change: GameEntryChange) -> Result<(
             profile: settings.profile,
             platform: settings.platform,
             steam: settings.steam,
+            shader_cache,
             wrappers: settings.wrappers,
+            args: settings.args,
+            env: settings.env,
             installed_platforms: installed_platforms(app_id).await,
         },
         changed,

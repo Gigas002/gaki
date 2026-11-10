@@ -5,7 +5,7 @@ use crate::commands::common::*;
 
 use anyhow::Result;
 use libgaki::config::Config;
-use libgaki::ops::config::{Change, GameEntryChange, ProxyChange};
+use libgaki::ops::config::{Change, EnvChange, GameEntryChange, ProxyChange};
 
 /// `config show`: the `config.toml` settings, defaults filled in.
 pub(crate) async fn cmd_config_show(json: bool) -> Result<()> {
@@ -347,8 +347,20 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         no_steam,
         name,
         no_name,
+        args,
+        no_args,
+        env,
+        unset_env,
+        no_env,
+        shader_cache,
+        no_shader_cache,
         clear,
     } = args;
+
+    let set = env
+        .iter()
+        .map(|var| libgaki::ops::config::parse_env_var(var))
+        .collect::<Result<_>>()?;
 
     let change = GameEntryChange {
         reset: clear,
@@ -362,6 +374,16 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         ),
         wrappers: change(no_wrappers, (!wrappers.is_empty()).then_some(wrappers)),
         steam: change(no_steam, steam.map(Into::into)),
+        args: change(no_args, (!args.is_empty()).then_some(args)),
+        env: EnvChange {
+            clear: no_env,
+            unset: unset_env,
+            set,
+        },
+        shader_cache: change(
+            no_shader_cache,
+            shader_cache.map(|text| libgaki::config::ShaderCache::parse(&text)),
+        ),
     };
     let (game, changed) = libgaki::ops::config::update_game_entry(app_id, change).await?;
     if json {
@@ -422,6 +444,40 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         } else {
             game.wrappers.join(" ")
         }
+    );
+    cli_println!(
+        "  Args     : {}",
+        if game.args.is_empty() {
+            "(none)".to_owned()
+        } else {
+            game.args.join(" ")
+        }
+    );
+    let own_env = entry.map(|e| &e.env);
+    if game.env.is_empty() {
+        cli_println!("  Env      : (none)");
+    } else {
+        cli_println!("  Env      :");
+        for (key, value) in &game.env {
+            let from = if own_env.is_some_and(|e| e.contains_key(key)) {
+                ""
+            } else {
+                "  (profile)"
+            };
+            cli_println!("    {key}={value}{from}");
+        }
+    }
+    cli_println!(
+        "  Shaders  : {}",
+        set_or(
+            entry
+                .and_then(|e| e.shader_cache.as_ref())
+                .map(|c| c.as_text()),
+            match &game.shader_cache {
+                Some(dir) => format!("resolved: {}", dir.display()),
+                None => "resolved: off".into(),
+            }
+        )
     );
     if changed {
         cli_println!("Saved.");

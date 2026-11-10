@@ -132,6 +132,42 @@ pub fn set_in(table: &mut Table, key: &str, value: Option<Value>) -> bool {
     }
 }
 
+/// Edit the `env` table in `table` (a `[game.env]` or an inline table):
+/// first drop every variable when `clear`, then those in `unset`, then set
+/// those in `set`. An emptied table is removed. Returns whether anything
+/// changed.
+pub fn edit_env(
+    table: &mut Table,
+    clear: bool,
+    unset: &[String],
+    set: &std::collections::BTreeMap<String, String>,
+) -> bool {
+    if !clear && unset.is_empty() && set.is_empty() {
+        return false;
+    }
+    let mut env = match table.remove("env") {
+        Some(Item::Table(env)) => env,
+        Some(Item::Value(Value::InlineTable(inline))) => inline.into_table(),
+        // Anything else isn't a valid `env`; replace it.
+        _ => Table::new(),
+    };
+    let before = env.to_string();
+    if clear {
+        env.clear();
+    }
+    for key in unset {
+        env.remove(key);
+    }
+    for (key, value) in set {
+        set_in(&mut env, key, Some(Value::from(value.as_str())));
+    }
+    let changed = env.to_string() != before;
+    if !env.is_empty() {
+        table.insert("env", Item::Table(env));
+    }
+    changed
+}
+
 /// The `[[game]]` tables of a `games.toml` document.
 fn games(doc: &mut DocumentMut) -> Option<&mut ArrayOfTables> {
     doc.get_mut("game").and_then(Item::as_array_of_tables_mut)

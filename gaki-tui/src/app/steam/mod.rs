@@ -2771,6 +2771,16 @@ pub struct GameSettings {
     pub game_wrappers: Vec<String>,
     /// Every profile's name, for picking one.
     pub profiles: Vec<String>,
+    /// The game's own launch arguments.
+    pub args: Vec<String>,
+    /// The game's own launch variables.
+    pub env: std::collections::BTreeMap<String, String>,
+    /// The launch variables the game gets: the profile's, then the game's.
+    pub effective_env: std::collections::BTreeMap<String, String>,
+    /// The game's own `shader_cache`, a directory or `off`.
+    pub shader_cache: Option<String>,
+    /// The shader cache the game launches with; `None` when it's off.
+    pub effective_shader_cache: Option<std::path::PathBuf>,
 }
 
 /// Extra launch options for [`play_with`].
@@ -3060,6 +3070,11 @@ fn update_game_config(app_id: i32, change: GameEntryChange) -> Result<GameSettin
         wrappers: entry.wrappers,
         game_wrappers: game.wrappers,
         profiles: profiles.into_iter().map(|p| p.profile.name).collect(),
+        args: game.args,
+        env: game.env,
+        effective_env: entry.env,
+        shader_cache: game.shader_cache.map(|c| c.as_text()),
+        effective_shader_cache: entry.shader_cache,
     })
 }
 
@@ -3126,6 +3141,50 @@ pub fn config_game_set_steam(app_id: i32, steam: Option<&str>) -> Result<(), Tui
         app_id,
         GameEntryChange {
             steam: set_or_clear(steam),
+            ..Default::default()
+        },
+    )
+    .map(drop)
+}
+
+/// Set a game's launch arguments; empty clears them.
+pub fn config_game_set_args(app_id: i32, args: Vec<String>) -> Result<(), TuiError> {
+    update_game_config(
+        app_id,
+        GameEntryChange {
+            args: if args.is_empty() {
+                Change::Clear
+            } else {
+                Change::Set(args)
+            },
+            ..Default::default()
+        },
+    )
+    .map(drop)
+}
+
+/// Replace a game's launch variables; empty clears them.
+pub fn config_game_set_env(
+    app_id: i32,
+    env: std::collections::BTreeMap<String, String>,
+) -> Result<(), TuiError> {
+    update_game_config(
+        app_id,
+        GameEntryChange {
+            env: libgaki::ops::config::EnvChange::replace(env),
+            ..Default::default()
+        },
+    )
+    .map(drop)
+}
+
+/// Set a game's shader cache, a directory or `off`; `None` uses the
+/// profile's.
+pub fn config_game_set_shader_cache(app_id: i32, cache: Option<&str>) -> Result<(), TuiError> {
+    update_game_config(
+        app_id,
+        GameEntryChange {
+            shader_cache: set_or_clear(cache.map(libgaki::config::ShaderCache::parse)),
             ..Default::default()
         },
     )

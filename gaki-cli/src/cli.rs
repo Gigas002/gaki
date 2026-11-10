@@ -755,7 +755,7 @@ pub(crate) enum ConfigCommand {
         clear: bool,
     },
     /// View or set a game's `games.toml` entry (profile, platform, wrappers,
-    /// Steam integration, alias).
+    /// Steam integration, alias, arguments, environment, shader cache).
     Game {
         #[command(flatten)]
         args: GameConfigArgs,
@@ -1475,9 +1475,39 @@ pub(crate) struct GameConfigArgs {
     /// Remove the game's alias.
     #[arg(short = 'N', long, conflicts_with = "name")]
     pub(crate) no_name: bool,
+    /// Pass this argument to the game; repeat for several. Replaces the
+    /// game's arguments. One starting with `-` works: `--arg -skipIntro`.
+    #[arg(
+        short = 'a',
+        long = "arg",
+        value_name = "ARG",
+        allow_hyphen_values = true
+    )]
+    pub(crate) args: Vec<String>,
+    /// Remove the game's arguments.
+    #[arg(short = 'A', long, conflicts_with = "args")]
+    pub(crate) no_args: bool,
+    /// Set a launch variable, over the profile's; repeat for several. Other
+    /// variables of the game stay.
+    #[arg(short = 'e', long = "env", value_name = "KEY=VALUE")]
+    pub(crate) env: Vec<String>,
+    /// Remove one of the game's launch variables; repeat for several.
+    #[arg(short = 'u', long = "unset-env", value_name = "KEY")]
+    pub(crate) unset_env: Vec<String>,
+    /// Remove all of the game's launch variables (before any `--env`).
+    #[arg(short = 'E', long)]
+    pub(crate) no_env: bool,
+    /// Where this game's shader caches go: a directory (gets `<app id>/`
+    /// inside) or `off`.
+    #[arg(long, value_name = "DIR|off")]
+    pub(crate) shader_cache: Option<String>,
+    /// Remove the game's `shader_cache` (the profile's or `config.toml`'s applies).
+    #[arg(long, conflicts_with = "shader_cache")]
+    pub(crate) no_shader_cache: bool,
     /// Remove the game's entry and its old per-game settings.
     #[arg(long, conflicts_with_all = ["profile", "no_profile", "platform", "no_platform",
-        "wrappers", "no_wrappers", "steam", "no_steam", "name", "no_name"])]
+        "wrappers", "no_wrappers", "steam", "no_steam", "name", "no_name", "args", "no_args",
+        "env", "unset_env", "no_env", "shader_cache", "no_shader_cache"])]
     pub(crate) clear: bool,
 }
 

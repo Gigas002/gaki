@@ -213,11 +213,20 @@ fn game_settings_overlay_renders_rows() {
         wrappers: vec!["gamemoderun".to_string(), "mangohud".to_string()],
         game_wrappers: vec!["mangohud".to_string()],
         profiles: vec!["proton".to_string()],
+        args: vec!["-dx11".to_string(), "My Save".to_string()],
+        env: [("DXVK_HUD".to_string(), "fps".to_string())].into(),
+        effective_env: [
+            ("DXVK_HUD".to_string(), "fps".to_string()),
+            ("PROTON_LOG".to_string(), "1".to_string()),
+        ]
+        .into(),
+        shader_cache: None,
+        effective_shader_cache: Some("/cache/shaders".into()),
     });
-    let text = render(70, 12, |f| {
+    let text = render(70, 16, |f| {
         f.render_widget(
             ui::game_config::game_config(&browser),
-            Rect::new(0, 0, 70, 12),
+            Rect::new(0, 0, 70, 16),
         );
     });
     assert!(
@@ -230,8 +239,34 @@ fn game_settings_overlay_renders_rows() {
         "an unset Steam integration shows the profile's"
     );
     assert!(
+        text.contains(r#"Args: -dx11 "My Save""#),
+        "arguments render, quoted where needed"
+    );
+    assert!(
+        text.contains("Env: DXVK_HUD=fps"),
+        "the game's own variables render"
+    );
+    assert!(
+        text.contains("Shader cache: (profile: /cache/shaders)"),
+        "an unset shader cache shows the profile's"
+    );
+    assert!(
         text.contains("Wrappers: gamemoderun mangohud"),
         "wrappers render"
+    );
+
+    // Enter on Args opens a prompt prefilled with the current value.
+    browser.game_config_index = 3;
+    browser.game_config_input = Some(r#"-dx11 "My Save""#.to_string());
+    let text = render(70, 16, |f| {
+        f.render_widget(
+            ui::game_config::game_config(&browser),
+            Rect::new(0, 0, 70, 16),
+        );
+    });
+    assert!(
+        text.contains(r#"Arguments: -dx11 "My Save"_"#),
+        "the prompt shows the typed text"
     );
     for gone in ["Forced Proton", "Runner", "Launch script"] {
         assert!(!text.contains(gone), "{gone} row is gone");

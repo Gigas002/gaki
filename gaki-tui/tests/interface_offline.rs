@@ -131,10 +131,34 @@ fn game_settings_round_trip() {
     );
     assert_eq!(steam::config_game_show(id).unwrap().profile, None);
 
+    steam::config_game_set_args(id, vec!["-dx11".into(), "two words".into()]).unwrap();
+    steam::config_game_set_env(id, [("DXVK_HUD".into(), "fps".into())].into()).unwrap();
+    steam::config_game_set_shader_cache(id, Some("off")).unwrap();
+    let cfg = steam::config_game_show(id).unwrap();
+    assert_eq!(cfg.args, ["-dx11", "two words"]);
+    assert_eq!(cfg.env.get("DXVK_HUD").map(String::as_str), Some("fps"));
+    assert_eq!(
+        cfg.effective_env.get("DXVK_HUD").map(String::as_str),
+        Some("fps"),
+        "the game's variables are launched with"
+    );
+    assert_eq!(cfg.shader_cache.as_deref(), Some("off"));
+    assert_eq!(cfg.effective_shader_cache, None, "off launches without one");
+
+    // Replacing the variables drops the old ones.
+    steam::config_game_set_env(id, [("PROTON_LOG".into(), "1".into())].into()).unwrap();
+    let cfg = steam::config_game_show(id).unwrap();
+    assert_eq!(cfg.env.keys().collect::<Vec<_>>(), ["PROTON_LOG"]);
+
     steam::config_game_set_platform(id, None).unwrap();
     steam::config_game_set_steam(id, None).unwrap();
+    steam::config_game_set_args(id, Vec::new()).unwrap();
+    steam::config_game_set_env(id, Default::default()).unwrap();
+    steam::config_game_set_shader_cache(id, None).unwrap();
     let cfg = steam::config_game_show(id).unwrap();
     assert_eq!((cfg.profile, cfg.platform, cfg.steam), (None, None, None));
+    assert!(cfg.args.is_empty() && cfg.env.is_empty());
+    assert_eq!(cfg.shader_cache, None);
 }
 
 /// The official builds are always listed, and a new default is marked.

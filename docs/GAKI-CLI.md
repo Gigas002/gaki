@@ -305,6 +305,10 @@ gaki-cli config install-resume auto   # resume interrupted installs when the dae
 gaki-cli config game 292030 --profile proton-cachyos  # one game's games.toml entry
 gaki-cli config game 292030 --wrapper mangohud --wrapper ~/bin/wrap.sh
 gaki-cli config game 292030 --steam none
+gaki-cli config game 292030 --arg -skipIntro --arg -dx11  # replaces the arguments
+gaki-cli config game 292030 -e DXVK_HUD=fps -u PROTON_LOG  # set/unset variables
+gaki-cli config game 292030 --shader-cache off   # or a directory; --no-shader-cache unsets
+gaki-cli config game 292030 --no-args --no-env   # drop the arguments and variables
 gaki-cli config clear-games           # remove every games.toml entry (asks first)
 gaki-cli profiles list
 gaki-cli profiles show proton
