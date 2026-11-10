@@ -134,7 +134,7 @@ The full review, with every feature rated and the clauses quoted, is in
 | [docs/FAQ.md](docs/FAQ.md)                   | Prerequisites and common questions                                                 |
 | [docs/STEAM-RULES.md](docs/STEAM-RULES.md)   | Steam's rules and what gaki does about them; the risks to an account               |
 | [docs/AUDIT.md](docs/AUDIT.md)               | Security, performance and feature audit, with a matrix against the official client |
-| [examples/](examples)                        | Commented example configuration                                                    |
+| [examples/](examples)                        | Commented example configuration, and a systemd unit for the daemon               |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows                                   |
 | [docs/PLAN.md](docs/PLAN.md)                 | The fork plan: what changed from Aurelia, step by step                             |
 

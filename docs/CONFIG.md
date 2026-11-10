@@ -248,7 +248,9 @@ The daemon's socket is `$XDG_RUNTIME_DIR/gaki/daemon.sock`, in a directory
 only you can open, and it accepts connections from your user only. Without
 `XDG_RUNTIME_DIR` no daemon runs, and every command logs on by itself. After
 `daemon_idle_timeout` with nothing to do, the daemon drops its session and
-exits; the next command starts a new one.
+exits; the next command starts a new one. To run it as a systemd user
+service instead, see
+[GAKI-CLI.md](GAKI-CLI.md#running-the-daemon-under-systemd).
 
 ## Installs
 

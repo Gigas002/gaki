@@ -1,0 +1,40 @@
+# The gaki-cli session daemon as a systemd user service. Optional: without
+# it, the first gaki-cli command starts the daemon by itself.
+#
+# Install:
+#   cp gaki-daemon.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now gaki-daemon.service
+#
+# Logs:     journalctl --user -u gaki-daemon
+# Restart:  systemctl --user restart gaki-daemon   (after upgrading gaki-cli)
+#
+# Set `daemon_idle_timeout = 0` in config.toml, or the daemon exits after 30
+# idle minutes and the next command starts one outside systemd.
+
+[Unit]
+Description=gaki-cli session daemon
+Documentation=https://github.com/Gigas002/gaki/blob/main/docs/GAKI-CLI.md#the-session-daemon
+# `gaki-cli play` launches games from the daemon, so it needs the desktop's
+# DISPLAY / WAYLAND_DISPLAY, and the token sits in the keyring, which unlocks
+# with the desktop login. Both are there once the graphical session is.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+# Adjust the path: `cargo install` puts it in %h/.cargo/bin/gaki-cli.
+# Add `-v` for progress and debug logs in the journal.
+ExecStart=/usr/bin/gaki-cli daemon
+# For another config directory, give the daemon its own socket too:
+# ExecStart=/usr/bin/gaki-cli --config-dir %h/.config/gaki-alt --socket %t/gaki/alt.sock daemon
+# Restart after a crash. An idle exit and an upgrade exit are clean, and
+# so is SIGKILL, which `gaki-cli daemon stop` and `gaki-cli kill` send: all
+# leave the service stopped.
+Restart=on-failure
+RestartSec=5
+SuccessExitStatus=SIGKILL
+# Stopping the service also stops the games launched through it.
+
+[Install]
+WantedBy=graphical-session.target

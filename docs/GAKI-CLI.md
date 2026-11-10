@@ -424,6 +424,37 @@ gaki-cli kill                         # kill every running gaki-cli process, the
 [CONFIG.md](CONFIG.md#the-session-daemon) has the socket's location and its
 security.
 
+### Running the daemon under systemd
+
+The daemon needs no service manager, but
+[`examples/gaki-daemon.service`](../examples/gaki-daemon.service) runs it as
+a systemd user service, started with the desktop session and logging to the
+journal:
+
+```bash
+cp examples/gaki-daemon.service ~/.config/systemd/user/
+# fix ExecStart if gaki-cli isn't /usr/bin/gaki-cli (cargo install: %h/.cargo/bin/gaki-cli)
+systemctl --user daemon-reload
+systemctl --user enable --now gaki-daemon.service
+journalctl --user -u gaki-daemon       # its logs; add -v to ExecStart for more
+```
+
+Commands find it on the usual socket, so nothing else changes. Things to know:
+
+- It starts with `graphical-session.target`. `play` launches games from the
+  daemon, so the daemon needs the desktop's `DISPLAY` / `WAYLAND_DISPLAY`,
+  and the keyring holding the token usually unlocks with the desktop login.
+  Your desktop must import its environment into the systemd user manager
+  (most do; check with `systemctl --user show-environment`).
+- Set `daemon_idle_timeout = 0`. Otherwise the daemon exits after 30 idle
+  minutes and the next command starts one outside systemd.
+- After upgrading gaki-cli, run `systemctl --user restart gaki-daemon`. The
+  daemon exits when its binary changes, and the next command would otherwise
+  start one outside systemd.
+- systemd restarts it after a crash. `gaki-cli daemon stop` and `gaki-cli
+  kill` stop it for good, like `systemctl --user stop gaki-daemon`.
+- Stopping the service also stops the games launched through it.
+
 ## Logs
 
 Logs go to stderr. By default only warnings and errors show. `-v` adds

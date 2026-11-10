@@ -10,6 +10,11 @@ Example configuration for gaki. Copy what you need into `~/.config/gaki/`
 | [`profiles/`](profiles)          | one runner, prefix and environment per file; the file name must match `name`    |
 | [`keybinds.toml`](keybinds.toml) | gaki-tui's key bindings, every section and default; goes in `tui/keybinds.toml` |
 
+[`gaki-daemon.service`](gaki-daemon.service) isn't configuration either: it
+runs the session daemon as a systemd user service, for those who want it
+started with the desktop session. It goes in `~/.config/systemd/user/`; see
+[GAKI-CLI.md](../docs/GAKI-CLI.md#running-the-daemon-under-systemd).
+
 [`library.toml`](library.toml) isn't configuration. `gaki-cli library export`
 writes this format, and `gaki-cli library import` reads it.
 
