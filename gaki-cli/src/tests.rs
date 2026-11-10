@@ -1,4 +1,6 @@
 use super::*;
+#[allow(unused_imports)]
+use crate::commands::common::*;
 
 #[cfg(feature = "library")]
 #[test]
@@ -27,7 +29,7 @@ fn parse(args: &[&str]) -> Cli {
 #[cfg(feature = "install")]
 #[test]
 fn install_positional_and_subcommands_coexist() {
-    // Positional install (Heroic depends on this form).
+    // Positional install.
     match parse(&["gaki-cli", "install", "945360"]).command {
         Command::Install(args) => {
             assert!(args.action.is_none());
@@ -98,8 +100,8 @@ fn interactive_login_runs_locally_not_forwarded() {
 
 #[cfg(feature = "authentication")]
 #[test]
-fn daemon_oriented_and_json_login_still_forward() {
-    // These need the daemon (or are non-tty), so they must NOT be pinned local.
+fn daemon_oriented_login_still_forwards() {
+    // These need the daemon, so they must NOT be pinned local.
     assert!(!must_run_locally(&parse(&[
         "gaki-cli", "login", "--health"
     ])));
@@ -107,12 +109,6 @@ fn daemon_oriented_and_json_login_still_forward() {
         "gaki-cli",
         "login",
         "--reconnect"
-    ])));
-    assert!(!must_run_locally(&parse(&[
-        "gaki-cli", "--json", "login", "-u", "me"
-    ])));
-    assert!(!must_run_locally(&parse(&[
-        "gaki-cli", "login", "--json", "--qr"
     ])));
 }
 
@@ -125,10 +121,6 @@ fn qr_timeout_parses_and_requires_qr() {
     }
     assert!(Cli::try_parse_from(["gaki-cli", "login", "--timeout", "90"]).is_err());
     assert!(Cli::try_parse_from(["gaki-cli", "login", "--qr", "--timeout", "0"]).is_err());
-    // Driver QR logins still forward.
-    assert!(!must_run_locally(&parse(&[
-        "gaki-cli", "--json", "login", "--qr", "-t", "5"
-    ])));
 }
 
 #[cfg(feature = "library")]
@@ -138,17 +130,6 @@ fn ordinary_commands_forward_but_local_managers_do_not() {
     assert!(!must_run_locally(&parse(&["gaki-cli", "logout"])));
     // Process/daemon managers must run in-process.
     assert!(must_run_locally(&parse(&["gaki-cli", "kill"])));
-    assert!(must_run_locally(&parse(&[
-        "gaki-cli",
-        "--json",
-        "capabilities"
-    ])));
-    assert!(must_run_locally(&parse(&[
-        "gaki-cli",
-        "capabilities",
-        "config",
-        "game"
-    ])));
     assert!(must_run_locally(&parse(&["gaki-cli", "daemon", "stop"])));
     // Config files only: no session, so no daemon to start.
     assert!(must_run_locally(&parse(&["gaki-cli", "config", "check"])));
@@ -202,7 +183,6 @@ fn the_daemon_argv_rule_matches_clap() {
         ],
         &["gaki-cli", "daemon", "--socket", "/tmp/x"],
         &["gaki-cli", "--log=debug", "-vv", "daemon"],
-        &["gaki-cli", "-j", "daemon"],
         &["gaki-cli", "daemon", "stop"],
         &["gaki-cli", "daemon", "stop", "42"],
         &["gaki-cli", "daemon", "list"],

@@ -22,48 +22,6 @@ pub(crate) use libgaki::ops::library::find_game;
 #[cfg(feature = "library")]
 pub(crate) use libgaki::ops::progress::{RateTracker, percent_of};
 
-/// Pretty-print JSON to stdout.
-pub(crate) fn print_json<T: serde::Serialize + ?Sized>(value: &T) {
-    match serde_json::to_string_pretty(value) {
-        Ok(s) => cli_println!("{s}"),
-        Err(e) => {
-            cli_eprintln!("failed serializing JSON output: {e}");
-            cli_println!("{{}}");
-        }
-    }
-}
-
-/// Print a JSON value as a single compact line (for NDJSON streams).
-pub(crate) fn print_json_line(value: &serde_json::Value) {
-    match serde_json::to_string(value) {
-        Ok(s) => cli_println!("{s}"),
-        Err(_) => cli_println!("{{}}"),
-    }
-}
-
-/// Version of the `--json` contract.
-pub(crate) const JSON_SCHEMA: u32 = 1;
-
-/// Print a `result` event, schema-stamped.
-#[cfg(feature = "authentication")]
-pub(crate) fn print_result_line(mut value: serde_json::Value) {
-    value["event"] = "result".into();
-    value["schema"] = JSON_SCHEMA.into();
-    print_json_line(&value);
-}
-
-/// Emit an intermediate NDJSON *event* (progress ticks, login challenges) to
-/// **stderr**, keeping stdout reserved for the single terminal result object so
-/// a driver like Heroic can `JSON.parse` stdout without scanning for the last
-/// value.
-#[cfg(feature = "authentication")]
-pub(crate) fn eprint_json_line(value: &serde_json::Value) {
-    match serde_json::to_string(value) {
-        Ok(s) => cli_eprintln!("{s}"),
-        Err(_) => cli_eprintln!("{{}}"),
-    }
-}
-
 /// Build a client and restore the stored session, if there is one.
 ///
 /// Inside the daemon this returns a cheap client backed by the **single shared
@@ -141,13 +99,10 @@ pub(crate) async fn resolve_user_ident(client: &SteamClient, input: &str) -> Res
     libgaki::ops::session::resolve_user_id(client, input)
 }
 
-/// Confirm action; honors `--yes`/`--json`.
-pub(crate) fn confirm_write(action: &str, prompt: &str, yes: bool, json: bool) -> Result<()> {
+/// Ask `prompt` (y/N) unless `--yes` answered it already.
+pub(crate) fn confirm_write(prompt: &str, yes: bool) -> Result<()> {
     if yes {
         return Ok(());
-    }
-    if json {
-        bail!("refusing to {action} without confirmation — pass `--yes` in --json mode");
     }
     let answer = prompt_line(prompt)?;
     if matches!(answer.trim().to_ascii_lowercase().as_str(), "y" | "yes") {
@@ -159,12 +114,10 @@ pub(crate) fn confirm_write(action: &str, prompt: &str, yes: bool, json: bool) -
 
 /// Cloud-collections wrapper over [`confirm_write`].
 #[cfg(feature = "collections")]
-pub(crate) fn confirm_cloud_write(action: &str, count: usize, yes: bool, json: bool) -> Result<()> {
+pub(crate) fn confirm_cloud_write(action: &str, count: usize, yes: bool) -> Result<()> {
     confirm_write(
-        action,
         &format!("About to {action} {count} collection(s) to your Steam account. Continue? [y/N] "),
         yes,
-        json,
     )
 }
 
@@ -182,11 +135,9 @@ pub(crate) use libgaki::core::utils::human_bytes;
 /// Refuse an edit while Steam runs, or stop it with `--restart-steam`.
 /// Returns whether Steam was stopped (pass it to [`steam_guard_restart`]).
 #[cfg(feature = "install")]
-pub(crate) fn steam_guard_stop(restart_steam: bool, json: bool) -> Result<bool> {
+pub(crate) fn steam_guard_stop(restart_steam: bool) -> Result<bool> {
     libgaki::ops::steam::stop_for_edit(restart_steam, || {
-        if !json {
-            cli_println!("Stopping Steam ...");
-        }
+        cli_println!("Stopping Steam ...");
     })
     .map_err(|e| {
         if classify(&e).kind == ErrorKind::InvalidInput {
@@ -202,21 +153,17 @@ pub(crate) fn steam_guard_stop(restart_steam: bool, json: bool) -> Result<bool> 
 
 /// Stop Steam if wanted and running.
 #[cfg(feature = "library")]
-pub(crate) fn steam_guard_stop_optional(want: bool, json: bool) -> Result<bool> {
+pub(crate) fn steam_guard_stop_optional(want: bool) -> Result<bool> {
     libgaki::ops::steam::stop_if_running(want, || {
-        if !json {
-            cli_println!("Stopping Steam ...");
-        }
+        cli_println!("Stopping Steam ...");
     })
 }
 
 /// Restart Steam if `steam_guard_stop` stopped it.
 #[cfg(feature = "library")]
-pub(crate) fn steam_guard_restart(managed: bool, json: bool) -> Result<()> {
+pub(crate) fn steam_guard_restart(managed: bool) -> Result<()> {
     libgaki::ops::steam::restart_after_edit(managed, || {
-        if !json {
-            cli_println!("Starting Steam ...");
-        }
+        cli_println!("Starting Steam ...");
     })
 }
 
@@ -227,14 +174,6 @@ pub(crate) fn branch_suffix(game: &LibraryGame) -> String {
         format!(" [{}]", game.active_branch)
     } else {
         String::new()
-    }
-}
-
-/// Print the final result of a streaming operation (install/verify/update).
-#[cfg(feature = "install")]
-pub(crate) fn report_operation(app_id: u32, status: &str, json: bool) {
-    if json {
-        print_json(&serde_json::json!({ "app_id": app_id, "status": status }));
     }
 }
 
@@ -253,66 +192,46 @@ pub(crate) fn format_unix_timestamp(secs: u64) -> String {
 }
 
 /// Consume a download/verify progress stream, rendering it to the terminal.
-/// In JSON mode each update is emitted as a compact NDJSON line (one object per
-/// line) on stdout; the caller still prints the final result object afterward.
 #[cfg(feature = "install")]
 pub(crate) async fn drive_progress(
     rx: tokio::sync::mpsc::Receiver<DownloadProgress>,
-    json: bool,
 ) -> Result<()> {
-    drive_progress_until(rx, json).await.map(|_| ())
+    drive_progress_until(rx).await.map(|_| ())
 }
 
 /// Like `drive_progress`; `false` if never completed.
 #[cfg(feature = "library")]
 pub(crate) async fn drive_progress_until(
     mut rx: tokio::sync::mpsc::Receiver<DownloadProgress>,
-    json: bool,
 ) -> Result<bool> {
-    // De-duplicate identical consecutive JSON events (the reporter ticks on a timer,
-    // so it would otherwise repeat e.g. "0/0" lines while a manifest is being fetched).
-    let mut last: Option<(u8, u64, u64)> = None;
     let mut rate = RateTracker::new();
     while let Some(p) = rx.recv().await {
         match p.state {
             DownloadProgressState::Queued => {
                 rate.reset();
-                if json {
-                    emit_progress_json("queued", &p, 0.0, None, &mut last);
-                } else {
-                    cli_println!("Queued ...");
-                }
+                cli_println!("Queued ...");
             }
             DownloadProgressState::Downloading
             | DownloadProgressState::Verifying
             | DownloadProgressState::Moving => {
-                let (state, label) = match p.state {
-                    DownloadProgressState::Verifying => ("verifying", "Verifying"),
-                    DownloadProgressState::Moving => ("moving", "Moving"),
-                    _ => ("downloading", "Downloading"),
+                let label = match p.state {
+                    DownloadProgressState::Verifying => "Verifying",
+                    DownloadProgressState::Moving => "Moving",
+                    _ => "Downloading",
                 };
                 // Disk reuse isn't network speed.
                 let (speed, eta) = rate.sample(
                     p.bytes_downloaded.saturating_sub(p.reused_bytes),
                     p.total_bytes.saturating_sub(p.reused_bytes),
                 );
-                if json {
-                    emit_progress_json(state, &p, speed, eta, &mut last);
-                } else {
-                    print_progress(label, &p, speed, eta);
-                }
+                print_progress(label, &p, speed, eta);
             }
             DownloadProgressState::Completed => {
-                // The caller emits the terminal result object; nothing more here.
-                if !json {
-                    cli_println!("\nDone.");
-                }
+                cli_println!("\nDone.");
                 return Ok(true);
             }
             DownloadProgressState::Failed => {
-                if !json {
-                    cli_println!();
-                }
+                cli_println!();
                 let message = format!("operation failed: {}", p.current_file);
                 return Err(match p.error_kind {
                     Some(kind) => {
@@ -324,58 +243,6 @@ pub(crate) async fn drive_progress_until(
         }
     }
     Ok(false)
-}
-
-/// Emit one compact NDJSON progress event, skipping it if identical to the last.
-/// Reports the whole-app progress (`percent`), the current depot's progress
-/// (`depot_percent`), and the transfer rate (`speed_bps`, bytes/sec) and
-/// `eta_seconds` (null when not yet estimable).
-#[cfg(feature = "library")]
-pub(crate) fn emit_progress_json(
-    state: &str,
-    p: &DownloadProgress,
-    speed_bps: f64,
-    eta_seconds: Option<u64>,
-    last: &mut Option<(u8, u64, u64)>,
-) {
-    // Cheap discriminator for the state so we can dedupe (state, overall, depot).
-    let state_key = match state {
-        "queued" => 0u8,
-        "downloading" => 1,
-        "verifying" => 2,
-        "moving" => 3,
-        _ => 4,
-    };
-    let key = (state_key, p.bytes_downloaded, p.depot_bytes_downloaded);
-    if *last == Some(key) {
-        return;
-    }
-    *last = Some(key);
-
-    let value = serde_json::json!({
-        "event": "progress",
-        "state": state,
-        // Whole-app (all depots) progress.
-        "bytes_downloaded": p.bytes_downloaded,
-        // Part of it verified from disk.
-        "reused_bytes": p.reused_bytes,
-        "total_bytes": p.total_bytes,
-        "percent": percent_of(p.bytes_downloaded, p.total_bytes),
-        // Current depot progress.
-        "depot_id": p.depot_id,
-        "depot_bytes_downloaded": p.depot_bytes_downloaded,
-        "depot_total_bytes": p.depot_total_bytes,
-        "depot_percent": percent_of(p.depot_bytes_downloaded, p.depot_total_bytes),
-        // Rate / time remaining (for a download-manager progress bar).
-        "speed_bps": speed_bps.round() as u64,
-        "eta_seconds": eta_seconds,
-        "file": p.current_file,
-    });
-    // Compact single line of NDJSON on stderr, so stdout keeps only the
-    // terminal result object.
-    if let Ok(s) = serde_json::to_string(&value) {
-        cli_eprintln!("{s}");
-    }
 }
 
 #[cfg(feature = "library")]
@@ -451,7 +318,7 @@ pub(crate) fn wrap_text(text: &str, width: usize) -> Vec<String> {
 }
 
 pub(crate) fn prompt_line(prompt: &str) -> Result<String> {
-    // Write the prompt to stderr so stdout stays clean (important for --json).
+    // The prompt goes to stderr, so stdout holds only the command's output.
     cli_eprint!("{prompt}");
     std::io::stderr().flush().ok();
     let mut input = String::new();

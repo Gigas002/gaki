@@ -1,6 +1,5 @@
 //! `library` command handlers.
 
-use libgaki::core::steam_urls;
 use libgaki::core::utils::format_playtime;
 
 use crate::commands::common::*;
@@ -8,48 +7,12 @@ use crate::commands::common::*;
 use anyhow::{Context, Result};
 use libgaki::ops::library::{self, ListOptions};
 
-pub(crate) async fn cmd_list(options: &ListOptions, json: bool) -> Result<()> {
+pub(crate) async fn cmd_list(options: &ListOptions) -> Result<()> {
     let mut client = restored_client().await?;
     let listing = library::list(&mut client, options).await?;
     let games = &listing.games;
     let game_collections = |app_id: u32| listing.collections_of(app_id).to_vec();
     let online = options.online;
-
-    if json {
-        // Bake the conventional artwork/store URLs
-        let enriched: Vec<serde_json::Value> = games
-            .iter()
-            .map(|g| {
-                let mut v = serde_json::to_value(g).unwrap_or_default();
-                if let Some(obj) = v.as_object_mut() {
-                    obj.insert(
-                        "assets".into(),
-                        serde_json::json!({
-                            "header": steam_urls::header_url(g.app_id),
-                            "capsule": steam_urls::capsule_url(g.app_id),
-                            "hero": steam_urls::hero_url(g.app_id),
-                            "logo": steam_urls::logo_url(g.app_id),
-                        }),
-                    );
-                    obj.insert(
-                        "store_url".into(),
-                        serde_json::json!(steam_urls::store_url(g.app_id)),
-                    );
-                    obj.insert(
-                        "steamdb_url".into(),
-                        serde_json::json!(steam_urls::steamdb_url(g.app_id)),
-                    );
-                    obj.insert(
-                        "collections".into(),
-                        serde_json::json!(game_collections(g.app_id)),
-                    );
-                }
-                v
-            })
-            .collect();
-        print_json(&enriched);
-        return Ok(());
-    }
 
     if games.is_empty() {
         cli_println!("No games match.");
@@ -140,26 +103,9 @@ pub(crate) async fn cmd_list(options: &ListOptions, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_account(json: bool) -> Result<()> {
+pub(crate) async fn cmd_account() -> Result<()> {
     let client = authed_client().await?;
     let data = library::account(&client).await;
-
-    if json {
-        let value = serde_json::json!({
-            "steam_id": data.steam_id,
-            "account_name": data.account_name,
-            "persona_name": data.persona_name,
-            "country": data.country,
-            "email": data.email,
-            "email_validated": data.email_validated,
-            "authed_machines": data.authed_machines,
-            "flags": data.flags,
-            "vac_bans": data.vac_bans,
-            "vac_banned_apps": data.vac_banned_apps,
-        });
-        print_json(&value);
-        return Ok(());
-    }
 
     cli_println!("Account : {}", data.account_name);
     if let Some(persona) = &data.persona_name {
@@ -182,23 +128,16 @@ pub(crate) async fn cmd_account(json: bool) -> Result<()> {
 }
 
 /// List the Steam library folders available to install into, with the free
-/// space on each, one per line (or a JSON `{ "libraries": [{path, free_bytes}] }`
-/// object with `--json`): the configured `steam_library` first, then every
+/// space on each, one per line: the configured `steam_library` first, then every
 /// other root that contains a `steamapps` directory.
-pub(crate) async fn cmd_libraries(json: bool) -> Result<()> {
+pub(crate) async fn cmd_libraries() -> Result<()> {
     let libraries: Vec<(String, Option<u64>)> = library::folders()
         .await
         .into_iter()
         .map(|f| (f.path.to_string_lossy().to_string(), f.free_bytes))
         .collect();
 
-    if json {
-        let entries: Vec<serde_json::Value> = libraries
-            .iter()
-            .map(|(path, free)| serde_json::json!({ "path": path, "free_bytes": free }))
-            .collect();
-        print_json(&serde_json::json!({ "libraries": entries }));
-    } else if libraries.is_empty() {
+    if libraries.is_empty() {
         cli_println!("No Steam library folders found.");
     } else {
         for (path, free) in &libraries {
@@ -212,33 +151,23 @@ pub(crate) async fn cmd_libraries(json: bool) -> Result<()> {
 }
 
 /// `gaki-cli library export [path] [--all]`.
-pub(crate) async fn cmd_library_export(
-    path: Option<std::path::PathBuf>,
-    all: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_library_export(path: Option<std::path::PathBuf>, all: bool) -> Result<()> {
     use libgaki::library::transfer;
 
     let mut client = restored_client().await?;
     let games = library::load_library(&mut client).await;
     let file = transfer::export(&games, all);
     let Some(path) = path else {
-        if json {
-            print_json(&serde_json::json!({ "games": file.games }));
-        } else {
-            cli_print!("{}", transfer::to_toml(&file)?);
-        }
+        cli_print!("{}", transfer::to_toml(&file)?);
+
         return Ok(());
     };
     std::fs::write(&path, transfer::to_toml(&file)?)
         .with_context(|| format!("failed writing {}", path.display()))?;
-    if json {
-        print_json(&serde_json::json!({ "path": path, "games": file.games.len() }));
-    } else {
-        let n = file.games.len();
-        let games = if n == 1 { "game" } else { "games" };
-        cli_println!("Wrote {n} {games} to {}.", path.display());
-    }
+    let n = file.games.len();
+    let games = if n == 1 { "game" } else { "games" };
+    cli_println!("Wrote {n} {games} to {}.", path.display());
+
     Ok(())
 }
 
@@ -248,7 +177,6 @@ pub(crate) async fn cmd_library_import(
     path: std::path::PathBuf,
     library_dir: Option<String>,
     dry_run: bool,
-    json: bool,
 ) -> Result<()> {
     use libgaki::library::transfer::{self, LibraryEntry};
 
@@ -263,81 +191,54 @@ pub(crate) async fn cmd_library_import(
     drop(client);
     let plan = transfer::plan(&file, &games);
 
-    let ids = |entries: &[LibraryEntry]| entries.iter().map(|e| e.app_id).collect::<Vec<_>>();
     if dry_run {
-        if json {
-            print_json(&serde_json::json!({
-                "install": ids(&plan.install),
-                "installed": ids(&plan.installed),
-                "not_owned": ids(&plan.not_owned),
-            }));
-        } else {
-            for entry in &plan.install {
-                match &entry.branch {
-                    Some(branch) => {
-                        cli_println!("install    {} (was on branch '{branch}')", label(entry))
-                    }
-                    None => cli_println!("install    {}", label(entry)),
+        for entry in &plan.install {
+            match &entry.branch {
+                Some(branch) => {
+                    cli_println!("install    {} (was on branch '{branch}')", label(entry))
                 }
+                None => cli_println!("install    {}", label(entry)),
             }
-            report_skipped(&plan.installed, &plan.not_owned);
         }
+        report_skipped(&plan.installed, &plan.not_owned);
+
         return Ok(());
     }
 
-    if json {
-        for (entries, reason) in [
-            (&plan.installed, "installed"),
-            (&plan.not_owned, "not_owned"),
-        ] {
-            for entry in entries {
-                print_result_line(serde_json::json!({
-                    "app_id": entry.app_id,
-                    "status": "skipped",
-                    "reason": reason,
-                }));
-            }
-        }
-    } else {
-        report_skipped(&plan.installed, &plan.not_owned);
-    }
+    report_skipped(&plan.installed, &plan.not_owned);
+
     if plan.install.is_empty() {
-        if !json {
-            cli_println!("Nothing to install.");
-        }
+        cli_println!("Nothing to install.");
+
         return Ok(());
     }
     let branched: Vec<&LibraryEntry> = plan.on_a_branch().collect();
 
     let queued = libgaki::ops::install::queue_import(&plan.install, library_dir).await?;
-    if !json {
-        let n = queued.len();
-        let games = if n == 1 { "game" } else { "games" };
-        cli_println!(
-            "Queued {n} {games}; `gaki-cli install resume --all` continues if this stops."
-        );
-    }
-    let result = crate::commands::install::resume_entries(&queued, false, json).await;
+    let n = queued.len();
+    let games = if n == 1 { "game" } else { "games" };
+    cli_println!("Queued {n} {games}; `gaki-cli install resume --all` continues if this stops.");
 
-    if !json {
-        // Installs take the default branch.
-        for entry in branched {
-            let branch = entry.branch.as_deref().unwrap_or_default();
-            let id = entry.app_id;
-            if cfg!(feature = "versioning") {
-                cli_println!(
-                    "{} was on branch '{branch}': switch with `gaki-cli set-branch {id} \
-                     {branch}`, then `gaki-cli update {id}`.",
-                    label(entry)
-                );
-            } else {
-                cli_println!(
-                    "{} was on branch '{branch}', which this build can't switch to.",
-                    label(entry)
-                );
-            }
+    let result = crate::commands::install::resume_entries(&queued, false).await;
+
+    // Installs take the default branch.
+    for entry in branched {
+        let branch = entry.branch.as_deref().unwrap_or_default();
+        let id = entry.app_id;
+        if cfg!(feature = "versioning") {
+            cli_println!(
+                "{} was on branch '{branch}': switch with `gaki-cli set-branch {id} \
+                 {branch}`, then `gaki-cli update {id}`.",
+                label(entry)
+            );
+        } else {
+            cli_println!(
+                "{} was on branch '{branch}', which this build can't switch to.",
+                label(entry)
+            );
         }
     }
+
     result
 }
 

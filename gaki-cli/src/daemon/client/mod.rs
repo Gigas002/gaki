@@ -71,11 +71,8 @@ async fn connect_or_spawn(no_spawn: bool) -> Option<impl AsyncRead + AsyncWrite 
         }
     }
 
-    // Never auto-spawn when the driver manages the daemon lifecycle itself
-    // (`--no-spawn`, e.g. Heroic): some driver spawn chains — like
-    // `powershell Start-Process -Wait` — wait on the whole descendant tree, so
-    // a daemon spawned from this client process would keep that wait blocked
-    // for the daemon's lifetime. Run the command locally instead.
+    // Never auto-spawn when the daemon is managed elsewhere (`--no-spawn`, e.g.
+    // a systemd user unit): run the command locally instead.
     if no_spawn {
         return None;
     }
@@ -152,7 +149,7 @@ fn spawn_daemon() -> std::io::Result<()> {
 
 fn detach(cmd: &mut std::process::Command) {
     use std::os::unix::process::CommandExt;
-    // New process group so the daemon outlives the spawning shell / Heroic process.
+    // New process group so the daemon outlives the spawning shell.
     cmd.process_group(0);
 }
 

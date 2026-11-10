@@ -18,9 +18,8 @@ Proton, from a terminal or a script. It works alongside the official Steam
 client, which must be installed.
 
 Because it never needs a desktop session, it runs where the Steam client can't:
-over SSH, on a headless box, in a container, or as one step in a shell script.
-Every command speaks `--json`, so it also works as a backend for another
-launcher. `gaki-tui` puts a terminal UI over the same library.
+over SSH, on a headless box or in a container. `gaki-tui` puts a terminal UI
+over the same library, and other frontends can build on it too.
 
 ```bash
 gaki-cli login
@@ -45,10 +44,9 @@ client doesn't:
   file, not ten trips through properties dialogs. Profiles use the same format
   as [lootrs](https://github.com/Gigas002/lootrs), so its Proton and native
   profiles work in gaki unchanged.
-- **Scriptable from end to end.** Every command speaks `--json`, errors come
-  with stable types and exit codes, and `gaki-cli capabilities` describes the
-  build to whatever drives it. A session daemon keeps one login warm, so
-  scripts don't sign in on every call ([GAKI-CLI.md](docs/GAKI-CLI.md#scripting-with---json)).
+- **One login, kept warm.** A session daemon holds the Steam connection, so
+  commands don't sign in on every call, and long installs outlive the
+  command that started them ([GAKI-CLI.md](docs/GAKI-CLI.md#the-session-daemon)).
 - **Your versions, your choice.** Install an older manifest and pin it so
   updates leave it alone, switch branches, or browse a depot's files and pull
   out a single one, with SteamDB links for the manifest history
@@ -127,14 +125,14 @@ The full review, with every feature rated and the clauses quoted, is in
 
 | Document                                     | Contents                                                                           |
 | -------------------------------------------- | ---------------------------------------------------------------------------------- |
-| [docs/GAKI-CLI.md](docs/GAKI-CLI.md)         | Every `gaki-cli` command, `--json` scripting, the session daemon, logs             |
+| [docs/GAKI-CLI.md](docs/GAKI-CLI.md)         | Every `gaki-cli` command, exit codes, the session daemon, logs                     |
 | [docs/GAKI-TUI.md](docs/GAKI-TUI.md)         | The terminal UI: signing in, keys, the Actions menu, its settings                  |
 | [docs/CONFIG.md](docs/CONFIG.md)             | `config.toml`, profiles, `games.toml`, where files live, the session               |
 | [docs/FEATURES.md](docs/FEATURES.md)         | The Cargo features and what each one builds                                        |
 | [docs/FAQ.md](docs/FAQ.md)                   | Prerequisites and common questions                                                 |
 | [docs/STEAM-RULES.md](docs/STEAM-RULES.md)   | Steam's rules and what gaki does about them; the risks to an account               |
 | [docs/AUDIT.md](docs/AUDIT.md)               | Security, performance and feature audit, with a matrix against the official client |
-| [examples/](examples)                        | Commented example configuration, and a systemd unit for the daemon               |
+| [examples/](examples)                        | Commented example configuration, and a systemd unit for the daemon                 |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Repository layout and the rules the code follows                                   |
 | [docs/PLAN.md](docs/PLAN.md)                 | The fork plan: what changed from Aurelia, step by step                             |
 

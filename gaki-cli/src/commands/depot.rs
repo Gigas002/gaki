@@ -10,14 +10,14 @@ fn manifest_ref(args: &DepotManifestArgs) -> ManifestRef {
     ManifestRef::from_options(args.manifest, args.branch.as_deref())
 }
 
-pub(crate) async fn cmd_depots_command(command: DepotsCommand, json: bool) -> Result<()> {
+pub(crate) async fn cmd_depots_command(command: DepotsCommand) -> Result<()> {
     match command {
         DepotsCommand::Files {
             app_id,
             depot_id,
             manifest,
             filter,
-        } => cmd_depot_files(app_id, depot_id, &manifest, filter.as_deref(), json).await,
+        } => cmd_depot_files(app_id, depot_id, &manifest, filter.as_deref()).await,
         DepotsCommand::Download {
             app_id,
             depot_id,
@@ -35,7 +35,7 @@ pub(crate) async fn cmd_depots_command(command: DepotsCommand, json: bool) -> Re
                 out_dir: crate::output::user_path(&output.unwrap_or_else(|| ".".into())),
                 force,
             };
-            cmd_depot_download(&request, json).await
+            cmd_depot_download(&request).await
         }
     }
 }
@@ -45,15 +45,9 @@ async fn cmd_depot_files(
     depot_id: u32,
     manifest: &DepotManifestArgs,
     filter: Option<&str>,
-    json: bool,
 ) -> Result<()> {
     let client = authed_client().await?;
     let listing = depot::files(&client, app_id, depot_id, &manifest_ref(manifest), filter).await?;
-
-    if json {
-        print_json(&serde_json::to_value(&listing)?);
-        return Ok(());
-    }
 
     cli_println!(
         "App {app_id}, depot {depot_id}, manifest {}",
@@ -97,28 +91,16 @@ async fn cmd_depot_files(
     Ok(())
 }
 
-async fn cmd_depot_download(request: &FileDownload, json: bool) -> Result<()> {
+async fn cmd_depot_download(request: &FileDownload) -> Result<()> {
     let client = authed_client().await?;
-    if !json {
-        cli_eprintln!(
-            "Downloading {} from depot {}…",
-            request.path,
-            request.depot_id
-        );
-    }
+    cli_eprintln!(
+        "Downloading {} from depot {}…",
+        request.path,
+        request.depot_id
+    );
+
     let done = depot::download(&client, request).await?;
 
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": request.app_id,
-            "depot_id": request.depot_id,
-            "manifest_id": done.manifest_id,
-            "file": request.path,
-            "path": done.path,
-            "size": done.size,
-        }));
-        return Ok(());
-    }
     cli_println!(
         "Saved {} ({}, manifest {}).",
         done.path.display(),

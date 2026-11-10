@@ -12,7 +12,6 @@ pub(crate) async fn cmd_cloud_sync(
     down: bool,
     path: Option<PathBuf>,
     resolve: Option<CloudResolve>,
-    json: bool,
 ) -> Result<()> {
     use libgaki::library::cloud_sync::{ConflictPolicy, SyncDirection};
     use libgaki::ops::cloud;
@@ -35,45 +34,11 @@ pub(crate) async fn cmd_cloud_sync(
         remote_root: path,
     };
     let report = cloud::sync(&client, &request).await?;
-    let status = report.status();
     let cloud::SyncReport {
-        remote_root,
         wine_prefix,
         outcome,
+        ..
     } = report;
-
-    if json {
-        let conflicts: Vec<_> = outcome
-            .conflicts
-            .iter()
-            .map(|c| {
-                serde_json::json!({
-                    "filename": c.filename,
-                    "local_path": c.local_path,
-                    "local_hash": c.local_hash,
-                    "local_size": c.local_size,
-                    "local_timestamp": c.local_timestamp,
-                    "cloud_hash": c.cloud_hash,
-                    "cloud_size": c.cloud_size,
-                    "cloud_timestamp": c.cloud_timestamp,
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "direction": direction_str,
-            "remote_root": remote_root.to_string_lossy(),
-            "status": status,
-            "downloaded": outcome.downloaded,
-            "uploaded": outcome.uploaded,
-            "conflicts": conflicts,
-            "skipped": outcome.skipped,
-            "skipped_root_tokens": outcome.skipped_tokens(),
-            "failed": outcome.failed,
-            "wine_prefix": wine_prefix.to_string_lossy(),
-        }));
-        return Ok(());
-    }
 
     if outcome.has_conflicts() {
         cli_println!(
@@ -171,25 +136,9 @@ pub(crate) async fn cmd_cloud_sync(
 /// recognise which saves are affected without burying the explanation.
 const SKIP_SAMPLE: usize = 5;
 
-pub(crate) async fn cmd_cloud_list(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_cloud_list(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let files = libgaki::ops::cloud::files(&client, app_id).await?;
-
-    if json {
-        let arr: Vec<_> = files
-            .iter()
-            .map(|f| {
-                serde_json::json!({
-                    "filename": f.filename,
-                    "size": f.size,
-                    "timestamp": f.timestamp,
-                    "sha_hash": f.sha_hash,
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({ "app_id": app_id, "files": arr }));
-        return Ok(());
-    }
 
     if files.is_empty() {
         cli_println!("No Steam Cloud files for app {app_id}.");

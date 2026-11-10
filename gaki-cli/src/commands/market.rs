@@ -7,13 +7,9 @@ use anyhow::Result;
 use libgaki::ops::market;
 
 /// `gaki-cli inventory <appid>`: list the logged-in account's inventory for a game.
-pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Result<()> {
-    let (web, grant) = sensitive_access(json).await?;
+pub(crate) async fn cmd_inventory(app_id: u32, context: u32) -> Result<()> {
+    let (web, grant) = sensitive_access().await?;
     let items = market::inventory(&web, app_id, context, grant).await?;
-    if json {
-        print_json(&items);
-        return Ok(());
-    }
     if items.is_empty() {
         cli_println!("No items in your inventory for app {app_id} (context {context}).");
         return Ok(());
@@ -33,50 +29,29 @@ pub(crate) async fn cmd_inventory(app_id: u32, context: u32, json: bool) -> Resu
 }
 
 /// `gaki-cli wallet`: show the account's Steam Wallet balance.
-pub(crate) async fn cmd_wallet(json: bool) -> Result<()> {
-    let (web, grant) = sensitive_access(json).await?;
+pub(crate) async fn cmd_wallet() -> Result<()> {
+    let (web, grant) = sensitive_access().await?;
     let w = market::wallet(&web, grant).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "balance_cents": w.balance_cents,
-            "currency": w.currency,
-            "country": w.country,
-            "formatted": w.formatted,
-        }));
-    } else {
-        cli_println!("Wallet : {}", w.formatted);
-        if !w.country.is_empty() {
-            cli_println!("Country: {}", w.country);
-        }
+    cli_println!("Wallet : {}", w.formatted);
+    if !w.country.is_empty() {
+        cli_println!("Country: {}", w.country);
     }
+
     Ok(())
 }
 
 /// `gaki-cli market price <appid> <name>`: look up an item's price (no login needed).
 #[cfg(feature = "market")]
-pub(crate) async fn cmd_market_price(
-    app_id: u32,
-    name: String,
-    currency: u32,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_market_price(app_id: u32, name: String, currency: u32) -> Result<()> {
     let price = market::price(app_id, &name, currency).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "market_hash_name": price.market_hash_name,
-            "lowest_price": price.lowest_price,
-            "median_price": price.median_price,
-            "volume": price.volume,
-        }));
-    } else {
-        cli_println!("Item   : {}", price.market_hash_name);
-        cli_println!("Lowest : {}", price.lowest_price.as_deref().unwrap_or("—"));
-        cli_println!("Median : {}", price.median_price.as_deref().unwrap_or("—"));
-        cli_println!(
-            "Volume : {} sold in 24h",
-            price.volume.as_deref().unwrap_or("0")
-        );
-    }
+    cli_println!("Item   : {}", price.market_hash_name);
+    cli_println!("Lowest : {}", price.lowest_price.as_deref().unwrap_or("—"));
+    cli_println!("Median : {}", price.median_price.as_deref().unwrap_or("—"));
+    cli_println!(
+        "Volume : {} sold in 24h",
+        price.volume.as_deref().unwrap_or("0")
+    );
+
     Ok(())
 }
 
@@ -86,13 +61,8 @@ pub(crate) async fn cmd_market_search(
     query: Option<String>,
     app_id: Option<u32>,
     count: u32,
-    json: bool,
 ) -> Result<()> {
     let (total, results) = market::search(query.as_deref(), app_id, count).await?;
-    if json {
-        print_json(&serde_json::json!({ "total_count": total, "results": results }));
-        return Ok(());
-    }
     if results.is_empty() {
         cli_println!("No market results.");
         return Ok(());
@@ -113,13 +83,9 @@ pub(crate) async fn cmd_market_search(
 
 /// `gaki-cli market listings`: the account's active listings and open buy orders.
 #[cfg(feature = "market")]
-pub(crate) async fn cmd_market_listings(json: bool) -> Result<()> {
-    let (web, grant) = sensitive_access(json).await?;
+pub(crate) async fn cmd_market_listings() -> Result<()> {
+    let (web, grant) = sensitive_access().await?;
     let state = market::listings(&web, grant).await?;
-    if json {
-        print_json(&state);
-        return Ok(());
-    }
     if state.listings.is_empty() && state.buy_orders.is_empty() {
         cli_println!("No active listings or open buy orders.");
         return Ok(());

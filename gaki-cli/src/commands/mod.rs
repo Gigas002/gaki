@@ -2,7 +2,6 @@
 
 #[cfg(feature = "authentication")]
 pub(crate) mod auth;
-pub(crate) mod capabilities;
 pub(crate) mod clean;
 #[cfg(feature = "cloud")]
 pub(crate) mod cloud;
@@ -37,13 +36,11 @@ pub(crate) mod workshop;
 
 #[cfg(feature = "authentication")]
 pub(crate) use self::auth::*;
-pub(crate) use self::capabilities::cmd_capabilities;
 pub(crate) use self::clean::{CleanFlags, cmd_clean};
 #[cfg(feature = "cloud")]
 pub(crate) use self::cloud::*;
 #[cfg(feature = "collections")]
 pub(crate) use self::collections::*;
-pub(crate) use self::common::*;
 pub(crate) use self::config::*;
 #[cfg(feature = "authentication")]
 pub(crate) use self::daemon::*;

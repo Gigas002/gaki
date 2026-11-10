@@ -2,12 +2,12 @@
 
 `gaki-cli` is gaki's command-line client: log in, manage your library, install
 and update games, sync Steam Cloud saves, and launch titles natively or through
-Proton, from a terminal or a script. `gaki-cli --help` lists every command, and
+Proton, from a terminal. `gaki-cli --help` lists every command, and
 `gaki-cli <command> --help` explains one.
 
 Some commands need a Cargo feature that default builds leave out (`store`,
 `social`, `market`, ...). [FEATURES.md](FEATURES.md) says which, and
-`gaki-cli capabilities` lists what your build has.
+`gaki-cli --help` lists only the commands your build has.
 
 ## Commands
 
@@ -119,13 +119,8 @@ prints the copies to delete and removes nothing itself.
 After an install or update, gaki fetches Steam's pre-built shaders for the
 game and compiles them (`shaders` does it on demand; `shader_precache =
 false` turns the automatic run off; see
-[Shader pre-caching](CONFIG.md#shader-pre-caching)). With `--json`, the
-`install` and `update` results carry the report as `shaders` (`null` when it
-didn't run): each bucket's `kind`, `manifest_id` and `status`
-(`downloaded`, `current`, `not_offered`, `skipped`, `failed`), and the
-compile step's `status` (`compiled` with `graphics` and `compute` counts,
-`up_to_date`, `no_pipelines`, `no_replayer`, `skipped`, `failed`). A
-failure there never fails the install.
+[Shader pre-caching](CONFIG.md#shader-pre-caching)). A failure there is a
+warning; it never fails the install.
 
 ### Versions and branches
 
@@ -155,8 +150,7 @@ gaki-cli depots download 1245620 1245621 Game/bin/game.exe -o ~/old -m 859334346
 ```
 
 `files` lists a manifest's entries with their size: `/` marks a directory,
-`*` an executable and `->` a symlink's target. `--json` adds each entry's
-SHA-1 and chunk count. You need access to the depot (its decryption key), so
+`*` an executable and `->` a symlink's target. You need access to the depot (its decryption key), so
 in practice you must own the game.
 
 `download` fetches one regular file into the output directory (default: the
@@ -184,8 +178,8 @@ integration) comes from its profile; see [CONFIG.md](CONFIG.md). `play`
 flags override it for one launch.
 
 `play` (and gaki-tui's play) first asks Steam whether the signed-in account
-owns the game or has it through Steam Family, and refuses it otherwise
-(`access_denied` with `--json`). Installed games of other accounts on this
+owns the game or has it through Steam Family, and refuses it otherwise.
+Installed games of other accounts on this
 machine are listed, as not owned, but don't launch. Offline, gaki's cached
 library for the account decides, and Family-Shared games need Steam online.
 
@@ -260,9 +254,8 @@ gaki-cli chat history 76561198042323314       # recent messages with a friend
 gaki-cli chat open 76561198042323314          # live chat (type to send, Ctrl-D quits)
 ```
 
-`chat open --json` reads lines to send from stdin, so another program can
-drive it. Steam's rules forbid bots: a script that sends or answers
-messages for you is automation under the Subscriber Agreement
+Steam's rules forbid bots: a script that sends or answers messages for you
+is automation under the Subscriber Agreement
 ([STEAM-RULES.md](STEAM-RULES.md#your-part)).
 
 ### Inventory and market
@@ -338,68 +331,25 @@ own under `shader_cache` is left alone. Cache directories are emptied
 rather than removed, so a running daemon or TUI keeps working. It never
 touches the config, the session, the install backlog, installed games,
 Cloud saves, prefixes or partial downloads (`install forget
---delete-files` handles those). `--json` lists the items and the bytes
-freed; it needs `--yes` unless it's a `--dry-run`.
+--delete-files` handles those).
 
-## Scripting with `--json`
+## Exit codes
 
-Add `--json` to any command for machine-readable output, errors included. It's
-a global flag, so `gaki-cli --json <command>` and `gaki-cli <command> --json`
-are the same.
+gaki-cli is made for people at a terminal, not for scripts: it has no
+machine-readable output. A program that wants gaki's features should build on
+`libgaki` instead, as gaki-tui does. Errors still end with a typed exit code:
 
-Drivers can feature-detect with `gaki-cli --json capabilities`. It prints one
-line with the version, the JSON `schema` number, the build's Cargo features,
-every command with its flags, arguments and subcommands, every `event` name,
-every error `type` with its exit code and hint, and behavior `features` that
-flags don't reveal. Add a command path (`gaki-cli capabilities config game`) for
-one command's arguments, subcommands and flags in detail. It runs offline and
-never starts the daemon.
-
-`list --json` and `info --json` (and each DLC in it) carry ready-made links
-next to the artwork: `store_url` (the Steam store page) and `steamdb_url`
-(the SteamDB page).
-
-Every `{"event":"result",...}` line also carries `"schema"`. It goes up only
-when an existing field changes meaning or is removed; new fields don't change
-it.
-
-### QR login
-
-`login --qr --json` streams `qr_challenge` and `qr_scanned` events on stderr
-and ends with exactly one `{"event":"result",...}` line on stdout. On success a
-one-line `{"logged_in":true,...}` object comes just before it. stdin is the
-driver's control channel: send a `cancel` line to stop, and keep stdin open
-while waiting, because EOF ends the login.
-
-| `type`          | Meaning                                               | Exit code |
-| --------------- | ----------------------------------------------------- | --------- |
-| `approved`      | Signed in (`ok: true`, with `account` and `steam_id`) | 0         |
-| `login_denied`  | Declined in the app, or Steam dropped the session     | 80        |
-| `login_expired` | Scanned, but not approved before the code expired     | 81        |
-| `timeout`       | No approval within `--timeout` (default 600 s)        | 82        |
-| `cancelled`     | The driver sent `cancel`                              | 83        |
-| `input_closed`  | stdin reached EOF                                     | 84        |
-
-### Progress
-
-`install`, `update` and `verify` stream `progress` events on stderr.
-`bytes_downloaded` includes `reused_bytes`, the data found intact on disk (a
-resume or a verify), while `speed_bps` and `eta_seconds` count network bytes
-only, averaged over 5 seconds. Installs, backlog changes and QR logins end with
-a `{"event":"result",...}` line on stdout.
-
-### Errors
-
-| `type`          | Exit code | Meaning                                                                               |
-| --------------- | --------- | ------------------------------------------------------------------------------------- |
-| `auth_required` | 77        | Not signed in, or a sensitive view needs a fresh sign-in                              |
-| `rate_limited`  | 75        | Steam is throttling this client                                                       |
-| `disk_full`     | 85        | No space or quota left, including `install`'s check before it starts                  |
-| `offline`       | 86        | No network route or DNS, or Steam is unreachable and gaki is using its cached library |
-| the rest        | 1         | `invalid_input`, `not_found`, `access_denied`, `network_timeout`, ...                 |
-
-A stopped install (`install stop`) ends as `cancelled` (83).
-`gaki-cli capabilities` lists every type, with its code and hint.
+| Exit code | Meaning                                                                               |
+| --------- | ------------------------------------------------------------------------------------- |
+| 75        | Steam is throttling this client                                                       |
+| 77        | Not signed in, or a sensitive view needs a fresh sign-in                              |
+| 80        | QR login declined in the app, or Steam dropped the session                            |
+| 81        | QR code scanned, but not approved before it expired                                   |
+| 82        | No QR approval within `--timeout` (default 600 s)                                     |
+| 83        | Cancelled, e.g. an install stopped with `install stop`                                |
+| 85        | No space or quota left, including `install`'s check before it starts                  |
+| 86        | No network route or DNS, or Steam is unreachable and gaki is using its cached library |
+| 1         | Anything else: bad input, not found, access denied, network timeout, ...              |
 
 ## The session daemon
 

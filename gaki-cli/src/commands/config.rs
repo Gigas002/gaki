@@ -8,12 +8,8 @@ use libgaki::config::Config;
 use libgaki::ops::config::{Change, EnvChange, GameEntryChange, ProxyChange};
 
 /// `config show`: the `config.toml` settings, defaults filled in.
-pub(crate) async fn cmd_config_show(json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_show() -> Result<()> {
     let config = libgaki::ops::config::global()?;
-    if json {
-        print_json(&config);
-        return Ok(());
-    }
     let path = libgaki::core::config::config_dir()?.join(libgaki::config::CONFIG_FILE);
     cli_println!("# {}", path.display());
     cli_print!("{}", config.to_toml());
@@ -21,25 +17,9 @@ pub(crate) async fn cmd_config_show(json: bool) -> Result<()> {
 }
 
 /// `config check`: load and validate every config file.
-pub(crate) async fn cmd_config_check(json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_check() -> Result<()> {
     let report = libgaki::ops::config::check()?;
-    if json {
-        let issues: Vec<_> = report
-            .issues
-            .iter()
-            .map(|issue| {
-                serde_json::json!({
-                    "severity": issue.severity.to_string(),
-                    "subject": issue.subject.to_string(),
-                    "message": issue.message,
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({
-            "load_errors": report.load_errors,
-            "issues": issues,
-        }));
-    } else if report.load_errors.is_empty() && report.issues.is_empty() {
+    if report.load_errors.is_empty() && report.issues.is_empty() {
         cli_println!("No problems found.");
     } else {
         for error in &report.load_errors {
@@ -56,24 +36,18 @@ pub(crate) async fn cmd_config_check(json: bool) -> Result<()> {
 }
 
 /// `config get KEY`.
-pub(crate) async fn cmd_config_get(key: &str, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_get(key: &str) -> Result<()> {
     let value = libgaki::ops::config::get_global(key)?;
-    if json {
-        print_json(&serde_json::json!({ "key": key, "value": value }));
-    } else if let Some(value) = value {
+    if let Some(value) = value {
         cli_println!("{value}");
     }
     Ok(())
 }
 
 /// `config set KEY VALUE` / `config unset KEY`.
-pub(crate) async fn cmd_config_set(key: &str, value: Option<&str>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_set(key: &str, value: Option<&str>) -> Result<()> {
     let (_, changed) = libgaki::ops::config::set_global(key, value)?;
     let now = libgaki::ops::config::get_global(key)?;
-    if json {
-        print_json(&serde_json::json!({ "key": key, "value": now, "changed": changed }));
-        return Ok(());
-    }
     match (&now, changed) {
         (Some(value), true) => cli_println!("{key} = {value}"),
         (None, true) => cli_println!("{key} unset."),
@@ -95,7 +69,7 @@ fn daemon_reads(key: &str) -> bool {
 /// `config presence [online|offline]`: view or set the presence the daemon
 /// announces for friends/chat. `offline` is an invisible presence — you appear
 /// offline to friends but still sync your friends list and receive chat.
-pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>) -> Result<()> {
     use libgaki::core::config::ChatPresence;
     let changed = mode.is_some();
     let config = match mode {
@@ -106,16 +80,13 @@ pub(crate) async fn cmd_config_presence(mode: Option<ChatPresenceArg>, json: boo
         ChatPresence::Online => "online",
         ChatPresence::Offline => "offline",
     };
-    if json {
-        print_json(&serde_json::json!({ "chat_presence": current }));
-    } else {
-        cli_println!("Chat presence: {current}");
-        if changed {
-            cli_println!(
-                "Restart the session daemon for this to take effect (`gaki-cli daemon stop` or `gaki-cli kill`)."
-            );
-        }
+    cli_println!("Chat presence: {current}");
+    if changed {
+        cli_println!(
+            "Restart the session daemon for this to take effect (`gaki-cli daemon stop` or `gaki-cli kill`)."
+        );
     }
+
     Ok(())
 }
 
@@ -138,26 +109,23 @@ fn set_optional(key: &str, change: Change<String>) -> Result<(Config, bool)> {
 
 /// `config experimental [true|false]`: view or set the experimental-features gate
 /// that unlocks `login --openid` and `login --web-token`. See [`ConfigCommand::Experimental`].
-pub(crate) async fn cmd_config_experimental(enabled: Option<bool>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_experimental(enabled: Option<bool>) -> Result<()> {
     let changed = enabled.is_some();
     let status = libgaki::ops::config::experimental(enabled).await?;
 
-    if json {
-        print_json(&status);
-    } else {
-        cli_println!(
-            "Experimental features: {}",
-            if status.experimental {
-                "enabled"
-            } else {
-                "disabled"
-            }
-        );
-        cli_println!("Gates: login --openid, login --web-token");
-        if changed {
-            cli_println!("Saved.");
+    cli_println!(
+        "Experimental features: {}",
+        if status.experimental {
+            "enabled"
+        } else {
+            "disabled"
         }
+    );
+    cli_println!("Gates: login --openid, login --web-token");
+    if changed {
+        cli_println!("Saved.");
     }
+
     Ok(())
 }
 
@@ -168,7 +136,6 @@ pub(crate) async fn cmd_config_proxy(
     url: Option<String>,
     no_proxy: Option<String>,
     clear: bool,
-    json: bool,
 ) -> Result<()> {
     let change = ProxyChange {
         clear,
@@ -178,43 +145,30 @@ pub(crate) async fn cmd_config_proxy(
     let changed = !change.is_noop();
     let proxy = libgaki::ops::config::update_proxy(change).await?;
 
-    if json {
-        print_json(&serde_json::json!({
-            "url": proxy.url,
-            "no_proxy": proxy.no_proxy,
-        }));
-    } else {
-        match proxy.url.as_deref() {
-            Some(url) => cli_println!("Proxy: {url}"),
-            None => cli_println!("Proxy: (none — direct connection)"),
-        }
-        if let Some(no_proxy) = proxy.no_proxy.as_deref() {
-            cli_println!("Bypass: {no_proxy}");
-        }
-        if changed {
-            cli_println!(
-                "Saved. Takes effect on the next command; restart the session daemon (`gaki-cli daemon stop`) to apply it there."
-            );
-        }
+    match proxy.url.as_deref() {
+        Some(url) => cli_println!("Proxy: {url}"),
+        None => cli_println!("Proxy: (none — direct connection)"),
     }
+    if let Some(no_proxy) = proxy.no_proxy.as_deref() {
+        cli_println!("Bypass: {no_proxy}");
+    }
+    if changed {
+        cli_println!(
+            "Saved. Takes effect on the next command; restart the session daemon (`gaki-cli daemon stop`) to apply it there."
+        );
+    }
+
     Ok(())
 }
 
 /// `config install-resume [manual|auto]`.
-pub(crate) async fn cmd_config_install_resume(
-    mode: Option<InstallResumeArg>,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_config_install_resume(mode: Option<InstallResumeArg>) -> Result<()> {
     use libgaki::library::backlog::InstallResume;
     let value = mode.map(|m| match InstallResume::from(m) {
         InstallResume::Manual => "manual".to_owned(),
         InstallResume::Auto => "auto".to_owned(),
     });
     let (config, changed) = view_or_set("install_resume", value)?;
-    if json {
-        print_json(&serde_json::json!({ "install_resume": config.install_resume }));
-        return Ok(());
-    }
     let label = match config.install_resume {
         InstallResume::Manual => "manual (backlog installs wait for `gaki-cli install resume`)",
         InstallResume::Auto => {
@@ -229,18 +183,11 @@ pub(crate) async fn cmd_config_install_resume(
 }
 
 /// `config info-cache-ttl [SECONDS|--clear]`.
-pub(crate) async fn cmd_config_info_cache_ttl(change: Change<u64>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_info_cache_ttl(change: Change<u64>) -> Result<()> {
     let (config, changed) = set_optional("info_cache_ttl", change.map(|s| s.to_string()))?;
     let effective = config
         .info_cache_ttl
         .unwrap_or(libgaki::core::config::INFO_CACHE_DEFAULT_TTL_SECS);
-    if json {
-        print_json(&serde_json::json!({
-            "info_cache_ttl": config.info_cache_ttl,
-            "effective_seconds": effective,
-        }));
-        return Ok(());
-    }
     let suffix = if config.info_cache_ttl.is_none() {
         " (default)"
     } else {
@@ -259,7 +206,7 @@ pub(crate) async fn cmd_config_info_cache_ttl(change: Change<u64>, json: bool) -
 
 /// `config protons`: list the Proton/Wine runtimes actually installed on disk.
 /// Shares discovery with `proton list --installed` (no hardcoded placeholders).
-pub(crate) async fn cmd_config_protons(json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_protons() -> Result<()> {
     let listing = libgaki::ops::proton::listing().await?;
     let installed = &listing.installed;
     let steam: Vec<&str> = installed
@@ -272,15 +219,6 @@ pub(crate) async fn cmd_config_protons(json: bool) -> Result<()> {
         .filter(|i| i.location != "steam")
         .map(|i| i.name.as_str())
         .collect();
-
-    if json {
-        print_json(&serde_json::json!({
-            "steam": steam,
-            "custom": custom,
-            "default": listing.default,
-        }));
-        return Ok(());
-    }
 
     if installed.is_empty() {
         cli_println!("No Proton/Wine runtimes installed.");
@@ -305,36 +243,28 @@ pub(crate) async fn cmd_config_protons(json: bool) -> Result<()> {
 }
 
 /// `config clear-games`: reset every game's per-game settings (both stores).
-pub(crate) async fn cmd_config_clear_games(yes: bool, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_clear_games(yes: bool) -> Result<()> {
     let ids = libgaki::ops::config::games_with_settings().await?;
     if ids.is_empty() {
-        if json {
-            print_json(&serde_json::json!({ "cleared": 0 }));
-        } else {
-            cli_println!("No per-game settings to clear.");
-        }
+        cli_println!("No per-game settings to clear.");
+
         return Ok(());
     }
     confirm_write(
-        "clear",
         &format!(
             "About to reset the per-game settings of {} game(s) to defaults. Continue? [y/N] ",
             ids.len()
         ),
         yes,
-        json,
     )?;
     let cleared = libgaki::ops::config::clear_all_game_settings().await?;
-    if json {
-        print_json(&serde_json::json!({ "cleared": cleared }));
-    } else {
-        cli_println!("Cleared the per-game settings of {cleared} game(s).");
-    }
+    cli_println!("Cleared the per-game settings of {cleared} game(s).");
+
     Ok(())
 }
 
 /// `config game`: view or set a game's `games.toml` entry.
-pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<()> {
+pub(crate) async fn cmd_config_game(args: GameConfigArgs) -> Result<()> {
     let GameConfigArgs {
         app_id,
         profile,
@@ -386,10 +316,6 @@ pub(crate) async fn cmd_config_game(args: GameConfigArgs, json: bool) -> Result<
         ),
     };
     let (game, changed) = libgaki::ops::config::update_game_entry(app_id, change).await?;
-    if json {
-        print_json(&game);
-        return Ok(());
-    }
     let entry = game.entry.as_ref();
     let set_or = |value: Option<String>, fallback: String| match value {
         Some(value) => value,

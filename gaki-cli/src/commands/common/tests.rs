@@ -9,7 +9,7 @@ async fn drive(messages: Vec<DownloadProgress>) -> Result<()> {
         tx.send(m).await.unwrap();
     }
     drop(tx);
-    drive_progress(rx, true).await
+    drive_progress(rx).await
 }
 
 #[tokio::test]

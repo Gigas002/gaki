@@ -55,9 +55,6 @@ Subscriber Agreement (\u{a7}4.C). See docs/STEAM-RULES.md.";
 pub(crate) struct Cli {
     #[command(subcommand)]
     pub(crate) command: Command,
-    /// Emit output (and errors) as JSON. Works with every command.
-    #[arg(short = 'j', long, global = true)]
-    pub(crate) json: bool,
     /// Increase log verbosity (repeatable: -v, -vv, -vvv). Without it only
     /// warnings and errors are logged. -v adds progress/debug logs and a launched
     /// game's own output; -vv/-vvv unmute the Steam networking stack so a stalled
@@ -76,8 +73,8 @@ pub(crate) struct Cli {
     #[arg(long, global = true, hide = cfg!(not(feature = "authentication")))]
     #[cfg_attr(not(feature = "authentication"), allow(dead_code))]
     pub(crate) no_daemon: bool,
-    /// Use a running session daemon, but never start one (for drivers that
-    /// manage the daemon themselves, or whose spawn chains wait on children).
+    /// Use a running session daemon, but never start one (when the daemon is
+    /// managed elsewhere, e.g. by a systemd user unit).
     #[arg(
         long,
         global = true,
@@ -102,14 +99,6 @@ pub(crate) enum Command {
     /// Authenticate with Steam and persist the session.
     #[cfg(feature = "authentication")]
     Login(LoginArgs),
-    /// Describe this build for drivers: commands, flags, JSON events, error types
-    /// and exit codes, and the `--json` schema version. Offline. Without `--json` it
-    /// prints a PowerShell-style list and error table. Name a command path
-    /// (e.g. `capabilities config game`) for its flags, values and help.
-    Capabilities {
-        /// Command path to describe, e.g. `config game`.
-        path: Vec<String>,
-    },
     /// List games in your library.
     #[cfg(feature = "library")]
     List {
@@ -143,8 +132,7 @@ pub(crate) enum Command {
     Info {
         /// One or more app ids. Multiple ids are fetched over a *single* Steam
         /// logon (one batched StoreBrowse call) — far cheaper than running `info`
-        /// once per id. With `--json`, one id yields an object and several yield an
-        /// array.
+        /// once per id.
         #[arg(value_parser = app_ref, required = true)]
         app_ids: Vec<u32>,
         /// Also show storefront-only fields that have no CM-protocol source:
@@ -268,7 +256,7 @@ pub(crate) enum Command {
     #[cfg(feature = "install")]
     Install(InstallArgs),
     /// List the Steam library folders games can be installed into (one per
-    /// drive/location). Use `--json` for tooling.
+    /// drive/location).
     #[cfg(feature = "library")]
     Libraries,
     /// Export the library to a TOML file, or install the games listed in one.
@@ -849,14 +837,14 @@ pub(crate) enum CollectionsCommand {
     /// Upload your local collections to your Steam account (needs login).
     /// This changes your real Steam library — confirm or pass `--yes`.
     Push {
-        /// Skip the confirmation prompt. Required in `--json` mode.
+        /// Skip the confirmation prompt.
         #[arg(short, long)]
         yes: bool,
     },
     /// Pull then push — reconcile local and Steam collections (needs login).
     /// This changes your real Steam library — confirm or pass `--yes`.
     Sync {
-        /// Skip the confirmation prompt. Required in `--json` mode.
+        /// Skip the confirmation prompt.
         #[arg(short, long)]
         yes: bool,
     },
@@ -921,8 +909,7 @@ pub(crate) enum ChatCommand {
         count: u32,
     },
     /// Open an interactive live chat with a friend: type lines to send, incoming
-    /// messages stream in. End with Ctrl-D. With `--json`,
-    /// emits one JSON event per line and reads message text from stdin lines.
+    /// messages stream in. End with Ctrl-D.
     Open { steamid: u64 },
 }
 
@@ -1124,7 +1111,7 @@ pub(crate) struct InstallArgs {
     #[arg(short = 'r', long)]
     pub(crate) restart_steam: bool,
     /// Don't install — just report the estimated download and on-disk size
-    /// (from PICS, no files fetched). Pair with `--json` for tooling.
+    /// (from PICS, no files fetched).
     #[arg(short = 'd', long)]
     pub(crate) dry_run: bool,
     /// Steam library folder (drive/location) to install into. A library root
@@ -1224,7 +1211,6 @@ pub(crate) struct LoginArgs {
     #[arg(short = 'q', long, conflicts_with_all = ["username", "password", "password_stdin", "guard", "code"])]
     pub(crate) qr: bool,
     /// With `--qr`: give up after this many seconds without approval (default 600).
-    /// With `--json`, a `cancel` line or EOF on stdin also ends the wait.
     #[arg(short = 't', long, value_name = "SECS", requires = "qr", value_parser = clap::value_parser!(u64).range(1..))]
     pub(crate) timeout: Option<u64>,
     /// Type the Guard code instead of app approval.
@@ -1263,7 +1249,7 @@ pub(crate) struct ReviewsArgs {
     /// Maximum reviews per page (up to 100).
     #[arg(short = 'n', long, default_value_t = 10)]
     pub(crate) count: u32,
-    /// Cursor from a previous page's JSON.
+    /// Cursor printed under the previous page (`Next page: --cursor ...`).
     #[arg(short = 'u', long)]
     pub(crate) cursor: Option<String>,
 }

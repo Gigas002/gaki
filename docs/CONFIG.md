@@ -17,9 +17,8 @@ check them with `gaki-cli config check`.
 | `$XDG_RUNTIME_DIR/gaki/`                         | the session daemon's socket                                                                                                                                                                                 |
 
 `--config-dir <PATH>` moves the config directory, `account.toml` included, and
-keeps the caches, launch logs and `running/` in it too. An
-embedding driver (Heroic, for example) can use it to keep gaki's state apart
-from a standalone install. One daemon serves one config directory, so pair it
+keeps the caches, launch logs and `running/` in it too, so a second setup
+stays apart from your usual one. One daemon serves one config directory, so pair it
 with `--socket <PATH>` or `--no-daemon`.
 
 Paths in any file may start with `~`.
@@ -237,8 +236,8 @@ media of its own. Steam's GPU-specific precompiled buckets aren't fetched.
 - **`reauth_sensitive`** makes the inventory, wallet and market listings ask
   for your password (or a QR code) each time, in `gaki-cli` and `gaki-tui`
   alike, so a copied session can't read them. A sign-in counts for one view,
-  within five minutes. Prices and market search are unaffected. `--json`
-  can't prompt, so those commands fail there with `auth_required`.
+  within five minutes. Prices and market search are unaffected. Without a
+  terminal to prompt on, those commands fail with `auth_required` (exit 77).
 - A `session.json` from an older gaki isn't read. Log in once and it's
   deleted.
 

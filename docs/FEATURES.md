@@ -50,7 +50,7 @@ uses it.
 
 | Feature          | Commands                                                                                                                                                                                                                          |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| _(always)_       | `capabilities`, `clean`, `config`, `profiles`, `proton list`, `proton default`                                                                                                                                                    |
+| _(always)_       | `clean`, `config`, `profiles`, `proton list`, `proton default`                                                                                                                                                                    |
 | `authentication` | `login`, `logout`, `daemon`, `kill`                                                                                                                                                                                               |
 | `library`        | `list`, `info`, `account`, `library export`, `play`, `launch-targets`, `stop`, `running`, `drm`, `dlc`, `enable`, `disable`, `achievements`, `image`, `depots`, `launch-options`, `libraries` (plus the hidden `appinfo`, `tags`) |
 | `install`        | `install`, `update`, `library import`, `uninstall`, `verify`, `available`, `move`, `relink`, `import`, `duplicates`, `shaders`, `proton install`, `proton uninstall`                                                              |
@@ -66,11 +66,11 @@ uses it.
 
 The session daemon needs `authentication`, because without a login there is no
 session to keep. `--no-daemon`, `--no-spawn` and `--socket` are still accepted in
-a build without it, but hidden, so scripts can always pass them.
+a build without it, but hidden, so the same command line works in any build.
 
 Without `social`, a user can be named only by SteamID or `me`; resolving a name
-matches it against the friends list. `gaki-cli capabilities` lists the build's
-features under `build_features`, and only the commands it has under `commands`.
+matches it against the friends list. `gaki-cli --help` lists only the commands
+the build has.
 
 ## `gaki-tui`
 

@@ -105,11 +105,11 @@ fn logout_clears_the_account() {
 #[test]
 fn logout_without_a_session_has_nothing_to_revoke() {
     let tmp = config_dir();
-    let out = gaki_cli(tmp.path(), &["--json", "logout"]);
+    let out = gaki_cli(tmp.path(), &["logout"]);
     assert!(out.status.success(), "logout failed: {}", stderr(&out));
-    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(json["logged_out"], true);
-    assert_eq!(json["token"]["revocation"], "no_token", "{json}");
+    // Nothing to revoke: a bare "Logged out." with no revocation warning.
+    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "Logged out.");
+    assert!(!stderr(&out).contains("revoke"), "{}", stderr(&out));
 }
 
 #[cfg(feature = "library")]

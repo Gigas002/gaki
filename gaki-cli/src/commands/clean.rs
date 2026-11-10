@@ -4,7 +4,7 @@ use anyhow::Result;
 use libgaki::core::utils::human_bytes;
 use libgaki::ops::clean::{self, Kind, Selection};
 
-use crate::commands::common::{confirm_write, print_json};
+use crate::commands::common::confirm_write;
 
 /// The kinds the subset flags picked, in order.
 pub(crate) struct CleanFlags {
@@ -57,60 +57,37 @@ impl CleanFlags {
     }
 }
 
-pub(crate) async fn cmd_clean(flags: CleanFlags, json: bool) -> Result<()> {
+pub(crate) async fn cmd_clean(flags: CleanFlags) -> Result<()> {
     let items = clean::plan(&flags.selection()).await?;
     let total: u64 = items.iter().map(|i| i.bytes).sum();
 
     if items.is_empty() {
-        if json {
-            print_json(
-                &serde_json::json!({ "items": [], "freed_bytes": 0, "dry_run": flags.dry_run }),
-            );
-        } else {
-            cli_println!("Nothing to clean.");
-        }
+        cli_println!("Nothing to clean.");
+
         return Ok(());
     }
-    if !json {
-        for (kind, (count, bytes)) in clean::totals(&items) {
-            cli_println!(
-                "{:<8} {:>10}  {count} item(s)",
-                kind.as_str(),
-                human_bytes(bytes)
-            );
-        }
-        cli_println!("{:<8} {:>10}", "total", human_bytes(total));
+    for (kind, (count, bytes)) in clean::totals(&items) {
+        cli_println!(
+            "{:<8} {:>10}  {count} item(s)",
+            kind.as_str(),
+            human_bytes(bytes)
+        );
     }
+    cli_println!("{:<8} {:>10}", "total", human_bytes(total));
+
     if flags.dry_run {
-        if json {
-            print_json(&serde_json::json!({ "items": items, "freed_bytes": 0, "dry_run": true }));
-        }
         return Ok(());
     }
     confirm_write(
-        "clean",
         &format!("Delete these ({})? [y/N] ", human_bytes(total)),
         flags.yes,
-        json,
     )?;
     let report = clean::delete(&items);
-    if json {
-        print_json(&serde_json::json!({
-            "items": report.deleted,
-            "freed_bytes": report.freed_bytes,
-            "failed": report
-                .failed
-                .iter()
-                .map(|(path, error)| serde_json::json!({ "path": path, "error": error }))
-                .collect::<Vec<_>>(),
-            "dry_run": false,
-        }));
-    } else {
-        cli_println!("Freed {}.", human_bytes(report.freed_bytes));
-        for (path, error) in &report.failed {
-            cli_eprintln!("  couldn't delete {}: {error}", path.display());
-        }
+    cli_println!("Freed {}.", human_bytes(report.freed_bytes));
+    for (path, error) in &report.failed {
+        cli_eprintln!("  couldn't delete {}: {error}", path.display());
     }
+
     if report.failed.is_empty() {
         Ok(())
     } else {

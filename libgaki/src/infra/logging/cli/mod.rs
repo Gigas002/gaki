@@ -23,7 +23,7 @@ use std::io::IsTerminal;
 use tracing_subscriber::EnvFilter;
 
 /// Initialise global tracing for the CLI, writing to **stderr** so stdout stays
-/// clean for `--json` output.
+/// clean for command output.
 ///
 /// `verbosity` is the count of `-v` flags passed on the command line (0 = none).
 /// `filter`, an `EnvFilter` directive string such as `debug,gaki_steam_vent=info`,

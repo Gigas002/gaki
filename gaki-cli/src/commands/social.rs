@@ -13,18 +13,13 @@ use libgaki::ops::social;
 /// Inside the daemon the roster is served from the background watcher's cache;
 /// standalone it does a short best-effort collection over a fresh connection
 /// (which may be partial — see `SteamClient::collect_friends`).
-pub(crate) async fn cmd_friends(json: bool) -> Result<()> {
+pub(crate) async fn cmd_friends() -> Result<()> {
     let friends = if daemon::in_daemon() {
         daemon::shared_roster().await
     } else {
         let client = authed_client().await?;
         social::friends(&client, social::FRIENDS_WAIT).await?
     };
-
-    if json {
-        print_json(&friends);
-        return Ok(());
-    }
 
     if friends.is_empty() {
         cli_println!(
@@ -55,14 +50,10 @@ pub(crate) async fn cmd_friends(json: bool) -> Result<()> {
 }
 
 /// `gaki-cli user IDENT`: profile over the CM.
-pub(crate) async fn cmd_user(user: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_user(user: String) -> Result<()> {
     let client = authed_client().await?;
     let steam_id = resolve_user_ident(&client, &user).await?;
     let profile = social::profile(&client, steam_id).await?;
-    if json {
-        print_json(&profile);
-        return Ok(());
-    }
     cli_println!(
         "{}  ({})",
         profile
@@ -122,69 +113,47 @@ pub(crate) async fn cmd_user(user: String, json: bool) -> Result<()> {
 }
 
 /// `gaki-cli friends search IDENT`: same as `user`.
-pub(crate) async fn cmd_friends_search(query: String, json: bool) -> Result<()> {
-    cmd_user(query, json).await
+pub(crate) async fn cmd_friends_search(query: String) -> Result<()> {
+    cmd_user(query).await
 }
 
 /// `gaki-cli friends add IDENT`: send a friend request.
-pub(crate) async fn cmd_friends_add(query: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_friends_add(query: String) -> Result<()> {
     let client = authed_client().await?;
     let steam_id = resolve_user_ident(&client, &query).await?;
     let added = social::add_friend(&client, steam_id).await?;
     let name = added.persona_name;
 
-    if json {
-        print_json(&serde_json::json!({
-            "steam_id": added.steam_id,
-            "persona_name": name,
-            "status": "request_sent",
-        }));
-    } else {
-        match &name {
-            Some(n) => cli_println!("Friend request sent to {n} ({}).", added.steam_id),
-            None => cli_println!("Friend request sent to {}.", added.steam_id),
-        }
+    match &name {
+        Some(n) => cli_println!("Friend request sent to {n} ({}).", added.steam_id),
+        None => cli_println!("Friend request sent to {}.", added.steam_id),
     }
+
     Ok(())
 }
 
 /// `gaki-cli friends remove <steamid>`: remove a friend or cancel a pending request.
-pub(crate) async fn cmd_friends_remove(steamid: u64, json: bool) -> Result<()> {
+pub(crate) async fn cmd_friends_remove(steamid: u64) -> Result<()> {
     let client = authed_client().await?;
     social::remove_friend(&client, steamid).await?;
-    if json {
-        print_json(&serde_json::json!({ "steam_id": steamid, "status": "removed" }));
-    } else {
-        cli_println!("Removed {steamid} from your friends.");
-    }
+    cli_println!("Removed {steamid} from your friends.");
+
     Ok(())
 }
 
 /// `gaki-cli chat send <steamid> <message>`: send a direct message to a friend.
-pub(crate) async fn cmd_chat_send(steamid: u64, message: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_chat_send(steamid: u64, message: String) -> Result<()> {
     let client = authed_client().await?;
-    let sent = social::send_message(&client, steamid, message).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "steamid": steamid,
-            "sent": true,
-            "server_timestamp": sent.server_timestamp,
-            "modified_message": sent.modified_message,
-        }));
-    } else {
-        cli_println!("Message sent to {steamid}.");
-    }
+    social::send_message(&client, steamid, message).await?;
+    cli_println!("Message sent to {steamid}.");
+
     Ok(())
 }
 
 /// `gaki-cli chat history <steamid>`: show recent messages with a friend.
-pub(crate) async fn cmd_chat_history(steamid: u64, count: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_chat_history(steamid: u64, count: u32) -> Result<()> {
     let client = authed_client().await?;
     let messages = social::history(&client, steamid, count).await?;
-    if json {
-        print_json(&messages);
-        return Ok(());
-    }
     if messages.is_empty() {
         cli_println!("No messages with {steamid}.");
         return Ok(());
@@ -197,9 +166,8 @@ pub(crate) async fn cmd_chat_history(steamid: u64, count: u32, json: bool) -> Re
 }
 
 /// Render one incoming chat event for `gaki-cli chat open`, filtered to the
-/// conversation with `target`. Plain mode prints a friendly line; `--json` emits
-/// one NDJSON event for GUI drivers.
-pub(crate) fn render_chat_event(target: u64, event: gaki_steam_vent::chat::ChatEvent, json: bool) {
+/// conversation with `target` as one friendly line.
+pub(crate) fn render_chat_event(target: u64, event: gaki_steam_vent::chat::ChatEvent) {
     use gaki_steam_vent::chat::ChatEvent;
     // Every event carries the conversation partner's SteamID; ignore events for
     // other conversations sharing this connection's notification stream.
@@ -209,46 +177,14 @@ pub(crate) fn render_chat_event(target: u64, event: gaki_steam_vent::chat::ChatE
     match event {
         ChatEvent::Message(e) => {
             let text = e.message_no_bbcode.unwrap_or(e.message);
-            if json {
-                print_json_line(&serde_json::json!({
-                    "event": "message", "from": target, "text": text,
-                    "timestamp": e.server_timestamp,
-                }));
-            } else {
-                cli_println!("them: {text}");
-            }
+            cli_println!("them: {text}");
         }
         ChatEvent::EchoMessage(e) => {
             let text = e.message_no_bbcode.unwrap_or(e.message);
-            if json {
-                print_json_line(&serde_json::json!({
-                    "event": "echo", "to": target, "text": text,
-                    "timestamp": e.server_timestamp,
-                }));
-            } else {
-                cli_println!("me (sent elsewhere): {text}");
-            }
+            cli_println!("me (sent elsewhere): {text}");
         }
-        ChatEvent::Typing(e) => {
-            if json {
-                print_json_line(&serde_json::json!({
-                    "event": "typing", "from": target, "timestamp": e.server_timestamp,
-                }));
-            } else {
-                cli_println!("* {target} is typing...");
-            }
-        }
-        ChatEvent::GameInvite(e) => {
-            let text = e.message_no_bbcode.unwrap_or(e.message);
-            if json {
-                print_json_line(&serde_json::json!({
-                    "event": "invite", "from": target, "text": text,
-                    "timestamp": e.server_timestamp,
-                }));
-            } else {
-                cli_println!("* {target} sent a game invite");
-            }
-        }
+        ChatEvent::Typing(_) => cli_println!("* {target} is typing..."),
+        ChatEvent::GameInvite(_) => cli_println!("* {target} sent a game invite"),
         // Other entry types (and kinds added later) carry nothing to show.
         _ => {}
     }
@@ -260,7 +196,7 @@ pub(crate) fn render_chat_event(target: u64, event: gaki_steam_vent::chat::ChatE
 ///
 /// Runs naturally over the daemon — the thin client streams stdin and relays
 /// stdout in real time — so it reuses the shared, already-online connection.
-pub(crate) async fn cmd_chat_open(steamid: u64, json: bool) -> Result<()> {
+pub(crate) async fn cmd_chat_open(steamid: u64) -> Result<()> {
     use tokio_stream::StreamExt;
 
     let client = authed_client().await?;
@@ -268,20 +204,16 @@ pub(crate) async fn cmd_chat_open(steamid: u64, json: bool) -> Result<()> {
     let chat = social::open_chat(&client).await?;
     let mut events = chat.listen();
 
-    if json {
-        print_json_line(&serde_json::json!({ "event": "ready", "with": steamid }));
-    } else {
-        cli_println!(
-            "Chat with {steamid}. Type a message and press Enter to send; Ctrl-D (Ctrl-Z on \
-             Windows) to quit."
-        );
-    }
+    cli_println!(
+        "Chat with {steamid}. Type a message and press Enter to send; Ctrl-D (Ctrl-Z on \
+         Windows) to quit."
+    );
 
     loop {
         tokio::select! {
             incoming = events.next() => {
                 match incoming {
-                    Some(Ok(event)) => render_chat_event(steamid, event, json),
+                    Some(Ok(event)) => render_chat_event(steamid, event),
                     Some(Err(_)) => continue, // dropped/lagged notification — keep going
                     None => break,            // connection closed
                 }
@@ -294,13 +226,8 @@ pub(crate) async fn cmd_chat_open(steamid: u64, json: bool) -> Result<()> {
                             continue;
                         }
                         if let Err(e) = social::send_message(&client, steamid, text.to_string()).await {
-                            if json {
-                                print_json_line(&serde_json::json!({
-                                    "event": "error", "message": format!("{e:#}"),
-                                }));
-                            } else {
-                                cli_eprintln!("send failed: {e:#}");
-                            }
+                            cli_eprintln!("send failed: {e:#}");
+
                         }
                     }
                     Ok(None) => break, // stdin closed
@@ -310,8 +237,5 @@ pub(crate) async fn cmd_chat_open(steamid: u64, json: bool) -> Result<()> {
         }
     }
 
-    if json {
-        print_json_line(&serde_json::json!({ "event": "closed", "with": steamid }));
-    }
     Ok(())
 }

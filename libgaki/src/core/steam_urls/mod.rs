@@ -1,8 +1,7 @@
 //! Conventional Steam CDN / storefront URL builders.
 //!
-//! Shared by the CLI's `--json` responses (`list`, `info`, `dlc`) and the TUI, so a
-//! consuming driver (e.g. Heroic) gets ready-to-use artwork and store URLs
-//! instead of hard-coding the base paths and reconstructing them from app ids.
+//! Shared by the CLI and the TUI, so neither hard-codes the base paths or
+//! rebuilds them from app ids.
 
 const CDN_APPS_BASE: &str = "https://cdn.cloudflare.steamstatic.com/steam/apps";
 const STORE_APP_BASE: &str = "https://store.steampowered.com/app";

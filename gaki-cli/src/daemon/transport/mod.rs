@@ -5,7 +5,7 @@
 //! is `0700` and the socket `0600`, and every connection's peer must be this
 //! uid (`SO_PEERCRED`). Without `XDG_RUNTIME_DIR` there is no daemon: there is
 //! no `/tmp` fallback, which other users could reach. The global `--socket`
-//! flag overrides the path so a driver can isolate its own daemon; the socket
+//! flag overrides the path to isolate a separate daemon; the socket
 //! is still `0600` and peer-checked there.
 
 use std::io;

@@ -1,21 +1,14 @@
 //! `proton` command handlers.
 
+#[cfg(feature = "install")]
 use crate::commands::common::*;
-
 use anyhow::Result;
 
 /// `proton list`: show the installable official Proton builds and what's installed.
-pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<()> {
+pub(crate) async fn cmd_proton_list(installed_only: bool) -> Result<()> {
     let listing = libgaki::ops::proton::listing().await?;
     let default = &listing.default;
     if installed_only {
-        if json {
-            print_json(&serde_json::json!({
-                "default": listing.default,
-                "installed": listing.installed,
-            }));
-            return Ok(());
-        }
         if listing.installed.is_empty() {
             cli_println!("No Proton runtimes installed.");
             return Ok(());
@@ -29,11 +22,6 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
             };
             cli_println!("  {:<28} ({}){star}", i.name, i.location);
         }
-        return Ok(());
-    }
-
-    if json {
-        print_json(&listing);
         return Ok(());
     }
 
@@ -78,72 +66,49 @@ pub(crate) async fn cmd_proton_list(installed_only: bool, json: bool) -> Result<
 /// `proton install`: install an official Proton build through Steam and make it
 /// the global default.
 #[cfg(feature = "install")]
-pub(crate) async fn cmd_proton_install(version: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_proton_install(version: String) -> Result<()> {
     let pkg = libgaki::ops::proton::find(&version)?;
-    if !json {
-        cli_println!("Installing {} via Steam (app {}) ...", pkg.name, pkg.app_id);
-    }
+    cli_println!("Installing {} via Steam (app {}) ...", pkg.name, pkg.app_id);
+
     let client = authed_client().await?;
     let rx = libgaki::ops::proton::start_install(&client, &pkg).await?;
-    drive_progress(rx, json).await?;
+    drive_progress(rx).await?;
     // The freshly installed runtime becomes the global default ("last downloaded").
     libgaki::ops::proton::set_default(&pkg.name).await?;
 
-    if json {
-        print_json(&serde_json::json!({
-            "name": pkg.name,
-            "app_id": pkg.app_id,
-            "status": "installed",
-            "default": true,
-        }));
-    } else {
-        cli_println!("Installed {} and set it as the global default.", pkg.name);
-    }
+    cli_println!("Installed {} and set it as the global default.", pkg.name);
+
     Ok(())
 }
 
 /// `proton uninstall`: uninstall an official Proton build through Steam.
 #[cfg(feature = "install")]
-pub(crate) async fn cmd_proton_uninstall(version: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_proton_uninstall(version: String) -> Result<()> {
     let pkg = libgaki::ops::proton::find(&version)?;
     let client = authed_client().await?;
     let was_default = libgaki::ops::proton::uninstall(&client, &pkg).await?;
 
-    if json {
-        print_json(&serde_json::json!({
-            "name": pkg.name,
-            "app_id": pkg.app_id,
-            "status": "uninstalled",
-            "was_default": was_default,
-        }));
-    } else {
-        cli_println!("Uninstalled {}.", pkg.name);
-        if was_default {
-            cli_eprintln!(
-                "Note: {} was the global default — set a new one with \
-                 `gaki-cli proton default <NAME>`.",
-                pkg.name
-            );
-        }
+    cli_println!("Uninstalled {}.", pkg.name);
+    if was_default {
+        cli_eprintln!(
+            "Note: {} was the global default — set a new one with \
+             `gaki-cli proton default <NAME>`.",
+            pkg.name
+        );
     }
+
     Ok(())
 }
 
 /// `proton default`: set the global default Proton version.
-pub(crate) async fn cmd_proton_default(version: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_proton_default(version: String) -> Result<()> {
     let present = libgaki::ops::proton::set_default(&version).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "default": version,
-            "installed_present": present,
-        }));
-    } else {
-        cli_println!("Global default Proton set to {version}.");
-        if !present {
-            cli_eprintln!(
-                "Note: '{version}' is not installed — run `gaki-cli proton install {version}`."
-            );
-        }
+    cli_println!("Global default Proton set to {version}.");
+    if !present {
+        cli_eprintln!(
+            "Note: '{version}' is not installed — run `gaki-cli proton install {version}`."
+        );
     }
+
     Ok(())
 }

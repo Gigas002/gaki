@@ -16,7 +16,6 @@ pub(crate) async fn cmd_workshop_browse(
     count: u32,
     cursor: String,
     tags: Vec<String>,
-    json: bool,
 ) -> Result<()> {
     let client = authed_client().await?;
     let query = workshop::Query {
@@ -28,16 +27,6 @@ pub(crate) async fn cmd_workshop_browse(
         tags,
     };
     let page = workshop::browse(&client, &query).await?;
-
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "total": page.total,
-            "next_cursor": page.next_cursor,
-            "items": page.items,
-        }));
-        return Ok(());
-    }
 
     if page.items.is_empty() {
         cli_println!("No Workshop items found.");
@@ -65,14 +54,10 @@ pub(crate) async fn cmd_workshop_browse(
 }
 
 /// `workshop info`: show metadata for one or more published files.
-pub(crate) async fn cmd_workshop_info(ids: Vec<u64>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_workshop_info(ids: Vec<u64>) -> Result<()> {
     let client = authed_client().await?;
     let items = workshop::details(&client, &ids).await?;
 
-    if json {
-        print_json(&items);
-        return Ok(());
-    }
     if items.is_empty() {
         cli_println!("No Workshop items found.");
         return Ok(());
@@ -98,14 +83,10 @@ pub(crate) async fn cmd_workshop_info(ids: Vec<u64>, json: bool) -> Result<()> {
 }
 
 /// `workshop list`: the items you're subscribed to for a game.
-pub(crate) async fn cmd_workshop_list(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_workshop_list(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let items = workshop::subscribed(&client, app_id).await?;
 
-    if json {
-        print_json(&items);
-        return Ok(());
-    }
     if items.is_empty() {
         cli_println!("No subscribed Workshop items for app {app_id}.");
         return Ok(());
@@ -138,77 +119,51 @@ async fn for_each_workshop_item<'a, F, Fut>(
     client: &'a SteamClient,
     items: &'a [WorkshopItem],
     past_tense: &str,
-    json: bool,
     op: F,
-) -> Result<Vec<u64>>
+) -> Result<()>
 where
     F: Fn(&'a SteamClient, &'a WorkshopItem) -> Fut,
     Fut: Future<Output = Result<()>>,
 {
-    let mut acted = Vec::new();
     for item in items {
         op(client, item).await?;
-        acted.push(item.id);
-        if !json {
-            cli_println!("{past_tense} Workshop item {} ({}).", item.id, item.title);
-        }
+        cli_println!("{past_tense} Workshop item {} ({}).", item.id, item.title);
     }
-    Ok(acted)
+    Ok(())
 }
 
 /// Download one item; drive progress.
 async fn install_one_workshop_item(
     client: &SteamClient,
     item: &libgaki::core::models::WorkshopItem,
-    json: bool,
 ) -> Result<()> {
-    workshop::install(client, item, |rx| drive_progress_until(rx, json)).await
+    workshop::install(client, item, drive_progress_until).await
 }
 
 /// `workshop install`: download item(s)/collection(s) and register them.
-pub(crate) async fn cmd_workshop_install(
-    ids: Vec<u64>,
-    no_recurse: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_workshop_install(ids: Vec<u64>, no_recurse: bool) -> Result<()> {
     let (client, items) = resolve_workshop_items(ids, no_recurse).await?;
     if items.is_empty() {
         bail!("no installable Workshop items resolved");
     }
 
     for item in &items {
-        if !json {
-            cli_println!("Installing Workshop item {} ({}) ...", item.id, item.title);
-        }
-        install_one_workshop_item(&client, item, json).await?;
-        if json {
-            print_result_line(serde_json::json!({
-                "id": item.id,
-                "app_id": item.app_id,
-                "status": "installed",
-            }));
-        }
+        cli_println!("Installing Workshop item {} ({}) ...", item.id, item.title);
+
+        install_one_workshop_item(&client, item).await?;
     }
     Ok(())
 }
 
 /// `workshop uninstall`: remove installed item(s)/collection(s).
-pub(crate) async fn cmd_workshop_uninstall(
-    ids: Vec<u64>,
-    no_recurse: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_workshop_uninstall(ids: Vec<u64>, no_recurse: bool) -> Result<()> {
     // GetDetails resolves each item's owning app id (needed to find its files).
     let (client, items) = resolve_workshop_items(ids, no_recurse).await?;
 
-    let removed =
-        for_each_workshop_item(&client, &items, "Uninstalled", json, workshop::uninstall).await?;
-    if json {
-        print_json(&serde_json::json!({ "uninstalled": removed }));
-    } else if removed.is_empty() {
+    if items.is_empty() {
         cli_println!("Nothing to uninstall.");
     }
-    Ok(())
+    for_each_workshop_item(&client, &items, "Uninstalled", workshop::uninstall).await
 }
 
 /// `workshop subscribe`: subscribe (and optionally install) item(s)/collection(s).
@@ -216,71 +171,34 @@ pub(crate) async fn cmd_workshop_subscribe(
     ids: Vec<u64>,
     install: bool,
     no_recurse: bool,
-    json: bool,
 ) -> Result<()> {
     let (client, items) = resolve_workshop_items(ids, no_recurse).await?;
 
-    let subscribed =
-        for_each_workshop_item(&client, &items, "Subscribed to", json, workshop::subscribe).await?;
+    for_each_workshop_item(&client, &items, "Subscribed to", workshop::subscribe).await?;
 
     if install {
         for item in &items {
-            if !json {
-                cli_println!("Installing Workshop item {} ...", item.id);
-            }
-            install_one_workshop_item(&client, item, json).await?;
+            cli_println!("Installing Workshop item {} ...", item.id);
+
+            install_one_workshop_item(&client, item).await?;
         }
     }
 
-    if json {
-        print_json(&serde_json::json!({ "subscribed": subscribed, "installed": install }));
-    }
     Ok(())
 }
 
 /// `workshop unsubscribe`: unsubscribe from item(s)/collection(s).
-pub(crate) async fn cmd_workshop_unsubscribe(
-    ids: Vec<u64>,
-    no_recurse: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_workshop_unsubscribe(ids: Vec<u64>, no_recurse: bool) -> Result<()> {
     let (client, items) = resolve_workshop_items(ids, no_recurse).await?;
 
-    let unsubscribed = for_each_workshop_item(
-        &client,
-        &items,
-        "Unsubscribed from",
-        json,
-        workshop::unsubscribe,
-    )
-    .await?;
-    if json {
-        print_json(&serde_json::json!({ "unsubscribed": unsubscribed }));
-    }
+    for_each_workshop_item(&client, &items, "Unsubscribed from", workshop::unsubscribe).await?;
     Ok(())
 }
 
 /// `workshop status`: installed vs subscribed (with update detection) for a game.
-pub(crate) async fn cmd_workshop_status(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_workshop_status(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let rows = workshop::status(&client, app_id).await?;
-
-    if json {
-        let arr: Vec<_> = rows
-            .iter()
-            .map(|r| {
-                serde_json::json!({
-                    "id": r.id,
-                    "title": r.title,
-                    "installed": r.installed,
-                    "subscribed": r.subscribed,
-                    "update_available": r.update_available,
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({ "app_id": app_id, "items": arr }));
-        return Ok(());
-    }
 
     if rows.is_empty() {
         cli_println!("No installed or subscribed Workshop items for app {app_id}.");
@@ -307,38 +225,22 @@ pub(crate) async fn cmd_workshop_status(app_id: u32, json: bool) -> Result<()> {
 }
 
 /// `workshop rate`: thumbs-up/down a Workshop item.
-pub(crate) async fn cmd_workshop_rate(id: u64, up: bool, json: bool) -> Result<()> {
+pub(crate) async fn cmd_workshop_rate(id: u64, up: bool) -> Result<()> {
     let client = authed_client().await?;
     workshop::rate(&client, id, up).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "id": id,
-            "vote": if up { "up" } else { "down" },
-            "status": "rated",
-        }));
-    } else {
-        cli_println!(
-            "Rated Workshop item {id} {}.",
-            if up { "thumbs-up" } else { "thumbs-down" }
-        );
-    }
+    cli_println!(
+        "Rated Workshop item {id} {}.",
+        if up { "thumbs-up" } else { "thumbs-down" }
+    );
+
     Ok(())
 }
 
 /// `workshop comments`: read a page of a Workshop item's comments.
-pub(crate) async fn cmd_workshop_comments_read(
-    id: u64,
-    start: i32,
-    count: i32,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_workshop_comments_read(id: u64, start: i32, count: i32) -> Result<()> {
     let client = authed_client().await?;
     let comments = workshop::comments(&client, id, start, count).await?;
 
-    if json {
-        print_json(&serde_json::json!({ "id": id, "comments": comments }));
-        return Ok(());
-    }
     if comments.is_empty() {
         cli_println!("No comments on Workshop item {id}.");
         return Ok(());
@@ -357,17 +259,10 @@ pub(crate) async fn cmd_workshop_comments_read(
 }
 
 /// `workshop comment`: post a comment to a Workshop item.
-pub(crate) async fn cmd_workshop_comment(id: u64, text: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_workshop_comment(id: u64, text: String) -> Result<()> {
     let client = authed_client().await?;
     let comment_id = workshop::post_comment(&client, id, &text).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "id": id,
-            "comment_id": comment_id,
-            "status": "posted",
-        }));
-    } else {
-        cli_println!("Posted comment {comment_id} to Workshop item {id}.");
-    }
+    cli_println!("Posted comment {comment_id} to Workshop item {id}.");
+
     Ok(())
 }

@@ -1,7 +1,5 @@
 //! `info` command handlers.
 
-use libgaki::core::steam_urls;
-
 use crate::commands::common::*;
 
 use anyhow::Result;
@@ -9,36 +7,19 @@ use libgaki::ops::info::{self, AppInfo, ExtendedInfo, InfoRequest};
 use libgaki::steam_client::SteamClient;
 use std::path::PathBuf;
 
-pub(crate) async fn cmd_set_dlc(
-    app_id: u32,
-    enable: bool,
-    restart_steam: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_set_dlc(app_id: u32, enable: bool, restart_steam: bool) -> Result<()> {
     let client = restored_client().await?;
 
     // Steam flushes its in-memory app state on exit, so the edit must happen while
     // Steam is stopped to survive. With --restart-steam: stop → edit → start.
-    let manage_steam = steam_guard_stop_optional(restart_steam, json)?;
+    let manage_steam = steam_guard_stop_optional(restart_steam)?;
 
     let base = info::set_dlc(&client, app_id, enable).await?;
 
-    steam_guard_restart(manage_steam, json)?;
-    let steam_restarted = manage_steam;
+    steam_guard_restart(manage_steam)?;
 
     let action = if enable { "enabled" } else { "disabled" };
     let restart_required = !manage_steam && SteamClient::steam_is_running();
-
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "base_app_id": base,
-            "status": action,
-            "steam_restarted": steam_restarted,
-            "steam_restart_required": restart_required,
-        }));
-        return Ok(());
-    }
 
     cli_println!("DLC {app_id} {action} for base game {base}.");
     if enable {
@@ -56,13 +37,9 @@ pub(crate) async fn cmd_set_dlc(
 }
 
 #[cfg(feature = "versioning")]
-pub(crate) async fn cmd_branches(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_branches(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let branches = info::branches(&client, app_id).await?;
-    if json {
-        print_json(&serde_json::json!({ "app_id": app_id, "branches": branches }));
-        return Ok(());
-    }
     if branches.is_empty() {
         cli_println!("No branches reported.");
     } else {
@@ -74,16 +51,11 @@ pub(crate) async fn cmd_branches(app_id: u32, json: bool) -> Result<()> {
 }
 
 #[cfg(feature = "versioning")]
-pub(crate) async fn cmd_set_branch(app_id: u32, branch: String, json: bool) -> Result<()> {
+pub(crate) async fn cmd_set_branch(app_id: u32, branch: String) -> Result<()> {
     let client = authed_client().await?;
     info::set_branch(&client, app_id, &branch).await?;
-    if json {
-        print_json(&serde_json::json!({ "app_id": app_id, "branch": branch, "status": "set" }));
-    } else {
-        cli_println!(
-            "App {app_id} set to branch '{branch}'. Run `gaki-cli update {app_id}` to apply."
-        );
-    }
+    cli_println!("App {app_id} set to branch '{branch}'. Run `gaki-cli update {app_id}` to apply.");
+
     Ok(())
 }
 
@@ -92,7 +64,6 @@ pub(crate) async fn cmd_info(
     extended: bool,
     no_cache: bool,
     country: Option<String>,
-    json: bool,
 ) -> Result<()> {
     // Country selects the price region and cache key.
     let request = InfoRequest {
@@ -103,17 +74,6 @@ pub(crate) async fn cmd_info(
     };
     let infos = info::app_info(&request, authed_client).await?;
 
-    if json {
-        let mut items: Vec<serde_json::Value> = infos.iter().map(info_json_value).collect();
-        // One id keeps the single-object shape; several ids produce an array.
-        if request.app_ids.len() == 1 {
-            print_json(&items.remove(0));
-        } else {
-            print_json(&serde_json::Value::Array(items));
-        }
-        return Ok(());
-    }
-
     for (i, app) in infos.iter().enumerate() {
         if i > 0 {
             cli_println!("\n{}", "─".repeat(60));
@@ -121,78 +81,6 @@ pub(crate) async fn cmd_info(
         print_info_human(app);
     }
     Ok(())
-}
-
-/// Build the `--json` object for one app from its CM metadata, DLC list and
-/// optional `--extended` storefront data.
-pub(crate) fn info_json_value(app: &AppInfo) -> serde_json::Value {
-    let AppInfo {
-        details,
-        dlc,
-        extended,
-    } = app;
-    let mut value = serde_json::json!({
-        "app_id": details.app_id,
-        "name": details.name,
-        "type": details.app_type,
-        "is_free": details.is_free,
-        "early_access": details.is_early_access,
-        "description": details.short_description,
-        "full_description": details.full_description,
-        "developers": details.developers,
-        "publishers": details.publishers,
-        "franchises": details.franchises,
-        "release_date": details.release_date,
-        "coming_soon": details.coming_soon,
-        "price": details.price,
-        "discount_pct": details.discount_pct,
-        "country": details.country,
-        "price_cents": details.price_cents,
-        "original_price": details.original_price,
-        "original_price_cents": details.original_price_cents,
-        "discount_end": details.discount_end,
-        "discount_end_date": details.discount_end.map(|t| libgaki::steam_client::unix_to_ymd(t as i64)),
-        "region_locked": details.region_locked,
-        "purchase_options": details.purchase_options,
-        "tags": details.tags,
-        "rating": details.rating,
-        "links": details.links,
-        "screenshots": details.screenshots,
-        "trailers": details.trailers,
-        "platforms": details.platforms,
-        "reviews": details.review_summary,
-        "store_url": steam_urls::store_url(details.app_id),
-        "steamdb_url": steam_urls::steamdb_url(details.app_id),
-        "assets": {
-            "header": details.assets.header,
-            "capsule": details.assets.capsule,
-            "hero": details.assets.hero,
-            "background": details.assets.background,
-            "logo": details.assets.logo,
-        },
-        "dlc": dlc.iter().map(|(id, name)| serde_json::json!({"app_id": id, "name": name})).collect::<Vec<_>>(),
-    });
-    if let Some(web) = extended {
-        // `tags` kept for older consumers; now CM-sourced.
-        let tag_names: Vec<&str> = details
-            .tags
-            .iter()
-            .filter_map(|t| t.name.as_deref())
-            .collect();
-        value["extended"] = serde_json::json!({
-            "genres": web.genres,
-            "categories": web.categories,
-            "tags": tag_names,
-            "metacritic": web.metacritic,
-            "metacritic_url": web.metacritic_url,
-            "website": web.website,
-            "requirements": {
-                "minimum": web.requirements_minimum,
-                "recommended": web.requirements_recommended,
-            },
-        });
-    }
-    value
 }
 
 /// Render the human-readable `info` block for one app to stdout.
@@ -356,39 +244,10 @@ pub(crate) fn print_info_human(app: &AppInfo) {
     }
 }
 
-pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_dlc(app_id: u32) -> Result<()> {
     // Ownership needs a session; installed/disabled come from the appmanifest.
     let steam = authed_client().await?;
     let dlc = info::dlc_list(&steam, app_id).await?;
-
-    if json {
-        let value = serde_json::json!({
-            "app_id": app_id,
-            "dlc": dlc.iter().map(|d| {
-                let (id, s, store) = (&d.app_id, d.state.as_ref(), d.store.as_ref());
-                serde_json::json!({
-                    "app_id": id,
-                    "name": d.name,
-                    "owned": s.map(|s| s.owned),
-                    "installed": s.map(|s| s.installed),
-                    "disabled": s.map(|s| s.disabled),
-                    "price": store.and_then(|i| i.price.clone()),
-                    "discount_pct": store.map(|i| i.discount_pct),
-                    "discount_end_date": store
-                        .and_then(|i| i.discount_end)
-                        .map(|t| libgaki::steam_client::unix_to_ymd(t as i64)),
-                    "release_date": store.and_then(|i| i.release_date.clone()),
-                    "reviews": store.and_then(|i| i.review_summary.clone()),
-                    "image_url": steam_urls::header_url(*id),
-                    "image_fallback_url": steam_urls::small_capsule_url(*id),
-                    "store_url": steam_urls::store_url(*id),
-                    "steamdb_url": steam_urls::steamdb_url(*id),
-                })
-            }).collect::<Vec<_>>(),
-        });
-        print_json(&value);
-        return Ok(());
-    }
 
     if dlc.is_empty() {
         cli_println!("No DLC for app {app_id}.");
@@ -434,7 +293,7 @@ pub(crate) async fn cmd_dlc(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_drm(app_id: u32) -> Result<()> {
     use libgaki::steam_client::EncryptedTicketOutcome;
 
     let client = authed_client().await?;
@@ -443,28 +302,6 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
         ownership,
         encrypted,
     } = info::drm_check(&client, app_id).await;
-
-    if json {
-        let (enc_status, enc_bytes, enc_eresult) = match &encrypted {
-            Ok(EncryptedTicketOutcome::Issued(t)) => ("issued", Some(t.len()), None),
-            Ok(EncryptedTicketOutcome::Refused(r)) => ("refused", None, Some(*r)),
-            Err(_) => ("error", None, None),
-        };
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "name": name,
-            "owned": ownership.is_ok(),
-            "ownership_ticket_bytes": ownership.as_ref().ok(),
-            "ownership_error": ownership.as_ref().err().map(|e| format!("{e:#}")),
-            "encrypted_ticket": {
-                "status": enc_status,
-                "bytes": enc_bytes,
-                "eresult": enc_eresult,
-                "error": encrypted.as_ref().err().map(|e| format!("{e:#}")),
-            },
-        }));
-        return Ok(());
-    }
 
     let title = name.unwrap_or_else(|| format!("app {app_id}"));
     cli_println!("DRM verification for {title} ({app_id})");
@@ -492,38 +329,10 @@ pub(crate) async fn cmd_drm(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_achievements(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_achievements(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let achievements = info::achievements(&client, app_id).await?;
     let unlocked = achievements.iter().filter(|a| a.unlocked).count();
-
-    if json {
-        let arr: Vec<_> = achievements
-            .iter()
-            .map(|a| {
-                serde_json::json!({
-                    "achievement_id": a.api_name,
-                    "achievement_key": a.api_name,
-                    "name": a.name,
-                    "description": a.description,
-                    "visible": !a.hidden,
-                    "image_url_unlocked": a.icon_unlocked,
-                    "image_url_locked": a.icon_locked,
-                    "rarity": a.global_percent,
-                    "unlocked": a.unlocked,
-                    "unlock_time": a.unlock_time,
-                    "date_unlocked": a.unlock_time.map(|t| format_unix_timestamp(u64::from(t))),
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "unlocked": unlocked,
-            "total": achievements.len(),
-            "achievements": arr,
-        }));
-        return Ok(());
-    }
 
     if achievements.is_empty() {
         cli_println!("No achievements for app {app_id}.");
@@ -547,27 +356,9 @@ pub(crate) async fn cmd_achievements(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_depots(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_depots(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let depots = info::depots(&client, app_id).await?;
-
-    if json {
-        let arr: Vec<_> = depots
-            .iter()
-            .map(|d| {
-                serde_json::json!({
-                    "id": d.id,
-                    "name": d.name,
-                    "size": d.size,
-                    "file_count": d.file_count,
-                    "config": d.config,
-                    "is_owned": d.is_owned,
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({ "app_id": app_id, "depots": arr }));
-        return Ok(());
-    }
 
     if depots.is_empty() {
         cli_println!("No depots reported.");
@@ -580,29 +371,9 @@ pub(crate) async fn cmd_depots(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_launch_options(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_launch_options(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let options = info::launch_options(&client, app_id).await?;
-
-    if json {
-        let arr: Vec<_> = options
-            .iter()
-            .map(|o| {
-                serde_json::json!({
-                    "id": o.id,
-                    "description": o.description,
-                    "executable": o.executable,
-                    "arguments": o.arguments,
-                    "working_dir": o.working_dir,
-                    "oslist": o.oslist,
-                    "osarch": o.osarch,
-                    "type": o.launch_type,
-                })
-            })
-            .collect();
-        print_json(&serde_json::json!({ "app_id": app_id, "launch_options": arr }));
-        return Ok(());
-    }
 
     if options.is_empty() {
         cli_println!("No launch options for app {app_id}.");
@@ -630,40 +401,19 @@ pub(crate) async fn cmd_launch_options(app_id: u32, json: bool) -> Result<()> {
     Ok(())
 }
 
-pub(crate) async fn cmd_image(
-    app_id: u32,
-    output: Option<PathBuf>,
-    force: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_image(app_id: u32, output: Option<PathBuf>, force: bool) -> Result<()> {
     let final_path = info::artwork(app_id, output.as_deref(), force).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "path": final_path.display().to_string(),
-        }));
-    } else {
-        cli_println!("{}", final_path.display());
-    }
+    cli_println!("{}", final_path.display());
+
     Ok(())
 }
 
 /// `gaki-cli image APPID --list [--probe]`: every asset URL.
-pub(crate) async fn cmd_image_list(app_id: u32, probe: bool, json: bool) -> Result<()> {
+pub(crate) async fn cmd_image_list(app_id: u32, probe: bool) -> Result<()> {
     let info = info::record_with_media(app_id, authed_client).await?;
     let mut entries = info::assets(&info);
     if probe {
         info::probe_assets(&mut entries).await;
-    }
-
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "name": info.name,
-            "probed": probe,
-            "assets": entries,
-        }));
-        return Ok(());
     }
 
     cli_println!("{}  (app {app_id}): {} assets", info.name, entries.len());
@@ -697,19 +447,10 @@ pub(crate) async fn cmd_appinfo(app_id: u32) -> Result<()> {
 }
 
 /// `gaki-cli tags [--dump]`: the store tag vocabulary.
-pub(crate) async fn cmd_tags(dump: bool, json: bool) -> Result<()> {
+pub(crate) async fn cmd_tags(dump: bool) -> Result<()> {
     crate::commands::auth::require_experimental("tags").await?;
     let client = authed_client().await?;
     let tags = info::tags(&client).await?;
-    if json {
-        print_json(
-            &tags
-                .iter()
-                .map(|(id, name)| serde_json::json!({"id": id, "name": name}))
-                .collect::<Vec<_>>(),
-        );
-        return Ok(());
-    }
     if !dump {
         for (id, name) in &tags {
             cli_println!("{id:>6}  {name}");

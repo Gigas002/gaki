@@ -47,43 +47,6 @@ fn plain_errors_are_unknown() {
 }
 
 #[test]
-fn kind_serializes_snake_case() {
-    assert_eq!(
-        serde_json::to_string(&ErrorKind::PrivacyRestricted).unwrap(),
-        "\"privacy_restricted\""
-    );
-}
-
-// Adding a variant breaks this match.
-fn ordinal(kind: ErrorKind) -> usize {
-    match kind {
-        ErrorKind::InvalidInput => 0,
-        ErrorKind::NotFound => 1,
-        ErrorKind::RateLimited => 2,
-        ErrorKind::AccessDenied => 3,
-        ErrorKind::PrivacyRestricted => 4,
-        ErrorKind::NetworkTimeout => 5,
-        ErrorKind::SourceChanged => 6,
-        ErrorKind::AuthRequired => 7,
-        ErrorKind::LoginDenied => 8,
-        ErrorKind::LoginExpired => 9,
-        ErrorKind::Timeout => 10,
-        ErrorKind::Cancelled => 11,
-        ErrorKind::InputClosed => 12,
-        ErrorKind::DiskFull => 13,
-        ErrorKind::Offline => 14,
-        ErrorKind::Unknown => 15,
-    }
-}
-
-#[test]
-fn all_lists_every_kind_once() {
-    let mut seen: Vec<usize> = ErrorKind::ALL.iter().map(|k| ordinal(*k)).collect();
-    seen.sort_unstable();
-    assert_eq!(seen, (0..=15).collect::<Vec<_>>());
-}
-
-#[test]
 fn storage_full_is_disk_full() {
     let io = std::io::Error::from(std::io::ErrorKind::StorageFull);
     let err = anyhow::Error::new(io).context("writing chunk");
@@ -164,4 +127,30 @@ fn text_only_errors_fall_back_to_messages() {
 fn typed_kind_beats_message_text() {
     let err = anyhow::Error::new(TypedError::new(ErrorKind::Cancelled, "no route to host"));
     assert_eq!(classify(&err).kind, ErrorKind::Cancelled);
+}
+
+#[test]
+fn special_kinds_have_distinct_exit_codes() {
+    let codes = [
+        0,
+        1,
+        ErrorKind::RateLimited.exit_code(),
+        ErrorKind::AuthRequired.exit_code(),
+        ErrorKind::LoginDenied.exit_code(),
+        ErrorKind::LoginExpired.exit_code(),
+        ErrorKind::Timeout.exit_code(),
+        ErrorKind::Cancelled.exit_code(),
+        ErrorKind::DiskFull.exit_code(),
+        ErrorKind::Offline.exit_code(),
+    ];
+    let unique: std::collections::HashSet<_> = codes.iter().collect();
+    assert_eq!(unique.len(), codes.len(), "{codes:?}");
+}
+
+#[test]
+fn kind_serializes_snake_case_for_the_backlog() {
+    assert_eq!(
+        serde_json::to_value(ErrorKind::PrivacyRestricted).unwrap(),
+        serde_json::json!("privacy_restricted")
+    );
 }

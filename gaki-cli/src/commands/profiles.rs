@@ -1,7 +1,5 @@
 //! `profiles` command handlers.
 
-use crate::commands::common::*;
-
 use anyhow::Result;
 use libgaki::config::{Runner, Severity};
 use libgaki::ops::config::ProfileInfo;
@@ -40,16 +38,8 @@ fn has_errors(info: &ProfileInfo) -> bool {
 }
 
 /// `profiles list`.
-pub(crate) fn cmd_profiles_list(json: bool) -> Result<()> {
+pub(crate) fn cmd_profiles_list() -> Result<()> {
     let (dir, infos, errors) = libgaki::ops::config::profiles()?;
-    if json {
-        print_json(&serde_json::json!({
-            "dir": dir,
-            "profiles": infos,
-            "load_errors": errors,
-        }));
-        return Ok(());
-    }
     if infos.is_empty() && errors.is_empty() {
         cli_println!("No profiles in {}.", dir.display());
         cli_println!("See `examples/profiles/` in the gaki repository for a starting point.");
@@ -99,12 +89,8 @@ pub(crate) fn cmd_profiles_list(json: bool) -> Result<()> {
 }
 
 /// `profiles show NAME`.
-pub(crate) fn cmd_profiles_show(name: &str, json: bool) -> Result<()> {
+pub(crate) fn cmd_profiles_show(name: &str) -> Result<()> {
     let info = libgaki::ops::config::profile(name)?;
-    if json {
-        print_json(&info);
-        return Ok(());
-    }
     cli_println!("# {}", info.path.display());
     match std::fs::read_to_string(&info.path) {
         Ok(text) => cli_print!("{}", text.trim_end().to_owned() + "\n"),

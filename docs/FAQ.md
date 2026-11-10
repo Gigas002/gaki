@@ -46,10 +46,10 @@ game ([CONFIG.md](CONFIG.md#profiles)).
 
 ## Can I script my Steam library?
 
-Every command takes `--json` for machine-readable output, errors included, and
-`gaki-cli capabilities` lets a driver discover what a build supports
-([GAKI-CLI.md](GAKI-CLI.md#scripting-with---json)). `--config-dir` keeps an
-embedding driver's state apart from a standalone install.
+No. gaki-cli is for people at a terminal and has no machine-readable output.
+Steam's Subscriber Agreement forbids bots, scripts and macros
+([STEAM-RULES.md](STEAM-RULES.md)), so scripting isn't a goal. To build your
+own frontend, use the `libgaki` library, as gaki-tui does.
 
 ## Can I build a smaller gaki?
 

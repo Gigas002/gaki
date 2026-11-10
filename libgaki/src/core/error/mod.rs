@@ -1,4 +1,4 @@
-//! Stable error kinds for JSON output.
+//! Typed error kinds, and the exit codes they map to.
 
 use std::fmt;
 use std::time::Duration;
@@ -6,7 +6,9 @@ use std::time::Duration;
 #[cfg(feature = "authentication")]
 use gaki_steam_vent::{EResult, LoginError, NetworkError};
 
-/// Machine-readable kind (`"type"` in JSON errors).
+/// What kind of failure an error is; [`ErrorKind::exit_code`] maps it to the
+/// process's exit code. The install backlog stores it by its snake_case name
+/// (`error_type` in `install_backlog.toml`), so names must not change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
@@ -24,10 +26,8 @@ pub enum ErrorKind {
     LoginExpired,
     /// Caller's time limit reached.
     Timeout,
-    /// Driver asked to stop.
+    /// Stopped on request (`install stop`, pause).
     Cancelled,
-    /// Driver closed stdin.
-    InputClosed,
     /// No space or quota left.
     DiskFull,
     /// No network route or DNS.
@@ -36,44 +36,6 @@ pub enum ErrorKind {
 }
 
 impl ErrorKind {
-    /// Every kind, for capability reports.
-    pub const ALL: &'static [ErrorKind] = &[
-        Self::InvalidInput,
-        Self::NotFound,
-        Self::RateLimited,
-        Self::AccessDenied,
-        Self::PrivacyRestricted,
-        Self::NetworkTimeout,
-        Self::SourceChanged,
-        Self::AuthRequired,
-        Self::LoginDenied,
-        Self::LoginExpired,
-        Self::Timeout,
-        Self::Cancelled,
-        Self::InputClosed,
-        Self::DiskFull,
-        Self::Offline,
-        Self::Unknown,
-    ];
-
-    /// Driver guidance; `None` when message suffices.
-    pub fn hint(self) -> Option<&'static str> {
-        match self {
-            Self::RateLimited => Some("Steam is throttling this client; pause before retrying"),
-            Self::AuthRequired => Some("run `gaki-cli login`"),
-            Self::PrivacyRestricted => Some("the profile or list is private or friends-only"),
-            Self::NetworkTimeout => Some("check connectivity and retry"),
-            Self::SourceChanged => Some("Steam changed a response shape; update gaki"),
-            Self::LoginDenied => Some("the sign-in was declined; run `gaki-cli login` again"),
-            Self::LoginExpired => Some("approve sooner after scanning; run `gaki-cli login` again"),
-            Self::Timeout => Some("raise --timeout or retry"),
-            Self::InputClosed => Some("keep stdin open while a --json command waits"),
-            Self::DiskFull => Some("free space on the target drive or pick another `--library`"),
-            Self::Offline => Some("no network connection; reconnect and retry"),
-            _ => None,
-        }
-    }
-
     /// Exit code; sysexits for scriptable kinds.
     pub fn exit_code(self) -> i32 {
         match self {
@@ -83,7 +45,6 @@ impl ErrorKind {
             Self::LoginExpired => 81,
             Self::Timeout => 82,
             Self::Cancelled => 83,
-            Self::InputClosed => 84,
             Self::DiskFull => 85,
             Self::Offline => 86,
             _ => 1,
@@ -126,18 +87,6 @@ impl fmt::Display for TypedError {
 
 impl std::error::Error for TypedError {}
 
-/// Failure the command already printed.
-#[derive(Debug)]
-pub struct Reported(pub anyhow::Error);
-
-impl fmt::Display for Reported {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:#}", self.0)
-    }
-}
-
-impl std::error::Error for Reported {}
-
 /// Outcome of classifying an error chain.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Classified {
@@ -148,9 +97,6 @@ pub struct Classified {
 /// Walk the cause chain, outermost first.
 pub fn classify(err: &anyhow::Error) -> Classified {
     for cause in err.chain() {
-        if let Some(r) = cause.downcast_ref::<Reported>() {
-            return classify(&r.0);
-        }
         if let Some(t) = cause.downcast_ref::<TypedError>() {
             return Classified {
                 kind: t.kind,

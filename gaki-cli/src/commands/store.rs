@@ -11,7 +11,6 @@ pub(crate) async fn cmd_price(
     app_id: u32,
     compare: Vec<String>,
     country: Option<String>,
-    json: bool,
 ) -> Result<()> {
     let mut regions = store::parse_regions(&compare)?;
     if regions.is_empty() {
@@ -23,15 +22,6 @@ pub(crate) async fn cmd_price(
         name,
         regions: quotes,
     } = store::prices(&client, app_id, &regions).await?;
-
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "name": name,
-            "regions": quotes,
-        }));
-        return Ok(());
-    }
 
     cli_println!("{name}  (app {app_id})");
     cli_println!(
@@ -100,25 +90,6 @@ pub(crate) async fn cmd_price(
     Ok(())
 }
 
-/// Compact JSON row for listings.
-fn store_row_json(a: &StoreAppInfo) -> serde_json::Value {
-    serde_json::json!({
-        "app_id": a.app_id,
-        "name": a.name,
-        "type": a.app_type,
-        "is_free": a.is_free,
-        "price": a.price,
-        "price_cents": a.price_cents,
-        "original_price": a.original_price,
-        "discount_pct": a.discount_pct,
-        "discount_end_date": a.discount_end.map(|t| unix_to_ymd(t as i64)),
-        "release_date": a.release_date,
-        "platforms": a.platforms,
-        "reviews": a.review_summary,
-        "country": a.country,
-    })
-}
-
 /// Human table for listings.
 fn print_store_table(records: &[StoreAppInfo]) {
     cli_println!(
@@ -156,28 +127,14 @@ fn print_store_table(records: &[StoreAppInfo]) {
 }
 
 /// `gaki-cli search TERM`: find app ids by title.
-pub(crate) async fn cmd_search(
-    term: String,
-    count: u32,
-    country: Option<String>,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_search(term: String, count: u32, country: Option<String>) -> Result<()> {
     let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let Listing {
-        total,
         suggestions,
         records,
+        ..
     } = store::search(&client, &term, count, &country).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "term": term,
-            "total": total,
-            "suggestions": suggestions,
-            "results": records.iter().map(store_row_json).collect::<Vec<_>>(),
-        }));
-        return Ok(());
-    }
     if records.is_empty() {
         cli_println!("No store results for \"{term}\".");
         if !suggestions.is_empty() {
@@ -196,7 +153,6 @@ pub(crate) async fn cmd_deals(
     count: i32,
     start: i32,
     country: Option<String>,
-    json: bool,
 ) -> Result<()> {
     use libgaki::steam_client::DealsScope;
     let country = store::resolve_country(country.as_deref())?;
@@ -213,16 +169,6 @@ pub(crate) async fn cmd_deals(
         count,
     };
     let Listing { total, records, .. } = store::deals(&client, query, &country).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "country": country,
-            "scope": format!("{scope:?}"),
-            "start": start,
-            "total": total,
-            "results": records.iter().map(store_row_json).collect::<Vec<_>>(),
-        }));
-        return Ok(());
-    }
     if records.is_empty() {
         cli_println!("No deals matched in {country}.");
         return Ok(());
@@ -236,24 +182,12 @@ pub(crate) async fn cmd_deals(
 }
 
 /// `gaki-cli similar APPID`: related games.
-pub(crate) async fn cmd_similar(
-    app_id: u32,
-    count: i32,
-    country: Option<String>,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_similar(app_id: u32, count: i32, country: Option<String>) -> Result<()> {
     let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let records = store::similar(&client, app_id, count, &country)
         .await?
         .records;
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "results": records.iter().map(store_row_json).collect::<Vec<_>>(),
-        }));
-        return Ok(());
-    }
     if records.is_empty() {
         cli_println!("No similar games reported for app {app_id}.");
         return Ok(());
@@ -263,26 +197,19 @@ pub(crate) async fn cmd_similar(
 }
 
 /// `gaki-cli players APPID`: current in-game count.
-pub(crate) async fn cmd_players(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_players(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let players = store::players(&client, app_id).await?;
-    if json {
-        print_json(&serde_json::json!({ "app_id": app_id, "players": players }));
-    } else {
-        cli_println!("{players} players in-game (app {app_id})");
-    }
+    cli_println!("{players} players in-game (app {app_id})");
+
     Ok(())
 }
 
 /// `gaki-cli events`: active store sales and events.
-pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()> {
+pub(crate) async fn cmd_events(country: Option<String>) -> Result<()> {
     let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
     let events = store::events(&client, &country).await?;
-    if json {
-        print_json(&serde_json::json!({ "country": country, "events": events }));
-        return Ok(());
-    }
     if events.is_empty() {
         cli_println!("No active store events for {country}.");
         return Ok(());
@@ -310,12 +237,8 @@ pub(crate) async fn cmd_events(country: Option<String>, json: bool) -> Result<()
 }
 
 /// `gaki-cli news APPID`: announcements from the storefront feed.
-pub(crate) async fn cmd_news(app_id: u32, count: u32, max_length: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_news(app_id: u32, count: u32, max_length: u32) -> Result<()> {
     let items = store::news(app_id, count, max_length).await?;
-    if json {
-        print_json(&serde_json::json!({ "app_id": app_id, "news": items }));
-        return Ok(());
-    }
     if items.is_empty() {
         cli_println!("No news for app {app_id}.");
         return Ok(());
@@ -332,7 +255,7 @@ pub(crate) async fn cmd_news(app_id: u32, count: u32, max_length: u32, json: boo
 }
 
 /// `gaki-cli reviews APPID`: one page of user reviews.
-pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Result<()> {
+pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs) -> Result<()> {
     let crate::cli::ReviewsArgs {
         app_id,
         filter,
@@ -350,15 +273,6 @@ pub(crate) async fn cmd_reviews(args: crate::cli::ReviewsArgs, json: bool) -> Re
         cursor,
     };
     let page = store::reviews(app_id, &query).await?;
-    if json {
-        print_json(&serde_json::json!({
-            "app_id": app_id,
-            "summary": page.summary,
-            "reviews": page.reviews,
-            "next_cursor": page.next_cursor,
-        }));
-        return Ok(());
-    }
     // Steam omits totals unless `--filter all`.
     let s = &page.summary;
     if s.total_reviews > 0 {
@@ -396,7 +310,6 @@ pub(crate) async fn cmd_wishlist(
     count: usize,
     offset: usize,
     country: Option<String>,
-    json: bool,
 ) -> Result<()> {
     let country = store::resolve_country(country.as_deref())?;
     let client = authed_client().await?;
@@ -409,29 +322,6 @@ pub(crate) async fn cmd_wishlist(
         total,
         items: page,
     } = store::wishlist(&client, target, offset, count, &country).await?;
-
-    if json {
-        let items: Vec<serde_json::Value> = page
-            .iter()
-            .map(|(e, record)| {
-                let mut v = record
-                    .as_ref()
-                    .map(store_row_json)
-                    .unwrap_or_else(|| serde_json::json!({ "app_id": e.app_id, "name": null }));
-                v["priority"] = e.priority.into();
-                v["date_added"] = e.date_added.into();
-                v["date_added_date"] = unix_to_ymd(e.date_added as i64).into();
-                v
-            })
-            .collect();
-        print_json(&serde_json::json!({
-            "steam_id": steam_id,
-            "total": total,
-            "offset": offset,
-            "items": items,
-        }));
-        return Ok(());
-    }
 
     if total == 0 {
         cli_println!("Your wishlist is empty.");
@@ -482,30 +372,20 @@ pub(crate) async fn cmd_wishlist(
 }
 
 /// `gaki-cli wishlist add APPID`.
-pub(crate) async fn cmd_wishlist_add(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_wishlist_add(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let count = store::wishlist_add(&client, app_id).await?;
-    if json {
-        print_json(
-            &serde_json::json!({ "app_id": app_id, "status": "added", "wishlist_count": count }),
-        );
-    } else {
-        cli_println!("Added app {app_id} to your wishlist ({count} items).");
-    }
+    cli_println!("Added app {app_id} to your wishlist ({count} items).");
+
     Ok(())
 }
 
 /// `gaki-cli wishlist remove APPID`.
-pub(crate) async fn cmd_wishlist_remove(app_id: u32, json: bool) -> Result<()> {
+pub(crate) async fn cmd_wishlist_remove(app_id: u32) -> Result<()> {
     let client = authed_client().await?;
     let count = store::wishlist_remove(&client, app_id).await?;
-    if json {
-        print_json(
-            &serde_json::json!({ "app_id": app_id, "status": "removed", "wishlist_count": count }),
-        );
-    } else {
-        cli_println!("Removed app {app_id} from your wishlist ({count} items).");
-    }
+    cli_println!("Removed app {app_id} from your wishlist ({count} items).");
+
     Ok(())
 }
 
