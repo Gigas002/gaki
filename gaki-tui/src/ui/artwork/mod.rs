@@ -3,9 +3,9 @@
 //! cells, so the detail text drawn over them stays readable.
 
 use ratatui::Frame;
+use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui_image::Image;
-use ratatui_image::protocol::{Protocol, halfblocks::Halfblocks};
+use ratatui::style::Color;
 
 use crate::ui::theme;
 use crate::utils::image::ImgBuf;
@@ -27,9 +27,7 @@ pub fn paint(
     if let Some(image) = background {
         let mut bg = cover_resize(image, inner.width as u32, inner.height as u32 * 2);
         fade_bottom(&mut bg, rgb(theme::BG_DARK));
-        if let Some(art) = halfblock_art(bg, inner) {
-            frame.render_widget(Image::new(&art), inner);
-        }
+        halfblocks(&bg, inner, frame.buffer_mut());
     }
 
     let gap = inner.height.saturating_sub(content_h);
@@ -48,9 +46,7 @@ pub fn paint(
             width: box_w,
             height: gap,
         };
-        if let Some(art) = halfblock_art(thumb, area) {
-            frame.render_widget(Image::new(&art), area);
-        }
+        halfblocks(&thumb, area, frame.buffer_mut());
     }
 }
 
@@ -111,14 +107,43 @@ fn cover_resize(src: &ImgBuf, tw: u32, th: u32) -> ImgBuf {
     resize(&cropped, tw, th, FilterType::Triangle)
 }
 
-/// Encode `img` (already sized to `area`: one pixel per column, two per row) as
-/// half-block cells. Half-blocks colour each cell's foreground and background,
-/// so the detail text drawn on top keeps the art behind it; graphics protocols
-/// (kitty, sixel) would hide that text.
-fn halfblock_art(img: image::RgbaImage, area: Rect) -> Option<Protocol> {
-    Halfblocks::new(image::DynamicImage::ImageRgba8(img), area.as_size())
-        .ok()
-        .map(Protocol::Halfblocks)
+/// Paint `img` (already sized to `area`: one pixel per column, two per row)
+/// into `area` as half-block cells: `▀` with the upper pixel as foreground
+/// and the lower as background, or `▄` the other way round when the lower is
+/// brighter, and a blank cell when both match. Half-blocks colour each cell's
+/// foreground and background, so the detail text drawn on top keeps the art
+/// behind it; graphics protocols (kitty, sixel) would hide that text.
+fn halfblocks(img: &ImgBuf, area: Rect, buf: &mut Buffer) {
+    let pixel = |x: u32, y: u32| {
+        let p = img.get_pixel_checked(x, y)?;
+        Some((p[0], p[1], p[2]))
+    };
+    for row in 0..area.height {
+        for col in 0..area.width {
+            let (x, y) = (u32::from(col), u32::from(row) * 2);
+            let Some(upper) = pixel(x, y) else {
+                continue;
+            };
+            let lower = pixel(x, y + 1).unwrap_or(upper);
+            let Some(cell) = buf.cell_mut((area.x + col, area.y + row)) else {
+                continue;
+            };
+            let (symbol, fg, bg) = if upper == lower {
+                (' ', upper, lower)
+            } else if luminance(lower) > luminance(upper) {
+                ('▄', lower, upper)
+            } else {
+                ('▀', upper, lower)
+            };
+            let color = |(r, g, b)| Color::Rgb(r, g, b);
+            cell.set_char(symbol).set_fg(color(fg)).set_bg(color(bg));
+        }
+    }
+}
+
+/// Relative luminance (Rec. 709 weights), for picking a half-block's side.
+fn luminance((r, g, b): (u8, u8, u8)) -> u32 {
+    2126 * u32::from(r) + 7152 * u32::from(g) + 722 * u32::from(b)
 }
 
 /// The RGB components of a theme [`ratatui::style::Color::Rgb`] (falls back to black).

@@ -44,6 +44,7 @@ pub struct CDNServer {
 }
 
 pub async fn get_servers_for_steam_pipe(cell_id: u32) -> Result<Vec<CDNServer>, Error> {
+    gaki_steam_vent::install_crypto_provider();
     Ok(
         Client::new()
             .get("https://api.steampowered.com/IContentServerDirectoryService/GetServersForSteamPipe/v1/")

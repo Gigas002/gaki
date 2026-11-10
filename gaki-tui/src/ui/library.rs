@@ -92,7 +92,10 @@ pub fn draw(
         desc_width.saturating_sub(1),
     )
     .min(inner.height);
+    #[cfg(feature = "art")]
     ui::artwork::paint(frame, inner, background, cover, content_h);
+    #[cfg(not(feature = "art"))]
+    let _ = (background, cover, content_h);
 
     // The (transparent) detail table draws its frame and bottom-
     // aligned rows over the art.

@@ -1,10 +1,12 @@
+//! Loading a game's art: from the cache, or downloaded and cached, always
+//! off the UI thread.
+
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use super::ImgBuf;
 use crate::app::game::Game;
 use crate::utils::paths::{icon_exists, icon_save};
-
-pub type ImgBuf = image::ImageBuffer<image::Rgba<u8>, Vec<u8>>;
 
 /// Shared slot a background loader writes its `(app_id, image)` result into for
 /// the UI thread to pick up.

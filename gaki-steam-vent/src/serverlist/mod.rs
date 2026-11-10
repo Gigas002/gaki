@@ -89,6 +89,7 @@ impl ServerList {
     pub async fn discover_with(
         options: DiscoverOptions,
     ) -> Result<ServerList, ServerDiscoveryError> {
+        crate::install_crypto_provider();
         let client = options.web_client.unwrap_or_default();
         let cell = options.cell;
 

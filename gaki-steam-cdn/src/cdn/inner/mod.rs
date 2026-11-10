@@ -84,6 +84,7 @@ pub(crate) fn retryable(err: &Error) -> bool {
 
 /// HTTP client with stall protection.
 fn web_client() -> Client {
+    gaki_steam_vent::install_crypto_provider();
     Client::builder()
         .connect_timeout(Duration::from_secs(10))
         .read_timeout(Duration::from_secs(30))

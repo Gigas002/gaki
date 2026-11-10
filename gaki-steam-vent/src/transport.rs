@@ -20,9 +20,7 @@ pub async fn connect(
     impl Sink<BytesMut, Error = NetworkError> + use<>,
     impl Stream<Item = Result<BytesMut>> + use<>,
 )> {
-    rustls::crypto::aws_lc_rs::default_provider()
-        .install_default()
-        .ok(); // can only be once called
+    crate::install_crypto_provider();
     let mut root_store = RootCertStore::empty();
     root_store.extend(webpki_roots::TLS_SERVER_ROOTS.iter().cloned());
     // No `key_log`: upstream set `KeyLogFile`, which dumps the session's TLS

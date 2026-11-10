@@ -6,6 +6,7 @@
 pub mod account;
 pub mod achievements;
 pub mod actions;
+#[cfg(feature = "art")]
 pub mod artwork;
 #[cfg(feature = "versioning")]
 pub mod branches;

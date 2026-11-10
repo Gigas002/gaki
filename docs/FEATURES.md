@@ -75,12 +75,14 @@ features under `build_features`, and only the commands it has under `commands`.
 ## `gaki-tui`
 
 A TUI without a library has nothing to show, so `gaki-tui` always builds
-`authentication` and `library` and forwards the other ten. Its defaults are
-`install`, `cloud` and `collections`.
+`authentication` and `library` and forwards the other ten. It adds `art`, the
+game art in the detail pane. Its defaults are `art`, `install`, `cloud` and
+`collections`.
 
 | Feature       | Views and keys                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| _(always)_    | sign-in pages, library list and tabs 1–4, detail and art, Actions menu, game info `n` (details, checks, artwork), SteamDB `Z`, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p` (with the Profiles, Check, Daemons and Clean tabs), favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T`           |
+| _(always)_    | sign-in pages, library list and tabs 1–4, detail pane, Actions menu, game info `n` (details, checks, artwork), SteamDB `Z`, achievements `a`, DLC `D`, depots `o`, launch options `L`, launch targets, game settings, Proton `P` (set the default), running `R`, account `A`, settings `p` (with the Profiles, Check, Daemons and Clean tabs), favourite `f`, hide `H`, refresh `r`, Steam page `E`, ProtonDB page `B`, Proton issues `T`              |
+| `art`         | the game's background and cover art behind the detail pane, drawn in half-blocks (builds the image decoders)                                                                                                                                                                                                                                                                                                                                           |
 | `install`     | install `d` (with the library picker), pause/resume `Space`, cancel `c`, uninstall `x`, move `M`, relink `K`, import `N`, verify `v`, update `U`, Pre-cache shaders (Actions menu), the Installs overlay `X` (resume, resume all, pause, stop, forget, the Duplicates tab, and the Transfer tab: library export/import), the background update check (Updates tab, `▲` badges), Proton install/uninstall (`P` then `i`/`u`), the "install now?" prompt |
 | `versioning`  | versions and pinning `V`, beta branches `b`                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `cloud`       | cloud saves `C`                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -108,9 +110,13 @@ cargo build -p gaki-cli --release --no-default-features --features library
 # The defaults plus the Store and the Community Market.
 cargo build -p gaki-cli --release --features store,market
 
-# A library-only TUI.
+# A library-only TUI, without game art.
 cargo build -p gaki-tui --release --no-default-features
 ```
+
+TLS everywhere (the CM websocket and every HTTPS request) runs on rustls with
+the `ring` crypto provider, not rustls's default AWS-LC, which builds a whole
+C crypto library and is the slowest crate to compile.
 
 ## The three-level matrix
 

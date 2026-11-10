@@ -1,13 +1,16 @@
-//! The art for the highlighted game, loaded off the UI thread.
+//! The art for the highlighted game, loaded off the UI thread. Without the
+//! `art` feature there is none.
 
 use crate::app::game::Game;
 use crate::ui;
+#[cfg(feature = "art")]
 use crate::utils::image::{self as artwork, ImageSlot, ImgBuf};
 
 /// The background and cover art of the highlighted game. Background threads
 /// publish downloads into the slots; the requested ids make stale loads drop
 /// and an unchanged selection a no-op.
 #[derive(Default)]
+#[cfg(feature = "art")]
 pub struct Artwork {
     background: Option<ImgBuf>,
     cover: Option<ImgBuf>,
@@ -19,6 +22,21 @@ pub struct Artwork {
     shown_for: Option<i32>,
 }
 
+/// Without the `art` feature: nothing to load or draw.
+#[derive(Default)]
+#[cfg(not(feature = "art"))]
+pub struct Artwork {}
+
+#[cfg(not(feature = "art"))]
+impl Artwork {
+    pub fn art(&self) -> ui::Art<'_> {
+        ui::Art::default()
+    }
+
+    pub fn update(&mut self, _selected: Option<&Game>, _settled: bool) {}
+}
+
+#[cfg(feature = "art")]
 impl Artwork {
     /// The art to draw this frame.
     pub fn art(&self) -> ui::Art<'_> {

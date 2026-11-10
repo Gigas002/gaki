@@ -45,6 +45,7 @@ fn response(status: &str, extra_headers: &str) -> String {
 }
 
 fn client() -> reqwest::Client {
+    gaki_steam_vent::install_crypto_provider();
     reqwest::Client::builder().no_proxy().build().unwrap()
 }
 

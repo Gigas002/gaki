@@ -43,6 +43,10 @@ fn main() {
     // sound. A spawned `daemon` subprocess re-runs this through its own `main`.
     #[cfg(feature = "authentication")]
     libgaki::core::net::install_proxy_env(&libgaki::core::config::load_proxy_config_blocking());
+    // TLS runs on ring, which must be installed before any HTTPS client is
+    // built; the places that build one install it too.
+    #[cfg(feature = "authentication")]
+    libgaki::core::net::install_crypto_provider();
 
     // The CLI's top-level async future is large (every command arm) and the Steam
     // connect/auth path is deeply nested; in debug builds this can overflow the OS

@@ -14,7 +14,9 @@ name = "gaki-tui"
 path = "src/main.rs"
 
 [features]
-default = ["install", "cloud", "collections"]
+default = ["art", "install", "cloud", "collections"]
+# Game art in the detail pane, drawn in half-blocks (the image decoders)
+art = ["dep:image"]
 install = ["libgaki/install"]
 cloud = ["libgaki/cloud"]
 collections = ["libgaki/collections"]
@@ -33,11 +35,10 @@ libgaki = { workspace = true, default-features = false, features = ["library"] }
 anyhow.workspace = true
 clap.workspace = true
 fuzzy-matcher.workspace = true
-image.workspace = true
+image = { workspace = true, optional = true }
 # Render the Steam login QR challenge as terminal blocks on the login page.
 qrcode.workspace = true
 ratatui.workspace = true
-ratatui-image.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -22,6 +22,10 @@ use crate::core::config::ProxyConfig;
 use crate::core::error::{ErrorKind, TypedError};
 use std::time::Duration;
 
+/// Make ring the process's TLS crypto provider; see
+/// [`gaki_steam_vent::install_crypto_provider`].
+pub use gaki_steam_vent::install_crypto_provider;
+
 /// The env vars reqwest consults to pick a proxy. We set all three so one configured
 /// proxy applies to both http and https requests regardless of which variable a given
 /// reqwest version keys on for a particular request.
@@ -233,6 +237,7 @@ pub async fn send_with_retry(
 /// gaki-UA client with `timeout`.
 pub fn http_client(timeout: Duration) -> anyhow::Result<reqwest::Client> {
     use anyhow::Context;
+    gaki_steam_vent::install_crypto_provider();
     reqwest::Client::builder()
         .user_agent("gaki")
         .timeout(timeout)

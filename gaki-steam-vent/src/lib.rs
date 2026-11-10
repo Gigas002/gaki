@@ -25,6 +25,14 @@ mod transport;
 #[cfg(test)]
 mod test_support;
 
+/// Make ring the process's TLS crypto provider. Every HTTPS client and the
+/// CM websocket need one, so call this before building either; calling it
+/// again does nothing.
+pub fn install_crypto_provider() {
+    // Fails only when a provider is already installed, which is the goal.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 pub use base::{
     ConnectionTrait, NetMessageHeader, ReadonlyConnection, ReceivableMessage, SendableMessage,
     ServiceMethodRequest,

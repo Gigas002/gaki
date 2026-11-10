@@ -89,21 +89,26 @@ ratatui = { version = "0.30", features = [
     "serde",
     "unstable-rendered-line-info",
 ] }
-ratatui-image = { version = "11", default-features = false, features = [
-    "crossterm",
-] }
 # Match gaki-steam-vent's rand version so only one copy is linked
 rand = "0.10"
 regex = "1"
 reqwest = { version = "0.13", default-features = false, features = [
     "json",
     "query",
-    "rustls",
+    # TLS on ring, installed by gaki_steam_vent::install_crypto_provider: the
+    # default ("rustls") compiles AWS-LC, a whole C crypto library
+    "rustls-no-provider",
     "socks",
 ] }
 rpassword = "7"
-# gaki-steam-vent: the CM websocket's TLS config
-rustls = "0.23"
+# gaki-steam-vent: the CM websocket's TLS config, and the ring crypto
+# provider every TLS connection uses (not the default AWS-LC; see reqwest)
+rustls = { version = "0.23", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+    "logging",
+] }
 # gaki-steam-vent-crypto: the login password's RSA key. >= 0.10 for
 # RUSTSEC-2023-0071 (Marvin); PKCS#1 v1.5 is opt-in there and Steam requires it
 # (encryption only; no private key is ever used).

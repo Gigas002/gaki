@@ -528,6 +528,7 @@ pub struct CloudClient {
 impl CloudClient {
     pub fn new(connection: Connection) -> Self {
         let steam_id = u64::from(connection.steam_id());
+        gaki_steam_vent::install_crypto_provider();
         Self {
             connection,
             steam_id,

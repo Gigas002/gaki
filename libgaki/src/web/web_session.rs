@@ -42,6 +42,7 @@ impl WebSession {
     /// account's GeoIP country code) sets `steamCountry`, which some market endpoints
     /// use to resolve wallet currency.
     pub fn new(steam_id: u64, web_access_token: &str, country: Option<&str>) -> Result<Self> {
+        gaki_steam_vent::install_crypto_provider();
         let http = reqwest::Client::builder()
             .user_agent("gaki")
             .timeout(std::time::Duration::from_secs(20))

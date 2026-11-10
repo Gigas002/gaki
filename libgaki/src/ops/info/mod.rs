@@ -408,6 +408,7 @@ pub async fn artwork(app_id: u32, output: Option<&Path>, force: bool) -> Result<
 
     if force || tokio::fs::metadata(&cache_path).await.is_err() {
         let mut downloaded = false;
+        gaki_steam_vent::install_crypto_provider();
         for url in artwork_candidates(app_id) {
             match reqwest::get(&url).await {
                 Ok(resp) if resp.status().is_success() => {

@@ -31,6 +31,7 @@ pub async fn get_cm_endpoints() -> Vec<SocketAddr> {
 async fn fetch_dynamic_cm_list() -> Result<Vec<SocketAddr>> {
     let url =
         "https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1/?cellid=0&maxcount=20";
+    gaki_steam_vent::install_crypto_provider();
     let payload = reqwest::get(url)
         .await
         .context("failed requesting Steam CM list")?

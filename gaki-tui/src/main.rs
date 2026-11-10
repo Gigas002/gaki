@@ -8,6 +8,9 @@ use gaki_tui::logger;
 use gaki_tui::settings::{Settings, Start};
 
 fn main() -> ExitCode {
+    // TLS runs on ring, which must be installed before any HTTPS client is
+    // built; the places that build one install it too.
+    libgaki::core::net::install_crypto_provider();
     let cli = CliOptions::parse();
     let settings = match Settings::resolve(cli) {
         Ok(settings) => settings,
