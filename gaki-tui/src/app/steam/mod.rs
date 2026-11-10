@@ -2260,7 +2260,47 @@ pub fn install_rows() -> Result<Vec<libgaki::ops::install::InstallRow>, TuiError
     libgaki::ops::install::list().map_err(|e| TuiError::Problem(format!("{e:#}")))
 }
 
-/// Drop a backlog entry; with `delete_files`, its partial install folder
+/// Write the library to `path` as a library file (`gaki-cli library
+/// import` reads it): the installed games, or every game with `all`.
+/// Returns how many games it lists.
+#[cfg(feature = "install")]
+pub fn export_library(path: std::path::PathBuf, all: bool) -> Result<usize, TuiError> {
+    use anyhow::Context;
+    use libgaki::library::transfer;
+    in_process(async move {
+        let mut client = worker::global().session().ensure().await?;
+        let games = libgaki::ops::library::load_library(&mut client).await;
+        let file = transfer::export(&games, all);
+        std::fs::write(&path, transfer::to_toml(&file)?)
+            .with_context(|| format!("failed writing {}", path.display()))?;
+        Ok(file.games.len())
+    })
+}
+
+/// Read the library file at `path` and sort its games against this
+/// account's library: to install, already installed, not owned.
+#[cfg(feature = "install")]
+pub fn plan_library_import(
+    path: std::path::PathBuf,
+) -> Result<libgaki::library::transfer::ImportPlan, TuiError> {
+    use libgaki::library::transfer;
+    in_process(async move {
+        let file = transfer::read(&path)?;
+        let mut client = worker::global().session().ensure().await?;
+        let games = libgaki::ops::library::load_library(&mut client).await;
+        Ok(transfer::plan(&file, &games))
+    })
+}
+
+/// Queue `entries` in the install backlog, into the configured library, as
+/// `gaki-cli library import` does. Returns their app ids.
+#[cfg(feature = "install")]
+pub fn queue_library_import(
+    entries: Vec<libgaki::library::transfer::LibraryEntry>,
+) -> Result<Vec<u32>, TuiError> {
+    in_process(async move { libgaki::ops::install::queue_import(&entries, None).await })
+}
+
 /// too, when that is provably safe. Returns the deleted folder.
 #[cfg(feature = "install")]
 pub fn install_forget(

@@ -581,10 +581,38 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
             }
             return Ok(true);
         }
+        if browser.transfer_editing() {
+            match input {
+                KeyCode::Enter | KeyCode::Esc => browser.transfer_path_done(),
+                KeyCode::Backspace => browser.transfer_path_pop(),
+                KeyCode::Char(c) => browser.transfer_path_push(c),
+                _ => {}
+            }
+            return Ok(true);
+        }
+        if browser.transfer_confirm_open() {
+            match input {
+                KeyCode::Char('y') | KeyCode::Char('Y') | KeyCode::Enter => {
+                    browser.answer_transfer_confirm(client, true)?
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                    browser.answer_transfer_confirm(client, false)?
+                }
+                _ => match common(key) {
+                    Some(O::Down) => browser.installs_move(1),
+                    Some(O::Up) => browser.installs_move(-1),
+                    Some(O::PageDown) => browser.installs_move(10),
+                    Some(O::PageUp) => browser.installs_move(-10),
+                    _ => {}
+                },
+            }
+            return Ok(true);
+        }
         use crate::app::browser::installs::InstallsTab;
         use crate::keymap::InstallsAction as I;
         let group = match browser.installs.as_ref().map(|v| v.tab) {
             Some(InstallsTab::Duplicates) => "duplicates",
+            Some(InstallsTab::Transfer) => "transfer",
             _ => "queue",
         };
         match own::<I>(key, Some(group)) {
@@ -596,9 +624,14 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
             Some(I::Forget) => browser.begin_installs_forget(false),
             Some(I::ForgetAndDelete) => browser.begin_installs_forget(true),
             Some(I::Rescan) => browser.rescan_duplicates(),
+            Some(I::EditPath) => browser.transfer_edit_path(),
+            Some(I::ExportAll) => browser.transfer_toggle_all(),
+            Some(I::Export) => browser.transfer_export(),
+            Some(I::Import) => browser.transfer_import(),
             None => match common(key) {
                 Some(O::Close) => browser.close_installs(),
-                Some(O::NextTab | O::PreviousTab) => browser.installs_tab(),
+                Some(O::NextTab) => browser.installs_tab(true),
+                Some(O::PreviousTab) => browser.installs_tab(false),
                 Some(O::Down) => browser.installs_move(1),
                 Some(O::Up) => browser.installs_move(-1),
                 Some(O::PageDown) => browser.installs_move(10),

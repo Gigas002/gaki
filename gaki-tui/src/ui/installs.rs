@@ -1,6 +1,7 @@
 //! The Installs overlay (`X`): running installs with their progress, then
 //! the backlog, and a footer with the forget confirm or the key hints. Its
-//! Duplicates tab lists games installed in more than one library.
+//! Duplicates tab lists games installed in more than one library; its
+//! Transfer tab exports the library to a file and imports one.
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
@@ -9,6 +10,7 @@ use ratatui::widgets::ListItem;
 
 use libgaki::ops::install::InstallRow;
 
+use crate::app::browser::installs::transfer::{PlanLine, TransferTab, entry_label, plan_lines};
 use crate::app::browser::installs::{DuplicatesTab, InstallsTab, InstallsView, RowKind, row_kind};
 use crate::app::browser::job::Load;
 use crate::app::steam::DuplicateRow;
@@ -39,9 +41,10 @@ fn title(view: &InstallsView, count: Option<usize>) -> String {
 
 /// Draw the overlay into `area`.
 pub fn draw(frame: &mut Frame, area: Rect, view: &InstallsView) {
-    if view.tab == InstallsTab::Duplicates {
-        draw_duplicates(frame, area, view);
-        return;
+    match view.tab {
+        InstallsTab::Duplicates => return draw_duplicates(frame, area, view),
+        InstallsTab::Transfer => return draw_transfer(frame, area, view),
+        InstallsTab::Queue => {}
     }
     let (title, items, selected) = match &view.rows {
         Err(e) => (
@@ -141,7 +144,7 @@ fn footer(view: &InstallsView) -> Vec<Line<'static>> {
         (key_of(I::Stop), "stop"),
         (key_of(I::Forget), "forget"),
         (key_of(I::ForgetAndDelete), "forget + delete files"),
-        (key_of(O::NextTab), "duplicates"),
+        (key_of(O::NextTab), "next tab"),
         ("Esc".to_string(), "close"),
     ])));
     lines
@@ -192,7 +195,7 @@ fn draw_duplicates(frame: &mut Frame, area: Rect, view: &InstallsView) {
     let hint = dim(hints(&[
         (pair(O::Down, O::Up), "move"),
         (key_of(I::Rescan), "scan again"),
-        (key_of(O::NextTab), "installs"),
+        (key_of(O::NextTab), "next tab"),
         ("Esc".to_string(), "close"),
     ]));
     let (count, items, selected, mut footer) = match tab.map(|t| &t.scan) {
@@ -240,4 +243,121 @@ fn draw_duplicates(frame: &mut Frame, area: Rect, view: &InstallsView) {
     };
     footer.push(hint);
     draw_list(frame, area, title(view, count), items, selected, footer);
+}
+
+fn plan_row(line: PlanLine<'_>, selected: bool) -> ListItem<'static> {
+    let style = if selected {
+        theme::selection(theme::ACCENT)
+    } else {
+        theme::value()
+    };
+    let (what, what_style, entry) = match line {
+        PlanLine::Install(e) => ("install", theme::value().fg(theme::ONLINE), e),
+        PlanLine::Installed(e) => ("skip: installed", theme::dim(), e),
+        PlanLine::NotOwned(e) => ("skip: not owned", theme::value().fg(theme::WARN), e),
+    };
+    let mut spans = vec![
+        Span::styled(selection_marker(selected).to_string(), style),
+        Span::styled(format!("{:<17}", what), what_style),
+        Span::styled(entry_label(entry), style),
+        Span::styled(format!("  {}", entry.app_id), theme::dim()),
+    ];
+    if let PlanLine::Install(e) = line
+        && let Some(branch) = &e.branch
+    {
+        spans.push(Span::styled(
+            format!("  was on '{branch}'; installs take the default branch"),
+            theme::dim(),
+        ));
+    }
+    ListItem::new(Line::from(spans))
+}
+
+fn transfer_footer(tab: &TransferTab) -> Vec<Line<'static>> {
+    let mut lines = Vec::new();
+    let caret = if tab.editing { "▏" } else { "" };
+    lines.push(Line::from(vec![
+        Span::styled("File: ".to_string(), theme::label()),
+        Span::styled(format!("{}{caret}", tab.path), theme::value()),
+    ]));
+    let scope = if tab.all {
+        "every game in the library"
+    } else {
+        "installed games only"
+    };
+    lines.push(Line::from(vec![
+        Span::styled("Export: ".to_string(), theme::label()),
+        Span::styled(scope.to_string(), theme::value()),
+    ]));
+    if !tab.status.is_empty() {
+        lines.push(Line::from(Span::styled(
+            tab.status.clone(),
+            theme::value().fg(theme::WARN),
+        )));
+    }
+    if tab.editing {
+        lines.push(dim("Type the path  [Enter] done"));
+    } else if let Some(plan) = tab.ready_plan().filter(|_| tab.confirm_open()) {
+        let n = plan.install.len();
+        let games = if n == 1 { "game" } else { "games" };
+        lines.push(Line::from(Span::styled(
+            format!("Install {n} {games} into the default library, one after another?"),
+            theme::value().fg(theme::WARN),
+        )));
+        lines.push(dim("[y] yes  [n] no"));
+    } else {
+        lines.push(dim(hints(&[
+            (key_of(I::EditPath), "edit path"),
+            (key_of(I::ExportAll), "installed / all"),
+            (key_of(I::Export), "export"),
+            (key_of(I::Import), "import"),
+            (key_of(O::NextTab), "next tab"),
+            ("Esc".to_string(), "close"),
+        ])));
+    }
+    lines
+}
+
+fn draw_transfer(frame: &mut Frame, area: Rect, view: &InstallsView) {
+    let tab = &view.transfer;
+    let (count, items, selected) = match &tab.plan {
+        None => (
+            None,
+            empty_list_rows(
+                "Export writes your library to a file; import reads one on another machine \
+                 and installs the games that are missing.",
+            ),
+            None,
+        ),
+        Some(Load::Loading(_)) => (
+            None,
+            empty_list_rows("Reading the file and your library…"),
+            None,
+        ),
+        Some(Load::Failed(e)) => (None, empty_list_rows(format!("Import failed: {e}")), None),
+        Some(Load::Ready(plan)) => {
+            let lines = plan_lines(plan);
+            if lines.is_empty() {
+                (Some(0), empty_list_rows("The file lists no games."), None)
+            } else {
+                (
+                    Some(lines.len()),
+                    lines
+                        .iter()
+                        .enumerate()
+                        .map(|(i, &l)| plan_row(l, i == tab.selected))
+                        .collect(),
+                    Some(tab.selected),
+                )
+            }
+        }
+    };
+    draw_list(
+        frame,
+        area,
+        title(view, count),
+        items,
+        selected,
+        transfer_footer(tab),
+    );
 }

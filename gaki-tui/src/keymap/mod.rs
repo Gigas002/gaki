@@ -198,7 +198,8 @@ actions! {
 }
 
 actions! {
-    /// The Installs overlay (`X`): the queue and the Duplicates tab.
+    /// The Installs overlay (`X`): the queue, the Duplicates and the
+    /// Transfer tabs.
     InstallsAction, "installs", installs, SHARES_OVERLAY {
         Resume => "resume" ["r", "Enter"] in "queue",
         ResumeAll => "resume_all" ["R"] in "queue",
@@ -207,6 +208,10 @@ actions! {
         Forget => "forget" ["f"] in "queue",
         ForgetAndDelete => "forget_and_delete" ["F"] in "queue",
         Rescan => "rescan" ["r"] in "duplicates",
+        EditPath => "edit_path" ["e"] in "transfer",
+        ExportAll => "export_all" ["a"] in "transfer",
+        Export => "export" ["x"] in "transfer",
+        Import => "import" ["i"] in "transfer",
     }
 }
 

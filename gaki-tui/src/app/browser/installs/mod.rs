@@ -8,6 +8,9 @@
 //! library (`gaki-cli duplicates`): the copy kept, the stale ones with their
 //! sizes, and the space deleting them would free. It is read-only; which
 //! copy to delete is left to the user.
+//!
+//! A third tab, Transfer, exports the library to a file and imports one
+//! (`gaki-cli library export`/`import`); see [`transfer`].
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -19,6 +22,9 @@ use crate::app::browser::job::Load;
 use crate::app::client::Client;
 use crate::app::steam;
 use crate::utils::error::TuiError;
+
+pub mod transfer;
+pub use transfer::TransferTab;
 
 /// How often the open overlay re-reads the list (local only).
 const REFRESH: Duration = Duration::from_secs(1);
@@ -48,16 +54,33 @@ pub enum InstallsTab {
     #[default]
     Queue,
     Duplicates,
+    Transfer,
 }
 
 impl InstallsTab {
-    pub const ALL: [InstallsTab; 2] = [InstallsTab::Queue, InstallsTab::Duplicates];
+    pub const ALL: [InstallsTab; 3] = [
+        InstallsTab::Queue,
+        InstallsTab::Duplicates,
+        InstallsTab::Transfer,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
             InstallsTab::Queue => "Installs",
             InstallsTab::Duplicates => "Duplicates",
+            InstallsTab::Transfer => "Transfer",
         }
+    }
+
+    /// The tab after this one (`forward`) or before it, wrapping.
+    pub fn step(self, forward: bool) -> InstallsTab {
+        let n = Self::ALL.len();
+        let i = Self::ALL.iter().position(|&t| t == self).unwrap_or(0);
+        Self::ALL[if forward {
+            (i + 1) % n
+        } else {
+            (i + n - 1) % n
+        }]
     }
 }
 
@@ -105,6 +128,7 @@ pub struct InstallsView {
     pub status: String,
     pub tab: InstallsTab,
     pub duplicates: Option<DuplicatesTab>,
+    pub transfer: TransferTab,
     refreshed: Instant,
 }
 
@@ -118,6 +142,7 @@ impl InstallsView {
             status: String::new(),
             tab: InstallsTab::Queue,
             duplicates: None,
+            transfer: TransferTab::default(),
             refreshed: Instant::now(),
         }
     }
@@ -172,14 +197,12 @@ impl Browser {
         self.installs = None;
     }
 
-    /// Switch between the queue and the Duplicates tab. The scan runs the
-    /// first time Duplicates is shown; `r` there rescans.
-    pub fn installs_tab(&mut self) {
+    /// Switch to the next tab (`forward`) or the previous one. The
+    /// duplicates scan runs the first time Duplicates is shown; `r` there
+    /// rescans.
+    pub fn installs_tab(&mut self, forward: bool) {
         if let Some(view) = &mut self.installs {
-            view.tab = match view.tab {
-                InstallsTab::Queue => InstallsTab::Duplicates,
-                InstallsTab::Duplicates => InstallsTab::Queue,
-            };
+            view.tab = view.tab.step(forward);
             if view.tab == InstallsTab::Duplicates && view.duplicates.is_none() {
                 view.duplicates = Some(DuplicatesTab::start());
             }
@@ -199,6 +222,14 @@ impl Browser {
     }
 
     pub fn installs_move(&mut self, delta: isize) {
+        if self
+            .installs
+            .as_ref()
+            .is_some_and(|v| v.tab == InstallsTab::Transfer)
+        {
+            self.transfer_move(delta);
+            return;
+        }
         if let Some(view) = &mut self.installs
             && view.tab == InstallsTab::Duplicates
         {
@@ -386,6 +417,7 @@ impl Browser {
             if let Some(tab) = &mut view.duplicates {
                 tab.scan.poll();
             }
+            view.transfer.poll();
             if view.refreshed.elapsed() >= REFRESH {
                 view.refresh();
             }

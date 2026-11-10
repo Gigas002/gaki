@@ -170,7 +170,10 @@ fn entries() -> Vec<Entry> {
             "steam store (search, deals, events, wishlist)",
         ),
         #[cfg(feature = "install")]
-        Entry::Keys(lib(&[A::Installs]), "installs, backlog, duplicates"),
+        Entry::Keys(
+            lib(&[A::Installs]),
+            "installs, backlog, duplicates, library export/import",
+        ),
         #[cfg(feature = "workshop")]
         Entry::Keys(lib(&[A::Workshop]), "workshop (status, browse, comments)"),
         Entry::Keys(lib(&[A::GameInfo]), "game info (details, checks, artwork)"),

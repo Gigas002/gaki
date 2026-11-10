@@ -122,3 +122,50 @@ fn the_duplicates_tab_says_when_there_are_none() {
         "{screen}"
     );
 }
+
+#[test]
+fn the_transfer_tab_shows_the_file_scope_and_keys() {
+    use gaki_tui::app::browser::installs::InstallsTab;
+    let mut view = InstallsView::with_rows(Vec::new());
+    view.tab = InstallsTab::Transfer;
+    let screen = render(&view, 130, 14);
+    assert!(screen.contains("[Transfer]"), "{screen}");
+    assert!(screen.contains("File: ~/gaki-library.toml"), "{screen}");
+    assert!(screen.contains("Export: installed games only"), "{screen}");
+    assert!(screen.contains("[x] export"), "{screen}");
+    assert!(screen.contains("[i] import"), "{screen}");
+}
+
+#[test]
+fn the_transfer_tab_lists_an_import_plan_and_asks() {
+    use gaki_tui::app::browser::installs::InstallsTab;
+    use gaki_tui::app::browser::job::Load;
+    use libgaki::library::transfer::{ImportPlan, LibraryEntry};
+    let entry = |app_id: u32, name: &str, branch: Option<&str>| LibraryEntry {
+        app_id,
+        name: name.into(),
+        platform: None,
+        branch: branch.map(str::to_string),
+    };
+    let mut view = InstallsView::with_rows(Vec::new());
+    view.tab = InstallsTab::Transfer;
+    view.transfer.plan = Some(Load::Ready(ImportPlan {
+        install: vec![entry(620, "Portal 2", Some("beta"))],
+        installed: vec![entry(70, "Half-Life", None)],
+        not_owned: vec![entry(440, "", None)],
+    }));
+    let screen = render(&view, 140, 16);
+    assert!(screen.contains("[Transfer (3)]"), "{screen}");
+    assert!(
+        screen.contains("install          Portal 2  620"),
+        "{screen}"
+    );
+    assert!(screen.contains("was on 'beta'"), "{screen}");
+    assert!(screen.contains("skip: installed  Half-Life"), "{screen}");
+    assert!(screen.contains("skip: not owned  app 440"), "{screen}");
+    assert!(
+        screen.contains("Install 1 game into the default library"),
+        "{screen}"
+    );
+    assert!(screen.contains("[y] yes  [n] no"), "{screen}");
+}

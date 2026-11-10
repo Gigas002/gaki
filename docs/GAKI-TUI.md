@@ -82,7 +82,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `Y`                   | Store: price, players, news, reviews, similar games                                                                   |
 | `n`                   | Game info: details, DRM and files checks, save artwork (see below)                                                    |
 | `J`                   | Steam Store: search, deals, events, your wishlist                                                                     |
-| `X`                   | Installs: running installs and the backlog                                                                            |
+| `X`                   | Installs: running installs and the backlog, duplicates, library export and import                                     |
 | `f` / `H`             | Toggle a favourite, hide the game (Steam's own collections, see below)                                                |
 | `A` / `p`             | Account (`o` logs out), settings (see below)                                                                          |
 | `r`                   | Refresh the library from Steam                                                                                        |
@@ -131,6 +131,22 @@ them would free. Two copies leave two appmanifests disagreeing, which is why
 such a game can report an update on every check. The tab is read-only: gaki
 never deletes a copy, so remove the stale folder yourself. The scan runs the
 first time the tab is shown; `r` scans again.
+
+The next tab, **Transfer**, is `gaki-cli library export` and `import`, to
+rebuild a library on another machine. The file starts as
+`~/gaki-library.toml`; `e` edits the path (`~` works), `Enter` finishes.
+
+| Key | Action                                                                                    |
+| --- | ----------------------------------------------------------------------------------------- |
+| `a` | Export only the installed games (the default) or every game in the library                |
+| `x` | Export: write the file. Installed games carry their platform and beta branch              |
+| `i` | Import: read the file and list each game as install, skip (installed) or skip (not owned) |
+
+When an import has games to install, `y` queues them in the backlog and
+installs them one after another into the configured library, and the overlay
+switches back to the queue; `n` drops the list. Installs take the default
+branch, so a game that was on a beta branch is marked: switch it afterwards
+in Versions (`V`) and update it.
 
 ### Settings
 

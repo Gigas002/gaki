@@ -104,7 +104,7 @@
 # next_tab = "Tab"
 # previous_tab = "BackTab"
 
-# The Installs overlay (`X`): the queue and the Duplicates tab.
+# The Installs overlay (`X`): the queue, the Duplicates and the Transfer tabs.
 [installs]
 # Queue tab:
 # resume = ["r", "Enter"]
@@ -115,6 +115,11 @@
 # forget_and_delete = "F"
 # Duplicates tab:
 # rescan = "r"
+# Transfer tab:
+# edit_path = "e"
+# export_all = "a"
+# export = "x"
+# import = "i"
 
 # The Settings overlay (`p`), by tab.
 [settings]
