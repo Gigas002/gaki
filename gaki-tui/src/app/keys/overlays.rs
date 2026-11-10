@@ -247,14 +247,17 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
         }
         return Ok(true);
     }
+    // The Friends panel stays focused under a friend's wishlist (`w`), so
+    // the Store overlays above it take keys first.
     #[cfg(feature = "social")]
-    if browser.friends_focused() {
+    if browser.friends_focused() && !store_overlay_open(browser) {
         // Friends panel focused: j/k move the highlight (the whole
         // list scrolls under it), c/Enter open the in-app chat, t
         // pops the chat into a new terminal window, a opens the
         // add-friend prompt, v shows the highlighted friend's profile,
         // / looks a user up, x removes the highlighted friend
-        // (confirmed), Esc/F/q unfocus. `[friends]` rebinds them.
+        // (confirmed), w shows their wishlist in the Steam Store
+        // overlay, Esc/F/q unfocus. `[friends]` rebinds them.
         use crate::keymap::{FriendsAction as Fr, LibraryAction};
         match own::<Fr>(key, None) {
             _ if input == KeyCode::Esc => browser.unfocus_friends(),
@@ -269,6 +272,10 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
                     browser.confirm_friend_remove = true;
                 }
             }
+            #[cfg(feature = "store")]
+            Some(Fr::Wishlist) => browser.open_friend_wishlist(),
+            #[cfg(not(feature = "store"))]
+            Some(Fr::Wishlist) => {}
             None => match common(key) {
                 Some(O::Close) => browser.unfocus_friends(),
                 Some(O::Down) => browser.friends_scroll_down(),
@@ -919,6 +926,20 @@ fn store_key(browser: &mut crate::app::browser::Browser, key: Key) {
             Some(O::PageUp) => browser.store_scroll(-10),
             None => {}
         },
+    }
+}
+
+/// The Steam Store overlay or the per-game Store overlay is open.
+#[cfg(feature = "social")]
+fn store_overlay_open(browser: &crate::app::browser::Browser) -> bool {
+    #[cfg(feature = "store")]
+    {
+        browser.shop.is_some() || browser.store.is_some()
+    }
+    #[cfg(not(feature = "store"))]
+    {
+        let _ = browser;
+        false
     }
 }
 

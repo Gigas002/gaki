@@ -53,42 +53,42 @@ so in the status bar. Set `check_updates = false` to turn it off.
 
 ### Keys
 
-| Key                   | Action                                                                                                                |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `j` / `↓`, `k` / `↑`  | Move down / up (the mouse wheel works too)                                                                            |
-| `g` / `G`             | Jump to the top / bottom                                                                                              |
-| `PageUp` / `PageDown` | Page through the list                                                                                                 |
-| `Tab` / `Shift-Tab`   | Cycle the tabs                                                                                                        |
-| `1`–`5`               | Jump to a tab (`5` is Friends)                                                                                        |
-| `/`                   | Filter by name (`Esc` clears)                                                                                         |
-| `s`                   | Cycle the sort (name, installed first, most played, recently played)                                                  |
-| `Enter`               | The Actions menu for the selected game                                                                                |
-| `i`                   | Expand or collapse the description                                                                                    |
-| `d`                   | Install (pick a library)                                                                                              |
-| `Space` / `c`         | Pause or resume, or cancel, an install                                                                                |
-| `U` / `v` / `x`       | Update, verify, uninstall                                                                                             |
-| `V` / `b`             | Versions and pinning, beta branches                                                                                   |
-| `o` / `D` / `L`       | Depots (and their files, see below), DLC, launch options                                                              |
-| `P`                   | Proton builds (`d` sets the default, `i` installs, `u` uninstalls)                                                    |
-| `C` / `W` / `a`       | Cloud saves, Workshop, achievements (both below)                                                                      |
-| `M` / `K` / `N`       | Move, relink, import an install                                                                                       |
-| `O`                   | Collections: `a`/`r` add or remove the game, `n` new, `e` rename, `x` delete (asks), `P`/`U`/`S` cloud pull/push/sync |
-| `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it                          |
-| `Z`                   | Open the game's SteamDB page (in Depots and Versions: the highlighted depot's manifest history)                       |
-| `I` / `w`             | Inventory, wallet                                                                                                     |
-| `m` / `S`             | Market listings, market search                                                                                        |
-| `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes)                        |
-| `R`                   | Running games                                                                                                         |
-| `Y`                   | Store: price, players, news, reviews, similar games                                                                   |
-| `n`                   | Game info: details, DRM and files checks, save artwork (see below)                                                    |
-| `J`                   | Steam Store: search, deals, events, your wishlist                                                                     |
-| `X`                   | Installs: running installs and the backlog, duplicates, library export and import                                     |
-| `f` / `H`             | Toggle a favourite, hide the game (Steam's own collections, see below)                                                |
-| `A` / `p`             | Account (`o` logs out), settings (see below)                                                                          |
-| `r`                   | Refresh the library from Steam                                                                                        |
-| `l`                   | Sign in again                                                                                                         |
-| `?`                   | Help                                                                                                                  |
-| `q`                   | Quit                                                                                                                  |
+| Key                   | Action                                                                                                                   |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `j` / `↓`, `k` / `↑`  | Move down / up (the mouse wheel works too)                                                                               |
+| `g` / `G`             | Jump to the top / bottom                                                                                                 |
+| `PageUp` / `PageDown` | Page through the list                                                                                                    |
+| `Tab` / `Shift-Tab`   | Cycle the tabs                                                                                                           |
+| `1`–`5`               | Jump to a tab (`5` is Friends)                                                                                           |
+| `/`                   | Filter by name (`Esc` clears)                                                                                            |
+| `s`                   | Cycle the sort (name, installed first, most played, recently played)                                                     |
+| `Enter`               | The Actions menu for the selected game                                                                                   |
+| `i`                   | Expand or collapse the description                                                                                       |
+| `d`                   | Install (pick a library)                                                                                                 |
+| `Space` / `c`         | Pause or resume, or cancel, an install                                                                                   |
+| `U` / `v` / `x`       | Update, verify, uninstall                                                                                                |
+| `V` / `b`             | Versions and pinning, beta branches                                                                                      |
+| `o` / `D` / `L`       | Depots (and their files, see below), DLC, launch options                                                                 |
+| `P`                   | Proton builds (`d` sets the default, `i` installs, `u` uninstalls)                                                       |
+| `C` / `W` / `a`       | Cloud saves, Workshop, achievements (both below)                                                                         |
+| `M` / `K` / `N`       | Move, relink, import an install                                                                                          |
+| `O`                   | Collections: `a`/`r` add or remove the game, `n` new, `e` rename, `x` delete (asks), `P`/`U`/`S` cloud pull/push/sync    |
+| `E` / `B` / `T`       | Open the game's Steam store page or ProtonDB page, or search the Proton issue tracker for it                             |
+| `Z`                   | Open the game's SteamDB page (in Depots and Versions: the highlighted depot's manifest history)                          |
+| `I` / `w`             | Inventory, wallet                                                                                                        |
+| `m` / `S`             | Market listings, market search                                                                                           |
+| `F`                   | Focus the Friends panel (`c` chats, `t` opens the chat in a new window, `a` adds, `x` removes, `w` shows their wishlist) |
+| `R`                   | Running games                                                                                                            |
+| `Y`                   | Store: price, players, news, reviews, similar games                                                                      |
+| `n`                   | Game info: details, DRM and files checks, save artwork (see below)                                                       |
+| `J`                   | Steam Store: search, deals, events, your wishlist                                                                        |
+| `X`                   | Installs: running installs and the backlog, duplicates, library export and import                                        |
+| `f` / `H`             | Toggle a favourite, hide the game (Steam's own collections, see below)                                                   |
+| `A` / `p`             | Account (`o` logs out), settings (see below)                                                                             |
+| `r`                   | Refresh the library from Steam                                                                                           |
+| `l`                   | Sign in again                                                                                                            |
+| `?`                   | Help                                                                                                                     |
+| `q`                   | Quit                                                                                                                     |
 
 ### The Actions menu
 
@@ -279,12 +279,18 @@ sellers; `s` switches to top sellers and then specials (anything on sale).
 own wishlist. `Tab` / `Shift-Tab` switch sections, `j` / `k` move, and `r`
 reloads the shown section.
 
+`w` in the Friends tab opens this overlay on the highlighted friend's
+wishlist, as a section of its own after Wishlist. Steam serves only
+friends' wishlists, and only when their privacy allows it; otherwise the
+section says why it couldn't load.
+
 On a game row, `Enter` opens that game's Store overlay (the `Y` one, even
 for games you don't own; `Esc` comes back), `E` opens its store page in the
 browser, and `w` adds it to your wishlist, or removes it if it's already on
-it, after a `y` / `n` confirm. In the Wishlist section, `w` always removes.
+it, after a `y` / `n` confirm. In the Wishlist section, `w` always removes;
+on a friend's wishlist it adds the game to yours, or removes it from yours.
 This is `gaki-cli search`, `deals`, `events` and `wishlist` (`add`,
-`remove`). gaki never buys anything: a wishlist is free.
+`remove`, `wishlist <user>`). gaki never buys anything: a wishlist is free.
 
 ### Depot files
 

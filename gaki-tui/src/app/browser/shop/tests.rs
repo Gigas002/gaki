@@ -199,3 +199,59 @@ fn search_prompt_is_search_only_and_prefilled() {
     browser.begin_shop_search();
     assert!(!browser.shop_input_open());
 }
+
+/// [`loaded`], plus a friend's loaded wishlist, shown.
+fn with_friend() -> ShopView {
+    ShopView {
+        section: ShopSection::Friend,
+        friend: Some(FriendWishlist {
+            steam_id: 76561197960287930,
+            name: "Gabe".into(),
+            load: Some(Load::Ready(wishlist(&[400, 730]))),
+        }),
+        ..loaded()
+    }
+}
+
+#[test]
+fn the_friend_section_joins_the_tab_ring_only_with_a_friend() {
+    assert_eq!(loaded().sections(), ShopSection::ALL);
+    let shop = with_friend();
+    assert_eq!(shop.sections().last(), Some(&ShopSection::Friend));
+    assert_eq!(shop.section_label(ShopSection::Friend), "Gabe's wishlist");
+    assert_eq!(shop.section_label(ShopSection::Wishlist), "Wishlist");
+
+    let mut browser = browser_with(with_friend());
+    browser.shop_cycle(1);
+    assert_eq!(view(&browser).section, ShopSection::Search, "wraps forward");
+    browser.shop_cycle(-1);
+    assert_eq!(view(&browser).section, ShopSection::Friend, "and back");
+    browser.shop_cycle(-1);
+    assert_eq!(view(&browser).section, ShopSection::Wishlist);
+
+    let mut browser = browser_with(loaded());
+    browser.shop_cycle(-1);
+    assert_eq!(
+        view(&browser).section,
+        ShopSection::Wishlist,
+        "no friend, no Friend section"
+    );
+}
+
+#[test]
+fn wish_on_a_friends_game_checks_your_own_wishlist() {
+    let mut browser = browser_with(with_friend());
+    assert_eq!(view(&browser).row_count(), 2);
+    // Portal (400) is on yours too: `w` removes it from yours.
+    browser.begin_shop_wish();
+    let change = view(&browser).confirm.clone().unwrap();
+    assert_eq!(change.app_id, 400);
+    assert!(!change.add);
+    browser.answer_shop_confirm(false);
+    // 730 isn't: `w` adds it to yours.
+    browser.shop_move(1);
+    browser.begin_shop_wish();
+    let change = view(&browser).confirm.clone().unwrap();
+    assert_eq!(change.app_id, 730);
+    assert!(change.add);
+}

@@ -1,5 +1,6 @@
 //! The Steam Store overlay (`J`): the store-wide views, in sections
-//! (Search, Deals, Events, Wishlist). Rows that are games open the
+//! (Search, Deals, Events, Wishlist, and a friend's wishlist when it is
+//! opened from the Friends panel). Rows that are games open the
 //! per-game Store overlay (`Enter`), toggle the wishlist (`w`, after a
 //! confirm) and open the store page (`E`). Every load runs in the
 //! background (see [`super::job`]).
@@ -19,9 +20,12 @@ pub enum ShopSection {
     Deals,
     Events,
     Wishlist,
+    /// A friend's wishlist; only there when the overlay was opened for one.
+    Friend,
 }
 
 impl ShopSection {
+    /// The sections every overlay has, in Tab order.
     pub const ALL: [ShopSection; 4] = [
         ShopSection::Search,
         ShopSection::Deals,
@@ -35,15 +39,28 @@ impl ShopSection {
             ShopSection::Deals => "Deals",
             ShopSection::Events => "Events",
             ShopSection::Wishlist => "Wishlist",
+            ShopSection::Friend => "Friend's wishlist",
         }
     }
 
-    /// The section `step` places away, wrapping.
+    /// The section `step` places away among [`ShopSection::ALL`], wrapping.
     pub fn cycle(self, step: isize) -> ShopSection {
-        let len = Self::ALL.len() as isize;
-        let index = Self::ALL.iter().position(|&s| s == self).unwrap_or(0) as isize;
-        Self::ALL[(index + step).rem_euclid(len) as usize]
+        self.cycle_in(&Self::ALL, step)
     }
+
+    /// The section `step` places away among `sections`, wrapping.
+    fn cycle_in(self, sections: &[ShopSection], step: isize) -> ShopSection {
+        let len = sections.len() as isize;
+        let index = sections.iter().position(|&s| s == self).unwrap_or(0) as isize;
+        sections[(index + step).rem_euclid(len) as usize]
+    }
+}
+
+/// A friend's wishlist, shown in [`ShopSection::Friend`].
+pub struct FriendWishlist {
+    pub steam_id: u64,
+    pub name: String,
+    pub load: Option<Load<Wishlist>>,
 }
 
 /// The next deal list for `s`.
@@ -121,6 +138,8 @@ pub struct ShopView {
     pub deals: Option<Load<Listing>>,
     pub events: Option<Load<Vec<StoreEvent>>>,
     pub wishlist: Option<Load<Wishlist>>,
+    /// The friend whose wishlist the Friend section shows.
+    pub friend: Option<FriendWishlist>,
     /// A wishlist change asking for y/n.
     pub confirm: Option<WishChange>,
     /// A wishlist change in flight, and its result (the wishlist's size).
@@ -141,6 +160,7 @@ impl Default for ShopView {
             deals: None,
             events: None,
             wishlist: None,
+            friend: None,
             confirm: None,
             wish_op: None,
             status: String::new(),
@@ -154,6 +174,22 @@ fn listing_rows(load: Option<&Load<Listing>>) -> Vec<GameRow> {
         .unwrap_or_default()
 }
 
+fn wishlist_rows(load: Option<&Load<Wishlist>>) -> Vec<GameRow> {
+    load.and_then(Load::ready)
+        .map(|w| {
+            w.items
+                .iter()
+                .map(|(entry, record)| {
+                    record
+                        .as_ref()
+                        .map(GameRow::from_record)
+                        .unwrap_or_else(|| GameRow::bare(entry.app_id))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 impl ShopView {
     /// The game rows of the shown section (none for Events).
     pub fn game_rows(&self) -> Vec<GameRow> {
@@ -161,22 +197,28 @@ impl ShopView {
             ShopSection::Search => listing_rows(self.search.as_ref()),
             ShopSection::Deals => listing_rows(self.deals.as_ref()),
             ShopSection::Events => Vec::new(),
-            ShopSection::Wishlist => self
-                .wishlist
-                .as_ref()
-                .and_then(Load::ready)
-                .map(|w| {
-                    w.items
-                        .iter()
-                        .map(|(entry, record)| {
-                            record
-                                .as_ref()
-                                .map(GameRow::from_record)
-                                .unwrap_or_else(|| GameRow::bare(entry.app_id))
-                        })
-                        .collect()
-                })
-                .unwrap_or_default(),
+            ShopSection::Wishlist => wishlist_rows(self.wishlist.as_ref()),
+            ShopSection::Friend => {
+                wishlist_rows(self.friend.as_ref().and_then(|f| f.load.as_ref()))
+            }
+        }
+    }
+
+    /// The sections shown, in Tab order: the Friend section joins when
+    /// there is a friend.
+    pub fn sections(&self) -> Vec<ShopSection> {
+        let mut sections = ShopSection::ALL.to_vec();
+        if self.friend.is_some() {
+            sections.push(ShopSection::Friend);
+        }
+        sections
+    }
+
+    /// A section's name in the title bar.
+    pub fn section_label(&self, section: ShopSection) -> String {
+        match (section, &self.friend) {
+            (ShopSection::Friend, Some(f)) => format!("{}'s wishlist", f.name),
+            _ => section.label().to_string(),
         }
     }
 
@@ -222,6 +264,18 @@ impl ShopView {
             ShopSection::Wishlist if self.wishlist.is_none() => {
                 self.wishlist = Some(Load::start(steam::store_wishlist));
             }
+            ShopSection::Friend => {
+                if let Some(friend) = &mut self.friend
+                    && friend.load.is_none()
+                {
+                    let id = friend.steam_id;
+                    friend.load = Some(Load::start(move || steam::store_wishlist_of(id)));
+                }
+                // Your own wishlist says whether `w` adds or removes.
+                if self.wishlist.is_none() {
+                    self.wishlist = Some(Load::start(steam::store_wishlist));
+                }
+            }
             _ => {}
         }
     }
@@ -239,6 +293,9 @@ impl ShopView {
             changed |= load.poll();
         }
         if let Some(load) = &mut self.wishlist {
+            changed |= load.poll();
+        }
+        if let Some(load) = self.friend.as_mut().and_then(|f| f.load.as_mut()) {
             changed |= load.poll();
         }
         if changed {
@@ -275,10 +332,37 @@ impl Browser {
         self.shop = None;
     }
 
+    /// Open the Steam Store overlay on `name`'s wishlist (a friend's:
+    /// Steam serves no one else's).
+    pub fn open_shop_wishlist_of(&mut self, steam_id: u64, name: String) {
+        let mut view = ShopView {
+            section: ShopSection::Friend,
+            search_input: None,
+            friend: Some(FriendWishlist {
+                steam_id,
+                name,
+                load: None,
+            }),
+            ..ShopView::default()
+        };
+        view.load_section();
+        self.shop = Some(view);
+    }
+
+    /// `w` in the Friends panel: the highlighted friend's wishlist.
+    #[cfg(feature = "social")]
+    pub fn open_friend_wishlist(&mut self) {
+        let Some(friend) = self.selected_friend() else {
+            return;
+        };
+        let (id, name) = (friend.steam_id, friend.display_name());
+        self.open_shop_wishlist_of(id, name);
+    }
+
     /// Show the section `step` places away.
     pub fn shop_cycle(&mut self, step: isize) {
         if let Some(view) = &mut self.shop {
-            view.section = view.section.cycle(step);
+            view.section = view.section.cycle_in(&view.sections(), step);
             view.selected = 0;
             view.status.clear();
             view.load_section();
@@ -362,6 +446,11 @@ impl Browser {
                 ShopSection::Deals => view.deals = None,
                 ShopSection::Events => view.events = None,
                 ShopSection::Wishlist => view.wishlist = None,
+                ShopSection::Friend => {
+                    if let Some(friend) = &mut view.friend {
+                        friend.load = None;
+                    }
+                }
             }
             view.status.clear();
             view.load_section();

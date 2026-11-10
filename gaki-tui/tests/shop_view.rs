@@ -2,7 +2,7 @@
 #![cfg(feature = "store")]
 
 use gaki_tui::app::browser::job::Load;
-use gaki_tui::app::browser::shop::{ShopSection, ShopView, WishChange};
+use gaki_tui::app::browser::shop::{FriendWishlist, ShopSection, ShopView, WishChange};
 use gaki_tui::ui;
 use libgaki::ops::store::Listing;
 use libgaki::steam_client::{StoreAppInfo, StoreEvent};
@@ -115,4 +115,22 @@ fn events_and_failures() {
     };
     let screen = render(&view, 100, 12);
     assert!(screen.contains("Couldn't load: private"), "{screen}");
+}
+
+#[test]
+fn a_friends_wishlist_gets_its_own_section() {
+    let view = ShopView {
+        section: ShopSection::Friend,
+        search_input: None,
+        friend: Some(FriendWishlist {
+            steam_id: 1,
+            name: "Gabe".into(),
+            load: Some(Load::Failed("private".into())),
+        }),
+        ..ShopView::default()
+    };
+    let screen = render(&view, 120, 12);
+    assert!(screen.contains("Wishlist [Gabe's wishlist]"), "{screen}");
+    assert!(screen.contains("Couldn't load: private"), "{screen}");
+    assert!(screen.contains("[w] wishlist"), "{screen}");
 }

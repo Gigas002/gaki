@@ -246,19 +246,19 @@ no counterpart to them.
 | Running games; stop one                                     |    ✓    |         ✓ `running`, `stop`          |        ✓ `R`         |                                                                                                                                                                 |
 | Steam Cloud saves, with conflict choice                     |    ✓    |              ✓ `cloud`               |        ✓ `C`         |                                                                                                                                                                 |
 | Steamworks in games, DRM, overlay, Steam Input, Remote Play |    —    |                 part                 |         part         | needs Steam: `play --steam` bridges the game to the running client. `drm` checks the tickets headlessly                                                         |
-| Unlock achievements, game stats                             |    —    |                  —                   |          —           | Only a running game reports these, through Steamworks. needs Steam                                                                                              |
+| Unlock achievements, game stats                             |    —    |                  —                   |          —           | not planned. Only a running game reports these, through Steamworks                                                                                              |
 
 ### 3.5 Store
 
-| Official client                                                    | libgaki |           gaki-cli            |     gaki-tui     | Gap                 |
-| ------------------------------------------------------------------ | :-----: | :---------------------------: | :--------------: | ------------------- |
-| Search, deals, events                                              |    ✓    | ✓ `search`, `deals`, `events` |      ✓ `J`       |                     |
-| A game's price (any region), players, news, reviews, similar games |    ✓    |               ✓               |      ✓ `Y`       |                     |
-| Wishlist: view, add, remove                                        |    ✓    |         ✓ `wishlist`          | ✓ `J` → Wishlist |                     |
-| A friend's wishlist                                                |    ✓    |      ✓ `wishlist <user>`      |        —         | not done (CLI only) |
-| Buy, gift, refund, wallet top-up, points shop                      |    —    |               —               |        —         | non-goal            |
-| Write a review                                                     |    —    |               —               |        —         | not done            |
-| Localized store                                                    |    —    |               —               |        —         | non-goal            |
+| Official client                                                    | libgaki |           gaki-cli            |     gaki-tui     | Gap      |
+| ------------------------------------------------------------------ | :-----: | :---------------------------: | :--------------: | -------- |
+| Search, deals, events                                              |    ✓    | ✓ `search`, `deals`, `events` |      ✓ `J`       |          |
+| A game's price (any region), players, news, reviews, similar games |    ✓    |               ✓               |      ✓ `Y`       |          |
+| Wishlist: view, add, remove                                        |    ✓    |         ✓ `wishlist`          | ✓ `J` → Wishlist |          |
+| A friend's wishlist                                                |    ✓    |      ✓ `wishlist <user>`      | ✓ Friends → `w`  |          |
+| Buy, gift, refund, wallet top-up, points shop                      |    —    |               —               |        —         | non-goal |
+| Write a review                                                     |    —    |               —               |        —         | not done |
+| Localized store                                                    |    —    |               —               |        —         | non-goal |
 
 ### 3.6 Community
 
@@ -267,14 +267,14 @@ no counterpart to them.
 | Friends list, add, remove                                   |    ✓    |       ✓ `friends`       | ✓ Friends tab |                                                  |
 | One-to-one chat                                             |    ✓    |        ✓ `chat`         |  ✓ `c`, `t`   |                                                  |
 | Online status                                               |    ✓    |   ✓ `config presence`   |  ✓ settings   | Online or invisible only; no away/busy. not done |
-| Group chats, voice chat                                     |    —    |            —            |       —       | not done                                         |
+| Group chats, voice chat                                     |    —    |            —            |       —       | not planned                                      |
 | View a profile                                              |    ✓    |        ✓ `user`         |  ✓ `v`, `/`   |                                                  |
 | Edit your profile                                           |    —    |            —            |       —       | not done                                         |
 | Workshop: browse, subscribe, install, update, rate, comment |    ✓    |      ✓ `workshop`       |     ✓ `W`     |                                                  |
 | Inventory, wallet balance                                   |    ✓    | ✓ `inventory`, `wallet` |  ✓ `I`, `w`   |                                                  |
 | Community Market: prices, search, your listings             |    ✓    |       ✓ `market`        |  ✓ `m`, `S`   |                                                  |
 | Market buying and selling, trading, crafting                |    —    |            —            |       —       | non-goal                                         |
-| Discussions, groups, guides, broadcasts                     |    —    |            —            |       —       | not done                                         |
+| Discussions, groups, guides, broadcasts                     |    —    |            —            |       —       | not planned                                      |
 
 ### 3.7 Only in gaki
 

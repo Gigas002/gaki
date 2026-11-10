@@ -268,6 +268,7 @@
 # profile = "v"
 # lookup = "/"
 # remove = "x"
+# wishlist = "w"
 # leave = "F"
 
 # A user's profile (`v` in the Friends tab).

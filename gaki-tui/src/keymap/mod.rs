@@ -424,6 +424,7 @@ actions! {
         Profile => "profile" ["v"],
         Lookup => "lookup" ["/"],
         Remove => "remove" ["x"],
+        Wishlist => "wishlist" ["w"],
         Leave => "leave" ["F"],
     }
 }

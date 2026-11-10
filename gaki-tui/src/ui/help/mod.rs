@@ -206,6 +206,8 @@ fn entries() -> Vec<Entry> {
         Entry::Keys(friends(Fr::Lookup), "look up a user (Friends)"),
         #[cfg(feature = "social")]
         Entry::Keys(friends(Fr::Remove), "remove friend (Friends)"),
+        #[cfg(all(feature = "social", feature = "store"))]
+        Entry::Keys(friends(Fr::Wishlist), "friend's wishlist (Friends)"),
         #[cfg(feature = "inventory")]
         Entry::Keys(lib(&[A::Wallet]), "wallet balance"),
         Entry::Keys(lib(&[A::SignIn]), "sign in again"),

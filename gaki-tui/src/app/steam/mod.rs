@@ -1705,6 +1705,16 @@ pub fn store_wishlist() -> Result<libgaki::ops::store::Wishlist, TuiError> {
     })
 }
 
+/// A friend's wishlist (its first 100 items), with store records.
+#[cfg(feature = "store")]
+pub fn store_wishlist_of(steam_id: u64) -> Result<libgaki::ops::store::Wishlist, TuiError> {
+    in_process(async {
+        let client = worker::global().session().authed().await?;
+        let country = account_country(&client).await;
+        libgaki::ops::store::wishlist(&client, Some(steam_id), 0, 100, &country).await
+    })
+}
+
 /// Add `app_id` to the wishlist (or remove it). Returns the wishlist's size.
 #[cfg(feature = "store")]
 pub fn store_wishlist_set(app_id: u32, add: bool) -> Result<u32, TuiError> {

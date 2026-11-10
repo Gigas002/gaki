@@ -19,11 +19,12 @@ use crate::ui::{empty_list_rows, selection_marker};
 /// Draw the overlay into `area`.
 pub fn draw(frame: &mut Frame, area: Rect, view: &ShopView) {
     let mut title = String::from("Steam Store ·");
-    for section in ShopSection::ALL {
+    for section in view.sections() {
+        let label = view.section_label(section);
         if section == view.section {
-            title.push_str(&format!(" [{}]", section.label()));
+            title.push_str(&format!(" [{label}]"));
         } else {
-            title.push_str(&format!(" {}", section.label()));
+            title.push_str(&format!(" {label}"));
         }
     }
     let (items, selected) = rows(view);
@@ -54,6 +55,11 @@ fn rows(view: &ShopView) -> (Vec<ListItem<'static>>, Option<usize>) {
         }
         ShopSection::Events => view.events.as_ref().map(load_state),
         ShopSection::Wishlist => view.wishlist.as_ref().map(load_state),
+        ShopSection::Friend => view
+            .friend
+            .as_ref()
+            .and_then(|f| f.load.as_ref())
+            .map(load_state),
     };
     match state {
         None | Some(State::Loading) => {
@@ -89,10 +95,11 @@ fn rows(view: &ShopView) -> (Vec<ListItem<'static>>, Option<usize>) {
     };
     if body.is_empty() {
         let message = match view.section {
-            ShopSection::Search => "No matches.",
-            ShopSection::Deals => "No deals listed.",
-            ShopSection::Events => "No sales or events right now.",
-            ShopSection::Wishlist => "Your wishlist is empty.",
+            ShopSection::Wishlist => "Your wishlist is empty.".to_string(),
+            ShopSection::Friend => format!("{} is empty.", view.section_label(view.section)),
+            ShopSection::Search => "No matches.".to_string(),
+            ShopSection::Deals => "No deals listed.".to_string(),
+            ShopSection::Events => "No sales or events right now.".to_string(),
         };
         header.extend(empty_list_rows(message));
         return (header, None);
