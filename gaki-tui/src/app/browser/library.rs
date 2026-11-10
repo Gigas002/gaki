@@ -59,6 +59,10 @@ pub enum View {
 pub enum Sort {
     Name,
     Installed,
+    /// Most total playtime first.
+    Playtime,
+    /// Most recently played first.
+    Recent,
 }
 
 impl Sort {
@@ -66,13 +70,17 @@ impl Sort {
         match self {
             Sort::Name => "name",
             Sort::Installed => "installed",
+            Sort::Playtime => "playtime",
+            Sort::Recent => "recent",
         }
     }
 
     pub fn next(self) -> Sort {
         match self {
             Sort::Name => Sort::Installed,
-            Sort::Installed => Sort::Name,
+            Sort::Installed => Sort::Playtime,
+            Sort::Playtime => Sort::Recent,
+            Sort::Recent => Sort::Name,
         }
     }
 }
@@ -204,23 +212,15 @@ impl Browser {
             })
             .collect();
 
+        // Name order first; the other sorts are stable, so it breaks their ties.
+        games.sort_by_cached_key(|g| g.raw_name().to_lowercase());
         match self.sort {
-            Sort::Name => {
-                games.sort_by(|a, b| {
-                    a.raw_name()
-                        .to_lowercase()
-                        .cmp(&b.raw_name().to_lowercase())
-                });
+            Sort::Name => {}
+            Sort::Installed => games.sort_by_key(|g| std::cmp::Reverse(g.installed)),
+            Sort::Playtime => {
+                games.sort_by_key(|g| std::cmp::Reverse(g.playtime_minutes.unwrap_or(0)));
             }
-            Sort::Installed => {
-                games.sort_by(|a, b| {
-                    b.installed.cmp(&a.installed).then_with(|| {
-                        a.raw_name()
-                            .to_lowercase()
-                            .cmp(&b.raw_name().to_lowercase())
-                    })
-                });
-            }
+            Sort::Recent => games.sort_by_key(|g| std::cmp::Reverse(g.last_played)),
         }
         games
     }

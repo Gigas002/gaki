@@ -134,6 +134,9 @@ pub(crate) enum Command {
         /// than a plain listing; off by default.
         #[arg(short = 'u', long)]
         check_updates: bool,
+        /// Order of the listed games.
+        #[arg(long, value_enum, default_value_t = ListSort::Name)]
+        sort: ListSort,
     },
     /// Show detailed information about a game.
     #[cfg(feature = "library")]
@@ -1251,6 +1254,28 @@ pub(crate) struct ReviewsArgs {
     /// Cursor from a previous page's JSON.
     #[arg(short = 'u', long)]
     pub(crate) cursor: Option<String>,
+}
+
+/// `list --sort` choices.
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum ListSort {
+    /// By name.
+    Name,
+    /// Most total playtime first.
+    Playtime,
+    /// Most recently played first.
+    Recent,
+}
+
+#[cfg(feature = "library")]
+impl From<ListSort> for libgaki::ops::library::SortBy {
+    fn from(value: ListSort) -> Self {
+        match value {
+            ListSort::Name => Self::Name,
+            ListSort::Playtime => Self::Playtime,
+            ListSort::Recent => Self::LastPlayed,
+        }
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]

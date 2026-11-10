@@ -63,6 +63,9 @@ fn a_custom_keymap_shows_everywhere() {
         active_branch: None,
         assets: None,
         store_url: None,
+        playtime_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
     })]);
     let footer = render(160, 2, |f| {
         f.render_widget(ui::status::status_bar(&browser, None), f.area())

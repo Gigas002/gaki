@@ -26,7 +26,8 @@ gaki-cli account                      # show account details
 ### Library
 
 ```bash
-gaki-cli list                         # your library
+gaki-cli list                         # your library, with playtime and last-played date
+gaki-cli list --sort playtime         # most played first (also: recent, name)
 gaki-cli list --installed             # only installed games
 gaki-cli list --search elden          # filter by name
 gaki-cli list --online                # add an ONLINE column (needs-connection heuristic)

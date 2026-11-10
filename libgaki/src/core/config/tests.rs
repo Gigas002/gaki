@@ -47,6 +47,8 @@ fn library_cache_keeps_large_manifest_ids() {
         app_id: 570,
         name: "Dota 2".into(),
         playtime_forever_minutes: 3,
+        playtime_2weeks_minutes: 0,
+        last_played: None,
         local_manifest_ids: HashMap::from([(573, u64::MAX)]),
         update_available: true,
     };
@@ -117,6 +119,8 @@ async fn the_library_cache_is_only_trusted_for_its_own_account() {
         app_id: 1030300,
         name: "Some Game".into(),
         playtime_forever_minutes: 0,
+        playtime_2weeks_minutes: 0,
+        last_played: None,
         local_manifest_ids: HashMap::new(),
         update_available: false,
     };

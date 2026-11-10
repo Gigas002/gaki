@@ -1,6 +1,8 @@
 //! The detail pane for the selected game.
 
 use crate::utils::bytes::convert;
+use libgaki::core::utils::format_playtime;
+use libgaki::steam_client::unix_to_ymd;
 
 use ratatui::layout::Constraint;
 use ratatui::style::Style;
@@ -125,6 +127,37 @@ fn build_content(
                     ]),
                     1,
                 );
+            }
+
+            // Playtime, for games licensed to this account.
+            if let Some(total) = g.playtime_minutes {
+                push(blank(), 1);
+                let played = |m: u32| {
+                    if m == 0 {
+                        "-".to_string()
+                    } else {
+                        format_playtime(m)
+                    }
+                };
+                let last = g
+                    .last_played
+                    .map_or_else(|| "never".to_string(), |t| unix_to_ymd(t as i64));
+                for (heading, value) in [
+                    ("Playtime", played(total)),
+                    (
+                        "Last 2 weeks",
+                        played(g.playtime_2weeks_minutes.unwrap_or(0)),
+                    ),
+                    ("Last played", last),
+                ] {
+                    push(
+                        Row::new(vec![
+                            Cell::from(Span::styled(heading, theme::label())),
+                            Cell::from(Span::styled(value, theme::value())),
+                        ]),
+                        1,
+                    );
+                }
             }
 
             if let Some(status) = g.get_status() {

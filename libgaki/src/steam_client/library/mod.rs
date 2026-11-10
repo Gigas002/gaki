@@ -35,7 +35,9 @@ impl SteamClient {
                 } else {
                     game.name().to_string()
                 },
-                playtime_forever_minutes: game.playtime_forever() as u32,
+                playtime_forever_minutes: game.playtime_forever().max(0) as u32,
+                playtime_2weeks_minutes: game.playtime_2weeks().max(0) as u32,
+                last_played: Some(u64::from(game.rtime_last_played())).filter(|&t| t > 0),
                 local_manifest_ids: HashMap::new(),
                 update_available: false,
             })

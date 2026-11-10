@@ -16,6 +16,9 @@ fn game(id: i32) -> Game {
         active_branch: None,
         assets: None,
         store_url: None,
+        playtime_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
     })
 }
 
@@ -68,6 +71,9 @@ fn poll_game_refresh_patches_install_flags_and_clears_status() {
         active_branch: None,
         assets: None,
         store_url: None,
+        playtime_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
     });
 
     b.poll_game_refresh();

@@ -1445,6 +1445,16 @@ pub fn human_bytes(bytes: u64) -> String {
     }
 }
 
+/// Format minutes played: `45 min` under an hour, otherwise hours with one
+/// decimal (`12.3 h`), as Steam's library shows them.
+pub fn format_playtime(minutes: u32) -> String {
+    if minutes < 60 {
+        format!("{minutes} min")
+    } else {
+        format!("{:.1} h", f64::from(minutes) / 60.0)
+    }
+}
+
 /// The MangoHud library on this system, if installed.
 pub fn find_mangohud_lib() -> Option<PathBuf> {
     // Common install locations across distros

@@ -55,6 +55,17 @@ pub struct Game {
     #[serde(default)]
     pub size: f64,
 
+    // Playtime from the library listing; cached with the game.
+    /// Total minutes played; `None` for games not licensed to this account.
+    #[serde(default)]
+    pub playtime_minutes: Option<u32>,
+    /// Minutes played in the last two weeks.
+    #[serde(default)]
+    pub playtime_2weeks_minutes: Option<u32>,
+    /// When the account last played the game (Unix seconds).
+    #[serde(default)]
+    pub last_played: Option<u64>,
+
     #[serde(skip)]
     proton_tier: Arc<Mutex<Option<String>>>,
     // Lazily-fetched store metadata (developer/publisher/description).
@@ -98,6 +109,9 @@ impl Game {
             install_dir: entry.install_path.unwrap_or_default(),
             update_available: entry.update_available,
             size: 0.0,
+            playtime_minutes: entry.playtime_minutes,
+            playtime_2weeks_minutes: entry.playtime_2weeks_minutes,
+            last_played: entry.last_played,
             proton_tier: Arc::new(Mutex::new(None)),
             info: Arc::new(Mutex::new(None)),
             info_requested: Arc::new(AtomicBool::new(false)),

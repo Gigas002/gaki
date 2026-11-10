@@ -4,6 +4,7 @@ use super::*;
 
 mod country;
 mod path_ignore_case;
+mod playtime;
 mod resolve_runner;
 mod runner_classification;
 mod safe_dir_name;

@@ -1,31 +1,19 @@
 //! `library` command handlers.
 
 use libgaki::core::steam_urls;
+use libgaki::core::utils::format_playtime;
 
 use crate::commands::common::*;
 
 use anyhow::{Context, Result};
 use libgaki::ops::library::{self, ListOptions};
 
-pub(crate) async fn cmd_list(
-    installed: bool,
-    search: Option<String>,
-    collection: Option<String>,
-    online: bool,
-    check_updates: bool,
-    json: bool,
-) -> Result<()> {
+pub(crate) async fn cmd_list(options: &ListOptions, json: bool) -> Result<()> {
     let mut client = restored_client().await?;
-    let options = ListOptions {
-        installed,
-        search,
-        collection,
-        online,
-        check_updates,
-    };
-    let listing = library::list(&mut client, &options).await?;
+    let listing = library::list(&mut client, options).await?;
     let games = &listing.games;
     let game_collections = |app_id: u32| listing.collections_of(app_id).to_vec();
+    let online = options.online;
 
     if json {
         // Bake the conventional artwork/store URLs
@@ -68,24 +56,20 @@ pub(crate) async fn cmd_list(
         return Ok(());
     }
 
-    if online {
-        cli_println!(
-            "{:>9}  {:<10}  {:<13}  {:<7}  {:<20}  NAME",
-            "APPID",
-            "STATUS",
-            "LICENSE",
-            "ONLINE",
-            "COLLECTIONS"
-        );
+    let online_head = if online {
+        format!("{:<7}  ", "ONLINE")
     } else {
-        cli_println!(
-            "{:>9}  {:<10}  {:<13}  {:<20}  NAME",
-            "APPID",
-            "STATUS",
-            "LICENSE",
-            "COLLECTIONS"
-        );
-    }
+        String::new()
+    };
+    cli_println!(
+        "{:>9}  {:<10}  {:<13}  {:>9}  {:<11}  {online_head}{:<20}  NAME",
+        "APPID",
+        "STATUS",
+        "LICENSE",
+        "PLAYTIME",
+        "LAST PLAYED",
+        "COLLECTIONS"
+    );
     for g in games {
         let status = if g.is_installed {
             if g.update_available {
@@ -110,44 +94,48 @@ pub(crate) async fn cmd_list(
         } else {
             cols.join(", ")
         };
-        if online {
-            let online_col = match g.online_required {
+        let playtime = match g.playtime_forever_minutes {
+            Some(m) if m > 0 => format_playtime(m),
+            _ => "-".to_string(),
+        };
+        let last_played = g.last_played.map_or_else(
+            || "-".to_string(),
+            |t| libgaki::steam_client::unix_to_ymd(t as i64),
+        );
+        let online_col = if online {
+            let value = match g.online_required {
                 Some(true) => "yes",
                 Some(false) => "no",
                 None => "?",
             };
-            cli_println!(
-                "{:>9}  {:<10}  {:<13}  {:<7}  {:<20}  {}{}",
-                g.app_id,
-                status,
-                license,
-                online_col,
-                cols,
-                g.name,
-                branch
-            );
+            format!("{value:<7}  ")
         } else {
-            cli_println!(
-                "{:>9}  {:<10}  {:<13}  {:<20}  {}{}",
-                g.app_id,
-                status,
-                license,
-                cols,
-                g.name,
-                branch
-            );
-        }
+            String::new()
+        };
+        cli_println!(
+            "{:>9}  {:<10}  {:<13}  {:>9}  {:<11}  {online_col}{:<20}  {}{}",
+            g.app_id,
+            status,
+            license,
+            playtime,
+            last_played,
+            cols,
+            g.name,
+            branch
+        );
     }
 
     let shared = games.iter().filter(|g| g.is_family_shared).count();
+    let total = listing.total_playtime_minutes();
+    let total = format_playtime(u32::try_from(total).unwrap_or(u32::MAX));
     if shared > 0 {
         cli_println!(
-            "\n{} game(s), {} via Family Sharing (not licensed to this account).",
+            "\n{} game(s), {} via Family Sharing (not licensed to this account). Total playtime: {total}.",
             games.len(),
             shared
         );
     } else {
-        cli_println!("\n{} game(s).", games.len());
+        cli_println!("\n{} game(s). Total playtime: {total}.", games.len());
     }
     Ok(())
 }

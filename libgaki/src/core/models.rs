@@ -102,6 +102,12 @@ pub struct OwnedGame {
     pub app_id: u32,
     pub name: String,
     pub playtime_forever_minutes: u32,
+    /// Minutes played in the last two weeks.
+    #[serde(default)]
+    pub playtime_2weeks_minutes: u32,
+    /// When the account last played the game (Unix seconds); `None` if never.
+    #[serde(default)]
+    pub last_played: Option<u64>,
     #[serde(default)]
     pub local_manifest_ids: HashMap<u64, u64>,
     #[serde(default)]
@@ -116,7 +122,15 @@ fn default_branch() -> String {
 pub struct LibraryGame {
     pub app_id: u32,
     pub name: String,
+    /// Total minutes played; `None` for games not licensed to this account.
     pub playtime_forever_minutes: Option<u32>,
+    /// Minutes played in the last two weeks; `None` like the total.
+    #[serde(default)]
+    pub playtime_2weeks_minutes: Option<u32>,
+    /// When the account last played the game (Unix seconds); `None` if never
+    /// or unknown.
+    #[serde(default)]
+    pub last_played: Option<u64>,
     pub is_installed: bool,
     pub install_path: Option<String>,
     #[serde(default)]

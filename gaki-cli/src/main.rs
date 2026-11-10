@@ -318,7 +318,18 @@ async fn run(cli: Cli) -> Result<()> {
             collection,
             online,
             check_updates,
-        } => cmd_list(installed, search, collection, online, check_updates, json).await,
+            sort,
+        } => {
+            let options = libgaki::ops::library::ListOptions {
+                installed,
+                search,
+                collection,
+                online,
+                check_updates,
+                sort: sort.into(),
+            };
+            cmd_list(&options, json).await
+        }
         #[cfg(feature = "library")]
         Command::Account => cmd_account(json).await,
         #[cfg(feature = "collections")]

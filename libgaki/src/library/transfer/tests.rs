@@ -5,6 +5,8 @@ fn game(app_id: u32, name: &str, platform: Option<&str>, branch: &str) -> Librar
         app_id,
         name: name.to_string(),
         playtime_forever_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
         is_installed: platform.is_some(),
         install_path: None,
         local_manifest_ids: Default::default(),

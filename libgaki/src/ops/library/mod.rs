@@ -79,6 +79,8 @@ pub fn merge_family_shared(games: &mut Vec<LibraryGame>, shared: Vec<SharedApp>)
             app_id: app.app_id,
             name: app.name,
             playtime_forever_minutes: None,
+            playtime_2weeks_minutes: None,
+            last_played: None,
             is_installed: false,
             install_path: None,
             local_manifest_ids: Default::default(),
@@ -108,6 +110,31 @@ pub async fn find_game(client: &mut SteamClient, app_id: u32) -> Result<LibraryG
         })
 }
 
+/// The order [`list`] returns games in.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum SortBy {
+    /// By name, case-insensitively.
+    #[default]
+    Name,
+    /// Most total playtime first; ties by name.
+    Playtime,
+    /// Most recently played first, never-played last; ties by name.
+    LastPlayed,
+}
+
+/// Sort `games` by `sort`.
+pub fn sort_games(games: &mut [LibraryGame], sort: SortBy) {
+    games.sort_by_key(|g| g.name.to_ascii_lowercase());
+    match sort {
+        SortBy::Name => {}
+        // Stable sorts, so the name order above breaks ties.
+        SortBy::Playtime => {
+            games.sort_by_key(|g| std::cmp::Reverse(g.playtime_forever_minutes.unwrap_or(0)));
+        }
+        SortBy::LastPlayed => games.sort_by_key(|g| std::cmp::Reverse(g.last_played)),
+    }
+}
+
 /// What [`list`] returns.
 #[derive(Debug, Clone, Default)]
 pub struct ListOptions {
@@ -121,9 +148,11 @@ pub struct ListOptions {
     pub online: bool,
     /// Resolve `update_available` (reads manifests; slow).
     pub check_updates: bool,
+    /// The order of the returned games.
+    pub sort: SortBy,
 }
 
-/// The filtered library, sorted by name.
+/// The filtered library, in [`ListOptions::sort`] order.
 #[derive(Debug, Clone, Default)]
 pub struct Listing {
     pub games: Vec<LibraryGame>,
@@ -135,6 +164,15 @@ impl Listing {
     /// The static collections `app_id` belongs to.
     pub fn collections_of(&self, app_id: u32) -> &[String] {
         self.collections.get(&app_id).map_or(&[], Vec::as_slice)
+    }
+
+    /// Total minutes played across the listed games.
+    pub fn total_playtime_minutes(&self) -> u64 {
+        self.games
+            .iter()
+            .filter_map(|g| g.playtime_forever_minutes)
+            .map(u64::from)
+            .sum()
     }
 }
 
@@ -171,7 +209,7 @@ pub async fn list(client: &mut SteamClient, options: &ListOptions) -> Result<Lis
         )
         .into());
     }
-    games.sort_by_key(|g| g.name.to_ascii_lowercase());
+    sort_games(&mut games, options.sort);
 
     let online = client.is_authenticated() && !client.is_offline();
     if options.online {

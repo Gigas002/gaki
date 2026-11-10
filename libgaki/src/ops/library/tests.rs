@@ -5,6 +5,8 @@ fn game(app_id: u32, name: &str, owned: bool) -> LibraryGame {
         app_id,
         name: name.to_string(),
         playtime_forever_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
         is_installed: true,
         install_path: None,
         local_manifest_ids: Default::default(),
@@ -70,4 +72,52 @@ fn install_targets_list_the_configured_library_first_even_when_empty() {
     );
     assert_eq!(targets, [configured, other.clone()]);
     assert_eq!(install_targets(None, vec![other.clone()]), [other]);
+}
+
+fn played(name: &str, minutes: Option<u32>, last: Option<u64>) -> LibraryGame {
+    LibraryGame {
+        playtime_forever_minutes: minutes,
+        last_played: last,
+        ..game(1, name, true)
+    }
+}
+
+fn names(games: &[LibraryGame]) -> Vec<&str> {
+    games.iter().map(|g| g.name.as_str()).collect()
+}
+
+#[test]
+fn sort_by_playtime_puts_most_played_first_and_breaks_ties_by_name() {
+    let mut games = vec![
+        played("b", Some(10), None),
+        played("C", None, None),
+        played("a", Some(10), None),
+        played("d", Some(300), None),
+    ];
+    sort_games(&mut games, SortBy::Playtime);
+    assert_eq!(names(&games), ["d", "a", "b", "C"]);
+}
+
+#[test]
+fn sort_by_last_played_puts_never_played_last() {
+    let mut games = vec![
+        played("never", Some(0), None),
+        played("old", Some(5), Some(100)),
+        played("new", Some(1), Some(200)),
+    ];
+    sort_games(&mut games, SortBy::LastPlayed);
+    assert_eq!(names(&games), ["new", "old", "never"]);
+}
+
+#[test]
+fn listing_totals_playtime_of_licensed_games() {
+    let listing = Listing {
+        games: vec![
+            played("a", Some(90), None),
+            played("b", None, None),
+            played("c", Some(30), None),
+        ],
+        ..Default::default()
+    };
+    assert_eq!(listing.total_playtime_minutes(), 120);
 }

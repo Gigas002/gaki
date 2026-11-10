@@ -37,6 +37,9 @@ installed, `▲` update, `⬇` downloading, `○` not installed, `♡` favourite
 detail pane over the game's art, and a **status bar** with live counts, the
 filter and sort, your account and the version.
 
+The detail pane also shows your playtime: the total, the last two weeks and
+the date you last played.
+
 Selecting a game loads its store details, its ProtonDB tier and its art in the
 background, so the list stays responsive while they fill in.
 
@@ -58,7 +61,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `Tab` / `Shift-Tab`   | Cycle the tabs                                                                                                        |
 | `1`–`5`               | Jump to a tab (`5` is Friends)                                                                                        |
 | `/`                   | Filter by name (`Esc` clears)                                                                                         |
-| `s`                   | Cycle the sort (name, installed first)                                                                                |
+| `s`                   | Cycle the sort (name, installed first, most played, recently played)                                                  |
 | `Enter`               | The Actions menu for the selected game                                                                                |
 | `i`                   | Expand or collapse the description                                                                                    |
 | `d`                   | Install (pick a library)                                                                                              |

@@ -5,6 +5,8 @@ fn game(installed: bool) -> LibraryGame {
         app_id: 1,
         name: "Game".into(),
         playtime_forever_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
         is_installed: installed,
         install_path: None,
         local_manifest_ids: Default::default(),

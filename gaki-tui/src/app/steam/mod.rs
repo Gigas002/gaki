@@ -84,6 +84,12 @@ pub struct LibraryGame {
     pub active_branch: Option<String>,
     pub assets: Option<ArtworkUrls>,
     pub store_url: Option<String>,
+    /// Total minutes played; `None` for games not licensed to this account.
+    pub playtime_minutes: Option<u32>,
+    /// Minutes played in the last two weeks.
+    pub playtime_2weeks_minutes: Option<u32>,
+    /// When the account last played the game (Unix seconds).
+    pub last_played: Option<u64>,
 }
 
 /// One Steam Cloud file of a game.
@@ -1017,6 +1023,9 @@ pub fn fetch_library() -> Result<Vec<LibraryGame>, TuiError> {
                 is_family_shared: g.is_family_shared,
                 platform: g.platform,
                 active_branch: Some(g.active_branch),
+                playtime_minutes: g.playtime_forever_minutes,
+                playtime_2weeks_minutes: g.playtime_2weeks_minutes,
+                last_played: g.last_played,
             })
             .collect())
     })

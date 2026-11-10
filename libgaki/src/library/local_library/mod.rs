@@ -76,10 +76,13 @@ pub async fn discover_from_root(root: &Path) -> Vec<OwnedGame> {
         else {
             continue;
         };
+        let play = playtime.get(&app_id).copied().unwrap_or_default();
         games.push(OwnedGame {
             app_id,
             name: info.name.clone(),
-            playtime_forever_minutes: playtime.get(&app_id).copied().unwrap_or(0),
+            playtime_forever_minutes: play.minutes,
+            playtime_2weeks_minutes: play.minutes_2weeks,
+            last_played: play.last_played,
             local_manifest_ids: HashMap::new(),
             update_available: false,
         });
@@ -93,9 +96,9 @@ pub async fn discover_from_root(root: &Path) -> Vec<OwnedGame> {
     games
 }
 
-/// Read `appid -> playtime (minutes)` from the most-recently-used account's
-/// `localconfig.vdf`. App ids with no recorded playtime map to `0`.
-async fn read_local_playtime(root: &Path) -> HashMap<u32, u32> {
+/// Read each app's playtime from the most-recently-used account's
+/// `localconfig.vdf`. App ids with no recorded playtime map to zeroes.
+async fn read_local_playtime(root: &Path) -> HashMap<u32, LocalPlay> {
     let Some(config_path) = locate_localconfig(root).await else {
         return HashMap::new();
     };
@@ -185,11 +188,22 @@ async fn read_librarycache_appids(root: &Path) -> HashSet<u32> {
     ids
 }
 
+/// What `localconfig.vdf` records about one app the user has played.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+struct LocalPlay {
+    /// Total minutes played (`Playtime`).
+    minutes: u32,
+    /// Minutes played in the last two weeks (`Playtime2wks`).
+    minutes_2weeks: u32,
+    /// Unix seconds of the last session (`LastPlayed`), `None` if never.
+    last_played: Option<u64>,
+}
+
 /// Parse the `apps` blocks of a text `localconfig.vdf`, returning
-/// `appid -> playtime minutes`. Every app id under an `apps` object is recorded
-/// (playtime `0` when none is listed).
-fn parse_localconfig_apps(text: &str) -> HashMap<u32, u32> {
-    let mut result = HashMap::new();
+/// `appid -> LocalPlay`. Every app id under an `apps` object is recorded
+/// (all zero when nothing is listed).
+fn parse_localconfig_apps(text: &str) -> HashMap<u32, LocalPlay> {
+    let mut result: HashMap<u32, LocalPlay> = HashMap::new();
     let mut path: Vec<String> = Vec::new();
     let mut pending_key: Option<String> = None;
 
@@ -201,7 +215,7 @@ fn parse_localconfig_apps(text: &str) -> HashMap<u32, u32> {
             if path.last().is_some_and(|p| p.eq_ignore_ascii_case("apps"))
                 && let Ok(id) = key.parse::<u32>()
             {
-                result.entry(id).or_insert(0);
+                result.entry(id).or_default();
             }
             path.push(key);
             continue;
@@ -217,14 +231,24 @@ fn parse_localconfig_apps(text: &str) -> HashMap<u32, u32> {
             [key] => pending_key = Some(key.clone()),
             [key, value] => {
                 pending_key = None;
-                // Inside an apps/<appid> object, capture Playtime in minutes.
-                if key.eq_ignore_ascii_case("Playtime")
-                    && path.len() >= 2
-                    && path[path.len() - 2].eq_ignore_ascii_case("apps")
-                    && let (Ok(app_id), Ok(minutes)) =
-                        (path[path.len() - 1].parse::<u32>(), value.parse::<u32>())
-                {
-                    result.insert(app_id, minutes);
+                // Only values directly inside an apps/<appid> object.
+                if path.len() < 2 || !path[path.len() - 2].eq_ignore_ascii_case("apps") {
+                    continue;
+                }
+                let Ok(app_id) = path[path.len() - 1].parse::<u32>() else {
+                    continue;
+                };
+                let entry = result.entry(app_id).or_default();
+                if key.eq_ignore_ascii_case("Playtime") {
+                    if let Ok(minutes) = value.parse() {
+                        entry.minutes = minutes;
+                    }
+                } else if key.eq_ignore_ascii_case("Playtime2wks") {
+                    if let Ok(minutes) = value.parse() {
+                        entry.minutes_2weeks = minutes;
+                    }
+                } else if key.eq_ignore_ascii_case("LastPlayed") {
+                    entry.last_played = value.parse().ok().filter(|&t: &u64| t > 0);
                 }
             }
             _ => {}

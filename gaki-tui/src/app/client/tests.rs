@@ -18,6 +18,9 @@ fn the_games_cache_round_trips_through_toml() {
         active_branch: None,
         assets: None,
         store_url: None,
+        playtime_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
     });
     let text = toml::to_string(&GamesCache { games: vec![game] }).unwrap();
     let back: GamesCache = toml::from_str(&text).unwrap();

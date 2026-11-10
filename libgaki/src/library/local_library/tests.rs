@@ -16,6 +16,7 @@ fn parses_apps_and_playtime_from_localconfig() {
                 "70"
                 {
                     "LastPlayed"  "1700762079"
+                    "Playtime2wks" "12"
                     "Playtime"    "79"
                 }
                 "440"
@@ -28,8 +29,15 @@ fn parses_apps_and_playtime_from_localconfig() {
 }
 "#;
     let apps = parse_localconfig_apps(vdf);
-    assert_eq!(apps.get(&70), Some(&79));
-    assert_eq!(apps.get(&440), Some(&0));
+    assert_eq!(
+        apps.get(&70),
+        Some(&LocalPlay {
+            minutes: 79,
+            minutes_2weeks: 12,
+            last_played: Some(1_700_762_079),
+        })
+    );
+    assert_eq!(apps.get(&440), Some(&LocalPlay::default()));
     assert_eq!(apps.len(), 2);
 }
 

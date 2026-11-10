@@ -16,6 +16,8 @@ async fn native_runner_appends_user_launch_options() {
             install_path: Some("/tmp/game".to_string()),
             is_installed: true,
             playtime_forever_minutes: None,
+            playtime_2weeks_minutes: None,
+            last_played: None,
             active_branch: "public".to_string(),
             update_available: false,
             update_queued: false,

@@ -41,6 +41,8 @@ async fn test_batman_path_resolution() {
         install_path: Some(game_dir.to_string_lossy().to_string()),
         is_installed: true,
         playtime_forever_minutes: Some(0),
+        playtime_2weeks_minutes: None,
+        last_played: None,
         active_branch: "public".to_string(),
         update_available: false,
         update_queued: false,

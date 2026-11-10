@@ -42,6 +42,9 @@ fn game(id: u32, name: &str, installed: bool) -> Game {
         active_branch: None,
         assets: None,
         store_url: None,
+        playtime_minutes: None,
+        playtime_2weeks_minutes: None,
+        last_played: None,
     })
 }
 
