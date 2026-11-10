@@ -20,7 +20,7 @@ fn dim(text: impl Into<String>) -> Line<'static> {
 }
 
 fn warn(text: impl Into<String>) -> Line<'static> {
-    Line::from(Span::styled(text.into(), theme::value().fg(theme::WARN)))
+    Line::from(Span::styled(text.into(), theme::warning()))
 }
 
 fn field(label: &str, value: impl Into<String>) -> Line<'static> {

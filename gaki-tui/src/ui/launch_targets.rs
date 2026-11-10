@@ -27,7 +27,7 @@ pub fn launch_targets(browser: &Browser) -> Paragraph<'static> {
     for (i, target) in browser.launch_targets.iter().enumerate() {
         let selected = i == browser.launch_targets_index;
         let style = if selected {
-            theme::selection(theme::ACCENT)
+            theme::selection()
         } else if target.available {
             theme::value()
         } else {

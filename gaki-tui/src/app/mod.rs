@@ -20,8 +20,6 @@ pub type AppResult<T = ()> = Result<T, Box<dyn std::error::Error>>;
 
 use crate::config::Config;
 
-use ratatui::style::Color;
-
 pub struct App {
     pub mode: Mode,
     pub user: String,
@@ -29,7 +27,6 @@ pub struct App {
     pub password: String,
     /// In-progress Steam Guard code entry.
     pub guard_code: String,
-    pub highlight: Color,
     /// The view waiting for a fresh login (`reauth_sensitive`); it opens once
     /// the login finishes and the library is back.
     #[cfg(feature = "inventory")]
@@ -95,7 +92,6 @@ pub enum Mode {
 impl App {
     pub fn new(config: &Config) -> App {
         let user = config.default_user.clone();
-        let highlight = config.highlight;
         App {
             mode: if user.is_empty() {
                 Mode::Login
@@ -105,7 +101,6 @@ impl App {
             user,
             password: String::new(),
             guard_code: String::new(),
-            highlight,
             #[cfg(feature = "inventory")]
             reauth: None,
         }

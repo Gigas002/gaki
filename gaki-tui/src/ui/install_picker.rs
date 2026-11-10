@@ -6,7 +6,6 @@
 use crate::keymap::{InstallPickerAction as Ip, hints, key_of};
 use crate::utils::bytes::convert;
 
-use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -44,7 +43,7 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
 
             let marker = if selected { "▶ " } else { "  " };
             let name_style = if selected {
-                theme::selection(theme::ACCENT)
+                theme::selection()
             } else {
                 theme::value()
             };
@@ -56,11 +55,7 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
             // Free space, dim when it fits and warning-coloured (with a marker)
             // when the game won't fit on that drive.
             if let Some(free) = lib.free_bytes {
-                let info_style = if fits {
-                    theme::dim()
-                } else {
-                    Style::default().fg(theme::WARN)
-                };
+                let info_style = if fits { theme::dim() } else { theme::warning() };
                 spans.push(Span::styled(
                     format!("  ({} free)", convert(free as f64)),
                     info_style,
@@ -68,7 +63,7 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
                 if !fits {
                     spans.push(Span::styled(
                         "  ✗ not enough space".to_string(),
-                        Style::default().fg(theme::WARN),
+                        theme::warning(),
                     ));
                 }
             }

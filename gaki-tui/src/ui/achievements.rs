@@ -1,7 +1,6 @@
 //! The achievements overlay (modal popup): the selected game's achievements
 //! with the logged-in user's unlock state, scrollable.
 
-use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
@@ -26,7 +25,7 @@ pub fn achievements(browser: &Browser) -> Paragraph<'static> {
         .skip(browser.ach_scroll)
         .map(|a| {
             let (glyph, glyph_style) = if a.unlocked {
-                ("✓ ", Style::default().fg(theme::ONLINE))
+                ("✓ ", theme::good())
             } else {
                 ("○ ", theme::dim())
             };

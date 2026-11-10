@@ -2,7 +2,6 @@
 //! contextual key-hint line.
 
 use ratatui::layout::{Alignment, Rect};
-use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -88,10 +87,7 @@ pub fn status_bar(browser: &Browser, account: Option<&str>) -> Paragraph<'static
     // A transient notice (e.g. a failed action) takes the front of the line in
     // the warning colour until the next keypress clears it.
     if let Some(notice) = &browser.notice {
-        line1.push(Span::styled(
-            notice.clone(),
-            Style::default().fg(theme::WARN),
-        ));
+        line1.push(Span::styled(notice.clone(), theme::warning()));
         line1.push(sep());
     }
 
@@ -107,13 +103,13 @@ pub fn status_bar(browser: &Browser, account: Option<&str>) -> Paragraph<'static
 
     line1.push(Span::styled(
         format!("{}/{} shown", c.visible, c.total),
-        Style::default().fg(theme::TEXT),
+        theme::value(),
     ));
 
     line1.push(sep());
     line1.push(Span::styled(
         format!("● {} installed", c.installed),
-        Style::default().fg(theme::ONLINE),
+        theme::good(),
     ));
 
     line1.push(sep());
@@ -122,13 +118,13 @@ pub fn status_bar(browser: &Browser, account: Option<&str>) -> Paragraph<'static
     } else {
         format!("▲ {} updates", c.updates)
     };
-    line1.push(Span::styled(updates, Style::default().fg(theme::WARN)));
+    line1.push(Span::styled(updates, theme::warning()));
 
     if c.downloading > 0 {
         line1.push(sep());
         line1.push(Span::styled(
             format!("⬇ {} downloading", c.downloading),
-            Style::default().fg(theme::ACCENT_BRIGHT),
+            theme::link(),
         ));
     }
 

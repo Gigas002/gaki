@@ -25,7 +25,7 @@ pub fn branches(browser: &Browser) -> List<'static> {
 
                 let marker = crate::ui::selection_marker(selected);
                 let name_style = if selected {
-                    theme::selection(theme::ACCENT)
+                    theme::selection()
                 } else {
                     theme::value()
                 };
@@ -38,10 +38,7 @@ pub fn branches(browser: &Browser) -> List<'static> {
                 // Active branch marker (Steam green dot).
                 if entry.active {
                     spans.push(Span::raw("  ".to_string()));
-                    spans.push(Span::styled(
-                        "●".to_string(),
-                        theme::value().fg(theme::ONLINE),
-                    ));
+                    spans.push(Span::styled("●".to_string(), theme::good()));
                 }
 
                 // Optional branch description, dimmed.

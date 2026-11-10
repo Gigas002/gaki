@@ -3,7 +3,6 @@
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
@@ -52,7 +51,7 @@ fn section_bar(current: Section) -> Line<'static> {
     for section in Section::ALL {
         let label = format!(" {} ", section.label());
         spans.push(if section == current {
-            Span::styled(label, theme::selection(theme::ACCENT))
+            Span::styled(label, theme::selection())
         } else {
             Span::styled(label, theme::dim())
         });
@@ -88,7 +87,7 @@ fn dim(text: impl Into<String>) -> Line<'static> {
 }
 
 fn warn(text: impl Into<String>) -> Line<'static> {
-    Line::from(Span::styled(text.into(), theme::value().fg(theme::WARN)))
+    Line::from(Span::styled(text.into(), theme::warning()))
 }
 
 /// The body of a section in its load state.
@@ -122,10 +121,7 @@ fn body_lines(view: &StoreView) -> Vec<Line<'static>> {
         Section::Price => loaded(view.price.as_ref(), "prices", price_lines),
         Section::Players => loaded(view.players.as_ref(), "the player count", |n| {
             vec![Line::from(vec![
-                Span::styled(
-                    thousands(i64::from(*n)),
-                    theme::accent().add_modifier(Modifier::BOLD),
-                ),
+                Span::styled(thousands(i64::from(*n)), theme::heading()),
                 Span::styled(" playing right now".to_string(), theme::value()),
             ])]
         }),
@@ -180,7 +176,7 @@ fn price_lines(prices: &Prices) -> Vec<Line<'static>> {
             Line::from(vec![
                 Span::styled(format!("{:<8}", q.country), theme::value()),
                 Span::styled(format!("{price:<16}"), theme::accent()),
-                Span::styled(format!("{discount:<9}"), theme::value().fg(theme::ONLINE)),
+                Span::styled(format!("{discount:<9}"), theme::good()),
                 Span::styled(format!("{full:<16}"), theme::dim()),
                 Span::styled(ends, theme::dim()),
             ])
@@ -203,10 +199,7 @@ fn news_lines(items: &[NewsItem]) -> Vec<Line<'static>> {
     for item in items {
         lines.push(Line::from(vec![
             Span::styled(format!("{}  ", unix_to_ymd(item.date as i64)), theme::dim()),
-            Span::styled(
-                item.title.clone(),
-                theme::value().add_modifier(Modifier::BOLD),
-            ),
+            Span::styled(item.title.clone(), theme::emphasis()),
         ]));
         let source = [item.feed.as_str(), item.author.as_str()]
             .iter()
@@ -233,10 +226,7 @@ fn review_lines(page: &ReviewPage) -> Vec<Line<'static>> {
     if s.total_reviews > 0 {
         let pct = s.total_positive * 100 / s.total_reviews.max(1);
         lines.push(Line::from(vec![
-            Span::styled(
-                s.label.clone(),
-                theme::accent().add_modifier(Modifier::BOLD),
-            ),
+            Span::styled(s.label.clone(), theme::heading()),
             Span::styled(
                 format!("  {pct}% of {} positive", thousands(s.total_reviews)),
                 theme::value(),
@@ -247,13 +237,13 @@ fn review_lines(page: &ReviewPage) -> Vec<Line<'static>> {
     }
     lines.push(Line::from(""));
     for r in &page.reviews {
-        let (verdict, color) = if r.voted_up {
-            ("▲ Recommended", theme::ONLINE)
+        let (verdict, style) = if r.voted_up {
+            ("▲ Recommended", theme::good())
         } else {
-            ("▼ Not recommended", theme::WARN)
+            ("▼ Not recommended", theme::warning())
         };
         lines.push(Line::from(vec![
-            Span::styled(verdict.to_string(), theme::value().fg(color)),
+            Span::styled(verdict.to_string(), style),
             Span::styled(
                 format!(
                     "  {}  {:.1} h  {} helpful  {}",
@@ -295,7 +285,7 @@ fn similar_lines(listing: &Listing) -> Vec<Line<'static>> {
             if r.discount_pct > 0 {
                 spans.push(Span::styled(
                     format!(" -{}%", r.discount_pct),
-                    theme::value().fg(theme::ONLINE),
+                    theme::good(),
                 ));
             }
             if let Some(summary) = &r.review_summary {

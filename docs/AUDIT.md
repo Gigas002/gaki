@@ -190,7 +190,7 @@ reason:
 - **not possible**: no protocol a third-party client can use for it.
 
 The pure GUI parts of the official client (Big Picture, the in-game
-overlay's own UI, broadcasting, themes) aren't listed. A terminal client has
+overlay's own UI, broadcasting, client skins) aren't listed. A terminal client has
 no counterpart to them.
 
 ### 3.1 Account
@@ -278,7 +278,8 @@ no counterpart to them.
 
 ### 3.7 Only in gaki
 
-Not in the official client: a CLI with a session daemon, Proton profiles shared with
+Not in the official client: a CLI with a session daemon, a TUI whose keys
+and theme are all configurable, Proton profiles shared with
 lootrs, per-game wrappers, pinning a build against updates, the
 `duplicates` scan, `available`, and SteamDB, ProtonDB and Proton-issue links.
 

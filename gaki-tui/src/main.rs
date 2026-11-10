@@ -6,6 +6,7 @@ use gaki_tui::app;
 use gaki_tui::cli::CliOptions;
 use gaki_tui::logger;
 use gaki_tui::settings::{Settings, Start};
+use gaki_tui::ui::theme::Theme;
 
 fn main() -> ExitCode {
     // TLS runs on ring, which must be installed before any HTTPS client is
@@ -28,6 +29,25 @@ fn main() -> ExitCode {
         Ok(map) => gaki_tui::keymap::install(map),
         Err(err) => {
             eprintln!("gaki-tui: keybinds: {err}");
+            return ExitCode::FAILURE;
+        }
+    }
+    // The theme: a bad file refuses to start, like the key bindings. One
+    // named with `--theme` must exist; the default may be missing.
+    let theme = match &settings.theme {
+        Some(path) => Theme::load(path, true),
+        None => match gaki_tui::utils::paths::theme_file() {
+            Ok(path) => Theme::load(&path, false),
+            Err(err) => {
+                eprintln!("gaki-tui: theme: {err}");
+                return ExitCode::FAILURE;
+            }
+        },
+    };
+    match theme {
+        Ok(theme) => gaki_tui::ui::theme::install(theme, settings.theme.clone()),
+        Err(err) => {
+            eprintln!("gaki-tui: theme: {err}");
             return ExitCode::FAILURE;
         }
     }

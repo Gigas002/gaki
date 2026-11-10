@@ -26,7 +26,7 @@ pub fn paint(
     }
     if let Some(image) = background {
         let mut bg = cover_resize(image, inner.width as u32, inner.height as u32 * 2);
-        fade_bottom(&mut bg, rgb(theme::BG_DARK));
+        fade_bottom(&mut bg, rgb(theme::palette().bg_dark));
         halfblocks(&bg, inner, frame.buffer_mut());
     }
 

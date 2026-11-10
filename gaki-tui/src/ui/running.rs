@@ -25,9 +25,9 @@ pub fn running(browser: &Browser) -> List<'static> {
 
                 let marker = crate::ui::selection_marker(selected);
                 let name_style = if selected {
-                    theme::selection(theme::ACCENT)
+                    theme::selection()
                 } else {
-                    theme::value().fg(theme::ONLINE)
+                    theme::good()
                 };
 
                 let spans = vec![

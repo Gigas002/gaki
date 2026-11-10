@@ -43,12 +43,12 @@ pub fn actions(browser: &Browser) -> Paragraph<'static> {
                 current_category = row.category;
                 lines.push(Line::from(Span::styled(
                     current_category.to_string(),
-                    theme::title_style(),
+                    theme::title(),
                 )));
             }
             let selected = i == browser.actions_index;
             let style = if selected {
-                theme::selection(theme::ACCENT)
+                theme::selection()
             } else {
                 theme::value()
             };

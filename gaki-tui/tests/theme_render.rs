@@ -25,12 +25,12 @@ fn panel_paints_steam_palette() {
     // An interior cell is the navy panel background.
     assert_eq!(
         buffer.cell((3, 2)).unwrap().bg,
-        theme::BG,
+        theme::palette().bg,
         "panel interior should be navy"
     );
 
     // The title text (row 0) is painted in the accent colour somewhere.
-    let title_accent = (1..23).any(|x| buffer.cell((x, 0)).unwrap().fg == theme::ACCENT);
+    let title_accent = (1..23).any(|x| buffer.cell((x, 0)).unwrap().fg == theme::palette().accent);
     assert!(title_accent, "panel title should use the accent colour");
 }
 
@@ -47,7 +47,7 @@ fn infobox_is_themed() {
     let buffer = terminal.backend().buffer();
     assert_eq!(
         buffer.cell((2, 2)).unwrap().bg,
-        theme::BG,
+        theme::palette().bg,
         "info boxes should sit on the navy panel background"
     );
 }

@@ -1,7 +1,6 @@
 //! The help overlay (modal popup) listing every key binding this build has.
 
 use ratatui::layout::Alignment;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -54,9 +53,7 @@ fn entry_spans(entry: &Entry) -> Vec<Span<'static>> {
     match entry {
         Entry::Header(title) => vec![Span::styled(
             format!("{:<width$}", title, width = COL_WIDTH),
-            Style::default()
-                .fg(theme::ACCENT)
-                .add_modifier(Modifier::BOLD),
+            theme::heading(),
         )],
         Entry::Keys(..) | Entry::Binding(..) => {
             let (keys, desc) = match entry {
@@ -73,7 +70,7 @@ fn entry_spans(entry: &Entry) -> Vec<Span<'static>> {
                 Span::styled(keys_field, theme::key()),
                 Span::styled(
                     format!("{:<width$}", desc, width = desc_width),
-                    Style::default().fg(theme::TEXT),
+                    theme::value(),
                 ),
             ]
         }

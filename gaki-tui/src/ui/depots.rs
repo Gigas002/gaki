@@ -65,7 +65,7 @@ fn depot_rows(browser: &Browser) -> (String, Vec<ListItem<'static>>, Option<usiz
                 .map(|(i, depot)| {
                     let selected = i == view.selected;
                     let style = if selected {
-                        theme::selection(theme::ACCENT)
+                        theme::selection()
                     } else {
                         theme::value()
                     };
@@ -168,7 +168,7 @@ mod files {
                         .map(|(i, entry)| {
                             let selected = i == view.selected;
                             let style = if selected {
-                                theme::selection(theme::ACCENT)
+                                theme::selection()
                             } else {
                                 theme::value()
                             };
@@ -237,7 +237,7 @@ mod files {
                 if !view.status.is_empty() {
                     lines.push(Line::from(Span::styled(
                         view.status.clone(),
-                        theme::value().fg(theme::WARN),
+                        theme::warning(),
                     )));
                 }
                 {

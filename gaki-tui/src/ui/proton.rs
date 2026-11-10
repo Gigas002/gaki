@@ -1,7 +1,6 @@
 //! The Proton/Wine runtime overlay (modal popup): the available runtimes with
 //! their installed/default state, and the highlighted row for set-default.
 
-use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
@@ -29,7 +28,7 @@ pub fn proton(browser: &Browser) -> List<'static> {
 
                 let marker = crate::ui::selection_marker(selected);
                 let name_style = if selected {
-                    theme::selection(theme::ACCENT)
+                    theme::selection()
                 } else if entry.installed {
                     theme::value()
                 } else {
@@ -44,18 +43,10 @@ pub fn proton(browser: &Browser) -> List<'static> {
                 // State markers: default (accent) and/or installed (online green).
                 if entry.is_default {
                     spans.push(Span::raw("  ".to_string()));
-                    spans.push(Span::styled(
-                        "[default]".to_string(),
-                        theme::value()
-                            .fg(theme::ACCENT)
-                            .add_modifier(Modifier::BOLD),
-                    ));
+                    spans.push(Span::styled("[default]".to_string(), theme::heading()));
                 } else if entry.installed {
                     spans.push(Span::raw("  ".to_string()));
-                    spans.push(Span::styled(
-                        "[installed]".to_string(),
-                        theme::value().fg(theme::ONLINE),
-                    ));
+                    spans.push(Span::styled("[installed]".to_string(), theme::good()));
                 }
 
                 ListItem::new(Line::from(spans))

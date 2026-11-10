@@ -4,7 +4,6 @@
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
@@ -19,14 +18,11 @@ fn dim(text: impl Into<String>) -> Line<'static> {
 }
 
 fn warn(text: impl Into<String>) -> Line<'static> {
-    Line::from(Span::styled(text.into(), theme::value().fg(theme::WARN)))
+    Line::from(Span::styled(text.into(), theme::warning()))
 }
 
 fn heading(text: &str) -> Line<'static> {
-    Line::from(Span::styled(
-        text.to_string(),
-        theme::label().add_modifier(Modifier::BOLD),
-    ))
+    Line::from(Span::styled(text.to_string(), theme::heading()))
 }
 
 /// `label  value`, skipped by the callers when the value is empty.
@@ -53,7 +49,7 @@ fn tab_bar(current: InfoTab) -> Line<'static> {
     for tab in InfoTab::ALL {
         let label = format!(" {} ", tab.label());
         spans.push(if tab == current {
-            Span::styled(label, theme::selection(theme::ACCENT))
+            Span::styled(label, theme::selection())
         } else {
             Span::styled(label, theme::dim())
         });
@@ -137,7 +133,7 @@ fn details_lines(info: &GameInfo) -> Vec<Line<'static>> {
     let d = &info.details;
     let mut lines = Vec::new();
     lines.push(Line::from(vec![
-        Span::styled(d.name.clone(), theme::value().add_modifier(Modifier::BOLD)),
+        Span::styled(d.name.clone(), theme::emphasis()),
         Span::styled(format!("  {} · app {}", d.app_type, d.app_id), theme::dim()),
     ]));
     if !d.short_description.is_empty() {
@@ -270,9 +266,9 @@ fn details_lines(info: &GameInfo) -> Vec<Line<'static>> {
 
 fn check(label: &str, line: &CheckLine) -> Line<'static> {
     let (mark, style) = if line.ok {
-        ("✓", theme::value().fg(theme::ONLINE))
+        ("✓", theme::good())
     } else {
-        ("✗", theme::value().fg(theme::WARN))
+        ("✗", theme::warning())
     };
     Line::from(vec![
         Span::styled(format!("{mark} "), style),

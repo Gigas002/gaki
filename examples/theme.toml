@@ -1,0 +1,58 @@
+# gaki-tui theme. Every entry below is the default (Steam's dark look);
+# delete what you don't change. Put it in $XDG_CONFIG_HOME/gaki/theme.toml,
+# or pass another file with `gaki-tui --theme <FILE>`.
+#
+# Colours are hex: "aarrggbb", or "rrggbb" for opaque, "#" optional.
+# Terminals have no alpha: "00" alpha is transparent (the terminal's own
+# colour), "ff" is the colour as given, and anything between is mixed toward
+# black.
+
+# The named colours. The styles below are built from them, so changing one
+# here recolours every style that uses it.
+[palette]
+bg = "ff1b2838"            # panel background
+bg_dark = "ff10161d"       # canvas behind the panels
+accent = "ff66c0f4"        # Steam's light blue
+accent_bright = "ff1a9fff" # key caps, cursors, links
+border = "ff3d5a73"        # panel borders
+text = "ffc6d4df"          # body text
+text_dim = "ff768fa3"      # muted text
+online = "ff8fd450"        # installed, online, success
+warn = "fff2c14e"          # updates, warnings, failures
+
+# Every named style. A style lists only what it changes: `fg` and `bg` (a
+# palette name or a hex colour), and `bold`, `dim`, `italic`, `underlined`,
+# `reversed`, `crossed_out` (true adds the modifier, false removes it).
+[styles]
+base = { fg = "text", bg = "bg" }                         # text on a panel
+canvas = { fg = "text", bg = "bg_dark" }                  # the frame behind the panels
+title = { fg = "accent", bg = "bg", bold = true }         # panel titles
+border = { fg = "border", bg = "bg" }                     # panel borders
+label = { fg = "accent" }                                 # field labels
+value = { fg = "text" }                                   # field values, ordinary text
+emphasis = { fg = "text", bold = true }                   # names, headline values
+dim = { fg = "text_dim" }                                 # counts, hints, inactive items
+accent = { fg = "accent" }                                # active values, highlights
+heading = { fg = "accent", bold = true }                  # help sections, balances
+key = { fg = "accent_bright", bold = true }               # key caps in hints
+link = { fg = "accent_bright" }                           # links, live values
+rule = { fg = "border" }                                  # separator lines
+cursor = { fg = "accent_bright", bold = true }            # the cursor in input fields
+selection = { fg = "bg_dark", bg = "accent", bold = true } # the selected row
+tab_active = { fg = "bg_dark", bg = "accent", bold = true }
+tab_inactive = { fg = "text_dim", bg = "bg" }
+good = { fg = "online" }                                  # installed, online, done
+warning = { fg = "warn" }                                 # updates, things to look at
+status = { fg = "warn", dim = true }                      # status lines under inputs
+item_installed = { fg = "text" }                          # library: installed game
+item_update = { fg = "warn" }                             # library: update available
+item_muted = { fg = "text_dim" }                          # library: not installed
+disabled = { fg = "text_dim", bold = true }               # something switched off
+item_failed = { fg = "warn", bold = true }                # a failed operation
+danger_border = { fg = "warn", bg = "bg" }                # confirmation dialogs
+danger_title = { fg = "warn", bg = "bg", bold = true }
+qr = { fg = "ff000000", bg = "ffffffff" }                 # the login QR code: keep it dark on light
+
+[widgets]
+border_type = "rounded"   # plain, rounded, double or thick
+highlight_symbol = "▶ "   # before the selected game in the library

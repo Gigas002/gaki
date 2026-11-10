@@ -1,4 +1,4 @@
-//! The TUI's own settings file: the default user, the shown game types, the highlight colour, and the background
+//! The TUI's own settings file: the default user, the shown game types, and the background
 //! update check, in
 //! `gaki/tui/config.toml` under the config dir.
 
@@ -10,10 +10,6 @@ use crate::app::game::GameType;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::sync::RwLock;
-
-use ratatui::style::Color;
-
-use crate::ui::theme;
 
 #[cfg(test)]
 mod tests;
@@ -37,7 +33,6 @@ pub struct Config {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub favorite_games: Vec<i32>,
     pub allowed_games: Vec<GameType>,
-    pub highlight: Color,
     /// Check the installed games for updates in the background after the
     /// library loads.
     pub check_updates: bool,
@@ -53,7 +48,6 @@ impl Default for Config {
             hidden_games: vec![],
             favorite_games: vec![],
             allowed_games: vec![GameType::Game, GameType::DLC],
-            highlight: theme::ACCENT,
             check_updates: true,
             store_regions: Vec::new(),
         }

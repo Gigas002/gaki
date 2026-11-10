@@ -338,7 +338,6 @@ layout, so it can be edited by hand:
 | Key             | Meaning                                                                                                                                   |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `allowed_games` | the app types listed: any of `Game`, `DLC`, `Driver`, `Application`, `Config`, `Demo`, `Tool`, `Unknown`. The default is `Game` and `DLC` |
-| `highlight`     | the highlight color                                                                                                                       |
 | `check_updates` | check the installed games for updates after the library loads (`true`)                                                                    |
 | `store_regions` | the regions the Store overlay compares prices in, e.g. `["US", "DE", "JP"]`; empty (the default) means your account's country             |
 
@@ -422,3 +421,38 @@ and the library's text filter. The help (`?`), the status-bar hints, the
 Actions menu and the overlays' footers and titles show the keys in effect;
 the help lists what each library key opens, and each overlay's footer its
 own keys.
+
+### Theme
+
+Every colour, text style and border can be changed in
+`$XDG_CONFIG_HOME/gaki/theme.toml`, or in another file named with
+`gaki-tui --theme <FILE>`. The Friends panel's new-terminal chat (`t`) gets
+the same `--theme`.
+[`examples/theme.toml`](../examples/theme.toml) lists everything with its
+default, Steam's dark look; anything left out keeps its default, so a missing
+or empty file changes nothing.
+
+- `[palette]`: the named colours (`bg`, `bg_dark`, `accent`,
+  `accent_bright`, `border`, `text`, `text_dim`, `online`, `warn`). The
+  styles are built from them, so `accent = "ffe06c75"` recolours every
+  title, label, selection and active tab at once.
+- `[styles]`: each named style, e.g. `selection`, `title`, `dim`, `key`,
+  `cursor`, `warning`, `item_update`, `danger_border`, `qr`. A style lists
+  only what it changes: `fg` and `bg` (a palette name or a colour), and
+  `bold`, `dim`, `italic`, `underlined`, `reversed`, `crossed_out` (`true`
+  adds the modifier, `false` removes it), e.g.
+  `selection = { bg = "warn", bold = false }`.
+- `[widgets]`: `border_type` (`plain`, `rounded`, `double` or `thick`) and
+  `highlight_symbol`, drawn before the selected game.
+
+Colours are hex strings: `aarrggbb`, or `rrggbb` for opaque, with an
+optional `#`. Terminals have no alpha, so alpha `00` is transparent (the
+terminal's own colour shows), `ff` is the colour as given, and anything in
+between is mixed toward black. The terminal needs 24-bit colour.
+
+The file is read once at startup. A colour it can't read, or an unknown
+section, colour or style name, stops gaki-tui with the file and the entry,
+e.g. ``theme.toml: palette.accent: `blue` isn't a colour``. A file named
+with `--theme` must exist. The `highlight` key of older `tui/config.toml`
+files is ignored and dropped on the next save; set `styles.selection`
+instead.

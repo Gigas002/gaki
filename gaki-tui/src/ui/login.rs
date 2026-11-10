@@ -4,7 +4,6 @@
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
     text::{Line, Span},
     widgets::Paragraph,
 };
@@ -307,7 +306,7 @@ pub fn qr(qr: Option<String>, area: Rect) -> Paragraph<'static> {
         .alignment(Alignment::Center)
         .block(panel);
     }
-    let qr_style = Style::default().fg(Color::Black).bg(Color::White);
+    let qr_style = theme::qr();
     let top = (inner_h - height) / 2;
     let text: Vec<Line<'static>> = std::iter::repeat_n(Line::raw(""), top as usize)
         .chain(

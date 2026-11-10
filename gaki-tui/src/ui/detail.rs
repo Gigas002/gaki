@@ -5,9 +5,8 @@ use libgaki::core::utils::format_playtime;
 use libgaki::steam_client::unix_to_ymd;
 
 use ratatui::layout::Constraint;
-use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{Block, BorderType, Borders, Cell, Row, Table};
+use ratatui::widgets::{Cell, Row, Table};
 
 use crate::app::game::Game;
 use crate::ui::theme;
@@ -48,17 +47,6 @@ pub(super) fn wrap(text: &str, width: usize) -> Vec<String> {
         lines.push(String::new());
     }
     lines
-}
-
-/// A transparent Detail panel: the same rounded, accent-titled frame as
-/// [`theme::panel`] but with no inner fill, so the cover art rendered behind it
-/// shows through as the background.
-fn transparent_panel() -> Block<'static> {
-    Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::BORDER).bg(theme::BG))
-        .title(Line::from(Span::styled("Detail", theme::title_style())))
 }
 
 /// An empty, height-1 row used both as a section separator and as top padding.
@@ -266,6 +254,6 @@ pub fn detail(game: Option<&Game>, expand: bool, width: u16, height: u16) -> Tab
     // rendered behind it remains visible between the rows.
     Table::default()
         .rows(rows)
-        .block(transparent_panel())
+        .block(theme::transparent_panel("Detail".to_string()))
         .widths([Constraint::Percentage(18), Constraint::Percentage(82)])
 }

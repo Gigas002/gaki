@@ -40,7 +40,7 @@ fn header_lines(browser: &Browser) -> Vec<Line<'static>> {
     for c in &state.conflicts {
         lines.push(Line::from(Span::styled(
             format!("  {}", c.filename),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         )));
         let local_newer = c.local_timestamp > c.cloud_timestamp;
         let cloud_newer = c.cloud_timestamp > c.local_timestamp;
@@ -67,19 +67,12 @@ fn header_lines(browser: &Browser) -> Vec<Line<'static>> {
 }
 
 fn warn(text: &str) -> Line<'static> {
-    Line::from(Span::styled(
-        text.to_string(),
-        theme::value().fg(theme::WARN),
-    ))
+    Line::from(Span::styled(text.to_string(), theme::warning()))
 }
 
 /// One side of a conflict: `label  size  time`, plus `newer` when it is.
 fn side(label: &str, size: u64, time: u64, newer: bool) -> Line<'static> {
-    let style = if newer {
-        theme::value().fg(theme::ONLINE)
-    } else {
-        theme::dim()
-    };
+    let style = if newer { theme::good() } else { theme::dim() };
     let mark = if newer { "  newer" } else { "" };
     Line::from(Span::styled(
         format!(

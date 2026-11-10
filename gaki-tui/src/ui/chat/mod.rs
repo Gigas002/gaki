@@ -18,7 +18,6 @@
 //!   reserved for the composer (a separator line and the input line).
 
 use ratatui::layout::Alignment;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -223,17 +222,12 @@ pub fn chat(browser: &Browser, width: u16, height: u16) -> Paragraph<'static> {
     // --- Composer: separator + input line (the reserved bottom 2 rows) ---
     lines.push(Line::from(Span::styled(
         "─".repeat(content_w),
-        Style::default().fg(theme::BORDER),
+        theme::rule(),
     )));
     lines.push(Line::from(vec![
         Span::styled("> ".to_string(), theme::accent()),
         Span::styled(browser.chat_input.clone(), theme::value()),
-        Span::styled(
-            "_".to_string(),
-            Style::default()
-                .fg(theme::ACCENT_BRIGHT)
-                .add_modifier(Modifier::BOLD),
-        ),
+        Span::styled("_".to_string(), theme::cursor()),
     ]));
 
     // `lines` is now exactly `msg_h + 2` rows tall, for a deterministic layout.

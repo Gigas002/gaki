@@ -61,7 +61,7 @@ fn decode(buf: &Buffer) -> Vec<Vec<bool>> {
         .flat_map(|y| (0..area.width).map(move |x| (x, y)))
         .filter(|&(x, y)| {
             let cell = buf.cell((x, y)).unwrap();
-            cell.fg == Color::Black && cell.bg == Color::White
+            cell.fg == Color::Rgb(0, 0, 0) && cell.bg == Color::Rgb(255, 255, 255)
         })
         .collect();
     assert!(!qr_cells.is_empty(), "no black-on-white QR cells drawn");
@@ -80,7 +80,7 @@ fn decode(buf: &Buffer) -> Vec<Vec<bool>> {
             let cell = buf.cell((x, y)).unwrap();
             assert_eq!(
                 (cell.fg, cell.bg),
-                (Color::Black, Color::White),
+                (Color::Rgb(0, 0, 0), Color::Rgb(255, 255, 255)),
                 "cell ({x},{y}) inside the code isn't black on white"
             );
             let (t, b) = match cell.symbol() {
@@ -138,7 +138,7 @@ fn a_terminal_too_small_says_so_instead_of_clipping() {
     let any_qr = (0..18).any(|y| {
         (0..80).any(|x| {
             let c = buf.cell((x, y)).unwrap();
-            c.fg == Color::Black && c.bg == Color::White
+            c.fg == Color::Rgb(0, 0, 0) && c.bg == Color::Rgb(255, 255, 255)
         })
     });
     assert!(!any_qr, "no partial code is drawn");

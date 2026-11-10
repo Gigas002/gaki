@@ -48,6 +48,11 @@ pub fn keybinds_file() -> Result<PathBuf, TuiError> {
     Ok(config_directory()?.join("keybinds.toml"))
 }
 
+/// `theme.toml` in gaki's config dir (not `tui/`); it may not exist.
+pub fn theme_file() -> Result<PathBuf, TuiError> {
+    Ok(libgaki_dir(libgaki::core::config::config_dir())?.join("theme.toml"))
+}
+
 fn icon_directory() -> Result<PathBuf, TuiError> {
     mkdir(cache_directory()?.join("icons"))
 }

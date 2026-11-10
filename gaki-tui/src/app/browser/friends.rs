@@ -283,9 +283,12 @@ impl Browser {
         let id = steamid.to_string();
 
         // Best-effort: launch the chat binary directly, detached.
-        let _ = std::process::Command::new(&exe)
-            // `--name=` keeps a name that starts with `-` from reading as a flag.
-            .args(["--chat", &id, &format!("--name={name}")])
-            .spawn();
+        let mut command = std::process::Command::new(&exe);
+        // `--name=` keeps a name that starts with `-` from reading as a flag.
+        command.args(["--chat", &id, &format!("--name={name}")]);
+        if let Some(theme) = crate::ui::theme::file() {
+            command.arg("--theme").arg(theme);
+        }
+        let _ = command.spawn();
     }
 }

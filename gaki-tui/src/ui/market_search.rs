@@ -8,7 +8,6 @@
 //! the highlighted row (`browser.market_results_index`) visible: the window start
 //! is derived from the index so the highlight never falls off the bottom edge.
 
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -25,21 +24,16 @@ pub fn market_search(browser: &Browser, visible_rows: usize) -> Paragraph<'stati
 
     // Query input line with a blinking-style caret.
     lines.push(Line::from(vec![
-        Span::styled("Search: ".to_string(), Style::default().fg(theme::TEXT)),
+        Span::styled("Search: ".to_string(), theme::value()),
         Span::styled(browser.market_query.clone(), theme::accent()),
-        Span::styled(
-            "_".to_string(),
-            Style::default()
-                .fg(theme::ACCENT_BRIGHT)
-                .add_modifier(Modifier::BOLD),
-        ),
+        Span::styled("_".to_string(), theme::cursor()),
     ]));
 
     // Status / price line (search progress, errors, or a price summary).
     if !browser.market_search_status.is_empty() {
         lines.push(Line::from(Span::styled(
             browser.market_search_status.clone(),
-            Style::default().fg(theme::WARN).add_modifier(Modifier::DIM),
+            theme::status(),
         )));
     }
 
@@ -69,7 +63,7 @@ pub fn market_search(browser: &Browser, visible_rows: usize) -> Paragraph<'stati
             let selected = i == index;
             let marker = crate::ui::selection_marker(selected);
             let name_style = if selected {
-                theme::selection(theme::ACCENT)
+                theme::selection()
             } else {
                 theme::value()
             };

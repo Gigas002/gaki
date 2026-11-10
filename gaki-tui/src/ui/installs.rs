@@ -85,7 +85,7 @@ pub(crate) fn progress(row: &InstallRow) -> String {
 
 fn row(row: &InstallRow, selected: bool) -> ListItem<'static> {
     let style = if selected {
-        theme::selection(theme::ACCENT)
+        theme::selection()
     } else {
         theme::value()
     };
@@ -95,9 +95,9 @@ fn row(row: &InstallRow, selected: bool) -> ListItem<'static> {
         row.name.clone()
     };
     let state_style = match row_kind(row) {
-        RowKind::Running => theme::value().fg(theme::ONLINE),
+        RowKind::Running => theme::good(),
         RowKind::Elsewhere => theme::accent(),
-        RowKind::Waiting => theme::value().fg(theme::WARN),
+        RowKind::Waiting => theme::warning(),
     };
     let mut spans = vec![
         Span::styled(selection_marker(selected).to_string(), style),
@@ -126,7 +126,7 @@ fn footer(view: &InstallsView) -> Vec<Line<'static>> {
             format!("Forget {}? Its files stay on disk.", confirm.name)
         };
         return vec![
-            Line::from(Span::styled(question, theme::value().fg(theme::WARN))),
+            Line::from(Span::styled(question, theme::warning())),
             dim("[y] yes  [n] no"),
         ];
     }
@@ -134,7 +134,7 @@ fn footer(view: &InstallsView) -> Vec<Line<'static>> {
     if !view.status.is_empty() {
         lines.push(Line::from(Span::styled(
             view.status.clone(),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         )));
     }
     lines.push(dim(hints(&[
@@ -152,7 +152,7 @@ fn footer(view: &InstallsView) -> Vec<Line<'static>> {
 
 fn duplicate_row(row: &DuplicateRow, selected: bool) -> ListItem<'static> {
     let style = if selected {
-        theme::selection(theme::ACCENT)
+        theme::selection()
     } else {
         theme::value()
     };
@@ -166,7 +166,7 @@ fn duplicate_row(row: &DuplicateRow, selected: bool) -> ListItem<'static> {
         ),
     ])];
     lines.push(Line::from(vec![
-        Span::styled("    keep   ".to_string(), theme::value().fg(theme::ONLINE)),
+        Span::styled("    keep   ".to_string(), theme::good()),
         Span::styled(row.keep.display().to_string(), theme::value()),
         Span::styled(
             format!("  updated {}", date_time(row.keep_updated)),
@@ -175,7 +175,7 @@ fn duplicate_row(row: &DuplicateRow, selected: bool) -> ListItem<'static> {
     ]));
     for stale in &row.stale {
         lines.push(Line::from(vec![
-            Span::styled("    stale  ".to_string(), theme::value().fg(theme::WARN)),
+            Span::styled("    stale  ".to_string(), theme::warning()),
             Span::styled(stale.path.display().to_string(), theme::value()),
             Span::styled(
                 format!(
@@ -234,7 +234,7 @@ fn draw_duplicates(frame: &mut Frame, area: Rect, view: &InstallsView) {
                              so the game can report an update on every check.",
                             convert(total as f64)
                         ),
-                        theme::value().fg(theme::WARN),
+                        theme::warning(),
                     )),
                     dim("gaki never deletes a copy: remove the stale folder yourself."),
                 ],
@@ -247,14 +247,14 @@ fn draw_duplicates(frame: &mut Frame, area: Rect, view: &InstallsView) {
 
 fn plan_row(line: PlanLine<'_>, selected: bool) -> ListItem<'static> {
     let style = if selected {
-        theme::selection(theme::ACCENT)
+        theme::selection()
     } else {
         theme::value()
     };
     let (what, what_style, entry) = match line {
-        PlanLine::Install(e) => ("install", theme::value().fg(theme::ONLINE), e),
+        PlanLine::Install(e) => ("install", theme::good(), e),
         PlanLine::Installed(e) => ("skip: installed", theme::dim(), e),
-        PlanLine::NotOwned(e) => ("skip: not owned", theme::value().fg(theme::WARN), e),
+        PlanLine::NotOwned(e) => ("skip: not owned", theme::warning(), e),
     };
     let mut spans = vec![
         Span::styled(selection_marker(selected).to_string(), style),
@@ -292,7 +292,7 @@ fn transfer_footer(tab: &TransferTab) -> Vec<Line<'static>> {
     if !tab.status.is_empty() {
         lines.push(Line::from(Span::styled(
             tab.status.clone(),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         )));
     }
     if tab.editing {
@@ -302,7 +302,7 @@ fn transfer_footer(tab: &TransferTab) -> Vec<Line<'static>> {
         let games = if n == 1 { "game" } else { "games" };
         lines.push(Line::from(Span::styled(
             format!("Install {n} {games} into the default library, one after another?"),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         )));
         lines.push(dim("[y] yes  [n] no"));
     } else {

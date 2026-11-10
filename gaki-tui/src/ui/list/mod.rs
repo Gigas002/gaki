@@ -108,8 +108,8 @@ pub fn list(browser: &Browser, width: u16, marquee_tick: usize) -> List<'static>
             browser.filter.label(),
             browser.visible_len()
         )))
-        .highlight_style(theme::selection(theme::ACCENT))
-        .highlight_symbol("▶ ")
+        .highlight_style(theme::selection())
+        .highlight_symbol(theme::get().widgets.highlight_symbol.as_str())
 }
 
 /// Scroll `name` like a marquee/roadsign banner when it is wider than `budget`

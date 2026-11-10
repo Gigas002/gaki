@@ -11,7 +11,6 @@
 
 use crate::utils::bytes::convert;
 
-use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -66,7 +65,7 @@ fn comments(browser: &Browser) -> Paragraph<'static> {
         Some(draft) if draft.confirming => {
             lines.push(Line::from(Span::styled(
                 format!("Post “{}”? It is public.", draft.text.trim()),
-                theme::value().fg(theme::WARN),
+                theme::warning(),
             )));
             lines.push(Line::from(Span::styled(
                 "[y] post  [n] keep editing",
@@ -131,7 +130,7 @@ fn status_list(browser: &Browser, rows: usize) -> Paragraph<'static> {
     } else if let Some(e) = &tasks.list_error {
         Line::from(Span::styled(
             format!("Couldn't load: {e}"),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         ))
     } else if !status.is_empty() {
         Line::from(Span::styled(status, theme::accent()))
@@ -148,7 +147,7 @@ fn status_list(browser: &Browser, rows: usize) -> Paragraph<'static> {
         Some(confirm) => vec![
             Line::from(Span::styled(
                 format!("Uninstall {}? Its files are deleted.", confirm.title),
-                theme::value().fg(theme::WARN),
+                theme::warning(),
             )),
             Line::from(Span::styled("[y] yes  [n] no", theme::dim())),
         ],
@@ -182,12 +181,12 @@ fn status_list(browser: &Browser, rows: usize) -> Paragraph<'static> {
     for (i, item) in items.iter().enumerate().skip(skip).take(room) {
         let selected = i == browser.workshop_selected;
         let (glyph, glyph_style) = if item.installed {
-            ("● ", Style::default().fg(theme::ONLINE))
+            ("● ", theme::good())
         } else {
             ("○ ", theme::dim())
         };
         let title_style = if selected {
-            theme::selection(theme::ACCENT)
+            theme::selection()
         } else {
             theme::value()
         };
@@ -200,10 +199,7 @@ fn status_list(browser: &Browser, rows: usize) -> Paragraph<'static> {
             spans.push(Span::styled(format!("  {id}"), theme::dim()));
         }
         if item.update_available {
-            spans.push(Span::styled(
-                "  update available",
-                Style::default().fg(theme::WARN),
-            ));
+            spans.push(Span::styled("  update available", theme::warning()));
         }
         if !item.subscribed {
             spans.push(Span::styled("  not subscribed", theme::dim()));
@@ -270,7 +266,7 @@ fn browse(browser: &Browser) -> Paragraph<'static> {
             let selected = i == browser.workshop_index;
             let marker = if selected { "> " } else { "  " };
             let (tag, tag_style) = if item.subscribed {
-                ("[subscribed] ", Style::default().fg(theme::ONLINE))
+                ("[subscribed] ", theme::good())
             } else {
                 ("[          ] ", theme::dim())
             };

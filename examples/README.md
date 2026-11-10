@@ -9,6 +9,7 @@ Example configuration for gaki. Copy what you need into `~/.config/gaki/`
 | [`games.toml`](games.toml)       | per-game overrides, one `[[game]]` per game                                     |
 | [`profiles/`](profiles)          | one runner, prefix and environment per file; the file name must match `name`    |
 | [`keybinds.toml`](keybinds.toml) | gaki-tui's key bindings, every section and default; goes in `tui/keybinds.toml` |
+| [`theme.toml`](theme.toml)       | gaki-tui's colours, styles and borders, every default; goes in `theme.toml`     |
 
 [`gaki-daemon.service`](gaki-daemon.service) isn't configuration either: it
 runs the session daemon as a systemd user service, for those who want it
@@ -36,4 +37,5 @@ Profiles use the same format as lootrs, so `profiles_dir` in `config.toml` can
 point both tools at one directory.
 
 `libgaki/tests/examples.rs` parses and validates every file here, and
-gaki-tui's keymap tests check `keybinds.toml` against the built-in defaults.
+gaki-tui's keymap and theme tests check `keybinds.toml` and `theme.toml`
+against the built-in defaults.

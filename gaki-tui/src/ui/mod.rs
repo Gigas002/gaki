@@ -71,7 +71,6 @@ pub mod workshop;
 
 use ratatui::Frame;
 use ratatui::layout::{Alignment, Constraint, Direction, Layout, Rect};
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, ListItem, Paragraph};
 
@@ -134,18 +133,10 @@ pub fn paneled_paragraph(content: impl Into<Text<'static>>, title: String) -> Pa
 /// coupling) so each caller passes the fields it stores.
 pub fn prompt_overlay(label: &str, value: &str, status: &str, title: &str) -> Paragraph<'static> {
     let mut lines: Vec<Line<'static>> = vec![
-        Line::from(Span::styled(
-            label.to_string(),
-            Style::default().fg(theme::TEXT),
-        )),
+        Line::from(Span::styled(label.to_string(), theme::value())),
         Line::from(vec![
             Span::styled(value.to_string(), theme::accent()),
-            Span::styled(
-                "_".to_string(),
-                Style::default()
-                    .fg(theme::ACCENT_BRIGHT)
-                    .add_modifier(Modifier::BOLD),
-            ),
+            Span::styled("_".to_string(), theme::cursor()),
         ]),
     ];
 
@@ -153,7 +144,7 @@ pub fn prompt_overlay(label: &str, value: &str, status: &str, title: &str) -> Pa
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             status.to_string(),
-            Style::default().fg(theme::WARN).add_modifier(Modifier::DIM),
+            theme::status(),
         )));
     }
 

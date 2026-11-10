@@ -1,7 +1,6 @@
 //! The wallet overlay (modal popup) showing the Steam Wallet balance.
 
 use ratatui::layout::Alignment;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -17,9 +16,7 @@ pub fn wallet(browser: &Browser) -> Paragraph<'static> {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 info.formatted.clone(),
-                Style::default()
-                    .fg(theme::ACCENT)
-                    .add_modifier(Modifier::BOLD),
+                theme::heading(),
             )));
             lines.push(Line::from(""));
             if !info.country.is_empty() {

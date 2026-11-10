@@ -7,7 +7,6 @@
 //! resolved-account preview once a `friends search` has succeeded.
 
 use ratatui::layout::Alignment;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -22,16 +21,11 @@ pub fn friend_add_overlay(browser: &Browser) -> Paragraph<'static> {
     let mut lines: Vec<Line<'static>> = vec![
         Line::from(Span::styled(
             "Friend (SteamID64 / profile URL / vanity):".to_string(),
-            Style::default().fg(theme::TEXT),
+            theme::value(),
         )),
         Line::from(vec![
             Span::styled(browser.friend_add_query.clone(), theme::accent()),
-            Span::styled(
-                "_".to_string(),
-                Style::default()
-                    .fg(theme::ACCENT_BRIGHT)
-                    .add_modifier(Modifier::BOLD),
-            ),
+            Span::styled("_".to_string(), theme::cursor()),
         ]),
     ];
 
@@ -42,31 +36,20 @@ pub fn friend_add_overlay(browser: &Browser) -> Paragraph<'static> {
         .unwrap_or_default();
     if !status.is_empty() {
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            status,
-            Style::default().fg(theme::WARN).add_modifier(Modifier::DIM),
-        )));
+        lines.push(Line::from(Span::styled(status, theme::status())));
     }
 
     // Resolved-account preview, filled in after a successful `friends search`.
     if let Some(found) = &browser.friend_search_result {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::styled("Resolved: ", Style::default().fg(theme::TEXT_DIM)),
-            Span::styled(
-                found.display_name(),
-                Style::default()
-                    .fg(theme::ACCENT)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("  ({})", found.steam_id),
-                Style::default().fg(theme::TEXT_DIM),
-            ),
+            Span::styled("Resolved: ", theme::dim()),
+            Span::styled(found.display_name(), theme::heading()),
+            Span::styled(format!("  ({})", found.steam_id), theme::dim()),
         ]));
         lines.push(Line::from(Span::styled(
             "Press [a] to send the friend request.".to_string(),
-            Style::default().fg(theme::TEXT_DIM),
+            theme::dim(),
         )));
     }
 

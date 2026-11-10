@@ -21,6 +21,10 @@ pub struct CliOptions {
     #[arg(long, value_name = "NAME", requires = "chat")]
     pub name: Option<String>,
 
+    /// The theme file to use instead of `$XDG_CONFIG_HOME/gaki/theme.toml`.
+    #[arg(long, value_name = "FILE")]
+    pub theme: Option<std::path::PathBuf>,
+
     /// How much to write to the log file.
     #[arg(long, value_enum, value_name = "LEVEL")]
     pub log_level: Option<LogLevel>,

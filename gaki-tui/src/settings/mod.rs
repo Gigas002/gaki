@@ -32,6 +32,9 @@ pub struct Settings {
     pub log_level: LevelFilter,
     pub log_file: PathBuf,
     pub proxy: ProxyConfig,
+    /// The theme file asked for with `--theme`; without it, the default
+    /// path, which may be missing.
+    pub theme: Option<PathBuf>,
 }
 
 impl Settings {
@@ -60,6 +63,7 @@ impl Settings {
             log_level,
             log_file,
             proxy,
+            theme: cli.theme,
         }
     }
 }

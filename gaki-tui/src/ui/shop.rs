@@ -125,7 +125,7 @@ fn load_state<T>(load: &Load<T>) -> State {
 
 fn row_style(selected: bool) -> ratatui::style::Style {
     if selected {
-        theme::selection(theme::ACCENT)
+        theme::selection()
     } else {
         theme::value()
     }
@@ -147,7 +147,7 @@ fn game_row(row: &GameRow, selected: bool) -> ListItem<'static> {
     if row.discount_pct > 0 {
         spans.push(Span::styled(
             format!(" -{}%", row.discount_pct),
-            theme::value().fg(theme::ONLINE),
+            theme::good(),
         ));
     }
     if let Some(review) = &row.review {
@@ -192,7 +192,7 @@ fn footer(view: &ShopView) -> Vec<Line<'static>> {
             format!("Remove {} from your wishlist?", change.name)
         };
         return vec![
-            Line::from(Span::styled(question, theme::value().fg(theme::WARN))),
+            Line::from(Span::styled(question, theme::warning())),
             dim("[y] yes  [n] no"),
         ];
     }
@@ -210,7 +210,7 @@ fn footer(view: &ShopView) -> Vec<Line<'static>> {
     if !view.status.is_empty() {
         lines.push(Line::from(Span::styled(
             view.status.clone(),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         )));
     }
     let mut parts = vec![(key_of(O::NextTab), "section")];

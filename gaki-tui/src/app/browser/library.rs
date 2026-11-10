@@ -118,7 +118,7 @@ pub fn badge(game: &Game) -> Badge {
             .map(|p| p.to_string());
         Badge {
             glyph: "⏸",
-            style: Style::default().fg(theme::WARN),
+            style: theme::warning(),
             note,
         }
     } else if state.contains("downloading")
@@ -132,7 +132,7 @@ pub fn badge(game: &Game) -> Badge {
             .map(|p| p.to_string());
         Badge {
             glyph: "⬇",
-            style: Style::default().fg(theme::ACCENT_BRIGHT),
+            style: theme::link(),
             note,
         }
     } else if state.contains("Failed") {
@@ -144,7 +144,7 @@ pub fn badge(game: &Game) -> Badge {
     } else if state.contains("update") || game.update_available {
         Badge {
             glyph: "▲",
-            style: Style::default().fg(theme::WARN),
+            style: theme::warning(),
             note: Some("update".to_string()),
         }
     } else if game.installed
@@ -154,7 +154,7 @@ pub fn badge(game: &Game) -> Badge {
     {
         Badge {
             glyph: "●",
-            style: Style::default().fg(theme::ONLINE),
+            style: theme::good(),
             note: None,
         }
     } else {

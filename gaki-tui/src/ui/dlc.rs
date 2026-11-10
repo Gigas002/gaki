@@ -1,7 +1,6 @@
 //! The DLC management overlay (modal popup): the selected game's DLC with their
 //! ownership/install state, and the highlighted row for enable/disable.
 
-use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{List, ListItem};
 
@@ -26,9 +25,9 @@ pub fn dlc(browser: &Browser) -> List<'static> {
                 // State label + colour: disabled (off) wins, then installed,
                 // then owned-not-installed, else not owned.
                 let (state, state_style) = if entry.is_disabled() {
-                    ("disabled", theme::dim().add_modifier(Modifier::BOLD))
+                    ("disabled", theme::disabled())
                 } else if entry.is_installed() {
-                    ("installed", theme::value().fg(theme::ONLINE))
+                    ("installed", theme::good())
                 } else if entry.is_owned() {
                     ("owned", theme::value())
                 } else {
@@ -37,7 +36,7 @@ pub fn dlc(browser: &Browser) -> List<'static> {
 
                 let marker = crate::ui::selection_marker(selected);
                 let name_style = if selected {
-                    theme::selection(theme::ACCENT)
+                    theme::selection()
                 } else {
                     theme::value()
                 };

@@ -1,9 +1,8 @@
 //! The uninstall confirmation overlay (modal popup).
 
 use ratatui::layout::Alignment;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{BorderType, Borders, Paragraph};
+use ratatui::widgets::Paragraph;
 
 use crate::ui::theme;
 
@@ -30,30 +29,18 @@ pub fn confirm_install(game_name: &str) -> Paragraph<'static> {
 /// `[y] confirm / [n] cancel` hint, framed by a WARN-accented border/title.
 fn confirm(prompt: String) -> Paragraph<'static> {
     let lines = vec![
-        Line::from(Span::styled(prompt, Style::default().fg(theme::TEXT))),
+        Line::from(Span::styled(prompt, theme::value())),
         Line::from(""),
         Line::from(vec![
             Span::styled("[y]", theme::key()),
-            Span::styled(" confirm   ", Style::default().fg(theme::TEXT_DIM)),
+            Span::styled(" confirm   ", theme::dim()),
             Span::styled("[n]", theme::key()),
-            Span::styled(" cancel", Style::default().fg(theme::TEXT_DIM)),
+            Span::styled(" cancel", theme::dim()),
         ]),
     ];
 
-    // A panel styled like [`theme::panel`] but with a WARN-accented border/title
-    // to signal the destructive action.
-    let block = ratatui::widgets::Block::default()
-        .borders(Borders::ALL)
-        .border_type(BorderType::Rounded)
-        .border_style(Style::default().fg(theme::WARN).bg(theme::BG))
-        .title(Line::from(Span::styled(
-            "Confirm".to_string(),
-            Style::default()
-                .fg(theme::WARN)
-                .bg(theme::BG)
-                .add_modifier(Modifier::BOLD),
-        )))
-        .style(theme::base());
+    // The danger colours signal the destructive action.
+    let block = theme::danger_panel("Confirm".to_string());
 
     Paragraph::new(Text::from(lines))
         .block(block)

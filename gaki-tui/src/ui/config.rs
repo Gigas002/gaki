@@ -25,7 +25,7 @@ fn dim(text: impl Into<String>) -> Line<'static> {
 }
 
 fn warn(text: impl Into<String>) -> Line<'static> {
-    Line::from(Span::styled(text.into(), theme::value().fg(theme::WARN)))
+    Line::from(Span::styled(text.into(), theme::warning()))
 }
 
 /// How `Enter` edits a key, for the description line.
@@ -49,7 +49,7 @@ fn rows(view: &SettingsView, height: usize) -> Vec<Line<'static>> {
         .map(|(i, spec)| {
             let selected = i == view.selected;
             let style = if selected {
-                theme::selection(theme::ACCENT)
+                theme::selection()
             } else {
                 theme::label()
             };
@@ -108,7 +108,7 @@ fn tab_bar(current: Tab) -> Line<'static> {
     for tab in Tab::ALL {
         let label = format!(" {} ", tab.label());
         spans.push(if tab == current {
-            Span::styled(label, theme::selection(theme::ACCENT))
+            Span::styled(label, theme::selection())
         } else {
             Span::styled(label, theme::dim())
         });
@@ -218,7 +218,7 @@ fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
     for (i, row) in data.rows.iter().enumerate().skip(skip).take(height) {
         let selected = i == tab.selected;
         let style = if selected {
-            theme::selection(theme::ACCENT)
+            theme::selection()
         } else {
             theme::value()
         };
@@ -230,7 +230,7 @@ fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
             spans.push(Span::styled("  default", theme::accent()));
         }
         if !row.issues.is_empty() {
-            spans.push(Span::styled(" !", theme::value().fg(theme::WARN)));
+            spans.push(Span::styled(" !", theme::warning()));
         }
         names.push(Line::from(spans));
     }
@@ -307,7 +307,7 @@ fn draw_check(frame: &mut Frame, area: Rect, check: Option<&CheckTab>) {
             ..
         }) if findings.is_empty() => vec![Line::from(Span::styled(
             "No problems found.".to_string(),
-            theme::value().fg(theme::ONLINE),
+            theme::good(),
         ))],
         Some(CheckTab {
             findings: Ok(findings),
@@ -371,7 +371,7 @@ fn draw_clean(frame: &mut Frame, area: Rect, view: &SettingsView) {
         Some(Load::Failed(e)) => vec![warn(format!("Couldn't look: {e}"))],
         Some(Load::Ready(items)) if items.is_empty() => vec![Line::from(Span::styled(
             "Nothing to clean.".to_string(),
-            theme::value().fg(theme::ONLINE),
+            theme::good(),
         ))],
         Some(Load::Ready(items)) => {
             let mut lines: Vec<Line<'static>> = libgaki::ops::clean::totals(items)
@@ -460,7 +460,7 @@ fn draw_daemons(frame: &mut Frame, area: Rect, view: &SettingsView) {
     for (i, row) in tab.rows.iter().enumerate().skip(skip).take(height) {
         let selected = i == tab.selected;
         let style = if selected {
-            theme::selection(theme::ACCENT)
+            theme::selection()
         } else {
             theme::value()
         };

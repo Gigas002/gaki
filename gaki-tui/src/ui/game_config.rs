@@ -79,7 +79,7 @@ pub fn game_config(browser: &Browser) -> Paragraph<'static> {
         let label = row.label();
         let selected = i == browser.game_config_index;
         let style = if selected {
-            theme::selection(theme::ACCENT)
+            theme::selection()
         } else {
             theme::value()
         };

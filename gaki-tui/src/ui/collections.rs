@@ -38,7 +38,7 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
         if !browser.collections_status.is_empty() {
             lines.push(Line::from(Span::styled(
                 browser.collections_status.clone(),
-                theme::value().fg(theme::WARN),
+                theme::warning(),
             )));
         }
         lines.push(Line::from(Span::styled(hint.to_string(), theme::dim())));
@@ -57,7 +57,7 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
         for (i, c) in browser.collections.iter().enumerate() {
             let selected = i == browser.collections_index;
             let style = if selected {
-                theme::selection(theme::ACCENT)
+                theme::selection()
             } else {
                 theme::value()
             };
@@ -79,7 +79,7 @@ pub fn collections(browser: &Browser) -> Paragraph<'static> {
     if let Some(name) = &browser.collections_delete {
         lines.push(Line::from(Span::styled(
             format!("Delete the collection \"{name}\"? Its games stay in your library."),
-            theme::value().fg(theme::WARN),
+            theme::warning(),
         )));
         lines.push(Line::from(Span::styled(
             "[y] yes  [n] no".to_string(),

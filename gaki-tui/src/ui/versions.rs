@@ -5,7 +5,6 @@
 use crate::keymap::{VersionsAction as V, hints, key_of};
 use crate::utils::bytes::convert;
 
-use ratatui::style::Modifier;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
@@ -22,10 +21,7 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
 
     // Pin banner + install path.
     let pin_span = if browser.is_pinned() {
-        Span::styled(
-            "PINNED (updates held)".to_string(),
-            theme::value().fg(theme::WARN).add_modifier(Modifier::BOLD),
-        )
+        Span::styled("PINNED (updates held)".to_string(), theme::item_failed())
     } else {
         Span::styled("not pinned".to_string(), theme::dim())
     };
@@ -57,7 +53,7 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
         for (i, m) in browser.versions_manifests.iter().enumerate() {
             let selected = i == browser.versions_index;
             let style = if selected {
-                theme::selection(theme::ACCENT)
+                theme::selection()
             } else {
                 theme::value()
             };
@@ -83,7 +79,7 @@ pub fn versions(browser: &Browser) -> Paragraph<'static> {
                 Span::styled(format!("manifest {}", m.manifest_id), theme::dim()),
                 Span::raw("  ".to_string()),
                 Span::styled(convert(m.size as f64), theme::dim()),
-                Span::styled(pin_note, theme::value().fg(theme::WARN)),
+                Span::styled(pin_note, theme::warning()),
             ]));
         }
     }

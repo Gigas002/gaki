@@ -13,7 +13,6 @@
 //! highlight is softened (marker only, no selection background) so it is obvious
 //! that keyboard input is going somewhere else.
 
-use ratatui::style::Style;
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::Paragraph;
 
@@ -85,11 +84,7 @@ pub fn friends(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
             let online = f.is_online();
 
             // Online dot: green when online, dim otherwise.
-            let dot_style = if online {
-                Style::default().fg(theme::ONLINE)
-            } else {
-                theme::dim()
-            };
+            let dot_style = if online { theme::good() } else { theme::dim() };
 
             // Highlight marker: only the selected absolute row gets the arrow.
             let marker = crate::ui::selection_marker(selected);
@@ -102,7 +97,7 @@ pub fn friends(browser: &Browser, visible_rows: usize) -> Paragraph<'static> {
             // - otherwise -> online = value, offline = dim.
             let name_style = if selected {
                 if focused {
-                    theme::selection(theme::ACCENT)
+                    theme::selection()
                 } else {
                     theme::value()
                 }
