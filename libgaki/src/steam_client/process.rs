@@ -3,6 +3,7 @@
 //! Split out of `steam_client.rs` for readability; the struct, shared imports
 //! and free helpers live in the parent module (in scope via `use super::*`).
 use super::*;
+use rustix::process::{Pid, Signal};
 
 impl SteamClient {
     /// Whether the official Steam client is running on this host.
@@ -67,7 +68,7 @@ impl SteamClient {
     /// is not affected.
     pub fn kill_processes_for_app(app_id: u32, force: bool) {
         let needle = format!("STEAM_COMPAT_APP_ID={app_id}");
-        let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
+        let signal = if force { Signal::KILL } else { Signal::TERM };
 
         // Match a NUL-separated environ entry exactly.
         Self::sweep_proc_pids(signal, |pid_path| {
@@ -108,14 +109,13 @@ impl SteamClient {
     }
 
     /// Signal every process matching `pred`.
-    fn sweep_proc_pids(signal: i32, mut pred: impl FnMut(&Path) -> bool) {
+    fn sweep_proc_pids(signal: Signal, mut pred: impl FnMut(&Path) -> bool) {
         Self::scan_proc_pids(|pid_path, pid_str| {
             if pred(pid_path)
-                && let Ok(pid) = pid_str.parse::<i32>()
+                && let Some(pid) = pid_str.parse().ok().and_then(Pid::from_raw)
             {
-                unsafe {
-                    libc::kill(pid, signal);
-                }
+                // Gone already, or not ours to signal: nothing to do.
+                let _ = rustix::process::kill_process(pid, signal);
             }
             // Never short-circuit: sweep every matching process.
             None::<()>
@@ -127,7 +127,7 @@ impl SteamClient {
     /// Proton/Wine game whose processes outlive the runner we spawned.
     pub fn kill_wine_processes_in_prefix(wineprefix: &Path, force: bool) {
         let prefix_str = wineprefix.to_string_lossy().to_string();
-        let signal = if force { libc::SIGKILL } else { libc::SIGTERM };
+        let signal = if force { Signal::KILL } else { Signal::TERM };
 
         Self::sweep_proc_pids(signal, |pid_path| {
             Self::proc_environ(pid_path).is_some_and(|env| env.contains(&prefix_str))

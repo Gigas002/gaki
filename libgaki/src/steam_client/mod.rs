@@ -646,29 +646,26 @@ pub use wishlist::WishlistEntry;
 /// otherwise ask it to exit first (SIGTERM) and only SIGKILL the stragglers after
 /// a short grace period so the game can shut down cleanly.
 fn kill_process_tree(pid: u32, force: bool) {
-    let tree = process_tree_pids(pid as i32);
-    if force {
+    use rustix::process::{Pid, Signal, kill_process};
+    // `Pid::from_raw` refuses 0 and negatives, which `kill` would read as a
+    // whole process group or every process.
+    let tree: Vec<Pid> = process_tree_pids(pid as i32)
+        .into_iter()
+        .filter_map(Pid::from_raw)
+        .collect();
+    let signal_all = |signal| {
         for &p in &tree {
-            unsafe {
-                libc::kill(p, libc::SIGKILL);
-            }
+            // Gone already, or not ours to signal: nothing to do.
+            let _ = kill_process(p, signal);
         }
-    } else {
-        for &p in &tree {
-            unsafe {
-                libc::kill(p, libc::SIGTERM);
-            }
-        }
+    };
+    if !force {
+        signal_all(Signal::TERM);
         std::thread::sleep(Duration::from_millis(500));
-        for &p in &tree {
-            unsafe {
-                libc::kill(p, libc::SIGKILL);
-            }
-        }
     }
+    signal_all(Signal::KILL);
 }
 
-/// Root pid plus live descendants.
 fn process_tree_pids(root: i32) -> Vec<i32> {
     let mut parent_of: Vec<(i32, i32)> = Vec::new();
     if let Ok(dir) = std::fs::read_dir("/proc") {

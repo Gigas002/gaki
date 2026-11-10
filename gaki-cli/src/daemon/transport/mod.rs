@@ -68,7 +68,7 @@ fn ensure_private_dir(dir: &Path) -> io::Result<()> {
         Err(e) => return Err(e),
     }
     let meta = std::fs::symlink_metadata(dir)?;
-    if !meta.is_dir() || meta.uid() != unsafe { libc::getuid() } {
+    if !meta.is_dir() || meta.uid() != rustix::process::getuid().as_raw() {
         return Err(io::Error::new(
             io::ErrorKind::PermissionDenied,
             format!(
@@ -104,7 +104,7 @@ impl Listener {
 
     /// The next connection from this uid. Others are refused and logged.
     pub async fn next(&mut self) -> io::Result<UnixStream> {
-        let me = unsafe { libc::getuid() };
+        let me = rustix::process::getuid().as_raw();
         loop {
             let (stream, _addr) = self.0.accept().await?;
             match stream.peer_cred() {

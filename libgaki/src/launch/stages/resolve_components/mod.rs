@@ -115,7 +115,9 @@ impl Runner for NativeRunner {
         };
         let mut result = spawn(&spec.program, None);
         // Shebang-less script: retry via sh.
-        if result.as_ref().err().and_then(|e| e.raw_os_error()) == Some(libc::ENOEXEC) {
+        if result.as_ref().err().and_then(|e| e.raw_os_error())
+            == Some(rustix::io::Errno::NOEXEC.raw_os_error())
+        {
             tracing::info!(
                 "{} is not executable directly (ENOEXEC); retrying via /bin/sh",
                 spec.program.display()

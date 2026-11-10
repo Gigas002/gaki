@@ -29,9 +29,9 @@ libgaki = { workspace = true, default-features = false }
 gaki-steam-vent = { workspace = true, optional = true }
 anyhow.workspace = true
 clap.workspace = true
-libc.workspace = true
 qrcode = { workspace = true, optional = true }
 rpassword = { workspace = true, optional = true }
+rustix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sysinfo.workspace = true

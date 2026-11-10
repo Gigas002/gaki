@@ -348,9 +348,12 @@ pub fn start_steam_detached() -> Result<()> {
     // of this launch (and isn't torn down with the game's process tree on stop).
     {
         use std::os::unix::process::CommandExt;
+        // SAFETY: setsid is a single syscall, safe to make between fork and exec.
         unsafe {
             cmd.pre_exec(|| {
-                libc::setsid();
+                // It fails only for a process-group leader, which a fresh
+                // fork never is; Steam starts either way.
+                let _ = rustix::process::setsid();
                 Ok(())
             });
         }
