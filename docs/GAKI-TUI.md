@@ -93,8 +93,15 @@ so in the status bar. Set `check_updates = false` to turn it off.
 ### The Actions menu
 
 `Enter` opens a filterable menu with every action that applies to the selected
-game: type to narrow it, `Enter` to run. Two entries live only here:
+game: type to narrow it, `Enter` to run. Three entries live only here:
 
+- **Pre-cache shaders** fetches Steam's pre-built shaders for the game and
+  compiles them (`gaki-cli shaders`; see
+  [Shader pre-caching](CONFIG.md#shader-pre-caching)), with the outcome in
+  the game's status. It compiles even when nothing changed, for after a
+  driver update. Installs and updates do this on their own while the status
+  says `pre-caching shaders...`, unless the Settings tab turns
+  **Shader pre-caching** off.
 - **Play as…** lists every way the game can start: the native Linux build, or
   the Windows build, either always bridged to the host Steam client or bridged
   only when Steam is running. The choice applies

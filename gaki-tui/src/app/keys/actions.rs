@@ -53,6 +53,8 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult {
                         #[cfg(feature = "install")]
                         Action::Verify => client.verify(&game)?,
                         #[cfg(feature = "install")]
+                        Action::PrecacheShaders => client.precache_shaders(&game)?,
+                        #[cfg(feature = "install")]
                         Action::Uninstall => {
                             if game.installed {
                                 browser.confirm_uninstall = true;

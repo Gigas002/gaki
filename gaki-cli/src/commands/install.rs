@@ -77,6 +77,11 @@ pub(crate) async fn run_install(request: InstallRequest, json: bool) -> Result<(
         cli_eprintln!("      be recognized in-game.");
     }
 
+    let shaders = if is_dlc {
+        None
+    } else {
+        crate::commands::shaders::after_install(&client, app_id, json).await
+    };
     if json {
         print_result_line(serde_json::json!({
             "app_id": app_id,
@@ -84,6 +89,7 @@ pub(crate) async fn run_install(request: InstallRequest, json: bool) -> Result<(
             "dlc": is_dlc,
             "steam_restart_required": steam_restart_required,
             "steam_restarted": manage_steam,
+            "shaders": shaders,
         }));
     }
     Ok(())
@@ -570,7 +576,14 @@ pub(crate) async fn cmd_update(app_id: u32, force: bool, json: bool) -> Result<(
 
     let client = authed_client().await?;
     install::update(&client, app_id, force, |rx| drive_progress_until(rx, json)).await?;
-    report_operation(app_id, "updated", json);
+    let shaders = crate::commands::shaders::after_install(&client, app_id, json).await;
+    if json {
+        print_json(&serde_json::json!({
+            "app_id": app_id,
+            "status": "updated",
+            "shaders": shaders,
+        }));
+    }
     Ok(())
 }
 

@@ -124,3 +124,39 @@ fn native_launches_get_no_proton_variable() {
     assert_eq!(command.env["MESA_SHADER_CACHE_DIR"], "/c/10");
     assert!(!command.env.contains_key("STEAM_COMPAT_SHADER_PATH"));
 }
+
+#[test]
+fn proton_gets_the_transcoded_media_only_when_it_was_fetched() {
+    let dir = tempfile::tempdir().unwrap();
+    let proton = || {
+        let mut command = spec();
+        command
+            .env
+            .insert("STEAM_COMPAT_DATA_PATH".into(), "/compat".into());
+        command
+    };
+    let mut command = proton();
+    shader_cache_env(&mut command, dir.path(), |_| false);
+    assert!(
+        !command
+            .env
+            .contains_key("STEAM_COMPAT_TRANSCODED_MEDIA_PATH")
+    );
+
+    std::fs::write(dir.path().join("transcoded_video.foz"), b"x").unwrap();
+    let mut command = proton();
+    shader_cache_env(&mut command, dir.path(), |_| false);
+    assert_eq!(
+        command.env["STEAM_COMPAT_TRANSCODED_MEDIA_PATH"],
+        dir.path().to_string_lossy()
+    );
+
+    // A native launch has no use for it.
+    let mut command = spec();
+    shader_cache_env(&mut command, dir.path(), |_| false);
+    assert!(
+        !command
+            .env
+            .contains_key("STEAM_COMPAT_TRANSCODED_MEDIA_PATH")
+    );
+}

@@ -57,6 +57,7 @@ writes it, and `config unset <key>` removes one.
 | `reauth_sensitive`    | `false`               | ask for a fresh sign-in before showing the inventory, wallet or market listings                                                                                       |
 | `secret_store`        | `keyring`             | where tokens are kept: `keyring` or `memory`                                                                                                                          |
 | `shader_cache`        | `<cache>/shadercache` | where games' compiled shaders go: a directory that gets one `<app id>/` per game, or `off` (see [Shader caches](#shader-caches))                                      |
+| `shader_precache`     | `true`                | fetch Steam's pre-built shaders after an install or update and compile them (see [Shader pre-caching](#shader-pre-caching))                                           |
 
 ### Library layout
 
@@ -196,6 +197,33 @@ deletes the game's cache, `gaki-cli available` shows its size, and
 `config check` reports a `shader_cache` that can't be created. Caches left
 at the old defaults (a `.dxvk-cache` next to the game, `~/.cache/mesa_shader_cache`,
 which other programs share) are not moved or deleted.
+
+### Shader pre-caching
+
+Steam keeps pre-built shader data for many games, and gaki fetches it into
+the game's shader cache as the official client does. After a game installs
+or updates (unless `shader_precache = false`), and on `gaki-cli shaders
+<app id>` or **Pre-cache shaders** in the TUI's Actions menu, gaki asks
+Steam for two *buckets* of the game:
+
+- **Vulkan pipelines** recorded from players' runs: Fossilize databases in
+  `fozpipelinesv6/`. gaki then compiles them with `fossilize_replay`, using
+  the variables above, so the driver's cache already holds them when the
+  game starts. It runs the official client's
+  (`~/.steam/steam/ubuntu12_64/fossilize_replay`), else one on `PATH`
+  (the `fossilize` package); without either the pipelines are only
+  downloaded and the driver compiles them in-game.
+- **Transcoded video** for Proton's media converter:
+  `transcoded_video.foz`. A Proton launch hands the directory over as
+  `STEAM_COMPAT_TRANSCODED_MEDIA_PATH`, so in-game videos play. It is
+  skipped for a native Linux install.
+
+`gaki-precache.toml` in the directory records what was fetched and
+compiled, so an unchanged bucket isn't downloaded or compiled again after
+an update. `gaki-cli shaders` always compiles, for after a driver update.
+Nothing happens with `shader_cache = "off"`. A failure never fails the
+install. gaki only downloads: it never records or uploads pipelines or
+media of its own. Steam's GPU-specific precompiled buckets aren't fetched.
 
 ## Session and security
 

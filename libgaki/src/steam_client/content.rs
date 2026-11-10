@@ -516,7 +516,7 @@ impl SteamClient {
     /// Fetch a depot manifest (filenames decrypted) and the depot key, as an
     /// install does: manifest request code, then the content servers in
     /// pools, each with its CDN auth token, until one serves the manifest.
-    #[cfg(feature = "depot")]
+    #[cfg(feature = "install")]
     async fn open_depot_manifest(
         &self,
         app_id: u32,
@@ -580,7 +580,7 @@ impl SteamClient {
     }
 
     /// Every entry of one depot manifest, sorted by path.
-    #[cfg(feature = "depot")]
+    #[cfg(feature = "install")]
     pub async fn depot_manifest_files(
         &self,
         app_id: u32,
@@ -596,7 +596,7 @@ impl SteamClient {
     /// Download one file of a depot manifest to `dest`: written to a partial
     /// file, checked against the manifest's SHA-1, then moved into place; an
     /// existing `dest` is kept unless `overwrite`. Returns its size.
-    #[cfg(feature = "depot")]
+    #[cfg(feature = "install")]
     pub async fn download_depot_file(
         &self,
         app_id: u32,

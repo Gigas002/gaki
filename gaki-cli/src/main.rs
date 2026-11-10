@@ -436,6 +436,11 @@ async fn run(cli: Cli) -> Result<()> {
             delete_prefix,
         } => cmd_uninstall(app_id, delete_prefix, json).await,
         #[cfg(feature = "install")]
+        Command::Shaders {
+            app_id,
+            download_only,
+        } => commands::shaders::cmd_shaders(app_id, download_only, json).await,
+        #[cfg(feature = "install")]
         Command::Move {
             app_id,
             library,

@@ -61,6 +61,9 @@ pub enum Command {
     /// Update a game to the latest version, streaming progress into the shared status cell.
     #[cfg(feature = "install")]
     Update(i32, Arc<Mutex<Option<GameStatus>>>),
+    /// Fetch and compile a game's pre-built shaders.
+    #[cfg(feature = "install")]
+    PrecacheShaders(i32, Arc<Mutex<Option<GameStatus>>>),
     /// Launch a game and wait for it to exit.
     Run(i32, Arc<Mutex<Option<GameStatus>>>),
     /// Launch a game with extra `play` flags (e.g. a chosen launch target).
@@ -261,6 +264,10 @@ fn execute(
             Command::Update(id, status) => {
                 thread::spawn(move || steam::update(id, status));
             }
+            #[cfg(feature = "install")]
+            Command::PrecacheShaders(id, status) => {
+                thread::spawn(move || steam::precache_shaders(id, status));
+            }
             Command::Run(id, status) => {
                 thread::spawn(move || steam::play(id, status));
             }
@@ -437,6 +444,14 @@ impl Client {
     pub fn resume(&self, jobs: Vec<steam::ResumeJob>) -> Result<(), TuiError> {
         let sender = self.sender.lock()?;
         sender.send(Command::Resume(jobs))?;
+        Ok(())
+    }
+
+    /// Queues fetching and compiling the game's pre-built shaders.
+    #[cfg(feature = "install")]
+    pub fn precache_shaders(&self, game: &Game) -> Result<(), TuiError> {
+        let sender = self.sender.lock()?;
+        sender.send(Command::PrecacheShaders(game.id, game.status_counter()))?;
         Ok(())
     }
 

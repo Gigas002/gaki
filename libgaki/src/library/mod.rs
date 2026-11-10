@@ -3,7 +3,7 @@ pub mod backlog;
 pub mod cloud_sync;
 #[cfg(feature = "collections")]
 pub mod collections;
-#[cfg(feature = "depot")]
+#[cfg(feature = "install")]
 pub mod depot_browser;
 pub mod layout;
 pub mod local_library;

@@ -39,3 +39,7 @@ install_resume = "manual"
 # <app id>/ per game under this directory, or "off" to leave them to their
 # own defaults. Unset: ~/.cache/gaki/shadercache.
 # shader_cache = "~/.cache/gaki/shadercache"
+
+# Fetch Steam's pre-built shaders into a game's shader cache after it
+# installs or updates, and compile them with fossilize_replay.
+# shader_precache = true

@@ -29,6 +29,8 @@ pub mod progress;
 pub mod proton;
 #[cfg(feature = "authentication")]
 pub mod session;
+#[cfg(feature = "install")]
+pub mod shaders;
 #[cfg(feature = "social")]
 pub mod social;
 pub mod steam;

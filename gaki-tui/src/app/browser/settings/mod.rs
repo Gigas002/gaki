@@ -198,6 +198,14 @@ pub const SPECS: &[Spec] = &[
         note: Some("Saved. It applies from the next launch."),
         confirm: None,
     },
+    Spec {
+        key: "shader_precache",
+        label: "Shader pre-caching",
+        default: "true",
+        edit: Edit::Toggle { default: true },
+        note: Some("Saved. It applies from the next install or update."),
+        confirm: None,
+    },
 ];
 
 /// The value after `current` when `Enter` steps a switch or a choice;

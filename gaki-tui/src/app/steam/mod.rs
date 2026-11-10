@@ -2422,14 +2422,20 @@ fn run_install_request(
 ) {
     use libgaki::ops::install::prepare;
     set_status(status, "processing...");
+    let app_id = request.app_id;
     let outcome = worker::global().block_on(async {
         let mut client = worker::global().session().authed().await?;
         let prepared = prepare(&mut client, request).await?;
+        let is_dlc = prepared.is_dlc;
         prepared
             .run(&client, |rx| {
                 drive_progress(rx, status, ProgressLabel::Install)
             })
-            .await
+            .await?;
+        if !is_dlc {
+            precache_after_install(&client, app_id, status).await;
+        }
+        Ok(())
     });
 
     // If the user paused/stopped, the download aborted on their request —
@@ -2639,9 +2645,53 @@ pub fn update(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
         libgaki::ops::install::update(&client, id as u32, false, |rx| {
             drive_progress(rx, &status, ProgressLabel::Update)
         })
-        .await
+        .await?;
+        precache_after_install(&client, id as u32, &status).await;
+        Ok(())
     });
     finish(&status, outcome, "updated");
+}
+
+/// Shader pre-caching after an install or update, when `shader_precache`
+/// wants it; the status cell says it's running. A failure is logged, never
+/// the install's.
+#[cfg(feature = "install")]
+async fn precache_after_install(
+    client: &libgaki::steam_client::SteamClient,
+    app_id: u32,
+    status: &Arc<Mutex<Option<GameStatus>>>,
+) {
+    if !libgaki::ops::shaders::wanted_after_install(app_id) {
+        return;
+    }
+    set_status(status, "pre-caching shaders...");
+    match libgaki::ops::shaders::precache(client, app_id, Default::default()).await {
+        Ok(report) => tracing::info!(app_id, "{}", report.summary()),
+        Err(e) => tracing::warn!(app_id, "shader pre-caching failed: {e:#}"),
+    }
+}
+
+/// Fetch and compile a game's pre-built shaders (the Actions menu),
+/// reporting in the status cell. Compiles even when nothing changed, for
+/// after a driver update. Blocks; run it on its own thread.
+#[cfg(feature = "install")]
+pub fn precache_shaders(id: i32, status: Arc<Mutex<Option<GameStatus>>>) {
+    set_status(&status, "pre-caching shaders...");
+    let outcome = worker::global().block_on(async {
+        let client = worker::global().session().authed().await?;
+        let options = libgaki::ops::shaders::Options {
+            replay: true,
+            force_replay: true,
+        };
+        libgaki::ops::shaders::precache(&client, id as u32, options).await
+    });
+    match outcome {
+        Ok(report) => {
+            tracing::info!(app_id = id, "{}", report.summary());
+            set_status(&status, report.short());
+        }
+        Err(e) => set_status(&status, &format!("Failed: {e:#}")),
+    }
 }
 
 /// Launch a game and wait for it to exit. Intended to be run on a dedicated

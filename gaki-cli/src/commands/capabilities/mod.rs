@@ -39,6 +39,8 @@ pub(crate) const FEATURES: &[&str] = &[
     "login.qr.stdin_control",
     // `result` lines carry `schema`.
     "result.schema",
+    // `install` and `update` results carry the shader pre-cache report.
+    "install.shaders",
 ];
 
 /// The Cargo features this binary was built with; each gates its commands.

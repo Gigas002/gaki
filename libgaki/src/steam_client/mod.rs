@@ -10,7 +10,7 @@ use crate::core::models::{DownloadProgress, DownloadProgressState, ManifestSelec
 use crate::core::utils::extract_quoted_values;
 #[cfg(feature = "cloud")]
 use crate::library::cloud_sync::{CloudClient, CloudPathResolver, UfsSaveSpec, default_cloud_root};
-#[cfg(feature = "depot")]
+#[cfg(feature = "install")]
 use crate::library::depot_browser::{self, ManifestFileEntry};
 use crate::web::cm_list::get_cm_endpoints;
 use anyhow::{Context, Result, anyhow, bail};
@@ -588,7 +588,11 @@ mod install;
 #[cfg(feature = "install")]
 mod manage;
 #[cfg(feature = "install")]
+mod shaders;
+#[cfg(feature = "install")]
 pub use install::InstallOptions;
+#[cfg(feature = "install")]
+pub use shaders::ShaderBucket;
 
 #[cfg(feature = "collections")]
 mod cloudconfig;

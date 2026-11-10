@@ -100,6 +100,7 @@ gaki-cli move 1245620 /mnt/games/SteamLibrary    # move an install to another li
 gaki-cli relink 1245620 /mnt/games/SteamLibrary  # point Steam at already-moved files
 gaki-cli import 1245620 /mnt/games/SteamLibrary  # register files already on disk
 gaki-cli available 1245620            # installed and present on disk? (and its shader cache's size)
+gaki-cli shaders 1245620              # fetch Steam's pre-built shaders and compile them (--download-only skips compiling)
 gaki-cli duplicates                   # games installed in several libraries at once
 gaki-cli enable 2001                  # enable an installed DLC
 gaki-cli disable 2001                 # disable it
@@ -114,6 +115,17 @@ process is downloading as `running elsewhere`, and `install resume`,
 
 A game installed in two libraries reports an update forever. `duplicates`
 prints the copies to delete and removes nothing itself.
+
+After an install or update, gaki fetches Steam's pre-built shaders for the
+game and compiles them (`shaders` does it on demand; `shader_precache =
+false` turns the automatic run off; see
+[Shader pre-caching](CONFIG.md#shader-pre-caching)). With `--json`, the
+`install` and `update` results carry the report as `shaders` (`null` when it
+didn't run): each bucket's `kind`, `manifest_id` and `status`
+(`downloaded`, `current`, `not_offered`, `skipped`, `failed`), and the
+compile step's `status` (`compiled` with `graphics` and `compute` counts,
+`up_to_date`, `no_pipelines`, `no_replayer`, `skipped`, `failed`). A
+failure there never fails the install.
 
 ### Versions and branches
 

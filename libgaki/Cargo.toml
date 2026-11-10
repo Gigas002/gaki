@@ -26,8 +26,9 @@ authentication = [
 ]
 # Owned apps, appinfo/PICS, tags, achievements, licenses, launching.
 library = ["authentication"]
-# Install, update, verify, uninstall, move/relink/import, DLC, backlog, official Proton.
-install = ["library", "dep:gaki-steam-cdn"]
+# Install, update, verify, uninstall, move/relink/import, DLC, backlog, official Proton,
+# shader pre-caching (single depot files, hence hex and sha1).
+install = ["library", "dep:gaki-steam-cdn", "dep:hex", "dep:sha1"]
 # Steam Cloud save sync (save paths come from PICS appinfo, hence `library`).
 cloud = ["library", "dep:filetime", "dep:sha1", "dep:zip"]
 # Library collections (CloudConfigStore).
@@ -35,7 +36,7 @@ collections = ["library"]
 # Branches, downgrades, manifest pins.
 versioning = ["install"]
 # Depot browser and listings.
-depot = ["install", "dep:hex", "dep:sha1"]
+depot = ["install"]
 # Workshop subscribe/download.
 workshop = ["install"]
 # Friends, chat, presence.

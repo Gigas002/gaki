@@ -26,6 +26,8 @@ pub(crate) mod library;
 pub(crate) mod market;
 pub(crate) mod profiles;
 pub(crate) mod runtimes;
+#[cfg(feature = "install")]
+pub(crate) mod shaders;
 #[cfg(feature = "social")]
 pub(crate) mod social;
 #[cfg(feature = "store")]

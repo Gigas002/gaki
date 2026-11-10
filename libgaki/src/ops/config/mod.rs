@@ -64,6 +64,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("reauth_sensitive", KeyKind::Bool),
     ("secret_store", KeyKind::Text),
     ("shader_cache", KeyKind::Path),
+    ("shader_precache", KeyKind::Bool),
 ];
 
 fn config_toml_path() -> Result<PathBuf> {

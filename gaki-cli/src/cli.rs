@@ -374,6 +374,18 @@ pub(crate) enum Command {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+    /// Fetch Steam's pre-built shaders for a game into its shader cache and
+    /// compile the pipelines with `fossilize_replay` (Steam's, else one on
+    /// PATH). Runs after installs and updates too, unless
+    /// `shader_precache = false`.
+    #[cfg(feature = "install")]
+    Shaders {
+        #[arg(value_parser = app_ref)]
+        app_id: u32,
+        /// Only fetch; don't compile.
+        #[arg(short = 'd', long)]
+        download_only: bool,
+    },
     /// Uninstall a game.
     #[cfg(feature = "install")]
     Uninstall {

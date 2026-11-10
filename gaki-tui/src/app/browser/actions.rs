@@ -22,6 +22,8 @@ pub enum Action {
     #[cfg(feature = "install")]
     Verify,
     #[cfg(feature = "install")]
+    PrecacheShaders,
+    #[cfg(feature = "install")]
     Uninstall,
     #[cfg(feature = "versioning")]
     Versions,
@@ -84,6 +86,8 @@ impl Action {
         use crate::keymap::LibraryAction as A;
         Some(match self {
             Action::Play | Action::PlayAs | Action::GameSettings => return None,
+            #[cfg(feature = "install")]
+            Action::PrecacheShaders => return None,
             #[cfg(feature = "install")]
             Action::Install => A::Install,
             #[cfg(feature = "install")]
@@ -185,6 +189,12 @@ impl Browser {
                 action: Action::Verify,
                 category: PLAY,
                 label: "Verify files",
+            });
+            #[cfg(feature = "install")]
+            rows.push(ActionRow {
+                action: Action::PrecacheShaders,
+                category: PLAY,
+                label: "Pre-cache shaders",
             });
             #[cfg(feature = "install")]
             rows.push(ActionRow {

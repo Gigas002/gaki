@@ -49,7 +49,9 @@ impl PipelineStage for ApplySettingsStage {
 }
 
 /// Point DXVK, VKD3D-Proton and the drivers at `dir`, the game's shader
-/// cache, and hand it to Proton as `STEAM_COMPAT_SHADER_PATH`. A variable
+/// cache, and hand it to Proton as `STEAM_COMPAT_SHADER_PATH`; when shader
+/// pre-caching fetched Steam's transcoded media into it, as
+/// `STEAM_COMPAT_TRANSCODED_MEDIA_PATH` too. A variable
 /// the runner or a fixup already set, or one gaki's own environment has
 /// (`inherited`), is left alone; the profile's and the game's `env` are
 /// applied after this, so they win too.
@@ -62,6 +64,13 @@ pub fn shader_cache_env(
     let mut vars = crate::config::ShaderCache::env(dir);
     if proton {
         vars.push(("STEAM_COMPAT_SHADER_PATH", dir.to_path_buf()));
+        // Proton's media converter reads `transcoded_{video,audio}.foz` there.
+        if ["transcoded_video.foz", "transcoded_audio.foz"]
+            .iter()
+            .any(|f| dir.join(f).is_file())
+        {
+            vars.push(("STEAM_COMPAT_TRANSCODED_MEDIA_PATH", dir.to_path_buf()));
+        }
     }
     for (key, value) in vars {
         if !inherited(key) {

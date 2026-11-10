@@ -70,6 +70,10 @@ pub struct Config {
     /// the drivers. `None` is `$XDG_CACHE_HOME/gaki/shadercache`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub shader_cache: Option<ShaderCache>,
+    /// Fetch Steam's pre-built shaders into a game's shader cache after it
+    /// installs or updates, and compile them with `fossilize_replay`.
+    #[serde(default = "default_true")]
+    pub shader_precache: bool,
 }
 
 /// The `secret_store` setting.
@@ -106,6 +110,7 @@ impl Default for Config {
             reauth_sensitive: false,
             secret_store: SecretStoreKind::default(),
             shader_cache: None,
+            shader_precache: true,
         }
     }
 }
