@@ -91,6 +91,7 @@ pub fn merge_family_shared(games: &mut Vec<LibraryGame>, shared: Vec<SharedApp>)
             is_family_shared: true,
             online_required: None,
             platform: None,
+            size_on_disk: None,
         });
     }
 }

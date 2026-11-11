@@ -17,6 +17,7 @@ fn game(installed: bool) -> LibraryGame {
         is_family_shared: false,
         online_required: None,
         platform: None,
+        size_on_disk: None,
     }
 }
 

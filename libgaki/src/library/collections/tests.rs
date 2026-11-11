@@ -274,3 +274,31 @@ fn upload_clears_only_what_was_sent() {
     store.uploaded(&sent, 10);
     assert!(store.collections[0].changed.is_empty());
 }
+
+#[test]
+fn other_entries_in_the_namespace_are_not_collections() {
+    let mut store = CollectionsStore::default();
+    // What an older gaki stored from these keys.
+    store.collections.push(Collection {
+        id: "showcases.2".into(),
+        ..Collection::default()
+    });
+    store.collections.push(Collection {
+        id: "uc-mine".into(),
+        name: "Mine".into(),
+        ..Collection::default()
+    });
+    let remote = RemoteNamespace {
+        version: 5,
+        entries: vec![
+            ("showcases.2".into(), Some("{\"x\":1}".into())),
+            ("NewContentRollup_2623190".into(), Some("{}".into())),
+            ("sc-version".into(), Some("3".into())),
+            ("GameReleased".into(), None),
+        ],
+    };
+    store.apply_remote(remote);
+    let ids: Vec<&str> = store.collections.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids, ["uc-mine"], "only real collections stay");
+    assert_eq!(store.namespace_version, 5);
+}

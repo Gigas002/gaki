@@ -172,7 +172,9 @@ pub fn list_installed(steam_library_path: &Path) -> Vec<InstalledProton> {
 
 /// [`list_installed`] over explicit search dirs. Every directory under a
 /// `compatibilitytools.d` counts; under `steamapps/common` only directories
-/// whose name contains `proton`. When two dirs hold the same name, the one
+/// whose name contains `proton` and that hold the `proton` launcher (a
+/// gaki library keeps games, and profile prefixes such as
+/// `proton_cachyos_prefix`, in the same directory). When two dirs hold the same name, the one
 /// earlier in the search order wins.
 pub(crate) fn list_installed_in(dirs: &[(PathBuf, &'static str)]) -> Vec<InstalledProton> {
     let mut out = Vec::new();
@@ -188,7 +190,11 @@ pub(crate) fn list_installed_in(dirs: &[(PathBuf, &'static str)]) -> Vec<Install
                 location,
                 path: e.path(),
             })
-            .filter(|p| *location != "steam" || p.name.to_ascii_lowercase().contains("proton"))
+            .filter(|p| {
+                *location != "steam"
+                    || (p.name.to_ascii_lowercase().contains("proton")
+                        && p.path.join("proton").is_file())
+            })
             .collect();
         found.sort_by(|a, b| a.name.cmp(&b.name));
         out.append(&mut found);

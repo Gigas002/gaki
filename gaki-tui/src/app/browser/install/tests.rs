@@ -19,6 +19,7 @@ fn game(id: i32) -> Game {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: None,
     })
 }
 
@@ -74,6 +75,7 @@ fn poll_game_refresh_patches_install_flags_and_clears_status() {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: None,
     });
 
     b.poll_game_refresh();

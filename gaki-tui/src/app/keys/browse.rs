@@ -129,8 +129,21 @@ fn base(lib: &mut Library, key: Key) -> AppResult<Flow> {
         }
         #[cfg(feature = "install")]
         Some(A::Install) => {
+            // Like the Actions menu: an installed game isn't installed again
+            // (that would make a second copy); updates and repairs have
+            // their own keys.
             if let Some(game) = browser.selected() {
-                shared::install(browser, client, &game)?;
+                if game.installed {
+                    let key = |a| crate::keymap::key_of(a);
+                    browser.notice = Some(format!(
+                        "{} is already installed: [{}] update, [{}] verify",
+                        game.name,
+                        key(A::Update),
+                        key(A::Verify)
+                    ));
+                } else {
+                    shared::install(browser, client, &game)?;
+                }
             }
         }
         #[cfg(feature = "install")]

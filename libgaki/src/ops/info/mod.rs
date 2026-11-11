@@ -182,10 +182,14 @@ async fn extended_info(
                     .filter_map(|&g| crate::steam_client::genres_table::genre_name(g))
                     .map(String::from)
                     .collect();
+                // Some ids share a name (two "DualShock Controller
+                // Support" categories): list each name once.
+                let mut seen = std::collections::HashSet::new();
                 ext.categories = pics
                     .category_ids
                     .iter()
                     .filter_map(|c| category_names.get(c).cloned())
+                    .filter(|name| seen.insert(name.clone()))
                     .collect();
             }
             Err(e) => tracing::warn!("appinfo unavailable for app {id}: {e:#}"),

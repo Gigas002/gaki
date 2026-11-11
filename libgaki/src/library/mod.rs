@@ -70,6 +70,8 @@ pub struct InstalledAppInfo {
     pub last_updated: u64,
     /// `buildid` from the appmanifest. Secondary tie-break behind `last_updated`.
     pub build_id: u64,
+    /// `SizeOnDisk` from the appmanifest.
+    pub size_on_disk: Option<u64>,
 }
 
 pub async fn scan_installed_app_info() -> Result<HashMap<u32, InstalledAppInfo>> {
@@ -698,6 +700,7 @@ async fn parse_app_manifest_info(path: &Path) -> Result<Option<(u32, InstalledAp
             manifest_path: path.to_path_buf(),
             last_updated: manifest.last_updated,
             build_id: manifest.build_id,
+            size_on_disk: manifest.size_on_disk,
         },
     )))
 }
@@ -739,6 +742,7 @@ pub fn build_game_library(
             is_family_shared: false,
             online_required: None,
             platform: None,
+            size_on_disk: info.and_then(|i| i.size_on_disk),
         });
     }
 
@@ -773,6 +777,7 @@ pub fn build_game_library(
             is_family_shared: false,
             online_required: None,
             platform: None,
+            size_on_disk: info.size_on_disk,
         });
     }
 

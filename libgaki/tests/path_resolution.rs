@@ -51,6 +51,7 @@ async fn test_batman_path_resolution() {
         is_family_shared: false,
         online_required: None,
         platform: None,
+        size_on_disk: None,
     };
 
     let launch_info = LaunchInfo {

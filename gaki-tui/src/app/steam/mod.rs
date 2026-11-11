@@ -90,6 +90,8 @@ pub struct LibraryGame {
     pub playtime_2weeks_minutes: Option<u32>,
     /// When the account last played the game (Unix seconds).
     pub last_played: Option<u64>,
+    /// Bytes on disk, for an installed game.
+    pub size_on_disk: Option<u64>,
 }
 
 /// One Steam Cloud file of a game.
@@ -1026,6 +1028,7 @@ pub fn fetch_library() -> Result<Vec<LibraryGame>, TuiError> {
                 playtime_minutes: g.playtime_forever_minutes,
                 playtime_2weeks_minutes: g.playtime_2weeks_minutes,
                 last_played: g.last_played,
+                size_on_disk: g.size_on_disk,
             })
             .collect())
     })

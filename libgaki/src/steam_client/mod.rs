@@ -871,6 +871,9 @@ fn store_item_to_app_info(item: &StoreItem, country: &str) -> StoreAppInfo {
             let label = s.review_score_label();
             if label.is_empty() {
                 None
+            } else if s.review_count() == 0 {
+                // "No user reviews": the numbers would only repeat it.
+                Some(label.to_string())
             } else {
                 Some(format!(
                     "{} ({}% positive, {} reviews)",

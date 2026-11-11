@@ -182,10 +182,23 @@ impl SteamClient {
                             .map(str::to_string)
                             .unwrap_or_else(|| format!("Depot {d_id}"));
 
+                        // `maxsize` when the depot declares one, else the
+                        // size of its current public manifest (most depots
+                        // carry only that).
+                        let parse = |v: &steam_vdf_parser::Value| {
+                            v.as_str().and_then(|s| s.parse::<u64>().ok())
+                        };
                         let size = obj
                             .get("maxsize")
-                            .and_then(|v| v.as_str())
-                            .and_then(|s| s.parse::<u64>().ok())
+                            .and_then(parse)
+                            .or_else(|| {
+                                obj.get("manifests")
+                                    .and_then(|m| m.as_obj())
+                                    .and_then(|m| m.get("public"))
+                                    .and_then(|p| p.as_obj())
+                                    .and_then(|p| p.get("size"))
+                                    .and_then(parse)
+                            })
                             .unwrap_or(0);
 
                         let mut config_parts = Vec::new();

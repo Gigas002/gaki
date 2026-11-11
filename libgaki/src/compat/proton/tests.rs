@@ -55,9 +55,13 @@ fn earlier_search_dir_shadows_same_name() {
     std::fs::create_dir_all(system.join("GE-Proton9-20")).unwrap();
     std::fs::create_dir_all(user.join("GE-Proton9-20")).unwrap();
     std::fs::create_dir_all(user.join("proton-cachyos")).unwrap();
-    std::fs::create_dir_all(library.join("steamapps/common/Proton 9.0")).unwrap();
+    let proton = library.join("steamapps/common/Proton 9.0");
+    std::fs::create_dir_all(&proton).unwrap();
+    std::fs::write(proton.join("proton"), "#!/usr/bin/env python3\n").unwrap();
     // Not a Proton: ignored under steamapps/common.
     std::fs::create_dir_all(library.join("steamapps/common/Half-Life")).unwrap();
+    // A profile's prefix: "proton" in the name, but no launcher.
+    std::fs::create_dir_all(library.join("steamapps/common/proton_cachyos_prefix/pfx")).unwrap();
 
     let found = list_installed_in(&search_dirs_from(&system, &[user], &library));
     let got: Vec<(&str, &str)> = found

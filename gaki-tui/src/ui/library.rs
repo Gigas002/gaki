@@ -80,7 +80,7 @@ pub fn draw(
         height: detail_area.height.saturating_sub(2),
     };
 
-    let desc_width = inner.width.saturating_mul(82) / 100;
+    let desc_width = ui::detail::value_width(inner.width);
 
     // The art renders whenever it is loaded. While scrolling it is cleared (the
     // app drops it on a selection change), so nothing paints or resizes
@@ -111,10 +111,9 @@ pub fn draw(
 
     frame.render_widget(ui::status::status_bar(browser, account), chunks[2]);
     // Bottom-right corner, right of the key hints.
-    frame.render_widget(
-        ui::status::version_badge(),
-        ui::status::version_badge_area(chunks[2]),
-    );
+    if let Some(badge) = ui::status::version_badge_area(chunks[2], browser, account) {
+        frame.render_widget(ui::status::version_badge(), badge);
+    }
 
     ui::overlays::draw(frame, browser);
 }

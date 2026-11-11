@@ -164,6 +164,10 @@ pub struct LibraryGame {
     /// through Proton) without re-deriving it.
     #[serde(default)]
     pub platform: Option<String>,
+    /// Bytes on disk, from the appmanifest's `SizeOnDisk`; `None` when the
+    /// game isn't installed or the manifest doesn't say.
+    #[serde(default)]
+    pub size_on_disk: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -21,11 +21,15 @@ fn the_games_cache_round_trips_through_toml() {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: Some(1_330_370_018),
     });
+    // The Detail panel's Size comes from the appmanifest, through the cache.
+    assert_eq!(game.get_status().unwrap().size, 1_330_370_018.0);
     let text = toml::to_string(&GamesCache { games: vec![game] }).unwrap();
     let back: GamesCache = toml::from_str(&text).unwrap();
     assert_eq!(back.games[0].id, 570);
     assert!(back.games[0].installed);
+    assert_eq!(back.games[0].size, 1_330_370_018.0);
     assert!(
         toml::from_str::<GamesCache>("").is_err(),
         "an empty cache file means the library still has to load"

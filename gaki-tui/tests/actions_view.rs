@@ -45,6 +45,7 @@ fn game(id: u32, name: &str, installed: bool) -> Game {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: None,
     })
 }
 

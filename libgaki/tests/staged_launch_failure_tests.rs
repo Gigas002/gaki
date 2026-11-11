@@ -42,6 +42,7 @@ async fn test_stage_validation_failure_launch_info() {
         is_family_shared: false,
         online_required: None,
         platform: None,
+        size_on_disk: None,
     });
     // ctx.launch_info is None, so ResolveProfileStage should fail
 
@@ -78,6 +79,7 @@ async fn test_stage_execution_failure_adhoc() {
         is_family_shared: false,
         online_required: None,
         platform: None,
+        size_on_disk: None,
     });
     ctx.launch_info = Some(libgaki::core::models::LaunchInfo {
         app_id: 123,

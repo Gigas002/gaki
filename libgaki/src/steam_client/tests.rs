@@ -132,6 +132,7 @@ async fn test_legacy_path_blocks_windows_proton() {
         is_family_shared: false,
         online_required: None,
         platform: None,
+        size_on_disk: None,
     };
     let launch_info = LaunchInfo {
         app_id: 123,
@@ -410,6 +411,7 @@ fn select_launch_entry_prefers_installed_platform() {
         is_family_shared: false,
         online_required: None,
         platform: Some("linux".to_string()),
+        size_on_disk: None,
     };
 
     // Installed platform wins over declared order and stale files.
@@ -472,6 +474,7 @@ fn select_launch_entry_matches_executable_case_insensitively() {
         is_family_shared: false,
         online_required: None,
         platform: Some("linux".to_string()),
+        size_on_disk: None,
     };
 
     // Proton request finds the lowercase exe.
@@ -606,6 +609,7 @@ fn launch_targets_lists_installed_builds_and_steam_modes() {
         is_family_shared: false,
         online_required: None,
         platform: Some("linux".to_string()),
+        size_on_disk: None,
     };
 
     let ids = |targets: &[LaunchTargetChoice]| targets.iter().map(|t| t.id).collect::<Vec<_>>();

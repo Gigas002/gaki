@@ -38,7 +38,9 @@ fn a_custom_keymap_shows_everywhere() {
     );
     assert_eq!(keymap::get().label(LibraryAction::SteamPage), "e / F5");
 
-    let help = render(100, 120, |f| f.render_widget(ui::help::help(0), f.area()));
+    let help = render(100, 120, |f| {
+        f.render_widget(ui::help::help(0, f.area().width), f.area())
+    });
     assert!(help.contains("ctrl+f"), "{help}");
     assert!(help.contains("e / F5"), "{help}");
     assert!(help.contains("alt+a"), "{help}");
@@ -66,6 +68,7 @@ fn a_custom_keymap_shows_everywhere() {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: None,
     })]);
     let footer = render(160, 2, |f| {
         f.render_widget(ui::status::status_bar(&browser, None), f.area())

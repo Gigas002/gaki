@@ -17,6 +17,7 @@ fn game(app_id: u32, name: &str, platform: Option<&str>, branch: &str) -> Librar
         is_family_shared: false,
         online_required: None,
         platform: platform.map(str::to_string),
+        size_on_disk: None,
     }
 }
 

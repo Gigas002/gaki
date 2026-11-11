@@ -108,7 +108,7 @@ impl Game {
             installed: entry.is_installed,
             install_dir: entry.install_path.unwrap_or_default(),
             update_available: entry.update_available,
-            size: 0.0,
+            size: entry.size_on_disk.unwrap_or(0) as f64,
             playtime_minutes: entry.playtime_minutes,
             playtime_2weeks_minutes: entry.playtime_2weeks_minutes,
             last_played: entry.last_played,

@@ -26,11 +26,58 @@ fn heading(text: &str) -> Line<'static> {
 }
 
 /// `label  value`, skipped by the callers when the value is empty.
+/// The label column of a [`field`].
+const LABEL_WIDTH: usize = 18;
+
 fn field(label: &str, value: impl Into<String>) -> Line<'static> {
     Line::from(vec![
-        Span::styled(format!("{label:<18}"), theme::label()),
+        Span::styled(format!("{label:<LABEL_WIDTH$}"), theme::label()),
         Span::styled(value.into(), theme::value()),
     ])
+}
+
+/// Wrap each [`field`] line that's wider than `width` at word breaks, with
+/// the continuation lines under the value instead of under the label.
+/// Other lines are left to the paragraph's own wrapping.
+fn hang(lines: Vec<Line<'static>>, width: usize) -> Vec<Line<'static>> {
+    let room = width.saturating_sub(LABEL_WIDTH);
+    if room < 10 {
+        return lines;
+    }
+    let mut out = Vec::with_capacity(lines.len());
+    for line in lines {
+        let is_field = line.spans.len() == 2
+            && line.spans[0].style == theme::label()
+            && line.spans[0].content.chars().count() == LABEL_WIDTH;
+        if !is_field || line.width() <= width {
+            out.push(line);
+            continue;
+        }
+        let label = line.spans[0].clone();
+        let style = line.spans[1].style;
+        let mut rows: Vec<String> = vec![String::new()];
+        for word in line.spans[1].content.split(' ') {
+            let row = rows.last_mut().expect("never empty");
+            let needed = row.chars().count() + usize::from(!row.is_empty()) + word.chars().count();
+            if !row.is_empty() && needed > room {
+                rows.push(word.to_string());
+            } else {
+                if !row.is_empty() {
+                    row.push(' ');
+                }
+                row.push_str(word);
+            }
+        }
+        for (i, row) in rows.into_iter().enumerate() {
+            let head = if i == 0 {
+                label.clone()
+            } else {
+                Span::raw(" ".repeat(LABEL_WIDTH))
+            };
+            out.push(Line::from(vec![head, Span::styled(row, style)]));
+        }
+    }
+    out
 }
 
 fn push_list(lines: &mut Vec<Line<'static>>, label: &str, items: &[String]) {
@@ -77,7 +124,7 @@ pub fn draw(frame: &mut Frame, area: Rect, view: &GameInfoView) {
         InfoTab::Checks => checks_lines(view),
         InfoTab::Artwork => artwork_lines(view),
     };
-    let paragraph = Paragraph::new(lines)
+    let paragraph = Paragraph::new(hang(lines, usize::from(body.width)))
         .style(theme::base())
         .wrap(Wrap { trim: false });
     let max = paragraph.line_count(body.width.max(1)).saturating_sub(1);

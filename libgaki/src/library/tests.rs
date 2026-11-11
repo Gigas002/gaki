@@ -186,6 +186,7 @@ fn probe_does_not_descend_into_a_found_library() {
 
 fn copy_at(path: &str, last_updated: u64, build_id: u64) -> InstalledAppInfo {
     InstalledAppInfo {
+        size_on_disk: None,
         install_path: PathBuf::from(path),
         active_branch: "public".to_string(),
         name: Some("Game".to_string()),

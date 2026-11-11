@@ -39,6 +39,7 @@ fn game(id: u32, name: &str, installed: bool, update: bool) -> Game {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: None,
     })
 }
 
@@ -659,10 +660,9 @@ fn version_badge_sits_in_bottom_right_corner() {
         terminal
             .draw(|f| {
                 f.render_widget(ui::status::status_bar(&browser, None), area);
-                f.render_widget(
-                    ui::status::version_badge(),
-                    ui::status::version_badge_area(area),
-                );
+                if let Some(badge) = ui::status::version_badge_area(area, &browser, None) {
+                    f.render_widget(ui::status::version_badge(), badge);
+                }
             })
             .unwrap();
         let buf = terminal.backend().buffer();
@@ -688,6 +688,11 @@ fn version_badge_sits_in_bottom_right_corner() {
     let rows = render(105);
     assert!(rows[0].trim_end().ends_with(&badge));
     assert!(rows[1].contains("[q] quit"));
+
+    // Too narrow for either row: no badge, and the status line stays whole.
+    let rows = render(60);
+    assert!(!rows.iter().any(|r| r.contains("gaki-tui v")), "{rows:?}");
+    assert!(rows[0].contains("sort: name"), "{rows:?}");
 }
 
 #[cfg(feature = "workshop")]

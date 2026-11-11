@@ -69,8 +69,11 @@ fn depot_rows(browser: &Browser) -> (String, Vec<ListItem<'static>>, Option<usiz
                     } else {
                         theme::value()
                     };
+                    // A depot without a name is called "Depot <id>" already.
                     let label = if depot.name.is_empty() {
                         depot.id.to_string()
+                    } else if depot.name == format!("Depot {}", depot.id) {
+                        depot.name.clone()
                     } else {
                         format!("{} ({})", depot.name, depot.id)
                     };

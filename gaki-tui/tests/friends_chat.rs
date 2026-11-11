@@ -212,6 +212,7 @@ fn game(id: u32, name: &str) -> Game {
         playtime_minutes: None,
         playtime_2weeks_minutes: None,
         last_played: None,
+        size_on_disk: None,
     })
 }
 
@@ -384,4 +385,25 @@ fn the_profile_overlay_shows_the_user_fields() {
     assert!(screen.contains("Half-Life"), "{screen}");
     assert!(screen.contains("Hello"), "{screen}");
     assert!(screen.contains("[E] profile page"), "{screen}");
+}
+
+#[test]
+fn the_friends_tab_hints_its_own_keys() {
+    isolate_config();
+    let mut browser = Browser::new(vec![]);
+    let footer = |browser: &Browser| -> String {
+        let mut terminal = Terminal::new(TestBackend::new(140, 2)).unwrap();
+        terminal
+            .draw(|f| f.render_widget(ui::status::status_bar(browser, None), f.area()))
+            .unwrap();
+        let buf = terminal.backend().buffer();
+        (0..140).map(|x| buf[(x, 1)].symbol()).collect()
+    };
+    let library = footer(&browser);
+    assert!(library.contains("[f] fav"), "{library}");
+    browser.view = View::Friends;
+    let friends = footer(&browser);
+    assert!(friends.contains("[w] wishlist"), "{friends}");
+    assert!(friends.contains("[t] window"), "{friends}");
+    assert!(!friends.contains("fav"), "no library keys: {friends}");
 }

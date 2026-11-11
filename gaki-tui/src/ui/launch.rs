@@ -24,8 +24,15 @@ pub fn launch(browser: &Browser) -> Paragraph<'static> {
         .iter()
         .skip(browser.launch_scroll)
         .map(|o| {
-            let mut spans = vec![Span::styled(o.display_name(), theme::value())];
-            let command = o.command();
+            let name = o.display_name();
+            let mut spans = vec![Span::styled(name.clone(), theme::value())];
+            // Without a description the name is the executable already, so
+            // only its arguments follow.
+            let command = if name == o.executable {
+                o.arguments.trim().to_string()
+            } else {
+                o.command()
+            };
             if !command.is_empty() {
                 spans.push(Span::styled(format!("  {}", command), theme::dim()));
             }

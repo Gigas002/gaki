@@ -26,6 +26,7 @@ async fn native_runner_appends_user_launch_options() {
             is_family_shared: false,
             online_required: None,
             platform: None,
+            size_on_disk: None,
         },
         launch_info: LaunchInfo {
             app_id: 123,

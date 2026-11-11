@@ -43,38 +43,73 @@ fn lib(actions: &[A]) -> String {
     }
 }
 
-/// Width of a single column (the half the overlay devotes to one entry).
-const COL_WIDTH: usize = 44;
-/// Width of the key field within a binding column.
-const KEY_WIDTH: usize = 16;
+/// Space between the two columns.
+const GAP: usize = 2;
+
+/// The column widths for an overlay `width` cells wide (borders included).
+struct Columns {
+    /// One column: the half of a row an entry gets.
+    col: usize,
+    /// The key field within a column: indent, the longest key, one space.
+    key: usize,
+}
+
+impl Columns {
+    fn new(width: u16, entries: &[Entry]) -> Self {
+        let col = (usize::from(width).saturating_sub(2 + GAP) / 2).max(1);
+        let longest = entries
+            .iter()
+            .filter_map(|e| e.keys())
+            .map(|k| k.chars().count())
+            .max()
+            .unwrap_or(0);
+        // The keys get at most half a column; a longer one is cut too.
+        let key = (2 + longest + 1).min(col / 2);
+        Self { col, key }
+    }
+}
+
+impl Entry {
+    fn keys(&self) -> Option<String> {
+        match self {
+            Entry::Keys(keys, _) => Some(keys.clone()),
+            Entry::Binding(keys, _) => Some((*keys).to_string()),
+            _ => None,
+        }
+    }
+}
+
+/// `text` padded or cut to exactly `width` characters; a cut ends in `…`.
+fn fit(text: &str, width: usize) -> String {
+    if text.chars().count() <= width {
+        format!("{text:<width$}")
+    } else {
+        let mut cut: String = text.chars().take(width.saturating_sub(1)).collect();
+        if width > 0 {
+            cut.push('\u{2026}');
+        }
+        cut
+    }
+}
 
 /// Render a single entry into the spans for one half of a row.
-fn entry_spans(entry: &Entry) -> Vec<Span<'static>> {
+fn entry_spans(entry: &Entry, columns: &Columns) -> Vec<Span<'static>> {
     match entry {
-        Entry::Header(title) => vec![Span::styled(
-            format!("{:<width$}", title, width = COL_WIDTH),
-            theme::heading(),
-        )],
-        Entry::Keys(..) | Entry::Binding(..) => {
-            let (keys, desc) = match entry {
-                Entry::Keys(keys, desc) => (keys.clone(), *desc),
-                Entry::Binding(keys, desc) => (keys.to_string(), *desc),
-                _ => unreachable!(),
-            };
-            let keys_field = format!("  {:<14}", keys);
-            // Clamp the description to whatever space remains in the column so
-            // the two columns stay aligned regardless of entry length.
-            let desc_width = COL_WIDTH.saturating_sub(KEY_WIDTH);
-            let desc: String = desc.chars().take(desc_width).collect();
+        Entry::Header(title) => vec![Span::styled(fit(title, columns.col), theme::heading())],
+        Entry::Keys(_, desc) | Entry::Binding(_, desc) => {
+            let keys = entry.keys().unwrap_or_default();
+            // Indent, then the keys; the last character of the field is
+            // always a space, so a long key never runs into its description.
+            let keys_field = format!("  {} ", fit(&keys, columns.key.saturating_sub(3)));
             vec![
                 Span::styled(keys_field, theme::key()),
                 Span::styled(
-                    format!("{:<width$}", desc, width = desc_width),
+                    fit(desc, columns.col.saturating_sub(columns.key)),
                     theme::value(),
                 ),
             ]
         }
-        Entry::Blank => vec![Span::raw(" ".repeat(COL_WIDTH))],
+        Entry::Blank => vec![Span::raw(" ".repeat(columns.col))],
     }
 }
 
@@ -230,9 +265,11 @@ pub fn row_count() -> u16 {
 /// Build the help overlay content as a two-column paragraph.
 ///
 /// `scroll` is the vertical row offset applied so the overlay can be scrolled
-/// when the bindings overflow the popup.
-pub fn help(scroll: u16) -> Paragraph<'static> {
+/// when the bindings overflow the popup; `width` is the overlay's, borders
+/// included, which the columns are fitted to.
+pub fn help(scroll: u16, width: u16) -> Paragraph<'static> {
     let entries = entries();
+    let columns = Columns::new(width, &entries);
 
     // Split the entries into two roughly equal halves shown side by side.
     let half = entries.len().div_ceil(2);
@@ -240,10 +277,10 @@ pub fn help(scroll: u16) -> Paragraph<'static> {
 
     let mut lines: Vec<Line<'static>> = Vec::with_capacity(half);
     for (row, entry) in left.iter().enumerate() {
-        let mut spans = entry_spans(entry);
-        spans.push(Span::raw("  "));
+        let mut spans = entry_spans(entry, &columns);
+        spans.push(Span::raw(" ".repeat(GAP)));
         if let Some(entry) = right.get(row) {
-            spans.extend(entry_spans(entry));
+            spans.extend(entry_spans(entry, &columns));
         }
         lines.push(Line::from(spans));
     }

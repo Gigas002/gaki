@@ -113,3 +113,36 @@ fn artwork_lists_urls_folder_and_results() {
     let screen = render(&view, 110, 24);
     assert!(screen.contains("Save to: ~/art_"), "{screen}");
 }
+
+#[test]
+fn a_long_field_wraps_under_its_value() {
+    let mut game = info();
+    game.details.tags = (0..12)
+        .map(|i| StoreTag {
+            id: i,
+            name: Some(format!("Tag{i:02}")),
+            weight: 1,
+        })
+        .collect();
+    let view = GameInfoView::with_details(620, "Portal 2", game);
+    let screen = render(&view, 60, 30);
+    let lines: Vec<&str> = screen.lines().collect();
+    let first = lines
+        .iter()
+        .position(|l| l.contains("Tags"))
+        .expect("a Tags row");
+    // The value starts after the 18-column label (plus the border).
+    let column = lines[first].find("Tag00").unwrap();
+    let next = lines[first + 1];
+    let cont = next
+        .find("Tag")
+        .expect("the tags continue on the next line");
+    assert_eq!(cont, column, "continuation under the value:\n{screen}");
+    assert!(
+        !next[..cont]
+            .trim_start_matches('│')
+            .trim()
+            .contains(char::is_alphanumeric),
+        "nothing under the label:\n{screen}"
+    );
+}

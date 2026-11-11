@@ -192,10 +192,17 @@ fn build_content(
                     }
                 }
                 let what = if expand { "collapse" } else { "expand" };
-                let label = match crate::keymap::key_of(crate::keymap::LibraryAction::Description) {
-                    key if key.is_empty() => "Description".to_string(),
-                    key => format!("Description ([{key}] {what})"),
-                };
+                // The key hint goes on a second line, under the label, when
+                // the description has one; it doesn't fit beside it.
+                let key = crate::keymap::key_of(crate::keymap::LibraryAction::Description);
+                let mut label = vec![Line::from(Span::styled("Description", theme::label()))];
+                if !key.is_empty() && lines.len() > 1 {
+                    label.push(Line::from(Span::styled(
+                        format!("[{key}] {what}"),
+                        theme::dim(),
+                    )));
+                }
+                let label = Text::from(label);
                 let lines_h = lines.len() as u16;
                 let text = Text::from(
                     lines
@@ -204,11 +211,7 @@ fn build_content(
                         .collect::<Vec<_>>(),
                 );
                 push(
-                    Row::new(vec![
-                        Cell::from(Span::styled(label, theme::label())),
-                        Cell::from(text),
-                    ])
-                    .height(lines_h),
+                    Row::new(vec![Cell::from(label), Cell::from(text)]).height(lines_h),
                     lines_h,
                 );
             }
@@ -225,6 +228,16 @@ fn build_content(
     }
 
     (content, content_h)
+}
+
+/// The label column: the longest label ("Installation", "Last 2 weeks")
+/// and a space.
+pub const LABEL_WIDTH: u16 = 13;
+
+/// The value column's width in a panel whose inside is `inner` wide (the
+/// table puts one column of space between label and value).
+pub fn value_width(inner: u16) -> u16 {
+    inner.saturating_sub(LABEL_WIDTH + 1)
 }
 
 /// The total height (rows) the detail content occupies — i.e. the height of the
@@ -255,5 +268,5 @@ pub fn detail(game: Option<&Game>, expand: bool, width: u16, height: u16) -> Tab
     Table::default()
         .rows(rows)
         .block(theme::transparent_panel("Detail".to_string()))
-        .widths([Constraint::Percentage(18), Constraint::Percentage(82)])
+        .widths([Constraint::Length(LABEL_WIDTH), Constraint::Fill(1)])
 }

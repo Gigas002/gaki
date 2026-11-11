@@ -357,7 +357,14 @@ impl CollectionsStore {
     /// remote.
     fn apply_remote(&mut self, remote: RemoteNamespace) {
         for (key, value) in remote.entries {
-            let id = key.strip_prefix(KEY_PREFIX).unwrap_or(&key).to_string();
+            let Some(id) = key.strip_prefix(KEY_PREFIX).map(str::to_string) else {
+                // Steam keeps other entries in this namespace (showcases,
+                // new-content rollups, version markers). They aren't
+                // collections; an older gaki stored them as some, so drop
+                // any copy.
+                self.collections.retain(|c| c.id != key);
+                continue;
+            };
             match value {
                 // Deletion tombstone: drop any local copy.
                 None => self.collections.retain(|c| c.id != id),

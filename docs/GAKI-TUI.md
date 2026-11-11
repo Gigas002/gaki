@@ -64,7 +64,7 @@ so in the status bar. Set `check_updates = false` to turn it off.
 | `s`                   | Cycle the sort (name, installed first, most played, recently played)                                                     |
 | `Enter`               | The Actions menu for the selected game                                                                                   |
 | `i`                   | Expand or collapse the description                                                                                       |
-| `d`                   | Install (pick a library)                                                                                                 |
+| `d`                   | Install (pick a library); on an installed game it points to `U` and `v`                                                  |
 | `Space` / `c`         | Pause or resume, or cancel, an install                                                                                   |
 | `U` / `v` / `x`       | Update, verify, uninstall                                                                                                |
 | `V` / `b`             | Versions and pinning, beta branches                                                                                      |

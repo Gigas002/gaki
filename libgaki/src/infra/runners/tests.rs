@@ -23,6 +23,7 @@ fn mock_context() -> LaunchContext {
             is_family_shared: false,
             online_required: None,
             platform: None,
+            size_on_disk: None,
         },
         launch_info: LaunchInfo {
             app_id: 123,
@@ -99,6 +100,7 @@ async fn test_wine_tkg_runner_graphics_policy_autodetect() {
         is_family_shared: false,
         online_required: None,
         platform: None,
+        size_on_disk: None,
     };
 
     let config = LauncherConfig {
