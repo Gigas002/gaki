@@ -35,7 +35,12 @@ impl PipelineStage for ApplySettingsStage {
         crate::launch::game_env::export(spec, app_id, &name, game_dir.as_deref());
         if let Some(settings) = &ctx.settings {
             if let Some(dir) = settings.shader_cache_dir() {
-                if let Err(e) = crate::config::ShaderCache::create_dirs(&dir) {
+                let runner = if settings.proton.is_some() {
+                    crate::config::Runner::Proton
+                } else {
+                    crate::config::Runner::Native
+                };
+                if let Err(e) = crate::config::ShaderCache::create_dirs(&dir, runner) {
                     // The drivers fall back to their own defaults.
                     tracing::warn!(dir = %dir.display(), error = %e, "can't create the shader cache");
                 } else {
@@ -61,7 +66,12 @@ pub fn shader_cache_env(
     inherited: impl Fn(&str) -> bool,
 ) {
     let proton = spec.env.contains_key("STEAM_COMPAT_DATA_PATH");
-    let mut vars = crate::config::ShaderCache::env(dir);
+    let runner = if proton {
+        crate::config::Runner::Proton
+    } else {
+        crate::config::Runner::Native
+    };
+    let mut vars = crate::config::ShaderCache::env(dir, runner);
     if proton {
         vars.push(("STEAM_COMPAT_SHADER_PATH", dir.to_path_buf()));
         // Proton's media converter reads `transcoded_{video,audio}.foz` there.

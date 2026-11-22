@@ -22,9 +22,8 @@ gaki-steam-vent-crypto = { path = "gaki-steam-vent-crypto", version = "0.1.0" }
 gaki-steam-vent = { path = "gaki-steam-vent", version = "0.1.0" }
 gaki-steam-cdn = { path = "gaki-steam-cdn", version = "0.1.0" }
 libgaki = { path = "libgaki", version = "0.1.0", default-features = false }
-# The profile schema and its shared checks (D9). Only the model is used: no
-# wine/umu runner code, so the runner features stay off.
-liblootrs = { git = "https://github.com/Gigas002/lootrs", branch = "master", default-features = false }
+# The profile format and its shared checks (D9), shared with lootrs and sruman
+libgameprofiles = { git = "https://github.com/Gigas002/libgameprofiles", branch = "master", version = "0.1.0" }
 
 # gaki-steam-cdn: AES-256 for depot chunks and encrypted manifest file names
 aes = "0.9"

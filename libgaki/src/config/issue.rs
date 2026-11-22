@@ -1,23 +1,23 @@
-//! Validation findings, and the checks the config files share. The name rule,
-//! `~` expansion and [`Severity`] are lootrs', so profile files mean the same
-//! to both tools.
+//! Validation findings about gaki's config files. The finding, its collector,
+//! the name rule and `~` expansion are libgameprofiles', so profile files mean
+//! the same to gaki, lootrs and sruman; gaki adds its own subjects
+//! (`config.toml`, Steam games by app id).
 
-use std::{
-    collections::BTreeMap,
-    fmt,
-    path::{Path, PathBuf},
-};
+use std::{fmt, path::PathBuf};
 
-pub use liblootrs::{
-    model::{Severity, validate_name},
-    paths::expand_tilde,
-};
+pub use libgameprofiles::{Severity, expand_tilde, validate_name};
+
+/// A finding about one of gaki's files.
+pub type Issue = libgameprofiles::Issue<Subject>;
+
+/// Collects [`Issue`]s about one subject.
+pub(super) type Issues = libgameprofiles::Issues<Subject>;
 
 /// What validation needs from the environment.
 #[derive(Debug, Clone, Copy)]
 pub struct ValidationContext<'a> {
     /// Expands a leading `~` in paths.
-    pub home: &'a Path,
+    pub home: &'a std::path::Path,
 }
 
 /// What an [`Issue`] is about.
@@ -35,11 +35,19 @@ pub enum Subject {
     File(PathBuf),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Issue {
-    pub severity: Severity,
-    pub subject: Subject,
-    pub message: String,
+/// libgameprofiles' subjects. Its own checks only report profiles and files;
+/// a game there is one by name, which gaki's `games.toml` calls an alias.
+impl From<libgameprofiles::Subject> for Subject {
+    fn from(subject: libgameprofiles::Subject) -> Self {
+        match subject {
+            libgameprofiles::Subject::Profile(name) => Self::Profile(name),
+            libgameprofiles::Subject::File(path) => Self::File(path),
+            libgameprofiles::Subject::Game(name) => Self::Game {
+                app_id: 0,
+                name: Some(name),
+            },
+        }
+    }
 }
 
 impl fmt::Display for Subject {
@@ -54,94 +62,5 @@ impl fmt::Display for Subject {
             Self::Profile(name) => write!(f, "profile `{name}`"),
             Self::File(path) => write!(f, "{}", path.display()),
         }
-    }
-}
-
-impl fmt::Display for Issue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}: {}: {}", self.severity, self.subject, self.message)
-    }
-}
-
-/// Collects issues for one subject.
-pub(super) struct Issues {
-    subject: Subject,
-    list: Vec<Issue>,
-}
-
-impl Issues {
-    pub(super) fn new(subject: Subject) -> Self {
-        Self {
-            subject,
-            list: Vec::new(),
-        }
-    }
-
-    fn push(&mut self, severity: Severity, message: impl Into<String>) {
-        self.list.push(Issue {
-            severity,
-            subject: self.subject.clone(),
-            message: message.into(),
-        });
-    }
-
-    pub(super) fn error(&mut self, message: impl Into<String>) {
-        self.push(Severity::Error, message);
-    }
-
-    pub(super) fn warn(&mut self, message: impl Into<String>) {
-        self.push(Severity::Warning, message);
-    }
-
-    pub(super) fn name(&mut self, name: &str) {
-        if let Err(message) = validate_name(name) {
-            self.error(message);
-        }
-    }
-
-    /// Errors unless `path` is absolute after `~` expansion; returns the
-    /// expanded path.
-    pub(super) fn absolute(&mut self, field: &str, path: &Path, home: &Path) -> Option<PathBuf> {
-        let expanded = expand_tilde(path, home);
-        if expanded.is_absolute() {
-            Some(expanded)
-        } else {
-            self.error(format!(
-                "`{field}` must be an absolute path (or start with `~`), got `{}`",
-                path.display()
-            ));
-            None
-        }
-    }
-
-    /// Checks a `shader_cache` value: `off`, or an absolute directory gaki
-    /// can create, so not under an existing file.
-    pub(super) fn shader_cache(&mut self, value: &super::ShaderCache, home: &Path) {
-        let super::ShaderCache::Dir(dir) = value else {
-            return;
-        };
-        let Some(dir) = self.absolute("shader_cache", dir, home) else {
-            return;
-        };
-        if let Some(existing) = dir.ancestors().find(|a| a.exists())
-            && !existing.is_dir()
-        {
-            self.error(format!(
-                "`shader_cache` can't be created: `{}` is not a directory",
-                existing.display()
-            ));
-        }
-    }
-
-    pub(super) fn env(&mut self, env: &BTreeMap<String, String>) {
-        for key in env.keys() {
-            if key.is_empty() || key.contains(['=', '\0']) {
-                self.error(format!("`env` key `{key}` is not a valid variable name"));
-            }
-        }
-    }
-
-    pub(super) fn finish(self) -> Vec<Issue> {
-        self.list
     }
 }

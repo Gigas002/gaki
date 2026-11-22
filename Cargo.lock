@@ -1731,7 +1731,7 @@ dependencies = [
  "hex",
  "keyring-core",
  "keyvalues-serde",
- "liblootrs",
+ "libgameprofiles",
  "protobuf",
  "protobuf-codegen",
  "rand 0.10.3",
@@ -1758,15 +1758,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "liblootrs"
+name = "libgameprofiles"
 version = "0.1.0"
-source = "git+https://github.com/Gigas002/lootrs?branch=master#297584c16808ce7211ce73a4cf14e937460feb9c"
+source = "git+https://github.com/Gigas002/libgameprofiles?branch=master#19c9f4352357040785787aa8a289221ecec2a1c5"
 dependencies = [
- "rustix 1.1.6",
  "serde",
  "thiserror 2.0.21",
  "toml",
- "tracing",
 ]
 
 [[package]]

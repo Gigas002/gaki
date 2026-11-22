@@ -335,7 +335,7 @@ fn is_shader_cache(dir: &Path) -> bool {
     // Mesa makes these inside `MESA_SHADER_CACHE_DIR` itself.
     const MESA: [&str; 2] = ["mesa_shader_cache", "mesa_shader_cache_db"];
     !dir.is_symlink()
-        && (crate::config::ShaderCache::env(dir)
+        && (crate::config::ShaderCache::env(dir, crate::config::Runner::Proton)
             .into_iter()
             .any(|(_, path)| path != dir && path.is_dir())
             || MESA.iter().any(|name| dir.join(name).is_dir()))

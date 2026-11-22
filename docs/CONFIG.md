@@ -114,10 +114,13 @@ winhttp = "n,b"
 | `anticheat`     | `battleye` and `eac` (booleans): anti-cheat runtimes to make available                                                                                                                                    |
 | `shader_cache`  | `off` or a directory, over `config.toml`'s (see [Shader caches](#shader-caches))                                                                                                                          |
 
-The format is lootrs': gaki reads profiles through lootrs' own model, so one
-profile directory can serve both tools. lootrs' fields (`dxvk`, `vkd3d`,
-`[wine]`, `[umu]`) load and gaki ignores them. lootrs in turn loads `proton` profiles, `[proton]` and `steam`, but
-can't launch a `proton` profile.
+The format is [libgameprofiles](https://github.com/Gigas002/libgameprofiles),
+shared with lootrs and sruman, so one profile directory can serve all three.
+Other runners' fields (`dxvk`, `vkd3d`, `[wine]`, `[umu]`, and sruman's
+`[slr]`) load, and `config check` warns that gaki ignores them; keys the
+format doesn't know are warnings too. A `native` profile with `[slr]` runs in a
+Steam Linux Runtime, which only sruman launches. lootrs in turn loads `proton`
+profiles, `[proton]` and `steam`, but can't launch a `proton` profile.
 `gaki-cli profiles list` and `gaki-cli profiles show <name>` show what gaki
 loaded, which games use each profile, and any problems.
 
