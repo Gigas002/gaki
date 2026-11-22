@@ -372,3 +372,18 @@ fn unzips_one_entry_and_ignores_a_huge_size_hint() {
     );
     assert_eq!(unzip_single_entry(b"not a zip", None), None);
 }
+
+#[test]
+fn a_downloaded_save_gets_the_cloud_mtime_even_read_only() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("save.dat");
+    std::fs::write(&path, b"x").unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o444)).unwrap();
+    set_file_mtime_secs(&path, 1_700_000_000);
+    let modified = std::fs::metadata(&path).unwrap().modified().unwrap();
+    assert_eq!(
+        modified,
+        std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000)
+    );
+}

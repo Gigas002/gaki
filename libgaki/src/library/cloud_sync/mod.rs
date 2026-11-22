@@ -513,8 +513,11 @@ fn plan_action(
 /// Stamp a downloaded save with its cloud mtime so the next `sync_up` doesn't see it
 /// as locally modified and re-upload it (and so Steam's own comparison stays stable).
 fn set_file_mtime_secs(path: &Path, secs: u64) {
-    let mtime = filetime::FileTime::from_unix_time(secs as i64, 0);
-    if let Err(e) = filetime::set_file_mtime(path, mtime) {
+    // Setting an explicit time needs ownership, not write access (futimens),
+    // so a read-only handle does, like the path-based call it replaces.
+    let mtime = std::time::UNIX_EPOCH + std::time::Duration::from_secs(secs);
+    let stamped = std::fs::File::open(path).and_then(|file| file.set_modified(mtime));
+    if let Err(e) = stamped {
         tracing::warn!("could not set mtime on {}: {e}", path.display());
     }
 }

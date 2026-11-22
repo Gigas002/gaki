@@ -23,7 +23,7 @@ gaki-steam-vent = { path = "gaki-steam-vent", version = "0.1.0" }
 gaki-steam-cdn = { path = "gaki-steam-cdn", version = "0.1.0" }
 libgaki = { path = "libgaki", version = "0.1.0", default-features = false }
 # The profile format and its shared checks (D9), shared with lootrs and sruman
-libgameprofiles = { git = "https://github.com/Gigas002/libgameprofiles", branch = "master", version = "0.1.0" }
+libgameprofiles = "0.1"
 
 # gaki-steam-cdn: AES-256 for depot chunks and encrypted manifest file names
 aes = "0.9"
@@ -39,8 +39,6 @@ clap = { version = "4", features = ["derive"] }
 crc32fast = "1"
 # gaki-steam-vent: incoming-message routing tables
 dashmap = "6"
-# Stamp downloaded Cloud saves with their cloud mtime so re-sync doesn't churn
-filetime = "0.2"
 # gaki-steam-vent: gzipped multi-messages
 flate2 = "1"
 futures = "0.3"
@@ -80,7 +78,7 @@ protobuf-codegen = "3.7.2"
 # gaki-steam-vent-proto's build.rs: parses the protos to map EMsg kinds
 protobuf-parse = "3.7.2"
 # Terminal QR rendering for `login --qr`
-qrcode = { version = "0.14", default-features = false }
+qrcode = { version = "0.15", default-features = false }
 # Crossterm comes re-exported as `ratatui::crossterm`, which keeps the two in step.
 # `unstable-rendered-line-info`: `Paragraph::line_count`, the wrapped height
 # the Store overlay clamps its scroll to.

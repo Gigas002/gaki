@@ -345,9 +345,8 @@ layout is tracked in [`PLAN.md`](PLAN.md).
   its file-level validation, the profile directory loader, `Issue`/`Issues`
   (gaki's `Issue` is `libgameprofiles::Issue<config::Subject>`),
   `validate_name` and `expand_tilde`. Each tool adds the checks of its own
-  launches (`config::validate_profile` here). It is a git dependency on its
-  `master` (pinned by `Cargo.lock`, allowed in `deny.toml`) with a `version`,
-  so publishing gaki uses its crates.io release.
+  launches (`config::validate_profile` here). It comes from crates.io
+  (`libgameprofiles = "0.1"`).
 
 ### 11.2 Shared configuration model (deviation from §3)
 
