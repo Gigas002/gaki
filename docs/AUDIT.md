@@ -258,7 +258,7 @@ no counterpart to them.
 | Wishlist: view, add, remove                                        |    ✓    |         ✓ `wishlist`          | ✓ `J` → Wishlist |          |
 | A friend's wishlist                                                |    ✓    |      ✓ `wishlist <user>`      | ✓ Friends → `w`  |          |
 | Buy, gift, refund, wallet top-up, points shop                      |    —    |               —               |        —         | non-goal |
-| Write a review                                                     |    —    |               —               |        —         | not done |
+| Your review: show, write, change                                   |    ✓    |           ✓ `review`          | ✓ `Y` → Reviews `w` |          |
 | Localized store                                                    |    —    |               —               |        —         | non-goal |
 
 ### 3.6 Community

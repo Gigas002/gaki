@@ -567,6 +567,8 @@ async fn run(cli: Cli) -> Result<()> {
         } => cmd_news(app_id, count, max_length).await,
         #[cfg(feature = "store")]
         Command::Reviews(args) => cmd_reviews(args).await,
+        #[cfg(feature = "store")]
+        Command::Review(args) => cmd_review(args).await,
         #[cfg(feature = "library")]
         Command::Dlc { app_id } => cmd_dlc(app_id).await,
         #[cfg(feature = "library")]

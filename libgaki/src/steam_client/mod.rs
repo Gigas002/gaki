@@ -632,11 +632,15 @@ mod events;
 #[cfg(feature = "store")]
 mod players;
 #[cfg(feature = "store")]
+mod reviews;
+#[cfg(feature = "store")]
 mod storequery;
 #[cfg(feature = "store")]
 mod wishlist;
 #[cfg(feature = "store")]
 pub use events::StoreEvent;
+#[cfg(feature = "store")]
+pub use reviews::{OwnReview, ReviewDraft};
 #[cfg(feature = "store")]
 pub use storequery::{DealsScope, QueryPage};
 #[cfg(feature = "store")]

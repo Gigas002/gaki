@@ -925,6 +925,10 @@ fn depot_files_key(browser: &mut crate::app::browser::Browser, key: Key) {
 #[cfg(feature = "store")]
 fn store_key(browser: &mut crate::app::browser::Browser, key: Key) {
     let input = key.code;
+    if browser.review_composer_open() {
+        review_key(browser, key);
+        return;
+    }
     if browser.store_input_open() {
         match input {
             KeyCode::Esc => browser.cancel_store_input(),
@@ -943,6 +947,7 @@ fn store_key(browser: &mut crate::app::browser::Browser, key: Key) {
         Some(St::NextSection) => browser.store_cycle(1),
         Some(St::PreviousSection) => browser.store_cycle(-1),
         Some(St::Regions) => browser.begin_store_regions(),
+        Some(St::WriteReview) => browser.begin_review(),
         None => match common(key) {
             Some(O::Close) => browser.close_store(),
             Some(O::NextTab) => browser.store_cycle(1),
@@ -952,6 +957,38 @@ fn store_key(browser: &mut crate::app::browser::Browser, key: Key) {
             Some(O::PageDown) => browser.store_scroll(10),
             Some(O::PageUp) => browser.store_scroll(-10),
             None => {}
+        },
+    }
+}
+
+/// Keys in the review composer: typing writes the text (Enter is a new
+/// line), the bound keys flip its settings and post it, and the post asks
+/// y/n first.
+#[cfg(feature = "store")]
+fn review_key(browser: &mut crate::app::browser::Browser, key: Key) {
+    use crate::app::browser::store::ReviewToggle as T;
+    use crate::keymap::ReviewAction as R;
+    let input = key.code;
+    if browser.review_confirming() {
+        match input {
+            KeyCode::Char('y' | 'Y') => browser.answer_review(true),
+            KeyCode::Esc => browser.cancel_review(),
+            _ => browser.answer_review(false),
+        }
+        return;
+    }
+    match own::<R>(key, None) {
+        Some(R::Post) => browser.submit_review(),
+        Some(R::Verdict) => browser.review_toggle(T::Verdict),
+        Some(R::Visibility) => browser.review_toggle(T::Visibility),
+        Some(R::Free) => browser.review_toggle(T::Free),
+        Some(R::Comments) => browser.review_toggle(T::Comments),
+        None => match input {
+            KeyCode::Esc => browser.cancel_review(),
+            KeyCode::Enter | KeyCode::Char('\n') => browser.review_push('\n'),
+            KeyCode::Backspace => browser.review_pop(),
+            KeyCode::Char(c) if !key.ctrl && !key.alt => browser.review_push(c),
+            _ => {}
         },
     }
 }

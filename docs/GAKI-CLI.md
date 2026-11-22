@@ -78,9 +78,20 @@ gaki-cli players 730                  # current player count
 gaki-cli events                       # store-wide sales and events running now
 gaki-cli news 275850                  # recent announcements
 gaki-cli reviews 275850 --type negative  # user reviews, paged with --cursor
+gaki-cli review 275850                # your review of it
+gaki-cli review 275850 --up           # write one in $VISUAL/$EDITOR (-m TEXT or -F FILE instead)
+gaki-cli review 275850 --down -e      # change your verdict and edit the text
+gaki-cli review 275850 --private --no-comments  # change only its settings
 gaki-cli wishlist                     # your wishlist with prices (or a friend's: `wishlist <user>`)
 gaki-cli wishlist add 1245620         # add an item (`wishlist remove` takes it out)
 ```
+
+`review` asks before it posts, unless `-y`. A new review needs `--up` or
+`--down`, and is public, paid for and open to comments unless `--private`,
+`--free` or `--no-comments` say otherwise; a change keeps whatever you don't
+name, the text too unless `-m`, `-F` or `-e` gives a new one. Changes go
+over the CM; Steam has no CM method that creates a review, so a new one
+goes through the store's own form ([STEAM-RULES.md](STEAM-RULES.md) §2.8).
 
 ### Install and maintain
 

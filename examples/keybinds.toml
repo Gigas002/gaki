@@ -170,6 +170,17 @@
 # next_section = "l"
 # previous_section = "h"
 # regions = "r"
+# write_review = "w"
+
+# The review composer (`w` in the Store overlay's Reviews). It takes the
+# review's text, so only keys that don't type can be bound; Enter is a new
+# line.
+[review]
+# post = ["ctrl+s", "F5"]
+# verdict = "F1"
+# visibility = "F2"
+# free = "F3"
+# comments = "F4"
 
 # The Steam Store overlay (`J`).
 [steam_store]

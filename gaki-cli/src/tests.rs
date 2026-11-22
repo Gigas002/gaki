@@ -300,3 +300,57 @@ fn profiles_new_set_delete_parse_into_a_change() {
         })
     ));
 }
+
+#[cfg(feature = "store")]
+#[test]
+fn review_flags_make_a_draft_over_the_current_review() {
+    use libgaki::ops::store::OwnReview;
+    let args = |argv: &[&str]| {
+        let mut all = vec!["gaki-cli", "review", "440"];
+        all.extend_from_slice(argv);
+        match Cli::try_parse_from(all).map(|c| c.command) {
+            Ok(Command::Review(args)) => Ok(args),
+            Ok(_) => panic!("expected review"),
+            Err(e) => Err(e),
+        }
+    };
+    assert!(!args(&[]).unwrap().writes());
+    assert!(args(&["--up", "--down"]).is_err());
+    assert!(args(&["-m", "x", "-e"]).is_err());
+
+    // New: a verdict is needed; the rest defaults to public, paid, comments on.
+    let err = crate::commands::review_draft(&args(&["-m", "x"]).unwrap(), None, None);
+    assert!(err.unwrap_err().to_string().contains("--up or --down"));
+    let draft = crate::commands::review_draft(
+        &args(&["--down", "--free"]).unwrap(),
+        None,
+        Some("Meh.".into()),
+    )
+    .unwrap();
+    assert!(!draft.voted_up && draft.is_public && draft.received_compensation);
+    assert!(!draft.comments_disabled && draft.language.is_none());
+
+    // Existing: unnamed settings and the text stay.
+    let review = OwnReview {
+        id: 7,
+        app_id: 440,
+        text: "Great.".into(),
+        voted_up: true,
+        is_public: false,
+        language: "german".into(),
+        received_compensation: true,
+        comments_disabled: true,
+        created: 1,
+        updated: 1,
+        votes_up: 0,
+        votes_down: 0,
+        votes_funny: 0,
+        comments: 0,
+    };
+    let draft = crate::commands::review_draft(&args(&["--comments"]).unwrap(), Some(&review), None)
+        .unwrap();
+    assert_eq!(draft.text, "Great.");
+    assert!(draft.voted_up && !draft.is_public && draft.received_compensation);
+    assert!(!draft.comments_disabled);
+    assert_eq!(draft.language.as_deref(), Some("german"));
+}

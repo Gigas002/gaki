@@ -212,6 +212,7 @@ fn the_example_file_lists_every_default() {
     example_section::<WorkshopBrowseAction>(&table);
     example_section::<WorkshopCommentsAction>(&table);
     example_section::<StoreAction>(&table);
+    example_section::<ReviewAction>(&table);
     example_section::<SteamStoreAction>(&table);
     example_section::<DepotsAction>(&table);
     example_section::<DepotFilesAction>(&table);

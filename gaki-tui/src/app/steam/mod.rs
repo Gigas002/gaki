@@ -1678,6 +1678,27 @@ pub fn store_reviews(app_id: i32) -> Result<libgaki::web::discovery::ReviewPage,
     in_process(async move { libgaki::ops::store::reviews(app_id as u32, &query).await })
 }
 
+/// Your review of a game, if you wrote one.
+#[cfg(feature = "store")]
+pub fn store_my_review(app_id: i32) -> Result<Option<libgaki::ops::store::OwnReview>, TuiError> {
+    in_process(async move {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::store::my_review(&client, app_id as u32).await
+    })
+}
+
+/// Post `draft` as your review of a game (a new one, or replacing yours).
+#[cfg(feature = "store")]
+pub fn store_write_review(
+    app_id: i32,
+    draft: libgaki::ops::store::ReviewDraft,
+) -> Result<libgaki::ops::store::ReviewWritten, TuiError> {
+    in_process(async move {
+        let client = worker::global().session().authed().await?;
+        libgaki::ops::store::write_review(&client, app_id as u32, &draft).await
+    })
+}
+
 /// Games the store relates to this one, priced for the account's country.
 #[cfg(feature = "store")]
 pub fn store_similar(app_id: i32) -> Result<libgaki::ops::store::Listing, TuiError> {

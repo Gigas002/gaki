@@ -219,6 +219,9 @@ pub(crate) enum Command {
     /// User reviews, paged (storefront web, no CM equivalent).
     #[cfg(feature = "store")]
     Reviews(ReviewsArgs),
+    /// Your review of an app: show it, or write or change it.
+    #[cfg(feature = "store")]
+    Review(ReviewArgs),
     /// Profile by SteamID64, /profiles/ URL, friend name, `me`.
     #[cfg(feature = "social")]
     User { user: String },
@@ -1253,6 +1256,72 @@ pub(crate) struct ReviewsArgs {
     /// Cursor printed under the previous page (`Next page: --cursor ...`).
     #[arg(short = 'u', long)]
     pub(crate) cursor: Option<String>,
+}
+
+/// `gaki-cli review` flags. Without any, it shows your review.
+#[cfg(feature = "store")]
+#[derive(clap::Args, Debug)]
+pub(crate) struct ReviewArgs {
+    #[arg(value_parser = app_ref)]
+    pub(crate) app_id: u32,
+    /// Recommend it (a new review needs `--up` or `--down`).
+    #[arg(long, conflicts_with = "down")]
+    pub(crate) up: bool,
+    /// Don't recommend it.
+    #[arg(long)]
+    pub(crate) down: bool,
+    /// The review's text (otherwise `--file`, or `$VISUAL`/`$EDITOR`).
+    #[arg(short = 'm', long, conflicts_with = "file")]
+    pub(crate) message: Option<String>,
+    /// Read the text from a file (`-` for stdin).
+    #[arg(short = 'F', long, conflicts_with = "edit")]
+    pub(crate) file: Option<std::path::PathBuf>,
+    /// Change the text in `$VISUAL`/`$EDITOR` (a new review opens it anyway).
+    #[arg(short = 'e', long, conflicts_with = "message")]
+    pub(crate) edit: bool,
+    /// Friends only.
+    #[arg(long, conflicts_with = "public")]
+    pub(crate) private: bool,
+    /// Visible to everyone (the default for a new review).
+    #[arg(long)]
+    pub(crate) public: bool,
+    /// Turn comments off.
+    #[arg(long, conflicts_with = "comments")]
+    pub(crate) no_comments: bool,
+    /// Turn comments on (the default for a new review).
+    #[arg(long)]
+    pub(crate) comments: bool,
+    /// You got the game for free (Steam labels the review).
+    #[arg(long, conflicts_with = "paid")]
+    pub(crate) free: bool,
+    /// You paid for it (the default for a new review).
+    #[arg(long)]
+    pub(crate) paid: bool,
+    /// The review's language, as Steam names it (`english`, `german`, …).
+    #[arg(long)]
+    pub(crate) language: Option<String>,
+    /// Post without asking.
+    #[arg(short = 'y', long)]
+    pub(crate) yes: bool,
+}
+
+#[cfg(feature = "store")]
+impl ReviewArgs {
+    /// Any flag that writes.
+    pub(crate) fn writes(&self) -> bool {
+        self.up
+            || self.down
+            || self.message.is_some()
+            || self.file.is_some()
+            || self.edit
+            || self.private
+            || self.public
+            || self.no_comments
+            || self.comments
+            || self.free
+            || self.paid
+            || self.language.is_some()
+    }
 }
 
 /// `list --sort` choices.
