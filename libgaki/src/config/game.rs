@@ -89,14 +89,11 @@ impl Game {
         if let Some(profile) = &self.profile {
             issues.name(profile);
         }
-        for wrapper in &self.wrappers {
-            if wrapper.trim().is_empty() {
-                issues.error("`wrappers` must not contain empty commands");
-            }
-        }
-        issues.env(&self.env);
+        issues.args("wrappers", &self.wrappers, false);
+        issues.args("args", &self.args, true);
+        issues.env("env", &self.env);
         if let Some(shader_cache) = &self.shader_cache {
-            issues.shader_cache(shader_cache, ctx.home);
+            issues.shader_cache("shader_cache", shader_cache, ctx.home);
         }
         issues.finish()
     }

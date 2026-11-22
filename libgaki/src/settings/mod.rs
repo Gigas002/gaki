@@ -127,6 +127,10 @@ pub enum SettingsError {
     #[error("profile `{profile}` uses runner `{runner}`, which gaki doesn't support")]
     UnsupportedRunner { profile: String, runner: Runner },
     #[error(
+        "profile `{0}` runs in a Steam Linux Runtime (`[slr]`), which gaki can't launch yet; use sruman"
+    )]
+    SlrProfile(String),
+    #[error(
         "profile `{profile}` runs the {runner_platform} build, but the {platform} build was asked for"
     )]
     PlatformConflict {
@@ -215,10 +219,14 @@ pub fn resolve(
             let profile = catalog
                 .profile(name)
                 .ok_or_else(|| SettingsError::UnknownProfile(name.to_owned()))?;
-            if !crate::config::is_supported(profile.runner) {
-                return Err(SettingsError::UnsupportedRunner {
-                    profile: profile.name.clone(),
-                    runner: profile.runner,
+            if !crate::config::is_supported(profile) {
+                return Err(if profile.slr.is_some() {
+                    SettingsError::SlrProfile(profile.name.clone())
+                } else {
+                    SettingsError::UnsupportedRunner {
+                        profile: profile.name.clone(),
+                        runner: profile.runner,
+                    }
                 });
             }
             Some((profile, origin))

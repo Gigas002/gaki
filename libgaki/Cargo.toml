@@ -56,7 +56,7 @@ hex = { workspace = true, optional = true }
 dbus-secret-service-keyring-store = { workspace = true, optional = true }
 keyring-core = { workspace = true, optional = true }
 keyvalues-serde = { workspace = true, optional = true }
-liblootrs.workspace = true
+libgameprofiles.workspace = true
 protobuf = { workspace = true, optional = true }
 rand.workspace = true
 regex.workspace = true

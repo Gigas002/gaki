@@ -30,8 +30,8 @@ pub use game::{Game, GamesFile};
 pub use global::{Config, SecretStoreKind};
 pub use issue::{Issue, Severity, Subject, ValidationContext, expand_tilde, validate_name};
 pub use profile::{
-    Anticheat, Profile, ProtonSection, Runner, ShaderCache, SteamIntegration, is_supported,
-    validate_dll_override, validate_profile,
+    Anticheat, Profile, ProtonSection, Runner, ShaderCache, SlrSection, SteamIntegration,
+    is_supported, validate_dll_override, validate_profile,
 };
 
 pub const CONFIG_FILE: &str = "config.toml";
@@ -89,20 +89,16 @@ pub enum LoadError {
         path: PathBuf,
         source: Box<toml::de::Error>,
     },
-    #[error("{}: `name` is `{name}`, but the file is named `{stem}`", path.display())]
-    NameMismatch {
-        path: PathBuf,
-        name: String,
-        stem: String,
-    },
+    /// A profile file (or the profile directory), loaded by libgameprofiles.
+    #[error(transparent)]
+    Profile(#[from] libgameprofiles::store::Error),
 }
 
 impl LoadError {
     pub fn path(&self) -> &Path {
         match self {
-            Self::Read { path, .. }
-            | Self::Parse { path, .. }
-            | Self::NameMismatch { path, .. } => path,
+            Self::Read { path, .. } | Self::Parse { path, .. } => path,
+            Self::Profile(err) => err.path().unwrap_or(Path::new("")),
         }
     }
 }
@@ -115,6 +111,8 @@ pub struct Catalog {
     pub profiles: Vec<Profile>,
     pub games: Vec<Game>,
     pub load_errors: Vec<LoadError>,
+    /// Keys in the profile files that the format doesn't know.
+    pub load_warnings: Vec<Issue>,
 }
 
 impl Catalog {
@@ -125,15 +123,22 @@ impl Catalog {
         let config: Config =
             read_toml(&config_dir.join(CONFIG_FILE), &mut load_errors).unwrap_or_default();
         let profiles_dir = profiles_dir(config_dir, &config, home);
-        let profiles = load_profiles(&profiles_dir, &mut load_errors);
+        let loaded = libgameprofiles::store::load_dir(&profiles_dir);
+        load_errors.extend(loaded.errors.into_iter().map(LoadError::from));
+        let load_warnings = loaded
+            .warnings
+            .into_iter()
+            .map(|issue| issue.map_subject(Subject::from))
+            .collect();
         let games = read_toml::<GamesFile>(&config_dir.join(GAMES_FILE), &mut load_errors)
             .unwrap_or_default()
             .games;
         Self {
             config,
-            profiles,
+            profiles: loaded.profiles,
             games,
             load_errors,
+            load_warnings,
         }
     }
 
@@ -183,6 +188,7 @@ impl Catalog {
     /// and references to profiles that don't exist.
     pub fn validate(&self, ctx: &ValidationContext) -> Vec<Issue> {
         let mut issues = self.config.validate(ctx);
+        issues.extend(self.load_warnings.iter().cloned());
         let known: HashSet<&str> = self.profiles.iter().map(|p| p.name.as_str()).collect();
         let missing = |subject: Subject, field: &str, name: &str| Issue {
             severity: Severity::Error,
@@ -272,47 +278,4 @@ fn read_toml<T: serde::de::DeserializeOwned>(
             });
         })
         .ok()
-}
-
-/// Every `*.toml` in `dir`, sorted by name. Each profile's `name` must match
-/// its file stem, so a profile is always found by its file name.
-fn load_profiles(dir: &Path, errors: &mut Vec<LoadError>) -> Vec<Profile> {
-    let entries = match fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Vec::new(),
-        Err(source) => {
-            errors.push(LoadError::Read {
-                path: dir.to_path_buf(),
-                source,
-            });
-            return Vec::new();
-        }
-    };
-    let mut paths: Vec<PathBuf> = entries
-        .filter_map(|entry| entry.ok().map(|entry| entry.path()))
-        .filter(|path| path.extension().is_some_and(|ext| ext == "toml") && path.is_file())
-        .collect();
-    paths.sort();
-
-    let mut profiles = Vec::new();
-    for path in paths {
-        let Some(profile) = read_toml::<Profile>(&path, errors) else {
-            continue;
-        };
-        let stem = path
-            .file_stem()
-            .map(|stem| stem.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        if profile.name != stem {
-            errors.push(LoadError::NameMismatch {
-                path,
-                name: profile.name,
-                stem,
-            });
-            continue;
-        }
-        profiles.push(profile);
-    }
-    profiles.sort_by(|a, b| a.name.cmp(&b.name));
-    profiles
 }
