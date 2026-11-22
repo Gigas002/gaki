@@ -383,7 +383,11 @@ async fn run(cli: Cli) -> Result<()> {
             }
         },
         #[cfg(feature = "library")]
-        Command::Libraries => cmd_libraries().await,
+        Command::Libraries { command: None } => cmd_libraries().await,
+        #[cfg(feature = "library")]
+        Command::Libraries {
+            command: Some(LibrariesCommand::Use { library }),
+        } => cmd_libraries_use(&library).await,
         #[cfg(feature = "library")]
         Command::Library { command } => match command {
             LibraryCommand::Export { path, all } => {
@@ -567,6 +571,8 @@ async fn run(cli: Cli) -> Result<()> {
         } => cmd_news(app_id, count, max_length).await,
         #[cfg(feature = "store")]
         Command::Reviews(args) => cmd_reviews(args).await,
+        #[cfg(feature = "store")]
+        Command::Review(args) => cmd_review(args).await,
         #[cfg(feature = "library")]
         Command::Dlc { app_id } => cmd_dlc(app_id).await,
         #[cfg(feature = "library")]
@@ -684,6 +690,17 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Profiles { command } => match command {
             ProfilesCommand::List => cmd_profiles_list(),
             ProfilesCommand::Show { name } => cmd_profiles_show(&name),
+            ProfilesCommand::New {
+                name,
+                runner,
+                settings,
+            } => cmd_profiles_new(&name, runner.into(), settings),
+            ProfilesCommand::Set {
+                name,
+                runner,
+                settings,
+            } => cmd_profiles_set(&name, runner.map(Into::into), settings),
+            ProfilesCommand::Delete { name, force, yes } => cmd_profiles_delete(&name, force, yes),
         },
         #[cfg(feature = "authentication")]
         Command::Kill => cmd_kill(),

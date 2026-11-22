@@ -205,3 +205,169 @@ fn the_daemon_argv_rule_matches_clap() {
         );
     }
 }
+
+#[test]
+fn profiles_new_set_delete_parse_into_a_change() {
+    use libgaki::config::Runner;
+    use libgaki::ops::config::Change;
+    let parse = |args: &[&str]| Cli::try_parse_from(args).map(|cli| cli.command);
+    let Ok(Command::Profiles {
+        command:
+            ProfilesCommand::New {
+                name,
+                runner,
+                settings,
+            },
+    }) = parse(&[
+        "gaki-cli",
+        "profiles",
+        "new",
+        "pp",
+        "--prefix",
+        "~/pfx",
+        "-w",
+        "gamemoderun",
+        "--runner-arg",
+        "-v",
+        "-e",
+        "A=1",
+        "--dll",
+        "winhttp=n,b",
+        "--debug",
+    ])
+    else {
+        panic!("expected profiles new");
+    };
+    assert_eq!(name, "pp");
+    assert_eq!(Runner::from(runner), Runner::Proton);
+    let change = crate::commands::profile_change(None, settings).unwrap();
+    assert_eq!(change.prefix, Change::Set("~/pfx".into()));
+    assert_eq!(change.wrappers, Change::Set(vec!["gamemoderun".into()]));
+    assert_eq!(change.runner_args, Change::Set(vec!["-v".into()]));
+    assert_eq!(change.env.set["A"], "1");
+    assert_eq!(change.dll_overrides.set["winhttp"], "n,b");
+    assert_eq!(change.debug, Some(true));
+    assert_eq!(change.proton_build, Change::Keep);
+
+    let Ok(Command::Profiles {
+        command: ProfilesCommand::Set {
+            runner, settings, ..
+        },
+    }) = parse(&[
+        "gaki-cli",
+        "profiles",
+        "set",
+        "pp",
+        "-r",
+        "native",
+        "--no-prefix",
+        "--no-debug",
+        "--no-dlls",
+        "-u",
+        "A",
+    ])
+    else {
+        panic!("expected profiles set");
+    };
+    let change = crate::commands::profile_change(runner.map(Into::into), settings).unwrap();
+    assert_eq!(change.runner, Some(Runner::Native));
+    assert_eq!(change.prefix, Change::Clear);
+    assert_eq!(change.debug, Some(false));
+    assert!(change.dll_overrides.clear);
+    assert_eq!(change.env.unset, ["A"]);
+
+    assert!(
+        parse(&[
+            "gaki-cli",
+            "profiles",
+            "set",
+            "pp",
+            "--prefix",
+            "x",
+            "--no-prefix"
+        ])
+        .is_err()
+    );
+    assert!(parse(&["gaki-cli", "profiles", "new", "pp", "-r", "wine"]).is_err());
+    assert!(matches!(
+        parse(&["gaki-cli", "profiles", "delete", "pp", "-f", "-y"]),
+        Ok(Command::Profiles {
+            command: ProfilesCommand::Delete {
+                force: true,
+                yes: true,
+                ..
+            }
+        })
+    ));
+}
+
+#[cfg(feature = "store")]
+#[test]
+fn review_flags_make_a_draft_over_the_current_review() {
+    use libgaki::ops::store::OwnReview;
+    let args = |argv: &[&str]| {
+        let mut all = vec!["gaki-cli", "review", "440"];
+        all.extend_from_slice(argv);
+        match Cli::try_parse_from(all).map(|c| c.command) {
+            Ok(Command::Review(args)) => Ok(args),
+            Ok(_) => panic!("expected review"),
+            Err(e) => Err(e),
+        }
+    };
+    assert!(!args(&[]).unwrap().writes());
+    assert!(args(&["--up", "--down"]).is_err());
+    assert!(args(&["-m", "x", "-e"]).is_err());
+
+    // New: a verdict is needed; the rest defaults to public, paid, comments on.
+    let err = crate::commands::review_draft(&args(&["-m", "x"]).unwrap(), None, None);
+    assert!(err.unwrap_err().to_string().contains("--up or --down"));
+    let draft = crate::commands::review_draft(
+        &args(&["--down", "--free"]).unwrap(),
+        None,
+        Some("Meh.".into()),
+    )
+    .unwrap();
+    assert!(!draft.voted_up && draft.is_public && draft.received_compensation);
+    assert!(!draft.comments_disabled && draft.language.is_none());
+
+    // Existing: unnamed settings and the text stay.
+    let review = OwnReview {
+        id: 7,
+        app_id: 440,
+        text: "Great.".into(),
+        voted_up: true,
+        is_public: false,
+        language: "german".into(),
+        received_compensation: true,
+        comments_disabled: true,
+        created: 1,
+        updated: 1,
+        votes_up: 0,
+        votes_down: 0,
+        votes_funny: 0,
+        comments: 0,
+    };
+    let draft = crate::commands::review_draft(&args(&["--comments"]).unwrap(), Some(&review), None)
+        .unwrap();
+    assert_eq!(draft.text, "Great.");
+    assert!(draft.voted_up && !draft.is_public && draft.received_compensation);
+    assert!(!draft.comments_disabled);
+    assert_eq!(draft.language.as_deref(), Some("german"));
+}
+
+#[cfg(feature = "library")]
+#[test]
+fn libraries_lists_or_switches() {
+    let parse = |args: &[&str]| Cli::try_parse_from(args).map(|cli| cli.command);
+    assert!(matches!(
+        parse(&["gaki-cli", "libraries"]),
+        Ok(Command::Libraries { command: None })
+    ));
+    match parse(&["gaki-cli", "libraries", "use", "~/games"]) {
+        Ok(Command::Libraries {
+            command: Some(LibrariesCommand::Use { library }),
+        }) => assert_eq!(library, "~/games"),
+        _ => panic!("expected libraries use"),
+    }
+    assert!(parse(&["gaki-cli", "libraries", "use"]).is_err());
+}

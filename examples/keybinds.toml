@@ -125,9 +125,16 @@
 [settings]
 # Settings tab:
 # edit = "Enter"
+# type = "e"
 # unset = "x"
 # Profiles tab:
 # make_default = "d"
+# edit_profile = ["Enter", "e"]
+# new_profile = "a"
+# delete_profile = "x"
+# Profile editor (Enter on a profile):
+# edit_field = "Enter"
+# unset_field = "x"
 # Check tab:
 # check_again = "r"
 # Daemons tab:
@@ -164,6 +171,17 @@
 # next_section = "l"
 # previous_section = "h"
 # regions = "r"
+# write_review = "w"
+
+# The review composer (`w` in the Store overlay's Reviews). It takes the
+# review's text, so only keys that don't type can be bound; Enter is a new
+# line.
+[review]
+# post = ["ctrl+s", "F5"]
+# verdict = "F1"
+# visibility = "F2"
+# free = "F3"
+# comments = "F4"
 
 # The Steam Store overlay (`J`).
 [steam_store]

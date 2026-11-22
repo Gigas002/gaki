@@ -43,7 +43,8 @@ gaki-cli image 1245620 -o cover.jpg   # save artwork to a file
 gaki-cli image 1245620 --list --probe # every store asset URL, HEAD-checked
 gaki-cli depots 1245620               # list depots
 gaki-cli launch-options 1245620       # Steam launch configs (exe, args, platform)
-gaki-cli libraries                    # Steam library folders and their free space
+gaki-cli libraries                    # library folders (Steam's and gaki's layout), games, free space; * marks steam_library
+gaki-cli libraries use 2              # install into library 2 from now on (or give a folder)
 ```
 
 ### Moving a library to another machine
@@ -78,9 +79,20 @@ gaki-cli players 730                  # current player count
 gaki-cli events                       # store-wide sales and events running now
 gaki-cli news 275850                  # recent announcements
 gaki-cli reviews 275850 --type negative  # user reviews, paged with --cursor
+gaki-cli review 275850                # your review of it
+gaki-cli review 275850 --up           # write one in $VISUAL/$EDITOR (-m TEXT or -F FILE instead)
+gaki-cli review 275850 --down -e      # change your verdict and edit the text
+gaki-cli review 275850 --private --no-comments  # change only its settings
 gaki-cli wishlist                     # your wishlist with prices (or a friend's: `wishlist <user>`)
 gaki-cli wishlist add 1245620         # add an item (`wishlist remove` takes it out)
 ```
+
+`review` asks before it posts, unless `-y`. A new review needs `--up` or
+`--down`, and is public, paid for and open to comments unless `--private`,
+`--free` or `--no-comments` say otherwise; a change keeps whatever you don't
+name, the text too unless `-m`, `-F` or `-e` gives a new one. Changes go
+over the CM; Steam has no CM method that creates a review, so a new one
+goes through the store's own form ([STEAM-RULES.md](STEAM-RULES.md) §2.8).
 
 ### Install and maintain
 
@@ -305,7 +317,21 @@ gaki-cli config game 292030 --no-args --no-env   # drop the arguments and variab
 gaki-cli config clear-games           # remove every games.toml entry (asks first)
 gaki-cli profiles list
 gaki-cli profiles show proton
+gaki-cli profiles new proton-shared --prefix ~/prefixes/shared --proton experimental
+gaki-cli profiles new linux -r native -w gamemoderun
+gaki-cli profiles set proton-shared -e DXVK_HUD=fps --dll winhttp=n,b --debug
+gaki-cli profiles set proton-shared --no-prefix -u DXVK_HUD   # --no-* removes a setting
+gaki-cli profiles delete proton-shared   # asks first; its prefix stays
 ```
+
+`profiles new` and `profiles set` take the same flags: `--prefix`,
+`--proton`, `--steam`, `--wrapper`, `--runner-arg`, `--debug`, `--env`,
+`--unset-env`, `--dll`, `--unset-dll` and `--shader-cache`, each with a
+`--no-*` that removes it; `set -r` switches the runner. An edit keeps the
+file's comments, and one that would give the profile a new error is
+refused. gaki edits only `proton` and `native` profiles; lootrs' and
+sruman's are theirs. `delete` refuses a profile that `default_profile` or a
+game names, unless `--force`.
 
 [CONFIG.md](CONFIG.md) covers every file and key.
 

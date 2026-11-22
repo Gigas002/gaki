@@ -67,12 +67,17 @@ fn install_targets_list_the_configured_library_first_even_when_empty() {
     let stale = root.join("old"); // not a library
     std::fs::create_dir_all(&stale).unwrap();
 
+    let flat = root.join("flat"); // a gaki-layout library
+    std::fs::create_dir_all(&flat).unwrap();
+    let gone = root.join("unmounted");
+
     let targets = install_targets(
         Some(configured.clone()),
         vec![other.clone(), stale, configured.clone()],
+        vec![flat.clone(), gone, configured.clone()],
     );
-    assert_eq!(targets, [configured, other.clone()]);
-    assert_eq!(install_targets(None, vec![other.clone()]), [other]);
+    assert_eq!(targets, [configured, other.clone(), flat]);
+    assert_eq!(install_targets(None, vec![other.clone()], vec![]), [other]);
 }
 
 fn played(name: &str, minutes: Option<u32>, last: Option<u64>) -> LibraryGame {
@@ -121,4 +126,15 @@ fn listing_totals_playtime_of_licensed_games() {
         ..Default::default()
     };
     assert_eq!(listing.total_playtime_minutes(), 120);
+}
+
+#[test]
+fn a_library_under_home_is_written_with_a_tilde() {
+    let home = Path::new("/home/me");
+    assert_eq!(home_relative(Path::new("/home/me/games"), home), "~/games");
+    assert_eq!(
+        home_relative(Path::new("/mnt/ssd/Steam"), home),
+        "/mnt/ssd/Steam"
+    );
+    assert_eq!(home_relative(home, home), "/home/me");
 }

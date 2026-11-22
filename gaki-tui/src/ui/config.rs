@@ -4,7 +4,7 @@
 //!   dimmed), the highlighted key's description, and a footer with the
 //!   prompt, the confirm, the last save's result or the key hints;
 //! * Profiles: the profiles (the default marked) beside the highlighted
-//!   one's TOML, file, games and issues;
+//!   one's TOML, file, games and issues, or its editor;
 //! * Check: `config check`'s findings, errors first;
 //! * Daemons: the running session daemons, the highlighted one's details,
 //!   and the stop confirm.
@@ -15,7 +15,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Paragraph, Wrap};
 
 use crate::app::browser::settings::{
-    CheckTab, CleanTab, DaemonsTab, Edit, ProfilesTab, SPECS, SettingsView, Tab,
+    CheckTab, CleanTab, DaemonsTab, Edit, ProfileField, ProfilesTab, SPECS, SettingsView, Tab,
 };
 use crate::keymap::{OverlayAction as O, SettingsAction as S, hints, key_of, pair};
 use crate::ui::{selection_marker, theme};
@@ -33,6 +33,7 @@ fn how(edit: Edit) -> &'static str {
     match edit {
         Edit::Toggle { .. } => "Enter switches it",
         Edit::Choice { .. } | Edit::Profile => "Enter picks the next value",
+        Edit::Library => "Enter picks the next library, e types a folder",
         Edit::Prompt => "Enter edits it",
     }
 }
@@ -97,6 +98,7 @@ fn footer(view: &SettingsView) -> Vec<Line<'static>> {
     lines.push(dim(hints(&[
         (pair(O::Down, O::Up), "move"),
         (key_of(S::Edit), "edit"),
+        (key_of(S::Type), "type"),
         (key_of(S::Unset), "back to the default"),
         ("Esc".to_string(), "close"),
     ])));
@@ -177,20 +179,105 @@ fn status_and_hint(view: &SettingsView, hint: &str) -> Vec<Line<'static>> {
     lines
 }
 
-fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
-    let body = with_footer(
-        frame,
-        area,
-        status_and_hint(
+/// The Profiles tab's footer: the name prompt, the delete confirm, the
+/// editor's prompt or hints, or the list's hints.
+fn profiles_footer(view: &SettingsView) -> Vec<Line<'static>> {
+    let tab = view.profiles_tab.as_ref();
+    if let Some(name) = tab.and_then(|t| t.confirm_delete.as_ref()) {
+        return vec![
+            warn(format!("Delete the profile {name}? Its prefix stays.")),
+            dim("[y] yes  [n] no"),
+        ];
+    }
+    if let Some(name) = tab.and_then(|t| t.creating.as_ref()) {
+        let mut lines = status_and_hint(view, "Enter create · Esc cancel");
+        lines.insert(
+            0,
+            Line::from(vec![
+                Span::styled("New profile's name: ".to_string(), theme::label()),
+                Span::styled(format!("{name}_"), theme::accent()),
+            ]),
+        );
+        return lines;
+    }
+    if let Some(editor) = tab.and_then(|t| t.editor.as_ref()) {
+        if let Some(input) = &editor.input {
+            let mut lines = status_and_hint(
+                view,
+                "Enter save (empty removes it) · Esc cancel · quote words with spaces",
+            );
+            lines.insert(
+                0,
+                Line::from(vec![
+                    Span::styled(editor.field().prompt().to_string(), theme::label()),
+                    Span::styled(format!("{input}_"), theme::accent()),
+                ]),
+            );
+            return lines;
+        }
+        return status_and_hint(
             view,
             &hints(&[
                 (pair(O::Down, O::Up), "move"),
-                (pair(O::PageUp, O::PageDown), "scroll"),
-                (key_of(S::MakeDefault), "make default"),
-                ("Esc".to_string(), "close"),
+                (key_of(S::EditField), "change"),
+                (key_of(S::UnsetField), "remove"),
+                ("Esc".to_string(), "back"),
             ]),
-        ),
-    );
+        );
+    }
+    status_and_hint(
+        view,
+        &hints(&[
+            (pair(O::Down, O::Up), "move"),
+            (pair(O::PageUp, O::PageDown), "scroll"),
+            (key_of(S::EditProfile), "edit"),
+            (key_of(S::NewProfile), "new"),
+            (key_of(S::DeleteProfile), "delete"),
+            (key_of(S::MakeDefault), "make default"),
+            ("Esc".to_string(), "close"),
+        ]),
+    )
+}
+
+/// The editor's rows for the edited profile.
+fn profile_editor(tab: &ProfilesTab) -> Vec<Line<'static>> {
+    let (Some(editor), Some(row)) = (tab.editor.as_ref(), tab.edited()) else {
+        return vec![dim("The profile is gone; Esc goes back.")];
+    };
+    let mut lines = vec![
+        Line::from(Span::styled(
+            format!("Editing {}", row.name),
+            theme::label(),
+        )),
+        dim(row.path.clone()),
+        Line::from(""),
+    ];
+    for (i, field) in ProfileField::ALL.into_iter().enumerate() {
+        let selected = i == editor.field;
+        let style = if selected {
+            theme::selection()
+        } else {
+            theme::label()
+        };
+        let value = match field.value(&row.profile) {
+            Some(value) => Span::styled(value, theme::value()),
+            None => Span::styled(format!("({})", field.unset()), theme::dim()),
+        };
+        lines.push(Line::from(vec![
+            Span::styled(selection_marker(selected).to_string(), style),
+            Span::styled(format!("{:<15}", field.label()), style),
+            value,
+        ]));
+    }
+    if !row.issues.is_empty() {
+        lines.push(Line::from(""));
+        lines.extend(row.issues.iter().cloned().map(warn));
+    }
+    lines
+}
+
+fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
+    let body = with_footer(frame, area, profiles_footer(view));
     let Some(tab) = &view.profiles_tab else {
         frame.render_widget(Paragraph::new(dim("Loading…")), body);
         return;
@@ -236,7 +323,11 @@ fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
     }
     frame.render_widget(Paragraph::new(names).style(theme::base()), list);
 
-    let lines = profile_detail(tab, &data.errors);
+    let lines = if tab.editor.is_some() {
+        profile_editor(tab)
+    } else {
+        profile_detail(tab, &data.errors)
+    };
     let paragraph = Paragraph::new(lines)
         .style(theme::base())
         .wrap(Wrap { trim: false });

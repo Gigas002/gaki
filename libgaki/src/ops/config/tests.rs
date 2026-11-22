@@ -109,3 +109,57 @@ fn env_edits_clear_unset_then_set() {
     assert!(edit::edit_env(table, true, &[], &none));
     assert!(table.get("env").is_none(), "an emptied env is removed");
 }
+
+fn profile_doc(text: &str, change: &ProfileChange) -> (String, bool) {
+    let mut doc: toml_edit::DocumentMut = text.parse().unwrap();
+    let changed = profiles::apply(doc.as_table_mut(), change);
+    (doc.to_string(), changed)
+}
+
+#[test]
+fn profile_edits_keep_comments_and_layout() {
+    let text = "# my proton\nname = \"p\"\nrunner = \"proton\"\nprefix = \"~/pfx\" # shared\n\n[proton]\nbuild = \"experimental\"\n";
+    let change = ProfileChange {
+        proton_build: Change::Set("9.0".into()),
+        wrappers: Change::Set(vec!["gamemoderun".into()]),
+        env: EnvChange {
+            set: [("DXVK_HUD".to_owned(), "fps".to_owned())].into(),
+            ..EnvChange::default()
+        },
+        dll_overrides: EnvChange {
+            set: [("winhttp".to_owned(), "n,b".to_owned())].into(),
+            ..EnvChange::default()
+        },
+        debug: Some(true),
+        ..ProfileChange::default()
+    };
+    let (out, changed) = profile_doc(text, &change);
+    assert!(changed);
+    assert!(out.starts_with("# my proton\nname = \"p\""), "{out}");
+    assert!(out.contains("prefix = \"~/pfx\" # shared"), "{out}");
+    assert!(out.contains("build = \"9.0\""), "{out}");
+    let profile: crate::config::Profile = toml::from_str(&out).unwrap();
+    assert_eq!(profile.wrappers, ["gamemoderun"]);
+    assert_eq!(profile.env["DXVK_HUD"], "fps");
+    assert_eq!(profile.dll_overrides["winhttp"], "n,b");
+    assert!(profile.debug);
+
+    // Clearing the build drops the emptied `[proton]`; `debug = false` is
+    // the default, so the key goes.
+    let change = ProfileChange {
+        proton_build: Change::Clear,
+        debug: Some(false),
+        prefix: Change::Clear,
+        ..ProfileChange::default()
+    };
+    let (out, changed) = profile_doc(&out, &change);
+    assert!(changed);
+    assert!(
+        !out.contains("[proton]") && !out.contains("debug") && !out.contains("prefix"),
+        "{out}"
+    );
+    // Nothing asked: nothing changes.
+    let (same, changed) = profile_doc(&out, &ProfileChange::default());
+    assert!(!changed);
+    assert_eq!(same, out);
+}

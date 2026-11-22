@@ -1,8 +1,9 @@
 //! The Store overlay (`Y`): the selected game's store data in sections.
 //! Each section loads in the background the first time it is shown, and
-//! keeps what it loaded until the overlay closes.
+//! keeps what it loaded until the overlay closes. Reviews also shows your
+//! own review, and `w` there opens the composer to write or change it.
 
-use libgaki::ops::store::{Listing, Prices};
+use libgaki::ops::store::{Listing, OwnReview, Prices, ReviewDraft, ReviewWritten};
 use libgaki::web::discovery::{NewsItem, ReviewPage};
 
 use super::Browser;
@@ -69,7 +70,33 @@ pub struct StoreView {
     pub players: Option<Load<i32>>,
     pub news: Option<Load<Vec<NewsItem>>>,
     pub reviews: Option<Load<ReviewPage>>,
+    /// Your review, loaded with the Reviews section.
+    pub mine: Option<Load<Option<OwnReview>>>,
+    /// The review composer, when open.
+    pub composer: Option<ReviewComposer>,
+    /// A review being posted.
+    pub posting: Option<Load<ReviewWritten>>,
+    /// The last review action's result.
+    pub review_status: String,
     pub similar: Option<Load<Listing>>,
+}
+
+/// The review composer: the draft, and whether it waits for the y/n.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReviewComposer {
+    pub draft: ReviewDraft,
+    /// It replaces your review.
+    pub replaces: bool,
+    pub confirming: bool,
+}
+
+/// A composer toggle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewToggle {
+    Verdict,
+    Visibility,
+    Free,
+    Comments,
 }
 
 impl StoreView {
@@ -86,6 +113,10 @@ impl StoreView {
             players: None,
             news: None,
             reviews: None,
+            mine: None,
+            composer: None,
+            posting: None,
+            review_status: String::new(),
             similar: None,
         }
     }
@@ -104,8 +135,13 @@ impl StoreView {
             Section::News if self.news.is_none() => {
                 self.news = Some(Load::start(move || steam::store_news(app_id)));
             }
-            Section::Reviews if self.reviews.is_none() => {
-                self.reviews = Some(Load::start(move || steam::store_reviews(app_id)));
+            Section::Reviews => {
+                if self.reviews.is_none() {
+                    self.reviews = Some(Load::start(move || steam::store_reviews(app_id)));
+                }
+                if self.mine.is_none() {
+                    self.mine = Some(Load::start(move || steam::store_my_review(app_id)));
+                }
             }
             Section::Similar if self.similar.is_none() => {
                 self.similar = Some(Load::start(move || steam::store_similar(app_id)));
@@ -127,6 +163,35 @@ impl StoreView {
         }
         if let Some(load) = &mut self.reviews {
             load.poll();
+        }
+        if let Some(load) = &mut self.mine {
+            load.poll();
+        }
+        if let Some(load) = &mut self.posting
+            && load.poll()
+        {
+            match self.posting.take() {
+                Some(Load::Ready(written)) => {
+                    self.review_status = match written {
+                        ReviewWritten::Created => "Posted your review.",
+                        ReviewWritten::Updated => "Updated your review.",
+                    }
+                    .into();
+                    self.composer = None;
+                    self.scroll = 0;
+                    // Show it as Steam has it now.
+                    self.mine = None;
+                    self.load_section();
+                }
+                Some(Load::Failed(e)) => {
+                    self.review_status = format!("Not posted: {e}");
+                    // Back to the draft, so nothing typed is lost.
+                    if let Some(composer) = &mut self.composer {
+                        composer.confirming = false;
+                    }
+                }
+                _ => {}
+            }
         }
         if let Some(load) = &mut self.similar {
             load.poll();
@@ -222,6 +287,146 @@ impl Browser {
             view.scroll = 0;
             view.load_section();
         }
+    }
+
+    /// `w` in Reviews: open the composer on your review, or on a new one
+    /// (recommended, public).
+    pub fn begin_review(&mut self) {
+        let Some(view) = &mut self.store else {
+            return;
+        };
+        if view.section != Section::Reviews || view.posting.is_some() {
+            return;
+        }
+        let (draft, replaces) = match &view.mine {
+            Some(Load::Ready(Some(review))) => (review.draft(), true),
+            Some(Load::Ready(None) | Load::Failed(_)) => (
+                ReviewDraft {
+                    text: String::new(),
+                    voted_up: true,
+                    is_public: true,
+                    language: None,
+                    received_compensation: false,
+                    comments_disabled: false,
+                },
+                false,
+            ),
+            _ => {
+                view.review_status = "Still loading your review…".into();
+                return;
+            }
+        };
+        view.review_status.clear();
+        view.scroll = 0;
+        view.composer = Some(ReviewComposer {
+            draft,
+            replaces,
+            confirming: false,
+        });
+    }
+
+    pub fn review_composer_open(&self) -> bool {
+        self.store.as_ref().is_some_and(|v| v.composer.is_some())
+    }
+
+    pub fn review_confirming(&self) -> bool {
+        self.store
+            .as_ref()
+            .and_then(|v| v.composer.as_ref())
+            .is_some_and(|c| c.confirming)
+    }
+
+    fn review_draft(&mut self) -> Option<&mut ReviewDraft> {
+        let view = self.store.as_mut()?;
+        if view.posting.is_some() {
+            return None;
+        }
+        let composer = view.composer.as_mut()?;
+        (!composer.confirming).then_some(&mut composer.draft)
+    }
+
+    /// Typed text; `\n` is a new line.
+    pub fn review_push(&mut self, c: char) {
+        if let Some(draft) = self.review_draft() {
+            draft.text.push(c);
+        }
+    }
+
+    pub fn review_pop(&mut self) {
+        if let Some(draft) = self.review_draft() {
+            draft.text.pop();
+        }
+    }
+
+    pub fn review_toggle(&mut self, toggle: ReviewToggle) {
+        if let Some(draft) = self.review_draft() {
+            let flag = match toggle {
+                ReviewToggle::Verdict => &mut draft.voted_up,
+                ReviewToggle::Visibility => &mut draft.is_public,
+                ReviewToggle::Free => &mut draft.received_compensation,
+                ReviewToggle::Comments => &mut draft.comments_disabled,
+            };
+            *flag = !*flag;
+        }
+    }
+
+    /// Esc: close the composer (the draft is dropped), or leave the y/n.
+    pub fn cancel_review(&mut self) {
+        if let Some(view) = &mut self.store {
+            if view.posting.is_some() {
+                return;
+            }
+            match &mut view.composer {
+                Some(composer) if composer.confirming => composer.confirming = false,
+                _ => {
+                    view.composer = None;
+                    view.scroll = 0;
+                }
+            }
+        }
+    }
+
+    /// `ctrl+s`: ask before posting a draft Steam would take.
+    pub fn submit_review(&mut self) {
+        let Some(view) = &mut self.store else {
+            return;
+        };
+        let Some(composer) = &mut view.composer else {
+            return;
+        };
+        if view.posting.is_some() {
+            return;
+        }
+        match composer.draft.check() {
+            Some(problem) => view.review_status = format!("Can't post: {problem}."),
+            None => {
+                view.review_status.clear();
+                composer.confirming = true;
+            }
+        }
+    }
+
+    /// Answer the post confirm: `yes` posts in the background.
+    pub fn answer_review(&mut self, yes: bool) {
+        let Some(view) = &mut self.store else {
+            return;
+        };
+        let Some(composer) = &mut view.composer else {
+            return;
+        };
+        if !composer.confirming {
+            return;
+        }
+        if !yes {
+            composer.confirming = false;
+            return;
+        }
+        let app_id = view.app_id;
+        let draft = composer.draft.clone();
+        view.review_status = "Posting…".into();
+        view.posting = Some(Load::start(move || {
+            steam::store_write_review(app_id, draft)
+        }));
     }
 
     /// Adopt finished store loads; run on every tick.
