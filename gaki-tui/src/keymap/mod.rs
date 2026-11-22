@@ -219,8 +219,14 @@ actions! {
     /// The Settings overlay (`p`), by tab.
     SettingsAction, "settings", settings, SHARES_OVERLAY {
         Edit => "edit" ["Enter"] in "settings",
+        Type => "type" ["e"] in "settings",
         Unset => "unset" ["x"] in "settings",
         MakeDefault => "make_default" ["d"] in "profiles",
+        EditProfile => "edit_profile" ["Enter", "e"] in "profiles",
+        NewProfile => "new_profile" ["a"] in "profiles",
+        DeleteProfile => "delete_profile" ["x"] in "profiles",
+        EditField => "edit_field" ["Enter"] in "profile_editor",
+        UnsetField => "unset_field" ["x"] in "profile_editor",
         CheckAgain => "check_again" ["r"] in "check",
         StopDaemon => "stop_daemon" ["s"] in "daemons",
         StopAllDaemons => "stop_all_daemons" ["S"] in "daemons",
@@ -268,6 +274,20 @@ actions! {
         NextSection => "next_section" ["l"],
         PreviousSection => "previous_section" ["h"],
         Regions => "regions" ["r"],
+        WriteReview => "write_review" ["w"],
+    }
+}
+
+actions! {
+    /// The review composer (`w` in the Store overlay's Reviews). It takes
+    /// the review's text, so only non-character keys can be bound.
+    ReviewAction, "review", review, TEXT;
+        taken ["Enter", "Backspace"] {
+        Post => "post" ["ctrl+s", "F5"],
+        Verdict => "verdict" ["F1"],
+        Visibility => "visibility" ["F2"],
+        Free => "free" ["F3"],
+        Comments => "comments" ["F4"],
     }
 }
 
@@ -544,6 +564,7 @@ pub struct Keymap {
     workshop_browse: Bindings<WorkshopBrowseAction>,
     workshop_comments: Bindings<WorkshopCommentsAction>,
     store: Bindings<StoreAction>,
+    review: Bindings<ReviewAction>,
     steam_store: Bindings<SteamStoreAction>,
     depots: Bindings<DepotsAction>,
     depot_files: Bindings<DepotFilesAction>,
@@ -583,7 +604,7 @@ fn kind<A: Actions>() -> SectionKind {
 }
 
 /// Every section, `[library]` first.
-fn sections() -> [SectionKind; 27] {
+fn sections() -> [SectionKind; 28] {
     [
         kind::<LibraryAction>(),
         kind::<OverlayAction>(),
@@ -593,6 +614,7 @@ fn sections() -> [SectionKind; 27] {
         kind::<WorkshopBrowseAction>(),
         kind::<WorkshopCommentsAction>(),
         kind::<StoreAction>(),
+        kind::<ReviewAction>(),
         kind::<SteamStoreAction>(),
         kind::<DepotsAction>(),
         kind::<DepotFilesAction>(),

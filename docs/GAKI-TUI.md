@@ -164,21 +164,34 @@ in Versions (`V`) and update it.
 brackets when it isn't set. `j` / `k` move; the line under the list says
 what the highlighted key is and what an unset one means. `Enter` edits it:
 a switch flips, a choice steps to the next value (the default profile
-steps through your profiles), and anything else opens a prompt with the
-current value. `x` unsets the key, back to its default. Saving checks the
+steps through your profiles, the library through the libraries gaki
+knows, Steam's and its own layout), and anything else opens a prompt with
+the current value. `e` opens the prompt for any key, e.g. to make a new
+folder the library. `x` unsets the key, back to its default. Saving checks the
 value like `gaki-cli config set`, so a bad one is refused with the reason.
 Changing where the session tokens are kept (`secret_store`) asks first. A
 few keys apply later, and the status line says when: the proxy when gaki next
-starts, `daemon_idle_timeout` when the daemon next starts, and the library
-and profile directories after a library reload (`r`).
+starts, `daemon_idle_timeout` when the daemon next starts, and the profile
+directory after a library reload (`r`). Switching the library only changes
+where installs go: the games in the other libraries stay in the list and
+keep launching. The install picker shows each library's layout.
 
 `Tab` / `Shift-Tab` switch to three more tabs:
 
 - **Profiles** lists the profiles, the default one marked. Beside the
   highlighted profile it shows its file, its issues, the games whose
   `games.toml` entry names it, and its settings as they read in the file
-  (`PgUp` / `PgDn` scroll them). `d` makes it the default profile. Profile
-  files themselves are edited by hand.
+  (`PgUp` / `PgDn` scroll them). `d` makes it the default profile, `a`
+  makes a new one (it asks for the name and opens the editor), and `x`
+  deletes the highlighted one after a y/n (its prefix stays; one that a game
+  or `default_profile` names isn't deleted). `Enter` or `e` opens the
+  editor: one row per setting (runner, prefix, Proton build, Steam,
+  wrappers, runner arguments, debug, variables, DLL overrides, shader
+  cache). `Enter` flips or steps a row, or types it (quote words with
+  spaces; empty removes it), `x` removes it, and `Esc` goes back. Each change
+  is saved at once, keeping the file's comments, and one that would break
+  the profile is refused with the reason. lootrs' and sruman's profiles
+  aren't edited here.
 - **Check** runs `gaki-cli config check` each time you open the tab: files
   that didn't load, then errors, then warnings, or "No problems found."
   `r` checks again.
@@ -265,11 +278,16 @@ the overlay with `Esc`.
   session (codes separated by commas or spaces).
 - **Players** is the number of people in-game right now.
 - **News** shows the latest ten announcements, with their links.
-- **Reviews** shows the overall score and the ten most helpful reviews.
+- **Reviews** shows your own review, then the overall score and the ten
+  most helpful reviews. `w` opens the composer on your review, or on a new
+  one (recommended, public): type the text (`Enter` starts a new line),
+  `F1` flips the verdict, `F2` public or friends only, `F3` received for
+  free, `F4` comments, and `ctrl+s` (or `F5`) posts it after a y/n. `Esc`
+  discards the draft. A post that fails keeps the draft.
 - **Similar** lists related games, priced for your country.
 
-This is `gaki-cli price --compare`, `players`, `news`, `reviews` and
-`similar`.
+This is `gaki-cli price --compare`, `players`, `news`, `reviews`,
+`review` and `similar`.
 
 `J` opens the **Steam Store** overlay for everything not tied to one game,
 in four sections. It opens on **Search**, ready to type: `Enter` searches,
@@ -368,7 +386,7 @@ for the game list with no overlay open, `[overlay]` for the keys every
 overlay shares (`close`, `down`, `up`, `page_down`, `page_up`, `next_tab`,
 `previous_tab`), and a section for each overlay with its own keys:
 `[installs]`, `[settings]`, `[workshop]`, `[workshop_browse]`,
-`[workshop_comments]`, `[store]`, `[steam_store]`, `[depots]`,
+`[workshop_comments]`, `[store]`, `[review]`, `[steam_store]`, `[depots]`,
 `[depot_files]`, `[game_info]`, `[cloud]`, `[collections]`, `[versions]`,
 `[launch_targets]`, `[game_settings]`, `[install_picker]`, `[dlc]`,
 `[branches]`, `[running]`, `[proton]`, `[account]`, `[market_search]`,
@@ -405,7 +423,7 @@ and action with its default key.
 An overlay's own keys can't clash with `[overlay]`'s. Some belong to one tab
 (the example marks them), and actions on different tabs may share a key:
 `r` resumes in the Installs queue and rescans in Duplicates. The sections
-that take typed text, `[workshop_browse]`, `[market_search]` and
+that take typed text, `[workshop_browse]`, `[review]`, `[market_search]` and
 `[actions_menu]`, only take keys that don't type (`F5`, `ctrl+s`, `Tab`),
 and `[overlay]` doesn't apply there; their `Enter` and `Backspace` stay
 put, except the menu's `Enter`, which is `run`.

@@ -5,6 +5,7 @@ use crate::steam_client::{
     DealsScope, SteamClient, StoreAppInfo, StoreEvent, StorePurchaseOption, WishlistEntry,
     unix_to_ymd,
 };
+pub use crate::steam_client::{OwnReview, ReviewDraft};
 use anyhow::Result;
 use std::time::Duration;
 
@@ -328,6 +329,97 @@ pub async fn wishlist_add(client: &SteamClient, app_id: u32) -> Result<u32> {
 /// Remove an app from the wishlist; returns the new item count.
 pub async fn wishlist_remove(client: &SteamClient, app_id: u32) -> Result<u32> {
     client.wishlist_remove(app_id).await
+}
+
+/// Your review of `app_id`, if you wrote one.
+pub async fn my_review(client: &SteamClient, app_id: u32) -> Result<Option<OwnReview>> {
+    client.own_review(app_id).await
+}
+
+/// What [`write_review`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReviewWritten {
+    Created,
+    Updated,
+}
+
+/// The store's form for a new review (what its "Post review" button sends).
+const RECOMMEND_URL: &str = "https://store.steampowered.com/friends/recommendgame";
+
+/// The form fields for a new review of `app_id`.
+fn recommend_form(app_id: u32, draft: &ReviewDraft) -> Vec<(&'static str, String)> {
+    // As the store's own page sends them: jQuery writes booleans as
+    // `true`/`false`.
+    let flag = |b: bool| b.to_string();
+    vec![
+        ("appid", app_id.to_string()),
+        ("steamworksappid", app_id.to_string()),
+        ("comment", draft.text.trim().to_owned()),
+        ("rated_up", flag(draft.voted_up)),
+        ("is_public", flag(draft.is_public)),
+        (
+            "language",
+            draft
+                .language
+                .clone()
+                .unwrap_or_else(|| crate::core::STEAM_LANGUAGE.to_owned()),
+        ),
+        ("received_compensation", flag(draft.received_compensation)),
+        ("disable_comments", flag(draft.comments_disabled)),
+    ]
+}
+
+/// The form's answer: `{"success": true}`, or a failure with Steam's
+/// reason when it gives one.
+fn recommend_result(body: &str) -> Result<()> {
+    let json: serde_json::Value = serde_json::from_str(body).map_err(|_| {
+        anyhow::anyhow!("Steam's review form answered with something other than JSON")
+    })?;
+    let ok = match &json["success"] {
+        serde_json::Value::Bool(b) => *b,
+        serde_json::Value::Number(n) => n.as_i64() == Some(1),
+        _ => false,
+    };
+    if ok {
+        return Ok(());
+    }
+    let reason = ["strError", "error", "message"]
+        .iter()
+        .find_map(|key| json[key].as_str().filter(|s| !s.is_empty()));
+    Err(TypedError::new(
+        ErrorKind::InvalidInput,
+        match reason {
+            Some(reason) => format!("Steam refused the review: {reason}"),
+            None => "Steam refused the review (you need to own the game, and have played it \
+                     enough to review it)"
+                .to_owned(),
+        },
+    )
+    .into())
+}
+
+/// Post `draft` as your review of `app_id`: an edit of the one you have
+/// over the CM (`UserReviews.Update`), or a new one through the store's
+/// form, which has no CM equivalent. One user action, sent once.
+pub async fn write_review(
+    client: &SteamClient,
+    app_id: u32,
+    draft: &ReviewDraft,
+) -> Result<ReviewWritten> {
+    if let Some(problem) = draft.check() {
+        return Err(TypedError::new(ErrorKind::InvalidInput, problem).into());
+    }
+    if let Some(existing) = client.own_review(app_id).await? {
+        client.update_review(existing.id, draft).await?;
+        return Ok(ReviewWritten::Updated);
+    }
+    let web = crate::ops::session::web_session(client).await?;
+    let body = web
+        .post_form(RECOMMEND_URL, &recommend_form(app_id, draft))
+        .await?;
+    recommend_result(&body)?;
+    Ok(ReviewWritten::Created)
 }
 
 #[cfg(test)]

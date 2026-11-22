@@ -5,7 +5,8 @@
 //!   key. Values go through the same validation as `gaki-cli config set`, so
 //!   a bad one is refused with its reason.
 //! * Profiles: each profile with its settings, its file, the games using it
-//!   and its issues; `d` makes it the default.
+//!   and its issues; `d` makes it the default, `a` makes a new one, `Enter`
+//!   edits it and `x` deletes it ([`ProfileEditor`]).
 //! * Check: `gaki-cli config check`, run when the tab is shown; `r` re-runs.
 //! * Daemons: the running `gaki-cli` session daemons; `s` stops the
 //!   highlighted one and `S` all of them, each after a y/n.
@@ -14,6 +15,9 @@ use libgaki::ops::clean::Item as CleanItem;
 use libgaki::ops::daemon::GakiProcess;
 
 use crate::app::browser::job::Load;
+
+mod profile_editor;
+pub use profile_editor::{ProfileEditor, ProfileField};
 
 use super::Browser;
 use crate::app::steam;
@@ -31,6 +35,8 @@ pub enum Edit {
     },
     /// One of the profiles, or unset.
     Profile,
+    /// One of the known libraries (`e` types another folder).
+    Library,
     /// Typed text (paths and numbers too; the save validates them).
     Prompt,
 }
@@ -57,10 +63,12 @@ const NEXT_START: &str =
 pub const SPECS: &[Spec] = &[
     Spec {
         key: "steam_library",
-        label: "Steam library",
+        label: "Library",
         default: "the detected Steam library",
-        edit: Edit::Prompt,
-        note: Some("Saved. Reload the library (r) to use it."),
+        edit: Edit::Library,
+        note: Some(
+            "Saved: installs go there now. Games in the other libraries stay and keep working.",
+        ),
         confirm: None,
     },
     Spec {
@@ -214,6 +222,7 @@ pub fn next_value(
     edit: Edit,
     current: Option<&str>,
     profiles: &[String],
+    libraries: &[String],
 ) -> Option<Option<String>> {
     let step = |options: Vec<Option<String>>, current: Option<String>| {
         let at = options.iter().position(|o| *o == current);
@@ -245,6 +254,11 @@ pub fn next_value(
             let all = std::iter::once(None)
                 .chain(profiles.iter().cloned().map(Some))
                 .collect();
+            Some(step(all, current.map(str::to_string)))
+        }
+        Edit::Library if libraries.is_empty() => None,
+        Edit::Library => {
+            let all = libraries.iter().cloned().map(Some).collect();
             Some(step(all, current.map(str::to_string)))
         }
         Edit::Prompt => None,
@@ -299,6 +313,12 @@ pub struct ProfilesTab {
     pub selected: usize,
     /// The detail pane's scroll, in rows.
     pub scroll: u16,
+    /// The profile editor, when open.
+    pub editor: Option<ProfileEditor>,
+    /// The new profile's name, while typing it.
+    pub creating: Option<String>,
+    /// The profile waiting for the delete y/n.
+    pub confirm_delete: Option<String>,
 }
 
 impl ProfilesTab {
@@ -307,6 +327,9 @@ impl ProfilesTab {
             data: Ok(data),
             selected: 0,
             scroll: 0,
+            editor: None,
+            creating: None,
+            confirm_delete: None,
         }
     }
 
@@ -315,6 +338,9 @@ impl ProfilesTab {
             data: steam::profiles().map_err(|e| e.to_string()),
             selected: 0,
             scroll: 0,
+            editor: None,
+            creating: None,
+            confirm_delete: None,
         }
     }
 
@@ -441,6 +467,9 @@ pub struct SettingsView {
     /// The last save's result.
     pub status: String,
     pub profiles: Vec<String>,
+    /// The known libraries, as `steam_library` would be written (the
+    /// active one as it is written).
+    pub libraries: Vec<String>,
     pub tab: Tab,
     /// Loaded when the Profiles tab is first shown.
     pub profiles_tab: Option<ProfilesTab>,
@@ -466,6 +495,19 @@ impl SettingsView {
         let mut view = Self::default();
         view.reload();
         view.profiles = steam::profile_names().unwrap_or_default();
+        let current = SPECS
+            .iter()
+            .position(|s| s.key == "steam_library")
+            .and_then(|i| view.value(i))
+            .map(str::to_owned);
+        view.libraries = steam::libraries()
+            .unwrap_or_default()
+            .into_iter()
+            .map(|folder| match (&current, folder.active) {
+                (Some(current), true) => current.clone(),
+                _ => folder.setting,
+            })
+            .collect();
         view
     }
 
@@ -485,6 +527,10 @@ impl SettingsView {
             }
             Err(e) => self.error = Some(e.to_string()),
         }
+    }
+
+    fn begin_typing(&mut self) {
+        self.input = Some(self.value(self.selected).unwrap_or_default().to_string());
     }
 
     pub fn value(&self, index: usize) -> Option<&str> {
@@ -537,10 +583,20 @@ impl Browser {
         let view = &mut self.settings;
         let index = view.selected;
         let spec = SPECS[index];
-        match next_value(spec.edit, view.value(index), &view.profiles) {
+        match next_value(
+            spec.edit,
+            view.value(index),
+            &view.profiles,
+            &view.libraries,
+        ) {
             Some(value) => view.apply(index, value),
-            None => view.input = Some(view.value(index).unwrap_or_default().to_string()),
+            None => view.begin_typing(),
         }
+    }
+
+    /// `e`: type the highlighted key's value, whatever its kind.
+    pub fn settings_type(&mut self) {
+        self.settings.begin_typing();
     }
 
     /// Show the next (`Tab`) or previous (`Shift-Tab`) tab. Profiles load

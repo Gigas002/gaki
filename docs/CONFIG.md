@@ -75,6 +75,13 @@ see games installed there. The library keeps its layout once chosen; a
 folder Steam already uses keeps Steam's. `gaki-cli move`, `relink` and
 `import` treat it the same way. Other folders still need a `steamapps/`.
 
+You can have several libraries of each layout and switch between them with
+`gaki-cli libraries use <number|folder>` or the TUI's Settings (`Enter` on
+Library steps through them). Only `steam_library` changes: installs go to
+the new one, and the games in the others stay in the library and keep
+launching, since gaki scans every Steam library and every gaki-layout
+library it has records of.
+
 ## Profiles
 
 A profile describes one runner, one prefix and their environment, and any
@@ -122,7 +129,10 @@ are warnings too. `wine` and `umu` profiles are lootrs', and `slr` profiles (a
 Steam Linux Runtime) are sruman's: they load, but gaki doesn't launch them. lootrs in turn loads `proton`
 profiles, `[proton]` and `steam`, but can't launch a `proton` profile.
 `gaki-cli profiles list` and `gaki-cli profiles show <name>` show what gaki
-loaded, which games use each profile, and any problems.
+loaded, which games use each profile, and any problems. `gaki-cli profiles
+new|set|delete` and the TUI's Settings → Profiles tab create, change and
+delete `proton` and `native` profiles without opening the file, keeping its
+comments ([GAKI-CLI.md](GAKI-CLI.md#configuration)).
 
 ## `games.toml`
 

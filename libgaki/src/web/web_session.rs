@@ -23,9 +23,10 @@ pub struct WebSession {
     steam_id: u64,
     /// Pre-rendered `Cookie:` header value: `steamLoginSecure` (so it is
     /// redacted in `Debug` and zeroed on drop), a client-generated
-    /// `sessionid` and `steamCountry`. gaki never POSTs, so the `sessionid`
-    /// CSRF token isn't kept apart.
+    /// `sessionid` and `steamCountry`.
     cookie: secrecy::SecretString,
+    /// The `sessionid` cookie, which a form POST repeats as its CSRF token.
+    sessionid: String,
 }
 
 impl std::fmt::Debug for WebSession {
@@ -67,6 +68,7 @@ impl WebSession {
             http,
             steam_id,
             cookie: cookie.into(),
+            sessionid,
         })
     }
 
@@ -84,6 +86,26 @@ impl WebSession {
             secrecy::ExposeSecret::expose_secret(&self.cookie),
         );
         let resp = crate::core::net::send_with_retry(&self.http, request).await?;
+        read_checked(resp).await
+    }
+
+    /// POST a form the way Steam's own pages do: `fields` plus `sessionid`,
+    /// sent once (never retried, so it can't be done twice), returning the
+    /// response body text.
+    pub async fn post_form(&self, url: &str, fields: &[(&str, String)]) -> Result<String> {
+        let mut form: Vec<(&str, &str)> = fields.iter().map(|(k, v)| (*k, v.as_str())).collect();
+        form.push(("sessionid", &self.sessionid));
+        let resp = self
+            .http
+            .post(url)
+            .header(
+                reqwest::header::COOKIE,
+                secrecy::ExposeSecret::expose_secret(&self.cookie),
+            )
+            .form(&form)
+            .send()
+            .await
+            .with_context(|| format!("failed to reach {url}"))?;
         read_checked(resp).await
     }
 }

@@ -219,6 +219,9 @@ pub(crate) enum Command {
     /// User reviews, paged (storefront web, no CM equivalent).
     #[cfg(feature = "store")]
     Reviews(ReviewsArgs),
+    /// Your review of an app: show it, or write or change it.
+    #[cfg(feature = "store")]
+    Review(ReviewArgs),
     /// Profile by SteamID64, /profiles/ URL, friend name, `me`.
     #[cfg(feature = "social")]
     User { user: String },
@@ -255,10 +258,13 @@ pub(crate) enum Command {
     /// Download and install a game.
     #[cfg(feature = "install")]
     Install(InstallArgs),
-    /// List the Steam library folders games can be installed into (one per
-    /// drive/location).
+    /// List the library folders games can be installed into, Steam's and
+    /// gaki's own layout, or switch the one installs go to.
     #[cfg(feature = "library")]
-    Libraries,
+    Libraries {
+        #[command(subcommand)]
+        command: Option<LibrariesCommand>,
+    },
     /// Export the library to a TOML file, or install the games listed in one.
     #[cfg(feature = "library")]
     Library {
@@ -585,7 +591,8 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: ProtonCommand,
     },
-    /// List and inspect launch profiles (`profiles/<name>.toml`).
+    /// List, inspect, create, change and delete launch profiles
+    /// (`profiles/<name>.toml`).
     Profiles {
         #[command(subcommand)]
         command: ProfilesCommand,
@@ -1254,6 +1261,84 @@ pub(crate) struct ReviewsArgs {
     pub(crate) cursor: Option<String>,
 }
 
+/// `gaki-cli review` flags. Without any, it shows your review.
+#[cfg(feature = "store")]
+#[derive(clap::Args, Debug)]
+pub(crate) struct ReviewArgs {
+    #[arg(value_parser = app_ref)]
+    pub(crate) app_id: u32,
+    /// Recommend it (a new review needs `--up` or `--down`).
+    #[arg(long, conflicts_with = "down")]
+    pub(crate) up: bool,
+    /// Don't recommend it.
+    #[arg(long)]
+    pub(crate) down: bool,
+    /// The review's text (otherwise `--file`, or `$VISUAL`/`$EDITOR`).
+    #[arg(short = 'm', long, conflicts_with = "file")]
+    pub(crate) message: Option<String>,
+    /// Read the text from a file (`-` for stdin).
+    #[arg(short = 'F', long, conflicts_with = "edit")]
+    pub(crate) file: Option<std::path::PathBuf>,
+    /// Change the text in `$VISUAL`/`$EDITOR` (a new review opens it anyway).
+    #[arg(short = 'e', long, conflicts_with = "message")]
+    pub(crate) edit: bool,
+    /// Friends only.
+    #[arg(long, conflicts_with = "public")]
+    pub(crate) private: bool,
+    /// Visible to everyone (the default for a new review).
+    #[arg(long)]
+    pub(crate) public: bool,
+    /// Turn comments off.
+    #[arg(long, conflicts_with = "comments")]
+    pub(crate) no_comments: bool,
+    /// Turn comments on (the default for a new review).
+    #[arg(long)]
+    pub(crate) comments: bool,
+    /// You got the game for free (Steam labels the review).
+    #[arg(long, conflicts_with = "paid")]
+    pub(crate) free: bool,
+    /// You paid for it (the default for a new review).
+    #[arg(long)]
+    pub(crate) paid: bool,
+    /// The review's language, as Steam names it (`english`, `german`, …).
+    #[arg(long)]
+    pub(crate) language: Option<String>,
+    /// Post without asking.
+    #[arg(short = 'y', long)]
+    pub(crate) yes: bool,
+}
+
+#[cfg(feature = "store")]
+impl ReviewArgs {
+    /// Any flag that writes.
+    pub(crate) fn writes(&self) -> bool {
+        self.up
+            || self.down
+            || self.message.is_some()
+            || self.file.is_some()
+            || self.edit
+            || self.private
+            || self.public
+            || self.no_comments
+            || self.comments
+            || self.free
+            || self.paid
+            || self.language.is_some()
+    }
+}
+
+/// `gaki-cli libraries` subcommands.
+#[cfg(feature = "library")]
+#[derive(Subcommand, Debug)]
+pub(crate) enum LibrariesCommand {
+    /// Install into this library from now on (sets `steam_library`). Games
+    /// in the others stay where they are and keep working.
+    Use {
+        /// A folder, or a number from `gaki-cli libraries`.
+        library: String,
+    },
+}
+
 /// `list --sort` choices.
 #[derive(Clone, Copy, ValueEnum)]
 pub(crate) enum ListSort {
@@ -1385,7 +1470,7 @@ impl From<PlatformArg> for DepotPlatform {
     }
 }
 
-/// `profiles list|show`.
+/// `profiles list|show|new|set|delete`.
 #[derive(Subcommand)]
 pub(crate) enum ProfilesCommand {
     /// List every profile: runner, Proton build, prefix, and the games using it.
@@ -1395,6 +1480,113 @@ pub(crate) enum ProfilesCommand {
         /// The profile's name (its file name without `.toml`).
         name: String,
     },
+    /// Create a profile (`profiles/<name>.toml`).
+    New {
+        /// The profile's name: letters, digits, `.`, `_` and `-`.
+        name: String,
+        /// What it runs.
+        #[arg(short = 'r', long, value_name = "RUNNER", default_value = "proton")]
+        runner: RunnerArg,
+        #[command(flatten)]
+        settings: ProfileArgs,
+    },
+    /// Change a profile's settings, keeping the file's comments.
+    Set {
+        name: String,
+        /// Switch what it runs.
+        #[arg(short = 'r', long, value_name = "RUNNER")]
+        runner: Option<RunnerArg>,
+        #[command(flatten)]
+        settings: ProfileArgs,
+    },
+    /// Delete a profile's file; its prefix stays.
+    Delete {
+        name: String,
+        /// Delete it even while games or `default_profile` name it.
+        #[arg(short = 'f', long)]
+        force: bool,
+        /// Skip the confirmation prompt.
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+}
+
+/// The runners gaki makes profiles for.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(crate) enum RunnerArg {
+    Proton,
+    Native,
+}
+
+impl From<RunnerArg> for libgaki::config::Runner {
+    fn from(arg: RunnerArg) -> Self {
+        match arg {
+            RunnerArg::Proton => Self::Proton,
+            RunnerArg::Native => Self::Native,
+        }
+    }
+}
+
+/// A profile's settings for `profiles new|set`; each `--no-*` removes one.
+#[derive(clap::Args, Debug, Default)]
+pub(crate) struct ProfileArgs {
+    /// The prefix: Proton's `STEAM_COMPAT_DATA_PATH`, shared by the
+    /// profile's games (`~` works). Unset gives each game its own.
+    #[arg(long, value_name = "DIR")]
+    pub(crate) prefix: Option<String>,
+    #[arg(long, conflicts_with = "prefix")]
+    pub(crate) no_prefix: bool,
+    /// The Proton build: an official build name or a path.
+    #[arg(long, value_name = "BUILD")]
+    pub(crate) proton: Option<String>,
+    /// Remove the Proton build (`default_proton` applies).
+    #[arg(long, conflicts_with = "proton")]
+    pub(crate) no_proton: bool,
+    /// Steam integration: `auto`, `host` or `none`.
+    #[arg(long, value_name = "MODE")]
+    pub(crate) steam: Option<SteamArg>,
+    #[arg(long, conflicts_with = "steam")]
+    pub(crate) no_steam: bool,
+    /// Wrap every launch in this command; repeat for several, outermost
+    /// first. Replaces the profile's wrappers.
+    #[arg(short = 'w', long = "wrapper", value_name = "COMMAND")]
+    pub(crate) wrappers: Vec<String>,
+    #[arg(short = 'W', long, conflicts_with = "wrappers")]
+    pub(crate) no_wrappers: bool,
+    /// Pass this to the runner, before the game's own arguments; repeat for
+    /// several. Replaces the profile's.
+    #[arg(long = "runner-arg", value_name = "ARG", allow_hyphen_values = true)]
+    pub(crate) runner_args: Vec<String>,
+    #[arg(long, conflicts_with = "runner_args")]
+    pub(crate) no_runner_args: bool,
+    /// Turn the runner's own logging on.
+    #[arg(long)]
+    pub(crate) debug: bool,
+    #[arg(long, conflicts_with = "debug")]
+    pub(crate) no_debug: bool,
+    /// Set a launch variable; repeat for several.
+    #[arg(short = 'e', long = "env", value_name = "KEY=VALUE")]
+    pub(crate) env: Vec<String>,
+    /// Remove one launch variable; repeat for several.
+    #[arg(short = 'u', long = "unset-env", value_name = "KEY")]
+    pub(crate) unset_env: Vec<String>,
+    /// Remove every launch variable (before any `--env`).
+    #[arg(short = 'E', long)]
+    pub(crate) no_env: bool,
+    /// Override a Wine DLL: `NAME=MODE` (`winhttp=n,b`); repeat for several.
+    #[arg(long = "dll", value_name = "NAME=MODE")]
+    pub(crate) dlls: Vec<String>,
+    /// Remove one DLL override; repeat for several.
+    #[arg(long = "unset-dll", value_name = "NAME")]
+    pub(crate) unset_dlls: Vec<String>,
+    /// Remove every DLL override (before any `--dll`).
+    #[arg(long)]
+    pub(crate) no_dlls: bool,
+    /// Where the profile's games keep shader caches: a directory or `off`.
+    #[arg(long, value_name = "DIR|off")]
+    pub(crate) shader_cache: Option<String>,
+    #[arg(long, conflicts_with = "shader_cache")]
+    pub(crate) no_shader_cache: bool,
 }
 
 #[cfg(feature = "store")]

@@ -396,3 +396,202 @@ fn truncate(s: &str, max: usize) -> String {
     let cut: String = s.chars().take(max.saturating_sub(1)).collect();
     format!("{cut}…")
 }
+
+/// The draft `gaki-cli review` flags make, over `existing` when there is
+/// one. `text` is the new text, when one was given.
+pub(crate) fn review_draft(
+    args: &crate::cli::ReviewArgs,
+    existing: Option<&store::OwnReview>,
+    text: Option<String>,
+) -> Result<store::ReviewDraft> {
+    let pick = |on: bool, off: bool, current: Option<bool>, new: bool| {
+        if on {
+            true
+        } else if off {
+            false
+        } else {
+            current.unwrap_or(new)
+        }
+    };
+    let voted_up = match (args.up, args.down, existing) {
+        (true, _, _) => true,
+        (_, true, _) => false,
+        (_, _, Some(review)) => review.voted_up,
+        (_, _, None) => anyhow::bail!("a new review needs --up or --down"),
+    };
+    let current = existing.map(store::OwnReview::draft);
+    let current = current.as_ref();
+    let text = text
+        .or_else(|| current.map(|d| d.text.clone()))
+        .unwrap_or_default();
+    Ok(store::ReviewDraft {
+        text,
+        voted_up,
+        is_public: pick(
+            args.public,
+            args.private,
+            current.map(|d| d.is_public),
+            true,
+        ),
+        language: args
+            .language
+            .clone()
+            .or_else(|| current.and_then(|d| d.language.clone())),
+        received_compensation: pick(
+            args.free,
+            args.paid,
+            current.map(|d| d.received_compensation),
+            false,
+        ),
+        comments_disabled: pick(
+            args.no_comments,
+            args.comments,
+            current.map(|d| d.comments_disabled),
+            false,
+        ),
+    })
+}
+
+/// The text from `-m`, `-F` (`-` is stdin), or the editor (`-e`, or a new
+/// review) when stdin is a terminal; `None` keeps the current text.
+fn review_text(args: &crate::cli::ReviewArgs, current: Option<&str>) -> Result<Option<String>> {
+    use std::io::{IsTerminal, Read};
+    if let Some(text) = &args.message {
+        return Ok(Some(text.clone()));
+    }
+    if let Some(path) = &args.file {
+        let mut text = String::new();
+        if path.as_os_str() == "-" {
+            std::io::stdin().read_to_string(&mut text)?;
+        } else {
+            text = std::fs::read_to_string(path)
+                .map_err(|e| anyhow::anyhow!("could not read {}: {e}", path.display()))?;
+        }
+        return Ok(Some(text));
+    }
+    // Changing only a flag keeps the text.
+    if current.is_some() && !args.edit {
+        return Ok(None);
+    }
+    if !std::io::stdin().is_terminal() {
+        anyhow::bail!("give the review's text with -m or -F; there's no terminal for an editor");
+    }
+    edit_text(current.unwrap_or_default()).map(Some)
+}
+
+/// Opens `$VISUAL`/`$EDITOR` (or `vi`) on `text` and returns what was saved.
+fn edit_text(text: &str) -> Result<String> {
+    let editor = std::env::var("VISUAL")
+        .or_else(|_| std::env::var("EDITOR"))
+        .ok()
+        .filter(|e| !e.trim().is_empty())
+        .unwrap_or_else(|| "vi".into());
+    let path = std::env::temp_dir().join(format!("gaki-review-{}.txt", std::process::id()));
+    std::fs::write(&path, text)?;
+    let mut words = editor.split_whitespace();
+    let program = words.next().unwrap_or("vi");
+    let status = std::process::Command::new(program)
+        .args(words)
+        .arg(&path)
+        .status()
+        .map_err(|e| anyhow::anyhow!("could not start {program}: {e}"));
+    let text = std::fs::read_to_string(&path);
+    let _ = std::fs::remove_file(&path);
+    if !status?.success() {
+        anyhow::bail!("{program} failed; nothing posted");
+    }
+    Ok(text?)
+}
+
+fn print_review(review: &store::OwnReview) {
+    let verdict = if review.voted_up {
+        "👍 Recommended"
+    } else {
+        "👎 Not recommended"
+    };
+    let mut notes = vec![if review.is_public {
+        "public"
+    } else {
+        "friends only"
+    }];
+    if review.received_compensation {
+        notes.push("received for free");
+    }
+    if review.comments_disabled {
+        notes.push("comments off");
+    }
+    cli_println!(
+        "{verdict}  {}  {}{}",
+        unix_to_ymd(review.created as i64),
+        notes.join(", "),
+        if review.updated > review.created {
+            format!(", updated {}", unix_to_ymd(review.updated as i64))
+        } else {
+            String::new()
+        }
+    );
+    cli_println!(
+        "{} helpful, {} not, {} funny, {} comments",
+        review.votes_up,
+        review.votes_down,
+        review.votes_funny,
+        review.comments
+    );
+    for line in review.text.lines() {
+        cli_println!("   {line}");
+    }
+}
+
+/// `gaki-cli review APPID [--up|--down] [-m TEXT|-F FILE] …`.
+pub(crate) async fn cmd_review(args: crate::cli::ReviewArgs) -> Result<()> {
+    let client = authed_client().await?;
+    let existing = store::my_review(&client, args.app_id).await?;
+    if !args.writes() {
+        match &existing {
+            Some(review) => print_review(review),
+            None => cli_println!(
+                "You haven't reviewed app {}. Write one with `gaki-cli review {} --up` or `--down`.",
+                args.app_id,
+                args.app_id
+            ),
+        }
+        return Ok(());
+    }
+    // Check the verdict before opening the editor.
+    review_draft(&args, existing.as_ref(), Some(String::new()))?;
+    let text = review_text(&args, existing.as_ref().map(|r| r.text.as_str()))?;
+    let draft = review_draft(&args, existing.as_ref(), text)?;
+    if let Some(problem) = draft.check() {
+        anyhow::bail!("{problem}; nothing posted");
+    }
+    let what = if existing.is_some() {
+        "Replace your review of"
+    } else {
+        "Post a review of"
+    };
+    let verdict = if draft.voted_up {
+        "recommended"
+    } else {
+        "not recommended"
+    };
+    let who = if draft.is_public {
+        "public"
+    } else {
+        "friends only"
+    };
+    confirm_write(
+        &format!(
+            "{what} app {} ({verdict}, {who}, {} characters)? [y/N] ",
+            args.app_id,
+            draft.text.trim().chars().count()
+        ),
+        args.yes,
+    )?;
+    match store::write_review(&client, args.app_id, &draft).await? {
+        store::ReviewWritten::Created => cli_println!("Posted your review of app {}.", args.app_id),
+        store::ReviewWritten::Updated => {
+            cli_println!("Updated your review of app {}.", args.app_id)
+        }
+    }
+    Ok(())
+}

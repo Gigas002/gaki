@@ -1,0 +1,51 @@
+syntax = "proto2";
+
+// Minimal subset of Steam's webui/service_userreviews.proto: read your own
+// review of an app and edit it. Field numbers and types match Valve's
+// definitions; the moderation and statistics fields are omitted. Steam has
+// no service method that creates a review (the store's form posts it).
+
+message CUserReviews_GetIndividualRecommendations_Request_RecommendationRequest {
+    optional uint64 steamid = 1;
+    optional uint32 appid = 2;
+}
+
+message CUserReviews_GetIndividualRecommendations_Request {
+    repeated CUserReviews_GetIndividualRecommendations_Request_RecommendationRequest requests = 1;
+}
+
+message RecommendationDetails {
+    optional uint64 recommendationid = 1;
+    optional uint64 steamid = 2;
+    optional uint32 appid = 3;
+    optional string review = 4;
+    optional uint32 time_created = 5;
+    optional uint32 time_updated = 6;
+    optional uint32 votes_up = 7;
+    optional uint32 votes_down = 8;
+    optional string language = 10;
+    optional uint32 comment_count = 11;
+    optional bool voted_up = 12;
+    optional bool is_public = 13;
+    optional uint32 votes_funny = 24;
+    optional bool received_compensation = 25;
+    optional bool comments_disabled = 34;
+}
+
+message CUserReviews_GetIndividualRecommendations_Response {
+    repeated RecommendationDetails recommendations = 1;
+}
+
+message CUserReviews_Update_Request {
+    optional uint64 recommendationid = 1;
+    optional string review_text = 2;
+    optional bool voted_up = 3;
+    optional bool is_public = 4;
+    optional string language = 5;
+    optional bool is_in_early_access = 6;
+    optional bool received_compensation = 7;
+    optional bool comments_disabled = 8;
+}
+
+message CUserReviews_Update_Response {
+}

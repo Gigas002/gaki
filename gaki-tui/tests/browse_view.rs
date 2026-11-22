@@ -137,10 +137,16 @@ fn install_picker_lists_libraries_and_marks_choice() {
         gaki_tui::app::steam::LibraryFolder {
             path: "C:\\SteamLibrary".to_string(),
             free_bytes: Some(2_000_000_000),
+            kind: "Steam layout",
+            active: true,
+            setting: "C:\\SteamLibrary".to_string(),
         },
         gaki_tui::app::steam::LibraryFolder {
             path: "D:\\Games\\SteamLibrary".to_string(),
             free_bytes: Some(80_000_000_000),
+            kind: "gaki layout",
+            active: false,
+            setting: "D:\\Games\\SteamLibrary".to_string(),
         },
     ];
     browser.install_estimate = Some(50_000_000_000); // ~50 GB: too big for C:, fits D:
@@ -180,6 +186,10 @@ fn install_picker_lists_libraries_and_marks_choice() {
     assert!(
         marked.contains("D:\\Games\\SteamLibrary"),
         "the marker is on the chosen library, got: {marked}"
+    );
+    assert!(
+        marked.contains("gaki layout"),
+        "the layout is shown: {marked}"
     );
     // The estimate header and per-drive free space are shown.
     assert!(joined.contains("on disk"), "estimated install size shown");

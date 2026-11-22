@@ -1,5 +1,5 @@
 use super::*;
-use libgaki::ops::store::{Listing, PriceQuote, Prices};
+use libgaki::ops::store::{Listing, OwnReview, PriceQuote, Prices, ReviewWritten};
 use libgaki::web::discovery::ReviewPage;
 
 fn quote(country: &str) -> PriceQuote {
@@ -131,4 +131,175 @@ fn close_drops_the_view() {
     browser.close_store();
     assert!(browser.store.is_none());
     assert!(!browser.overlay_open());
+}
+
+fn reviews_view(mine: Option<OwnReview>) -> StoreView {
+    let mut view = loaded_view();
+    view.section = Section::Reviews;
+    view.mine = Some(Load::Ready(mine));
+    view
+}
+
+fn own_review() -> OwnReview {
+    OwnReview {
+        id: 9,
+        app_id: 620,
+        text: "Short.".into(),
+        voted_up: false,
+        is_public: false,
+        language: "english".into(),
+        received_compensation: false,
+        comments_disabled: true,
+        created: 1_700_000_000,
+        updated: 1_700_000_000,
+        votes_up: 3,
+        votes_down: 0,
+        votes_funny: 1,
+        comments: 0,
+    }
+}
+
+fn screen(view: &StoreView) -> String {
+    let mut terminal = ratatui::Terminal::new(ratatui::backend::TestBackend::new(100, 24)).unwrap();
+    terminal
+        .draw(|frame| crate::ui::store::draw(frame, frame.area(), view))
+        .unwrap();
+    let buffer = terminal.backend().buffer();
+    (0..buffer.area.height)
+        .map(|y| {
+            (0..buffer.area.width)
+                .map(|x| buffer[(x, y)].symbol())
+                .collect::<String>()
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+#[test]
+fn the_composer_starts_from_your_review_and_edits_it() {
+    let mut browser = browser_with(reviews_view(Some(own_review())));
+    let text = screen(browser.store.as_ref().unwrap());
+    assert!(text.contains("Your review"), "{text}");
+    assert!(text.contains("Short."), "{text}");
+    assert!(text.contains("[w] write your review"), "{text}");
+
+    browser.begin_review();
+    assert!(browser.review_composer_open());
+    for c in " Fun.".chars() {
+        browser.review_push(c);
+    }
+    browser.review_push('\n');
+    browser.review_push('x');
+    browser.review_pop();
+    browser.review_toggle(ReviewToggle::Verdict);
+    browser.review_toggle(ReviewToggle::Visibility);
+    browser.review_toggle(ReviewToggle::Comments);
+    let composer = browser.store.as_ref().unwrap().composer.clone().unwrap();
+    assert!(composer.replaces);
+    assert_eq!(composer.draft.text, "Short. Fun.\n");
+    assert!(composer.draft.voted_up && composer.draft.is_public);
+    assert!(!composer.draft.comments_disabled);
+    let text = screen(browser.store.as_ref().unwrap());
+    assert!(text.contains("Changing your review"), "{text}");
+    assert!(text.contains("▲ Recommended"), "{text}");
+    assert!(text.contains("[ctrl+s] post"), "{text}");
+
+    // The y/n: no goes back to the draft, typing is ignored meanwhile.
+    browser.submit_review();
+    assert!(browser.review_confirming());
+    browser.review_push('z');
+    let text = screen(browser.store.as_ref().unwrap());
+    assert!(
+        text.contains("Replace your review on Steam (public)?"),
+        "{text}"
+    );
+    browser.answer_review(false);
+    assert!(!browser.review_confirming());
+    assert_eq!(
+        browser
+            .store
+            .as_ref()
+            .unwrap()
+            .composer
+            .as_ref()
+            .unwrap()
+            .draft
+            .text,
+        "Short. Fun.\n"
+    );
+    browser.cancel_review();
+    assert!(!browser.review_composer_open());
+}
+
+#[test]
+fn a_new_review_needs_text_and_a_failed_post_keeps_the_draft() {
+    let mut browser = browser_with(reviews_view(None));
+    let text = screen(browser.store.as_ref().unwrap());
+    assert!(text.contains("You haven't reviewed it"), "{text}");
+    browser.begin_review();
+    let composer = browser.store.as_ref().unwrap().composer.clone().unwrap();
+    assert!(!composer.replaces && composer.draft.voted_up && composer.draft.is_public);
+    browser.submit_review();
+    assert!(!browser.review_confirming());
+    assert!(
+        browser
+            .store
+            .as_ref()
+            .unwrap()
+            .review_status
+            .contains("needs some text"),
+        "{}",
+        browser.store.as_ref().unwrap().review_status
+    );
+
+    browser.review_push('k');
+    browser.submit_review();
+    assert!(browser.review_confirming());
+    // A post that fails comes back to the draft.
+    let view = browser.store.as_mut().unwrap();
+    view.posting = Some(Load::Loading(std::sync::Arc::new(std::sync::Mutex::new(
+        Some(Err("refused".to_string())),
+    ))));
+    browser.poll_store();
+    let view = browser.store.as_ref().unwrap();
+    assert!(
+        view.review_status.contains("refused"),
+        "{}",
+        view.review_status
+    );
+    assert!(!view.composer.as_ref().unwrap().confirming);
+
+    // One that works closes the composer and reloads yours.
+    let view = browser.store.as_mut().unwrap();
+    view.section = Section::Price;
+    view.posting = Some(Load::Loading(std::sync::Arc::new(std::sync::Mutex::new(
+        Some(Ok(ReviewWritten::Created)),
+    ))));
+    browser.poll_store();
+    let view = browser.store.as_ref().unwrap();
+    assert_eq!(view.review_status, "Posted your review.");
+    assert!(view.composer.is_none() && view.mine.is_none());
+}
+
+#[test]
+fn write_review_is_for_the_reviews_section_once_yours_loaded() {
+    let mut browser = browser_with(loaded_view());
+    browser.begin_review();
+    assert!(!browser.review_composer_open());
+    let mut view = loaded_view();
+    view.section = Section::Reviews;
+    view.mine = Some(Load::Loading(std::sync::Arc::new(std::sync::Mutex::new(
+        None,
+    ))));
+    let mut browser = browser_with(view);
+    browser.begin_review();
+    assert!(!browser.review_composer_open());
+    assert!(
+        browser
+            .store
+            .as_ref()
+            .unwrap()
+            .review_status
+            .contains("Still loading")
+    );
 }

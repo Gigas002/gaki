@@ -142,10 +142,22 @@ pub fn edit_env(
     unset: &[String],
     set: &std::collections::BTreeMap<String, String>,
 ) -> bool {
+    edit_map(table, "env", clear, unset, set)
+}
+
+/// [`edit_env`] for any string table under `key` (a profile's
+/// `dll_overrides` too).
+pub fn edit_map(
+    table: &mut Table,
+    key: &str,
+    clear: bool,
+    unset: &[String],
+    set: &std::collections::BTreeMap<String, String>,
+) -> bool {
     if !clear && unset.is_empty() && set.is_empty() {
         return false;
     }
-    let mut env = match table.remove("env") {
+    let mut env = match table.remove(key) {
         Some(Item::Table(env)) => env,
         Some(Item::Value(Value::InlineTable(inline))) => inline.into_table(),
         // Anything else isn't a valid `env`; replace it.
@@ -163,7 +175,7 @@ pub fn edit_env(
     }
     let changed = env.to_string() != before;
     if !env.is_empty() {
-        table.insert("env", Item::Table(env));
+        table.insert(key, Item::Table(env));
     }
     changed
 }

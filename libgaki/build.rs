@@ -12,6 +12,7 @@ fn main() {
         ),
         ("STORE", "proto/service_storequery.proto", "storequery"),
         ("STORE", "proto/service_wishlist.proto", "wishlist"),
+        ("STORE", "proto/service_userreviews.proto", "userreviews"),
     ] {
         println!("cargo:rerun-if-changed={proto}");
         if std::env::var_os(format!("CARGO_FEATURE_{feature}")).is_none() {

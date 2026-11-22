@@ -667,5 +667,8 @@ async fn installed_platforms(app_id: u32) -> Option<(bool, bool)> {
     crate::library::platform::detect_installed_platform_set(&info.install_path.to_string_lossy())
 }
 
+mod profiles;
+pub use profiles::{ProfileChange, create_profile, delete_profile, update_profile};
+
 #[cfg(test)]
 mod tests;

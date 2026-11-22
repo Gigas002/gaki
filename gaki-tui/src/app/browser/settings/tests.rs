@@ -14,9 +14,9 @@ fn every_config_key_has_a_spec_in_order() {
 #[test]
 fn a_toggle_flips_from_its_default() {
     let edit = spec("cloud_sync").edit;
-    assert_eq!(next_value(edit, None, &[]), Some(Some("false".into())));
+    assert_eq!(next_value(edit, None, &[], &[]), Some(Some("false".into())));
     assert_eq!(
-        next_value(edit, Some("false"), &[]),
+        next_value(edit, Some("false"), &[], &[]),
         Some(Some("true".into()))
     );
 }
@@ -24,9 +24,12 @@ fn a_toggle_flips_from_its_default() {
 #[test]
 fn a_choice_with_a_default_cycles_its_options() {
     let edit = spec("presence").edit;
-    assert_eq!(next_value(edit, None, &[]), Some(Some("online".into())));
     assert_eq!(
-        next_value(edit, Some("online"), &[]),
+        next_value(edit, None, &[], &[]),
+        Some(Some("online".into()))
+    );
+    assert_eq!(
+        next_value(edit, Some("online"), &[], &[]),
         Some(Some("offline".into()))
     );
 }
@@ -34,31 +37,61 @@ fn a_choice_with_a_default_cycles_its_options() {
 #[test]
 fn an_optional_choice_steps_through_unset() {
     let edit = spec("default_platform").edit;
-    assert_eq!(next_value(edit, None, &[]), Some(Some("windows".into())));
     assert_eq!(
-        next_value(edit, Some("windows"), &[]),
+        next_value(edit, None, &[], &[]),
+        Some(Some("windows".into()))
+    );
+    assert_eq!(
+        next_value(edit, Some("windows"), &[], &[]),
         Some(Some("linux".into()))
     );
-    assert_eq!(next_value(edit, Some("linux"), &[]), Some(None));
+    assert_eq!(next_value(edit, Some("linux"), &[], &[]), Some(None));
 }
 
 #[test]
 fn profiles_cycle_and_a_missing_one_starts_over() {
     let edit = spec("default_profile").edit;
     let profiles = vec!["a".to_string(), "b".to_string()];
-    assert_eq!(next_value(edit, None, &profiles), Some(Some("a".into())));
-    assert_eq!(next_value(edit, Some("b"), &profiles), Some(None));
     assert_eq!(
-        next_value(edit, Some("gone"), &profiles),
+        next_value(edit, None, &profiles, &[]),
+        Some(Some("a".into()))
+    );
+    assert_eq!(next_value(edit, Some("b"), &profiles, &[]), Some(None));
+    assert_eq!(
+        next_value(edit, Some("gone"), &profiles, &[]),
         Some(None),
         "an unknown value goes to the first step"
     );
-    assert_eq!(next_value(edit, None, &[]), Some(None), "no profiles");
+    assert_eq!(next_value(edit, None, &[], &[]), Some(None), "no profiles");
+}
+
+#[test]
+fn libraries_cycle_and_e_types_one() {
+    let edit = spec("steam_library").edit;
+    let libraries = ["~/games".to_string(), "~/.local/share/Steam".to_string()];
+    assert_eq!(
+        next_value(edit, Some("~/games"), &[], &libraries),
+        Some(Some("~/.local/share/Steam".into()))
+    );
+    assert_eq!(
+        next_value(edit, Some("~/.local/share/Steam"), &[], &libraries),
+        Some(Some("~/games".into()))
+    );
+    // None known: Enter types one.
+    assert_eq!(next_value(edit, None, &[], &[]), None);
+
+    let mut browser = Browser::new(Vec::new());
+    browser.settings = SettingsView::with_values(vec![None; SPECS.len()]);
+    let index = SPECS.iter().position(|s| s.key == "steam_library").unwrap();
+    browser.settings.values[index] = Some("~/games".into());
+    browser.settings.selected = index;
+    browser.settings_type();
+    assert_eq!(browser.settings.input.as_deref(), Some("~/games"));
 }
 
 #[test]
 fn prompts_are_not_stepped() {
-    assert_eq!(next_value(spec("proxy").edit, None, &[]), None);
+    assert_eq!(next_value(spec("proxy").edit, None, &[], &[]), None);
 }
 
 #[test]

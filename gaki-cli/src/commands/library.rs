@@ -131,21 +131,48 @@ pub(crate) async fn cmd_account() -> Result<()> {
 /// space on each, one per line: the configured `steam_library` first, then every
 /// other root that contains a `steamapps` directory.
 pub(crate) async fn cmd_libraries() -> Result<()> {
-    let libraries: Vec<(String, Option<u64>)> = library::folders()
-        .await
-        .into_iter()
-        .map(|f| (f.path.to_string_lossy().to_string(), f.free_bytes))
-        .collect();
-
+    let libraries = library::folders().await;
     if libraries.is_empty() {
-        cli_println!("No Steam library folders found.");
-    } else {
-        for (path, free) in &libraries {
-            match free {
-                Some(bytes) => cli_println!("{path}  ({} free)", human_bytes(*bytes)),
-                None => cli_println!("{path}"),
-            }
-        }
+        cli_println!("No library folders found.");
+        return Ok(());
+    }
+    for (i, folder) in libraries.iter().enumerate() {
+        cli_println!("{}", library_line(i + 1, folder));
+    }
+    if !libraries.iter().any(|f| f.active) {
+        cli_println!("\nNone is `steam_library` yet: `gaki-cli libraries use <number|folder>`.");
+    }
+    Ok(())
+}
+
+/// `* 1  /home/me/games  gaki layout  12 games  (120.00 GiB free)`.
+pub(crate) fn library_line(number: usize, folder: &library::LibraryFolder) -> String {
+    let games = match folder.games {
+        1 => "1 game".to_owned(),
+        n => format!("{n} games"),
+    };
+    let free = folder
+        .free_bytes
+        .map(|bytes| format!("  ({} free)", human_bytes(bytes)))
+        .unwrap_or_default();
+    format!(
+        "{} {number}  {}  {}  {games}{free}",
+        if folder.active { "*" } else { " " },
+        folder.path.display(),
+        folder.kind.label(),
+    )
+}
+
+/// `gaki-cli libraries use <number|folder>`.
+pub(crate) async fn cmd_libraries_use(library: &str) -> Result<()> {
+    let folder = library::use_library(library).await?;
+    cli_println!(
+        "Installs go to {} ({}) now.",
+        folder.path.display(),
+        folder.kind.label()
+    );
+    if folder.kind == library::LibraryKind::New {
+        cli_println!("Steam doesn't know it, so it gets gaki's own layout at its first install.");
     }
     Ok(())
 }

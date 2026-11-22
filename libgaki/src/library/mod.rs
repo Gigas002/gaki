@@ -146,6 +146,8 @@ async fn steam_data_roots() -> Vec<PathBuf> {
     });
 
     let mut roots: Vec<PathBuf> = config_path.into_iter().collect();
+    // Every gaki-layout library, so switching `steam_library` hides none.
+    roots.extend(layout::gaki_libraries().into_iter().filter(|p| p.is_dir()));
     roots.extend(steam_root_candidates());
     roots.sort();
     roots.dedup();
@@ -468,6 +470,7 @@ pub async fn all_library_roots() -> Vec<PathBuf> {
             roots.push(p);
         }
     }
+    roots.extend(layout::gaki_libraries().into_iter().filter(|p| p.is_dir()));
     roots.extend(steam_root_candidates());
 
     expand_library_roots(&roots).await
