@@ -147,11 +147,11 @@ fn lootrs_profiles_load_and_lootrs_runners_are_reported() {
         "only the runner is reported: {:?}",
         messages(&issues)
     );
-    // The model is lootrs' own, so serializing keeps lootrs' fields.
+    // The format is shared, so serializing keeps lootrs' fields.
     let back: Profile = toml::from_str(&toml::to_string(&profile).unwrap()).unwrap();
     assert_eq!(back, profile);
     assert_eq!(back.dxvk.as_deref(), Some(Path::new("/opt/dxvk")));
-    assert!(!is_supported(back.runner));
+    assert!(!is_supported(&back));
 
     let native: Profile = toml::from_str("name = \"native\"\nrunner = \"native\"").unwrap();
     assert!(validate_profile(&native, &ctx()).is_empty());
@@ -175,10 +175,10 @@ fn native_profile_warns_about_wine_only_fields() {
 #[test]
 fn dll_override_modes() {
     for ok in ["", "n", "b", "n,b", "b,n", "native", "builtin,native"] {
-        assert!(validate_dll_override(ok).is_ok(), "{ok}");
+        assert!(validate_dll_override("d3d11", ok).is_ok(), "{ok}");
     }
     for bad in ["x", "n,,b", "disabled"] {
-        assert!(validate_dll_override(bad).is_err(), "{bad}");
+        assert!(validate_dll_override("d3d11", bad).is_err(), "{bad}");
     }
 }
 
@@ -227,6 +227,7 @@ fn catalog_checks_references_and_duplicates() {
         profiles: vec![Profile::new("native", Runner::Native)],
         games: vec![first, second],
         load_errors: Vec::new(),
+        load_warnings: Vec::new(),
     };
     let issues = catalog.validate(&ctx());
     let text = messages(&issues).join("\n");
@@ -273,17 +274,51 @@ fn load_reads_every_file_and_keeps_going_past_bad_ones() {
     );
 
     assert_eq!(catalog.load_errors.len(), 2, "{:?}", catalog.load_errors);
-    assert!(
-        catalog
-            .load_errors
-            .iter()
-            .any(|e| matches!(e, LoadError::NameMismatch { stem, .. } if stem == "b"))
+    assert!(catalog.load_errors.iter().any(|e| matches!(
+        e,
+        LoadError::Profile(libgameprofiles::store::Error::NameMismatch { stem, .. })
+            if stem == "b"
+    )));
+    assert!(catalog.load_errors.iter().any(|e| matches!(
+        e,
+        LoadError::Profile(libgameprofiles::store::Error::Parse { .. })
+    ) && e.path().ends_with("broken.toml")));
+}
+
+#[test]
+fn unknown_profile_keys_are_warnings() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    write(
+        root,
+        "profiles/native.toml",
+        "name = \"native\"\nrunner = \"native\"\nfuture_key = 1\n",
     );
+    let catalog = Catalog::load(root, Path::new(HOME));
+    assert!(catalog.load_errors.is_empty());
+    let issues = catalog.validate(&ctx());
     assert!(
-        catalog
-            .load_errors
-            .iter()
-            .any(|e| matches!(e, LoadError::Parse { .. }) && e.path().ends_with("broken.toml"))
+        has(
+            &issues,
+            Severity::Warning,
+            "unknown key `future_key` is ignored"
+        ),
+        "{:?}",
+        messages(&issues)
+    );
+    assert_eq!(issues[0].subject, Subject::Profile("native".into()));
+}
+
+#[test]
+fn slr_profiles_are_sruman_s() {
+    let mut profile = Profile::new("sniper", Runner::Native);
+    profile.slr = Some(SlrSection::new("sniper"));
+    assert!(!is_supported(&profile));
+    let issues = validate_profile(&profile, &ctx());
+    assert!(
+        has(&issues, Severity::Error, "use sruman"),
+        "{:?}",
+        messages(&issues)
     );
 }
 

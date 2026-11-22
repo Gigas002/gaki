@@ -137,7 +137,7 @@ impl Config {
             issues.name(profile);
         }
         if let Some(shader_cache) = &self.shader_cache {
-            issues.shader_cache(shader_cache, ctx.home);
+            issues.shader_cache("shader_cache", shader_cache, ctx.home);
         }
         if let Some(proxy) = &self.proxy
             && !proxy.contains("://")

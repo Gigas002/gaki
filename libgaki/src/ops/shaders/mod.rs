@@ -279,7 +279,8 @@ pub(crate) fn replay_env(
     inherited: impl Fn(&str) -> bool,
     user_env: &BTreeMap<String, String>,
 ) -> Vec<(String, OsString)> {
-    crate::config::ShaderCache::env(dir)
+    // Every variable: the replayer compiles for whichever runner runs the game.
+    crate::config::ShaderCache::env(dir, crate::config::Runner::Proton)
         .into_iter()
         .filter_map(|(key, value)| match user_env.get(key) {
             Some(own) => Some((key.to_owned(), OsString::from(own))),
@@ -500,7 +501,8 @@ pub async fn precache(client: &SteamClient, app_id: u32, options: Options) -> Re
     } else if !options.force_replay && pipelines.replayed == Some(pipelines.manifest_id) {
         Replay::UpToDate
     } else if let Some(replayer) = find_replayer() {
-        if let Err(e) = crate::config::ShaderCache::create_dirs(&dir) {
+        if let Err(e) = crate::config::ShaderCache::create_dirs(&dir, crate::config::Runner::Proton)
+        {
             tracing::warn!(dir = %dir.display(), "can't create the shader cache: {e}");
         }
         let env = replay_env(&dir, |k| std::env::var_os(k).is_some(), &settings.env);

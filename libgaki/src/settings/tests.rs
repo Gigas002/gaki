@@ -33,6 +33,7 @@ fn catalog(default_profile: Option<&str>, games: Vec<Game>) -> Catalog {
         profiles: vec![native(), proton("proton"), proton("other")],
         games,
         load_errors: Vec::new(),
+        load_warnings: Vec::new(),
     }
 }
 
