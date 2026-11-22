@@ -246,6 +246,15 @@ fn unknown_and_unsupported_profiles_are_errors() {
             ..
         }
     ));
+
+    catalog.config.default_profile = Some("slr".into());
+    catalog.profiles.push(Profile {
+        slr: Some(crate::config::SlrSection::new("sniper")),
+        ..Profile::new("slr", Runner::Slr)
+    });
+    let err = run(&catalog, 10, &Overrides::default()).unwrap_err();
+    assert_eq!(err, SettingsError::SlrProfile("slr".into()));
+    assert!(err.to_string().contains("use sruman"), "{err}");
 }
 
 #[test]

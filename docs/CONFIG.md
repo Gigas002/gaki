@@ -116,10 +116,10 @@ winhttp = "n,b"
 
 The format is [libgameprofiles](https://github.com/Gigas002/libgameprofiles),
 shared with lootrs and sruman, so one profile directory can serve all three.
-Other runners' fields (`dxvk`, `vkd3d`, `[wine]`, `[umu]`, and sruman's
-`[slr]`) load, and `config check` warns that gaki ignores them; keys the
-format doesn't know are warnings too. A `native` profile with `[slr]` runs in a
-Steam Linux Runtime, which only sruman launches. lootrs in turn loads `proton`
+Other runners' fields (`dxvk`, `vkd3d`, `[wine]`, `[umu]`, `[slr]`) load,
+and `config check` warns that gaki ignores them; keys the format doesn't know
+are warnings too. `wine` and `umu` profiles are lootrs', and `slr` profiles (a
+Steam Linux Runtime) are sruman's: they load, but gaki doesn't launch them. lootrs in turn loads `proton`
 profiles, `[proton]` and `steam`, but can't launch a `proton` profile.
 `gaki-cli profiles list` and `gaki-cli profiles show <name>` show what gaki
 loaded, which games use each profile, and any problems.
