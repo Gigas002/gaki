@@ -205,3 +205,98 @@ fn the_daemon_argv_rule_matches_clap() {
         );
     }
 }
+
+#[test]
+fn profiles_new_set_delete_parse_into_a_change() {
+    use libgaki::config::Runner;
+    use libgaki::ops::config::Change;
+    let parse = |args: &[&str]| Cli::try_parse_from(args).map(|cli| cli.command);
+    let Ok(Command::Profiles {
+        command:
+            ProfilesCommand::New {
+                name,
+                runner,
+                settings,
+            },
+    }) = parse(&[
+        "gaki-cli",
+        "profiles",
+        "new",
+        "pp",
+        "--prefix",
+        "~/pfx",
+        "-w",
+        "gamemoderun",
+        "--runner-arg",
+        "-v",
+        "-e",
+        "A=1",
+        "--dll",
+        "winhttp=n,b",
+        "--debug",
+    ])
+    else {
+        panic!("expected profiles new");
+    };
+    assert_eq!(name, "pp");
+    assert_eq!(Runner::from(runner), Runner::Proton);
+    let change = crate::commands::profile_change(None, settings).unwrap();
+    assert_eq!(change.prefix, Change::Set("~/pfx".into()));
+    assert_eq!(change.wrappers, Change::Set(vec!["gamemoderun".into()]));
+    assert_eq!(change.runner_args, Change::Set(vec!["-v".into()]));
+    assert_eq!(change.env.set["A"], "1");
+    assert_eq!(change.dll_overrides.set["winhttp"], "n,b");
+    assert_eq!(change.debug, Some(true));
+    assert_eq!(change.proton_build, Change::Keep);
+
+    let Ok(Command::Profiles {
+        command: ProfilesCommand::Set {
+            runner, settings, ..
+        },
+    }) = parse(&[
+        "gaki-cli",
+        "profiles",
+        "set",
+        "pp",
+        "-r",
+        "native",
+        "--no-prefix",
+        "--no-debug",
+        "--no-dlls",
+        "-u",
+        "A",
+    ])
+    else {
+        panic!("expected profiles set");
+    };
+    let change = crate::commands::profile_change(runner.map(Into::into), settings).unwrap();
+    assert_eq!(change.runner, Some(Runner::Native));
+    assert_eq!(change.prefix, Change::Clear);
+    assert_eq!(change.debug, Some(false));
+    assert!(change.dll_overrides.clear);
+    assert_eq!(change.env.unset, ["A"]);
+
+    assert!(
+        parse(&[
+            "gaki-cli",
+            "profiles",
+            "set",
+            "pp",
+            "--prefix",
+            "x",
+            "--no-prefix"
+        ])
+        .is_err()
+    );
+    assert!(parse(&["gaki-cli", "profiles", "new", "pp", "-r", "wine"]).is_err());
+    assert!(matches!(
+        parse(&["gaki-cli", "profiles", "delete", "pp", "-f", "-y"]),
+        Ok(Command::Profiles {
+            command: ProfilesCommand::Delete {
+                force: true,
+                yes: true,
+                ..
+            }
+        })
+    ));
+}

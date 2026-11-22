@@ -585,7 +585,8 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: ProtonCommand,
     },
-    /// List and inspect launch profiles (`profiles/<name>.toml`).
+    /// List, inspect, create, change and delete launch profiles
+    /// (`profiles/<name>.toml`).
     Profiles {
         #[command(subcommand)]
         command: ProfilesCommand,
@@ -1385,7 +1386,7 @@ impl From<PlatformArg> for DepotPlatform {
     }
 }
 
-/// `profiles list|show`.
+/// `profiles list|show|new|set|delete`.
 #[derive(Subcommand)]
 pub(crate) enum ProfilesCommand {
     /// List every profile: runner, Proton build, prefix, and the games using it.
@@ -1395,6 +1396,113 @@ pub(crate) enum ProfilesCommand {
         /// The profile's name (its file name without `.toml`).
         name: String,
     },
+    /// Create a profile (`profiles/<name>.toml`).
+    New {
+        /// The profile's name: letters, digits, `.`, `_` and `-`.
+        name: String,
+        /// What it runs.
+        #[arg(short = 'r', long, value_name = "RUNNER", default_value = "proton")]
+        runner: RunnerArg,
+        #[command(flatten)]
+        settings: ProfileArgs,
+    },
+    /// Change a profile's settings, keeping the file's comments.
+    Set {
+        name: String,
+        /// Switch what it runs.
+        #[arg(short = 'r', long, value_name = "RUNNER")]
+        runner: Option<RunnerArg>,
+        #[command(flatten)]
+        settings: ProfileArgs,
+    },
+    /// Delete a profile's file; its prefix stays.
+    Delete {
+        name: String,
+        /// Delete it even while games or `default_profile` name it.
+        #[arg(short = 'f', long)]
+        force: bool,
+        /// Skip the confirmation prompt.
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+}
+
+/// The runners gaki makes profiles for.
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub(crate) enum RunnerArg {
+    Proton,
+    Native,
+}
+
+impl From<RunnerArg> for libgaki::config::Runner {
+    fn from(arg: RunnerArg) -> Self {
+        match arg {
+            RunnerArg::Proton => Self::Proton,
+            RunnerArg::Native => Self::Native,
+        }
+    }
+}
+
+/// A profile's settings for `profiles new|set`; each `--no-*` removes one.
+#[derive(clap::Args, Debug, Default)]
+pub(crate) struct ProfileArgs {
+    /// The prefix: Proton's `STEAM_COMPAT_DATA_PATH`, shared by the
+    /// profile's games (`~` works). Unset gives each game its own.
+    #[arg(long, value_name = "DIR")]
+    pub(crate) prefix: Option<String>,
+    #[arg(long, conflicts_with = "prefix")]
+    pub(crate) no_prefix: bool,
+    /// The Proton build: an official build name or a path.
+    #[arg(long, value_name = "BUILD")]
+    pub(crate) proton: Option<String>,
+    /// Remove the Proton build (`default_proton` applies).
+    #[arg(long, conflicts_with = "proton")]
+    pub(crate) no_proton: bool,
+    /// Steam integration: `auto`, `host` or `none`.
+    #[arg(long, value_name = "MODE")]
+    pub(crate) steam: Option<SteamArg>,
+    #[arg(long, conflicts_with = "steam")]
+    pub(crate) no_steam: bool,
+    /// Wrap every launch in this command; repeat for several, outermost
+    /// first. Replaces the profile's wrappers.
+    #[arg(short = 'w', long = "wrapper", value_name = "COMMAND")]
+    pub(crate) wrappers: Vec<String>,
+    #[arg(short = 'W', long, conflicts_with = "wrappers")]
+    pub(crate) no_wrappers: bool,
+    /// Pass this to the runner, before the game's own arguments; repeat for
+    /// several. Replaces the profile's.
+    #[arg(long = "runner-arg", value_name = "ARG", allow_hyphen_values = true)]
+    pub(crate) runner_args: Vec<String>,
+    #[arg(long, conflicts_with = "runner_args")]
+    pub(crate) no_runner_args: bool,
+    /// Turn the runner's own logging on.
+    #[arg(long)]
+    pub(crate) debug: bool,
+    #[arg(long, conflicts_with = "debug")]
+    pub(crate) no_debug: bool,
+    /// Set a launch variable; repeat for several.
+    #[arg(short = 'e', long = "env", value_name = "KEY=VALUE")]
+    pub(crate) env: Vec<String>,
+    /// Remove one launch variable; repeat for several.
+    #[arg(short = 'u', long = "unset-env", value_name = "KEY")]
+    pub(crate) unset_env: Vec<String>,
+    /// Remove every launch variable (before any `--env`).
+    #[arg(short = 'E', long)]
+    pub(crate) no_env: bool,
+    /// Override a Wine DLL: `NAME=MODE` (`winhttp=n,b`); repeat for several.
+    #[arg(long = "dll", value_name = "NAME=MODE")]
+    pub(crate) dlls: Vec<String>,
+    /// Remove one DLL override; repeat for several.
+    #[arg(long = "unset-dll", value_name = "NAME")]
+    pub(crate) unset_dlls: Vec<String>,
+    /// Remove every DLL override (before any `--dll`).
+    #[arg(long)]
+    pub(crate) no_dlls: bool,
+    /// Where the profile's games keep shader caches: a directory or `off`.
+    #[arg(long, value_name = "DIR|off")]
+    pub(crate) shader_cache: Option<String>,
+    #[arg(long, conflicts_with = "shader_cache")]
+    pub(crate) no_shader_cache: bool,
 }
 
 #[cfg(feature = "store")]

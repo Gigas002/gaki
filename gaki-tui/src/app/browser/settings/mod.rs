@@ -5,7 +5,8 @@
 //!   key. Values go through the same validation as `gaki-cli config set`, so
 //!   a bad one is refused with its reason.
 //! * Profiles: each profile with its settings, its file, the games using it
-//!   and its issues; `d` makes it the default.
+//!   and its issues; `d` makes it the default, `a` makes a new one, `Enter`
+//!   edits it and `x` deletes it ([`ProfileEditor`]).
 //! * Check: `gaki-cli config check`, run when the tab is shown; `r` re-runs.
 //! * Daemons: the running `gaki-cli` session daemons; `s` stops the
 //!   highlighted one and `S` all of them, each after a y/n.
@@ -14,6 +15,9 @@ use libgaki::ops::clean::Item as CleanItem;
 use libgaki::ops::daemon::GakiProcess;
 
 use crate::app::browser::job::Load;
+
+mod profile_editor;
+pub use profile_editor::{ProfileEditor, ProfileField};
 
 use super::Browser;
 use crate::app::steam;
@@ -299,6 +303,12 @@ pub struct ProfilesTab {
     pub selected: usize,
     /// The detail pane's scroll, in rows.
     pub scroll: u16,
+    /// The profile editor, when open.
+    pub editor: Option<ProfileEditor>,
+    /// The new profile's name, while typing it.
+    pub creating: Option<String>,
+    /// The profile waiting for the delete y/n.
+    pub confirm_delete: Option<String>,
 }
 
 impl ProfilesTab {
@@ -307,6 +317,9 @@ impl ProfilesTab {
             data: Ok(data),
             selected: 0,
             scroll: 0,
+            editor: None,
+            creating: None,
+            confirm_delete: None,
         }
     }
 
@@ -315,6 +328,9 @@ impl ProfilesTab {
             data: steam::profiles().map_err(|e| e.to_string()),
             selected: 0,
             scroll: 0,
+            editor: None,
+            creating: None,
+            confirm_delete: None,
         }
     }
 

@@ -128,6 +128,12 @@
 # unset = "x"
 # Profiles tab:
 # make_default = "d"
+# edit_profile = ["Enter", "e"]
+# new_profile = "a"
+# delete_profile = "x"
+# Profile editor (Enter on a profile):
+# edit_field = "Enter"
+# unset_field = "x"
 # Check tab:
 # check_again = "r"
 # Daemons tab:

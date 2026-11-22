@@ -784,6 +784,29 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
             browser.answer_daemon_stop(matches!(input, KeyCode::Char('y' | 'Y')));
         } else if browser.clean_confirm_open() {
             browser.answer_clean(matches!(input, KeyCode::Char('y' | 'Y')));
+        } else if browser.profile_delete_confirm_open() {
+            browser.answer_delete_profile(matches!(input, KeyCode::Char('y' | 'Y')));
+        } else if browser.profile_prompt_open() {
+            match input {
+                KeyCode::Esc => browser.cancel_profile_edit_input(),
+                KeyCode::Char('\n') | KeyCode::Enter => browser.commit_profile_edit_input(),
+                KeyCode::Backspace => browser.profile_edit_input_pop(),
+                KeyCode::Char(c) => browser.profile_edit_input_push(c),
+                _ => {}
+            }
+        } else if browser.profile_editor_open() {
+            use crate::keymap::SettingsAction as S;
+            match own::<S>(key, Some("profile_editor")) {
+                _ if input == KeyCode::Esc => browser.close_profile_editor(),
+                Some(S::EditField) => browser.profile_field_activate(),
+                Some(S::UnsetField) => browser.profile_field_unset(),
+                _ => match common(key) {
+                    Some(O::Close) => browser.close_profile_editor(),
+                    Some(O::Down) => browser.profile_field_move(1),
+                    Some(O::Up) => browser.profile_field_move(-1),
+                    _ => {}
+                },
+            }
         } else if browser.settings.input.is_some() {
             match input {
                 KeyCode::Esc => browser.cancel_settings_input(),
@@ -808,6 +831,10 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
                 Some(S::Edit) => browser.settings_activate(),
                 Some(S::Unset) => browser.settings_unset(),
                 Some(S::MakeDefault) => browser.make_profile_default(),
+                Some(S::EditProfile) => browser.edit_profile(),
+                Some(S::NewProfile) => browser.begin_new_profile(),
+                Some(S::DeleteProfile) => browser.begin_delete_profile(),
+                Some(S::EditField | S::UnsetField) => {}
                 Some(S::CheckAgain) => browser.rerun_check(),
                 Some(S::StopDaemon) => browser.begin_daemon_stop(false),
                 Some(S::StopAllDaemons) => browser.begin_daemon_stop(true),

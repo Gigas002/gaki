@@ -684,6 +684,17 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Profiles { command } => match command {
             ProfilesCommand::List => cmd_profiles_list(),
             ProfilesCommand::Show { name } => cmd_profiles_show(&name),
+            ProfilesCommand::New {
+                name,
+                runner,
+                settings,
+            } => cmd_profiles_new(&name, runner.into(), settings),
+            ProfilesCommand::Set {
+                name,
+                runner,
+                settings,
+            } => cmd_profiles_set(&name, runner.map(Into::into), settings),
+            ProfilesCommand::Delete { name, force, yes } => cmd_profiles_delete(&name, force, yes),
         },
         #[cfg(feature = "authentication")]
         Command::Kill => cmd_kill(),

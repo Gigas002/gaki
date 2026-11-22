@@ -177,8 +177,17 @@ and profile directories after a library reload (`r`).
 - **Profiles** lists the profiles, the default one marked. Beside the
   highlighted profile it shows its file, its issues, the games whose
   `games.toml` entry names it, and its settings as they read in the file
-  (`PgUp` / `PgDn` scroll them). `d` makes it the default profile. Profile
-  files themselves are edited by hand.
+  (`PgUp` / `PgDn` scroll them). `d` makes it the default profile, `a`
+  makes a new one (it asks for the name and opens the editor), and `x`
+  deletes the highlighted one after a y/n (its prefix stays; one that a game
+  or `default_profile` names isn't deleted). `Enter` or `e` opens the
+  editor: one row per setting (runner, prefix, Proton build, Steam,
+  wrappers, runner arguments, debug, variables, DLL overrides, shader
+  cache). `Enter` flips or steps a row, or types it (quote words with
+  spaces; empty removes it), `x` removes it, and `Esc` goes back. Each change
+  is saved at once, keeping the file's comments, and one that would break
+  the profile is refused with the reason. lootrs' and sruman's profiles
+  aren't edited here.
 - **Check** runs `gaki-cli config check` each time you open the tab: files
   that didn't load, then errors, then warnings, or "No problems found."
   `r` checks again.

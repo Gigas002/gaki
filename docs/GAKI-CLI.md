@@ -305,7 +305,21 @@ gaki-cli config game 292030 --no-args --no-env   # drop the arguments and variab
 gaki-cli config clear-games           # remove every games.toml entry (asks first)
 gaki-cli profiles list
 gaki-cli profiles show proton
+gaki-cli profiles new proton-shared --prefix ~/prefixes/shared --proton experimental
+gaki-cli profiles new linux -r native -w gamemoderun
+gaki-cli profiles set proton-shared -e DXVK_HUD=fps --dll winhttp=n,b --debug
+gaki-cli profiles set proton-shared --no-prefix -u DXVK_HUD   # --no-* removes a setting
+gaki-cli profiles delete proton-shared   # asks first; its prefix stays
 ```
+
+`profiles new` and `profiles set` take the same flags: `--prefix`,
+`--proton`, `--steam`, `--wrapper`, `--runner-arg`, `--debug`, `--env`,
+`--unset-env`, `--dll`, `--unset-dll` and `--shader-cache`, each with a
+`--no-*` that removes it; `set -r` switches the runner. An edit keeps the
+file's comments, and one that would give the profile a new error is
+refused. gaki edits only `proton` and `native` profiles; lootrs' and
+sruman's are theirs. `delete` refuses a profile that `default_profile` or a
+game names, unless `--force`.
 
 [CONFIG.md](CONFIG.md) covers every file and key.
 

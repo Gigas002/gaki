@@ -535,8 +535,9 @@ fn settings_highlight_stays_visible() {
 /// highlighted one's file, games, issues and TOML.
 #[test]
 fn settings_profiles_tab_renders() {
-    use gaki_tui::app::browser::settings::{ProfilesTab, Tab};
+    use gaki_tui::app::browser::settings::{ProfileEditor, ProfilesTab, Tab};
     use gaki_tui::app::steam::{ProfileRow, Profiles};
+    use libgaki::config::{Profile, Runner};
     let mut view = SettingsView::with_values(vec![None; SPECS.len()]);
     view.tab = Tab::Profiles;
     let mut tab = ProfilesTab::with(Profiles {
@@ -549,12 +550,18 @@ fn settings_profiles_tab_renders() {
                 games: vec!["portal (400)".into()],
                 issues: Vec::new(),
                 toml: "name = \"proton\"\nrunner = \"proton\"\n".into(),
+                profile: Profile::new("proton", Runner::Proton),
+                editable: true,
             },
             ProfileRow {
                 name: "wine".into(),
                 path: "/cfg/profiles/wine.toml".into(),
+                is_default: false,
+                games: Vec::new(),
                 issues: vec!["error: profile wine: no runner".into()],
-                ..Default::default()
+                toml: String::new(),
+                profile: Profile::new("wine", Runner::Wine),
+                editable: false,
             },
         ],
         errors: vec!["broken.toml: bad syntax".into()],
@@ -574,12 +581,120 @@ fn settings_profiles_tab_renders() {
     assert!(text.contains("runner = \"proton\""), "{text}");
     assert!(text.contains("broken.toml: bad syntax"), "{text}");
     assert!(text.contains("[d] make default"), "{text}");
+    assert!(text.contains("[a] new"), "{text}");
+
+    // The editor replaces the detail pane: one row per setting.
+    let mut editing = tab.clone();
+    editing.editor = Some(ProfileEditor {
+        name: "proton".into(),
+        field: 3,
+        input: None,
+    });
+    view.profiles_tab = Some(editing);
+    let text = settings_screen(&view, 110, 26);
+    assert!(text.contains("Editing proton"), "{text}");
+    assert!(text.contains("Prefix"), "{text}");
+    assert!(text.contains("(each game its own compatdata)"), "{text}");
+    assert!(text.contains("DLL overrides"), "{text}");
+    assert!(text.contains("[x] remove"), "{text}");
 
     tab.selected = 1;
     view.profiles_tab = Some(tab);
     let text = settings_screen(&view, 110, 26);
     assert!(text.contains("no runner"), "{text}");
     assert!(text.contains("no game names it"), "{text}");
+}
+
+/// `a` makes a profile and opens its editor; `Enter` cycles or types a
+/// setting, `x` removes it, and `x` in the list deletes the profile after a
+/// y/n. The file keeps its comments.
+#[test]
+fn settings_profiles_are_created_edited_and_deleted() {
+    use gaki_tui::app::browser::settings::{ProfileField, Tab};
+    isolate_config();
+    let dir = libgaki::core::config::config_dir()
+        .unwrap()
+        .join("profiles");
+    let path = dir.join("tui-made.toml");
+    let _ = std::fs::remove_file(&path);
+    let mut browser = Browser::new(vec![game(1, "Alpha", true)]);
+    browser.settings = SettingsView::with_values(vec![None; SPECS.len()]);
+    browser.settings_tab(true);
+    assert_eq!(browser.settings.tab, Tab::Profiles);
+
+    browser.begin_new_profile();
+    assert!(browser.profile_prompt_open());
+    for c in "tui-made".chars() {
+        browser.profile_edit_input_push(c);
+    }
+    browser.commit_profile_edit_input();
+    assert!(browser.profile_editor_open(), "{}", browser.settings.status);
+    assert!(path.is_file());
+    std::fs::write(&path, std::fs::read_to_string(&path).unwrap() + "# kept\n").unwrap();
+    browser.close_profile_editor();
+    browser.settings_tab(false);
+    browser.settings_tab(true);
+    let row = browser
+        .settings
+        .profiles_tab
+        .as_ref()
+        .unwrap()
+        .data
+        .as_ref()
+        .unwrap()
+        .rows
+        .iter()
+        .position(|r| r.name == "tui-made")
+        .unwrap();
+    browser.settings.profiles_tab.as_mut().unwrap().selected = row;
+    browser.edit_profile();
+
+    let to = |browser: &mut Browser, field: ProfileField| {
+        let index = ProfileField::ALL.iter().position(|f| *f == field).unwrap();
+        browser.profile_field_move(-20);
+        browser.profile_field_move(index as isize);
+    };
+    // Steam cycles: (default) → auto.
+    to(&mut browser, ProfileField::Steam);
+    browser.profile_field_activate();
+    // Variables are typed; a bad one keeps the prompt.
+    to(&mut browser, ProfileField::Env);
+    browser.profile_field_activate();
+    for c in "NOT_A_PAIR".chars() {
+        browser.profile_edit_input_push(c);
+    }
+    browser.commit_profile_edit_input();
+    assert!(browser.profile_prompt_open());
+    assert!(
+        browser.settings.status.starts_with("Invalid"),
+        "{}",
+        browser.settings.status
+    );
+    browser.cancel_profile_edit_input();
+    browser.profile_field_activate();
+    for c in "DXVK_HUD=fps".chars() {
+        browser.profile_edit_input_push(c);
+    }
+    browser.commit_profile_edit_input();
+    // A wrapper, then removed again with `x`.
+    to(&mut browser, ProfileField::Wrappers);
+    browser.profile_field_activate();
+    for c in "mangohud".chars() {
+        browser.profile_edit_input_push(c);
+    }
+    browser.commit_profile_edit_input();
+    browser.profile_field_unset();
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("steam = \"auto\""), "{text}");
+    assert!(text.contains("DXVK_HUD = \"fps\""), "{text}");
+    assert!(!text.contains("mangohud"), "{text}");
+    assert!(text.contains("# kept"), "{text}");
+
+    browser.close_profile_editor();
+    browser.begin_delete_profile();
+    assert!(browser.profile_delete_confirm_open());
+    browser.answer_delete_profile(true);
+    assert!(!path.exists(), "{}", browser.settings.status);
 }
 
 /// The Check tab shows the findings, or that there are none.

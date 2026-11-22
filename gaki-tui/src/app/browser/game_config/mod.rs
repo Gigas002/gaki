@@ -6,7 +6,7 @@ use super::Browser;
 use crate::app::steam;
 
 /// The next value in `None → values[0] → … → values[last] → None`.
-fn cycle<'a, S: AsRef<str>>(current: Option<&str>, values: &'a [S]) -> Option<&'a str> {
+pub(crate) fn cycle<'a, S: AsRef<str>>(current: Option<&str>, values: &'a [S]) -> Option<&'a str> {
     let next = match current {
         None => 0,
         Some(v) => values

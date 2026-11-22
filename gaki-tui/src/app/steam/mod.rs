@@ -733,7 +733,7 @@ pub fn settings_set(key: &str, value: Option<&str>) -> Result<(), TuiError> {
 }
 
 /// A profile as the Settings Profiles tab shows it.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct ProfileRow {
     pub name: String,
     /// Its file.
@@ -744,6 +744,10 @@ pub struct ProfileRow {
     pub issues: Vec<String>,
     /// The profile as TOML, the way its file reads.
     pub toml: String,
+    /// The profile itself, for the editor.
+    pub profile: libgaki::config::Profile,
+    /// gaki runs it (`proton`, `native`) and so edits it.
+    pub editable: bool,
 }
 
 /// The profiles directory, its profiles, and the profile files that didn't
@@ -762,7 +766,9 @@ pub fn profiles() -> Result<Profiles, TuiError> {
         .into_iter()
         .map(|info| ProfileRow {
             toml: toml::to_string_pretty(&info.profile).unwrap_or_default(),
-            name: info.profile.name,
+            editable: libgaki::config::is_supported(&info.profile),
+            name: info.profile.name.clone(),
+            profile: info.profile,
             path: info.path.display().to_string(),
             is_default: info.is_default,
             games: info.games.iter().map(ToString::to_string).collect(),
@@ -870,6 +876,30 @@ pub fn duplicates() -> Result<Vec<DuplicateRow>, TuiError> {
 pub fn profile_names() -> Result<Vec<String>, TuiError> {
     let (_, infos, _) = local(libgaki::ops::config::profiles())?;
     Ok(infos.into_iter().map(|i| i.profile.name).collect())
+}
+
+/// Create a `proton` profile named `name`.
+pub fn profile_create(name: &str) -> Result<(), TuiError> {
+    local(libgaki::ops::config::create_profile(
+        name,
+        libgaki::config::Runner::Proton,
+        &libgaki::ops::config::ProfileChange::default(),
+    ))
+    .map(drop)
+}
+
+/// Apply `change` to profile `name`.
+pub fn profile_update(
+    name: &str,
+    change: &libgaki::ops::config::ProfileChange,
+) -> Result<(), TuiError> {
+    local(libgaki::ops::config::update_profile(name, change)).map(drop)
+}
+
+/// Delete profile `name`'s file; refused while games or `default_profile`
+/// name it.
+pub fn profile_delete(name: &str) -> Result<(), TuiError> {
+    local(libgaki::ops::config::delete_profile(name, false)).map(drop)
 }
 
 /// Set the friends/chat presence, and announce it right away when logged in.

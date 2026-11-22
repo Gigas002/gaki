@@ -122,7 +122,10 @@ are warnings too. `wine` and `umu` profiles are lootrs', and `slr` profiles (a
 Steam Linux Runtime) are sruman's: they load, but gaki doesn't launch them. lootrs in turn loads `proton`
 profiles, `[proton]` and `steam`, but can't launch a `proton` profile.
 `gaki-cli profiles list` and `gaki-cli profiles show <name>` show what gaki
-loaded, which games use each profile, and any problems.
+loaded, which games use each profile, and any problems. `gaki-cli profiles
+new|set|delete` and the TUI's Settings → Profiles tab create, change and
+delete `proton` and `native` profiles without opening the file, keeping its
+comments ([GAKI-CLI.md](GAKI-CLI.md#configuration)).
 
 ## `games.toml`
 
