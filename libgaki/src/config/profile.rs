@@ -1,26 +1,24 @@
 //! `profiles/<name>.toml`: one runner, one prefix, and their environment.
 //!
 //! The format is libgameprofiles' (D9), shared with lootrs and sruman, so one
-//! set of profile files serves all three. gaki launches `proton` and plain
-//! `native`; the other runners' settings load, and gaki leaves them to their
-//! tools. [`validate_profile`] is libgameprofiles' check of the file plus what
+//! set of profile files serves all three. gaki launches `proton` and
+//! `native`; the other runners' profiles load, and gaki leaves them to their
+//! tools (`wine` and `umu` to lootrs, `slr` to sruman). [`validate_profile`] is libgameprofiles' check of the file plus what
 //! a gaki launch needs.
 
 pub use libgameprofiles::{
-    Anticheat, Profile, ProtonSection, Runner, ShaderCache, SlrSection, SteamIntegration,
-    profile::validate_dll_override,
+    Anticheat, LibOverride, Profile, ProtonSection, Runner, ShaderCache, SlrMode, SlrSection,
+    SteamIntegration, profile::validate_dll_override,
 };
 
 use super::issue::{Issue, Issues, Subject, ValidationContext};
 
-/// Whether gaki can launch games with `profile`: `proton`, or `native`
-/// without a Steam Linux Runtime (`[slr]` is sruman's). `wine` and `umu` are
-/// lootrs'.
+/// Whether gaki can launch games with `profile`: `proton` or `native`.
+/// `wine` and `umu` are lootrs', `slr` is sruman's.
 pub fn is_supported(profile: &Profile) -> bool {
     match profile.runner {
-        Runner::Proton => true,
-        Runner::Native => profile.slr.is_none(),
-        Runner::Wine | Runner::Umu => false,
+        Runner::Proton | Runner::Native => true,
+        Runner::Wine | Runner::Umu | Runner::Slr => false,
     }
 }
 
@@ -39,10 +37,12 @@ pub fn validate_profile(profile: &Profile, ctx: &ValidationContext) -> Vec<Issue
         issues.error(format!(
             "runner `{runner}` is a lootrs runner; gaki supports `proton` and `native`"
         ));
-    } else if profile.slr.is_some() {
-        issues.error(
-            "`[slr]` profiles run in a Steam Linux Runtime: use sruman; gaki can't launch them yet",
-        );
+    } else if runner == Runner::Slr {
+        issues.error(SLR_UNSUPPORTED);
     }
     issues.finish()
 }
+
+/// Why an `slr` profile doesn't launch in gaki.
+pub const SLR_UNSUPPORTED: &str =
+    "`slr` profiles run with a Steam Linux Runtime: use sruman; gaki can't launch them yet";

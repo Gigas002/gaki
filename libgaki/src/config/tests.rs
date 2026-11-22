@@ -311,12 +311,31 @@ fn unknown_profile_keys_are_warnings() {
 
 #[test]
 fn slr_profiles_are_sruman_s() {
-    let mut profile = Profile::new("sniper", Runner::Native);
+    let mut profile = Profile::new("sniper", Runner::Slr);
     profile.slr = Some(SlrSection::new("sniper"));
     assert!(!is_supported(&profile));
     let issues = validate_profile(&profile, &ctx());
     assert!(
         has(&issues, Severity::Error, "use sruman"),
+        "{:?}",
+        messages(&issues)
+    );
+
+    // `[slr]` on `native` is ignored: the game runs as a plain native one.
+    profile.runner = Runner::Native;
+    assert!(is_supported(&profile));
+    let issues = validate_profile(&profile, &ctx());
+    assert!(
+        !issues.iter().any(|issue| issue.severity == Severity::Error),
+        "{:?}",
+        messages(&issues)
+    );
+    assert!(
+        has(
+            &issues,
+            Severity::Warning,
+            "`[slr]` is ignored for runner `native`"
+        ),
         "{:?}",
         messages(&issues)
     );
