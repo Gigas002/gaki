@@ -33,6 +33,7 @@ fn how(edit: Edit) -> &'static str {
     match edit {
         Edit::Toggle { .. } => "Enter switches it",
         Edit::Choice { .. } | Edit::Profile => "Enter picks the next value",
+        Edit::Library => "Enter picks the next library, e types a folder",
         Edit::Prompt => "Enter edits it",
     }
 }
@@ -97,6 +98,7 @@ fn footer(view: &SettingsView) -> Vec<Line<'static>> {
     lines.push(dim(hints(&[
         (pair(O::Down, O::Up), "move"),
         (key_of(S::Edit), "edit"),
+        (key_of(S::Type), "type"),
         (key_of(S::Unset), "back to the default"),
         ("Esc".to_string(), "close"),
     ])));

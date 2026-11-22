@@ -1071,6 +1071,12 @@ pub struct LibraryFolder {
     pub path: String,
     /// Free bytes on the drive, if they could be determined.
     pub free_bytes: Option<u64>,
+    /// "Steam layout", "gaki layout" or "new".
+    pub kind: &'static str,
+    /// It's `steam_library`.
+    pub active: bool,
+    /// The path as `steam_library` would be written (`~/…`).
+    pub setting: String,
 }
 
 /// List the Steam library folders games can be installed into, one per
@@ -1083,6 +1089,9 @@ pub fn libraries() -> Result<Vec<LibraryFolder>, TuiError> {
             .map(|f| LibraryFolder {
                 path: f.path.to_string_lossy().into_owned(),
                 free_bytes: f.free_bytes,
+                kind: f.kind.label(),
+                active: f.active,
+                setting: libgaki::ops::library::setting_text(&f.path),
             })
             .collect())
     })

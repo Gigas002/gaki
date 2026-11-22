@@ -164,13 +164,17 @@ in Versions (`V`) and update it.
 brackets when it isn't set. `j` / `k` move; the line under the list says
 what the highlighted key is and what an unset one means. `Enter` edits it:
 a switch flips, a choice steps to the next value (the default profile
-steps through your profiles), and anything else opens a prompt with the
-current value. `x` unsets the key, back to its default. Saving checks the
+steps through your profiles, the library through the libraries gaki
+knows, Steam's and its own layout), and anything else opens a prompt with
+the current value. `e` opens the prompt for any key, e.g. to make a new
+folder the library. `x` unsets the key, back to its default. Saving checks the
 value like `gaki-cli config set`, so a bad one is refused with the reason.
 Changing where the session tokens are kept (`secret_store`) asks first. A
 few keys apply later, and the status line says when: the proxy when gaki next
-starts, `daemon_idle_timeout` when the daemon next starts, and the library
-and profile directories after a library reload (`r`).
+starts, `daemon_idle_timeout` when the daemon next starts, and the profile
+directory after a library reload (`r`). Switching the library only changes
+where installs go: the games in the other libraries stay in the list and
+keep launching. The install picker shows each library's layout.
 
 `Tab` / `Shift-Tab` switch to three more tabs:
 

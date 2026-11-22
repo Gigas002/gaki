@@ -831,6 +831,7 @@ pub(super) fn key(lib: &mut Library, key: Key) -> AppResult<bool> {
                 Some(S::Edit) => browser.settings_activate(),
                 Some(S::Unset) => browser.settings_unset(),
                 Some(S::MakeDefault) => browser.make_profile_default(),
+                Some(S::Type) => browser.settings_type(),
                 Some(S::EditProfile) => browser.edit_profile(),
                 Some(S::NewProfile) => browser.begin_new_profile(),
                 Some(S::DeleteProfile) => browser.begin_delete_profile(),

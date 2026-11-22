@@ -258,10 +258,13 @@ pub(crate) enum Command {
     /// Download and install a game.
     #[cfg(feature = "install")]
     Install(InstallArgs),
-    /// List the Steam library folders games can be installed into (one per
-    /// drive/location).
+    /// List the library folders games can be installed into, Steam's and
+    /// gaki's own layout, or switch the one installs go to.
     #[cfg(feature = "library")]
-    Libraries,
+    Libraries {
+        #[command(subcommand)]
+        command: Option<LibrariesCommand>,
+    },
     /// Export the library to a TOML file, or install the games listed in one.
     #[cfg(feature = "library")]
     Library {
@@ -1322,6 +1325,18 @@ impl ReviewArgs {
             || self.paid
             || self.language.is_some()
     }
+}
+
+/// `gaki-cli libraries` subcommands.
+#[cfg(feature = "library")]
+#[derive(Subcommand, Debug)]
+pub(crate) enum LibrariesCommand {
+    /// Install into this library from now on (sets `steam_library`). Games
+    /// in the others stay where they are and keep working.
+    Use {
+        /// A folder, or a number from `gaki-cli libraries`.
+        library: String,
+    },
 }
 
 /// `list --sort` choices.

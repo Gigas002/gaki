@@ -43,7 +43,8 @@ gaki-cli image 1245620 -o cover.jpg   # save artwork to a file
 gaki-cli image 1245620 --list --probe # every store asset URL, HEAD-checked
 gaki-cli depots 1245620               # list depots
 gaki-cli launch-options 1245620       # Steam launch configs (exe, args, platform)
-gaki-cli libraries                    # Steam library folders and their free space
+gaki-cli libraries                    # library folders (Steam's and gaki's layout), games, free space; * marks steam_library
+gaki-cli libraries use 2              # install into library 2 from now on (or give a folder)
 ```
 
 ### Moving a library to another machine

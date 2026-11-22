@@ -383,7 +383,11 @@ async fn run(cli: Cli) -> Result<()> {
             }
         },
         #[cfg(feature = "library")]
-        Command::Libraries => cmd_libraries().await,
+        Command::Libraries { command: None } => cmd_libraries().await,
+        #[cfg(feature = "library")]
+        Command::Libraries {
+            command: Some(LibrariesCommand::Use { library }),
+        } => cmd_libraries_use(&library).await,
         #[cfg(feature = "library")]
         Command::Library { command } => match command {
             LibraryCommand::Export { path, all } => {

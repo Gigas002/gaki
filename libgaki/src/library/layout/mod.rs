@@ -130,6 +130,24 @@ impl Layout {
     }
 }
 
+/// Every library with gaki's own layout, from its records directory, whether
+/// or not it's the configured one (or its drive is mounted).
+pub fn gaki_libraries() -> Vec<PathBuf> {
+    let Ok(base) = crate::core::config::library_records_dir() else {
+        return Vec::new();
+    };
+    let Ok(entries) = std::fs::read_dir(&base) else {
+        return Vec::new();
+    };
+    let mut roots: Vec<PathBuf> = entries
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|t| t.is_dir()))
+        .filter_map(|entry| entry.file_name().to_str().map(unescape))
+        .collect();
+    roots.sort();
+    roots
+}
+
 /// Where `root`'s records would be in gaki's own layout.
 fn records_dir(root: &Path) -> Option<PathBuf> {
     let base = crate::core::config::library_records_dir().ok()?;

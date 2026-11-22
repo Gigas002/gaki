@@ -30,7 +30,7 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
 
     if browser.install_libraries.is_empty() {
         lines.push(Line::from(Span::styled(
-            "No Steam library folders found.".to_string(),
+            "No library folders found.".to_string(),
             theme::dim(),
         )));
     } else {
@@ -50,6 +50,7 @@ pub fn install_picker(browser: &Browser) -> Paragraph<'static> {
             let mut spans = vec![
                 Span::styled(marker.to_string(), name_style),
                 Span::styled(lib.path.clone(), name_style),
+                Span::styled(format!("  {}", lib.kind), theme::dim()),
             ];
 
             // Free space, dim when it fits and warning-coloured (with a marker)

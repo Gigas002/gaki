@@ -6,13 +6,14 @@ use crate::core::error::{ErrorKind, TypedError};
 use crate::core::models::LibraryGame;
 #[cfg(feature = "collections")]
 use crate::library::collections::CollectionsStore;
+use crate::library::layout::Layout;
 use crate::library::{build_game_library, scan_installed_app_info};
 use crate::steam_client::{AccountData, SharedApp, SteamClient};
 use anyhow::Result;
 use std::collections::HashMap;
 #[cfg(feature = "collections")]
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Build the merged owned + installed library.
 ///
@@ -313,47 +314,171 @@ pub async fn account(client: &SteamClient) -> AccountData {
     data
 }
 
-/// A Steam library folder that can be installed into.
+/// A library's layout ([`crate::library::layout`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LibraryKind {
+    /// Steam's: games in `steamapps/common/`, seen by the Steam client too.
+    Steam,
+    /// gaki's own: games directly in the folder, records in gaki's state dir.
+    Gaki,
+    /// Neither yet: the first install decides (gaki's own when it's the
+    /// configured library).
+    New,
+}
+
+impl LibraryKind {
+    pub fn of(path: &Path) -> Self {
+        if Layout::of(path).is_flat() {
+            Self::Gaki
+        } else if path.join("steamapps").is_dir() {
+            Self::Steam
+        } else {
+            Self::New
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Steam => "Steam layout",
+            Self::Gaki => "gaki layout",
+            Self::New => "new",
+        }
+    }
+}
+
+/// A library folder that can be installed into.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct LibraryFolder {
     pub path: PathBuf,
     /// Free space on its drive, when known.
     pub free_bytes: Option<u64>,
+    pub kind: LibraryKind,
+    /// It's `steam_library`: installs go here unless told otherwise.
+    pub active: bool,
+    /// Games installed in it (its appmanifests).
+    pub games: usize,
+}
+
+impl LibraryFolder {
+    fn of(path: PathBuf, active: bool) -> Self {
+        let games = std::fs::read_dir(Layout::of(&path).steamapps())
+            .map(|entries| {
+                entries
+                    .flatten()
+                    .filter(|e| {
+                        let name = e.file_name();
+                        let name = name.to_string_lossy();
+                        name.starts_with("appmanifest_") && name.ends_with(".acf")
+                    })
+                    .count()
+            })
+            .unwrap_or(0);
+        Self {
+            free_bytes: crate::core::utils::available_space_for(&path),
+            kind: LibraryKind::of(&path),
+            active,
+            games,
+            path,
+        }
+    }
 }
 
 /// The library folders games can be installed into: the configured
-/// `steam_library` first, then every other one that has a `steamapps`
-/// directory.
+/// `steam_library` first, then every other one with a `steamapps`
+/// directory, then gaki's own-layout ones.
 pub async fn folders() -> Vec<LibraryFolder> {
     let configured = crate::core::config::load_launcher_config()
         .await
         .ok()
-        .map(|config| std::path::PathBuf::from(config.steam_library_path))
+        .map(|config| PathBuf::from(config.steam_library_path))
         .filter(|path| !path.as_os_str().is_empty());
-    install_targets(configured, crate::library::all_library_roots().await)
-        .into_iter()
-        .map(|path| LibraryFolder {
-            free_bytes: crate::core::utils::available_space_for(&path),
-            path,
-        })
-        .collect()
+    let active = configured.is_some();
+    install_targets(
+        configured,
+        crate::library::all_library_roots().await,
+        crate::library::layout::gaki_libraries(),
+    )
+    .into_iter()
+    .enumerate()
+    .map(|(i, path)| LibraryFolder::of(path, active && i == 0))
+    .collect()
 }
 
 /// `configured` first, even with nothing installed in it yet (an install
-/// creates its `steamapps/`), then each of `roots` that has a `steamapps/`.
+/// creates its `steamapps/`), then each of `roots` that has a `steamapps/`,
+/// then each of `gaki` (own-layout libraries) whose folder is there.
 fn install_targets(
-    configured: Option<std::path::PathBuf>,
-    roots: Vec<std::path::PathBuf>,
-) -> Vec<std::path::PathBuf> {
+    configured: Option<PathBuf>,
+    roots: Vec<PathBuf>,
+    gaki: Vec<PathBuf>,
+) -> Vec<PathBuf> {
     // `roots` are canonical, so compare against the canonical configured path.
     let configured = configured.map(|path| std::fs::canonicalize(&path).unwrap_or(path));
-    let mut targets: Vec<_> = configured.iter().cloned().collect();
-    targets.extend(
-        roots
-            .into_iter()
-            .filter(|root| root.join("steamapps").is_dir() && Some(root) != configured.as_ref()),
-    );
+    let mut targets: Vec<PathBuf> = configured.iter().cloned().collect();
+    let steam = roots
+        .into_iter()
+        .filter(|root| root.join("steamapps").is_dir());
+    let gaki = gaki.into_iter().filter(|root| root.is_dir());
+    for path in steam.chain(gaki) {
+        if !targets.contains(&path) {
+            targets.push(path);
+        }
+    }
     targets
+}
+
+/// Make `path` the library installs go to (`steam_library`), keeping
+/// `config.toml`'s comments. Games in the others stay where they are and
+/// keep showing. `path` may be a number from [`folders`] (1 is the first).
+pub async fn use_library(path: &str) -> Result<LibraryFolder> {
+    let home = crate::core::config::home_dir()?;
+    let path = match path.trim().parse::<usize>() {
+        Ok(n) => {
+            let all = folders().await;
+            match n.checked_sub(1).and_then(|i| all.get(i)) {
+                Some(folder) => folder.path.clone(),
+                None => {
+                    return Err(TypedError::new(
+                        ErrorKind::InvalidInput,
+                        format!(
+                            "there's no library {n}: `gaki-cli libraries` lists {}",
+                            all.len()
+                        ),
+                    )
+                    .into());
+                }
+            }
+        }
+        Err(_) => crate::config::expand_tilde(Path::new(path.trim()), &home),
+    };
+    if !path.is_dir() {
+        return Err(TypedError::new(
+            ErrorKind::NotFound,
+            format!("{} is not a folder", path.display()),
+        )
+        .into());
+    }
+    let path = std::fs::canonicalize(&path).unwrap_or(path);
+    crate::ops::config::set_global("steam_library", Some(&home_relative(&path, &home)))?;
+    Ok(LibraryFolder::of(path, true))
+}
+
+/// `path` as `steam_library` in `config.toml` gets it: `~/…` under the
+/// home directory.
+pub fn setting_text(path: &Path) -> String {
+    match crate::core::config::home_dir() {
+        Ok(home) => home_relative(path, &home),
+        Err(_) => path.display().to_string(),
+    }
+}
+
+/// `path` as `config.toml` writes it: `~/…` under `home`.
+fn home_relative(path: &Path, home: &Path) -> String {
+    match path.strip_prefix(home) {
+        Ok(rest) if !rest.as_os_str().is_empty() => format!("~/{}", rest.display()),
+        _ => path.display().to_string(),
+    }
 }
 
 #[cfg(test)]

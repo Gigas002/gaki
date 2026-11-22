@@ -125,6 +125,7 @@
 [settings]
 # Settings tab:
 # edit = "Enter"
+# type = "e"
 # unset = "x"
 # Profiles tab:
 # make_default = "d"

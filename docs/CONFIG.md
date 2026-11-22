@@ -75,6 +75,13 @@ see games installed there. The library keeps its layout once chosen; a
 folder Steam already uses keeps Steam's. `gaki-cli move`, `relink` and
 `import` treat it the same way. Other folders still need a `steamapps/`.
 
+You can have several libraries of each layout and switch between them with
+`gaki-cli libraries use <number|folder>` or the TUI's Settings (`Enter` on
+Library steps through them). Only `steam_library` changes: installs go to
+the new one, and the games in the others stay in the library and keep
+launching, since gaki scans every Steam library and every gaki-layout
+library it has records of.
+
 ## Profiles
 
 A profile describes one runner, one prefix and their environment, and any

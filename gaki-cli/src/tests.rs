@@ -354,3 +354,20 @@ fn review_flags_make_a_draft_over_the_current_review() {
     assert!(!draft.comments_disabled);
     assert_eq!(draft.language.as_deref(), Some("german"));
 }
+
+#[cfg(feature = "library")]
+#[test]
+fn libraries_lists_or_switches() {
+    let parse = |args: &[&str]| Cli::try_parse_from(args).map(|cli| cli.command);
+    assert!(matches!(
+        parse(&["gaki-cli", "libraries"]),
+        Ok(Command::Libraries { command: None })
+    ));
+    match parse(&["gaki-cli", "libraries", "use", "~/games"]) {
+        Ok(Command::Libraries {
+            command: Some(LibrariesCommand::Use { library }),
+        }) => assert_eq!(library, "~/games"),
+        _ => panic!("expected libraries use"),
+    }
+    assert!(parse(&["gaki-cli", "libraries", "use"]).is_err());
+}

@@ -219,6 +219,7 @@ actions! {
     /// The Settings overlay (`p`), by tab.
     SettingsAction, "settings", settings, SHARES_OVERLAY {
         Edit => "edit" ["Enter"] in "settings",
+        Type => "type" ["e"] in "settings",
         Unset => "unset" ["x"] in "settings",
         MakeDefault => "make_default" ["d"] in "profiles",
         EditProfile => "edit_profile" ["Enter", "e"] in "profiles",

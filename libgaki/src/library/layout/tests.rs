@@ -74,3 +74,18 @@ fn steam_libraries_and_other_folders_keep_steams_layout() {
         Some(layout)
     );
 }
+
+#[test]
+fn every_gaki_layout_library_is_listed_from_its_records() {
+    let (_a, first) = library();
+    let (_b, second) = library();
+    Layout::for_install(&first, &first).unwrap();
+    Layout::for_install(&second, &second).unwrap();
+    let all = gaki_libraries();
+    assert!(all.contains(&first) && all.contains(&second), "{all:?}");
+    // A Steam library has no records, so it isn't one.
+    let (_c, steam) = library();
+    std::fs::create_dir_all(steam.join("steamapps")).unwrap();
+    Layout::for_install(&steam, &steam).unwrap();
+    assert!(!gaki_libraries().contains(&steam));
+}
