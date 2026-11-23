@@ -1,8 +1,8 @@
 # Audit
 
 The final Phase 8 audit (PLAN step 8.14), in three parts: security (8.14a),
-performance (8.14b) and supported features (8.14c), and a follow-up pass
-(§4, 2026-11-11). Each finding says what
+performance (8.14b) and supported features (8.14c), and follow-up passes
+(§4, 2026-11-11; §5, 2026-11-23). Each finding says what
 was found, how serious it is, and what was done: **fixed** in the audit
 step, **accepted** with the reason, or moved to a **follow-up** PLAN step.
 
@@ -321,3 +321,34 @@ sources; the duplicate versions are build-only or transitive).
 Memory: the TUI's resident size was 26–33 MiB with art loaded; the CLI
 numbers in §2.1 are unchanged (`--help` 2.1 ms, `profiles list` and
 `config check` 2.8–2.9 ms, about 15 MiB).
+
+## 5. Second follow-up pass (2026-11-23)
+
+Covers what changed since §4: profiles in the libgameprofiles format and the
+`slr` runner, creating and editing profiles, writing reviews, switching
+libraries, the dependency update, and native games with `slr` profiles run
+through sruman. The new code was read for where outside input becomes a path,
+a process, a request or a file write; the CLI was run against a scratch
+config directory (profiles, `config check`, `libraries`, a symlinked profile);
+the sruman launch was run for real with a linked sniper runtime and a stand-in
+game (arguments, environment, wrappers, prefix home and exit code all came
+through). Gates green at the three feature levels (677, 838 and 975 tests);
+`cargo deny check` passes.
+
+Not covered: the TUI wasn't driven this time (it needs a signed-in account);
+its new screens are covered by their unit tests. Posting a review wasn't
+tried, since it would post on the real account.
+
+| Finding | Severity | Status |
+| ------- | -------- | ------ |
+| Saving a config file (`games.toml`, `config.toml`, a profile, gaki's own state files) replaced a symlink with a plain file, so a file kept in a dotfiles repository silently stopped being edited there, and reset the file to `0644`, so a `0600` profile whose `env` holds a token became readable to others. Saves now write through symlinks and keep the file's permissions, and the temporary file is created fresh with them. | low | Fixed |
+| Profile names can't hold `/` or be `.`/`..`, so creating a profile can't write outside the profiles directory; edits and deletes use the loaded file's own path. | — | OK |
+| A review POST sends the `sessionid` CSRF token once and is never retried; reqwest drops the cookie on a redirect to another host. | — | OK |
+| The sruman launch passes arguments as a list (no shell); a profile name can't start with `-`, so it can't pass for an option, and the game's path is absolute. | — | OK |
+| sruman reads an `slr` profile from its own directory by name, so a profile that exists only in gaki's directory fails at launch with sruman's "no profile named" error. CONFIG.md says to share the directory or keep matching names. | low | Accepted (documented) |
+| Through sruman, a game starts in its executable's directory; gaki's own launches start in the install directory. They differ only for games whose executable sits in a subdirectory. `sruman execute` has no option for the working directory yet. | low | Follow-up (sruman) |
+| Web response bodies (store pages, the review POST) are read without a size limit. Steam's HTTPS hosts only. | low | Accepted |
+
+Performance is unchanged from §4: `--help` 2.0 ms, `profiles list` and
+`config check` 2.7 ms, `libraries` 3.3 ms, about 15 MiB.
+
