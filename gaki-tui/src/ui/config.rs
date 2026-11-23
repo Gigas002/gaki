@@ -239,8 +239,9 @@ fn profiles_footer(view: &SettingsView) -> Vec<Line<'static>> {
     )
 }
 
-/// The editor's rows for the edited profile.
-fn profile_editor(tab: &ProfilesTab) -> Vec<Line<'static>> {
+/// The editor's rows for the edited profile, `width` columns wide: a long
+/// value wraps under the value column, not under the labels.
+fn profile_editor(tab: &ProfilesTab, width: usize) -> Vec<Line<'static>> {
     let (Some(editor), Some(row)) = (tab.editor.as_ref(), tab.edited()) else {
         return vec![dim("The profile is gone; Esc goes back.")];
     };
@@ -259,15 +260,24 @@ fn profile_editor(tab: &ProfilesTab) -> Vec<Line<'static>> {
         } else {
             theme::label()
         };
-        let value = match field.value(&row.profile) {
-            Some(value) => Span::styled(value, theme::value()),
-            None => Span::styled(format!("({})", field.unset()), theme::dim()),
+        let marker = selection_marker(selected).to_string();
+        let indent = marker.chars().count() + 15;
+        let (text, value_style) = match field.value(&row.profile) {
+            Some(value) => (value, theme::value()),
+            None => (format!("({})", field.unset()), theme::dim()),
         };
+        let mut parts = super::detail::wrap(&text, width.saturating_sub(indent)).into_iter();
         lines.push(Line::from(vec![
-            Span::styled(selection_marker(selected).to_string(), style),
+            Span::styled(marker, style),
             Span::styled(format!("{:<15}", field.label()), style),
-            value,
+            Span::styled(parts.next().unwrap_or_default(), value_style),
         ]));
+        for part in parts {
+            lines.push(Line::from(vec![
+                Span::raw(" ".repeat(indent)),
+                Span::styled(part, value_style),
+            ]));
+        }
     }
     if !row.issues.is_empty() {
         lines.push(Line::from(""));
@@ -324,7 +334,7 @@ fn draw_profiles(frame: &mut Frame, area: Rect, view: &SettingsView) {
     frame.render_widget(Paragraph::new(names).style(theme::base()), list);
 
     let lines = if tab.editor.is_some() {
-        profile_editor(tab)
+        profile_editor(tab, usize::from(detail.width))
     } else {
         profile_detail(tab, &data.errors)
     };

@@ -352,3 +352,26 @@ tried, since it would post on the real account.
 Performance is unchanged from §4: `--help` 2.0 ms, `profiles list` and
 `config check` 2.7 ms, `libraries` 3.3 ms, about 15 MiB.
 
+
+## 6. Third follow-up pass (2026-11-23)
+
+Covers `sruman_steam` (gaki runs `sruman steam link` before it starts
+Steam) and what §5 left out: the TUI's new screens, driven through tmux at
+140×40 against a copy of a signed-in config (so toggles wrote only to the
+copy), and Steam's library after `sruman steam relocate`. Played for real:
+Muse Dash, an owned Windows game, through Proton without the Steam client,
+and stopped with `gaki-cli stop`. Gates green at the three feature levels
+(677, 838 and 975 tests); `cargo deny check` passes.
+
+Not covered: posting a review (it would post on the real account).
+
+| Finding | Severity | Status |
+| ------- | -------- | ------ |
+| Launch options, `launch-targets`, `play` and `info` failed for some owned games ("missing config section in product info"): gaki asked PICS for product info without an access token, and apps that need one (Muse Dash) answer with their public part only (`public_only`: no launch options, no depots). gaki now asks for the app's access token first, as Steam's client and gaki's own download code do; without a token it gets the public part, as before. | medium | Fixed |
+| `gaki-cli stop` sent SIGTERM to the game's wine processes once. Wine catches it, and a `winedevice.exe` left without its wineserver never exited, so `gaki-cli play` waited for it for good (seen with Muse Dash). `stop` now gives the game 10 s, then kills what's left; `play` returned 14 s after `stop`. | medium | Fixed |
+| The profile editor wrapped a long value (Variables) under the labels; it wraps under the value column now, as Game info does since §4. | low | Fixed |
+| The `sruman_steam` toggle said "gaki runs `sruman steam link` before it next starts Steam" when switched off too. The note says the change takes effect the next time gaki starts Steam. | low | Fixed |
+| `sruman steam link` runs synchronously when gaki starts Steam, in the launch's async task: about 0.1 s with everything linked, seconds the first time a runtime is imported. sruman's store lock fails at once instead of waiting, so it can't hang on another sruman. | low | Accepted |
+| A Steam whose `steamapps` is a link (after `sruman steam relocate`) is read the same: libraries, installed games and their paths come out the same as before the move. | — | OK |
+| `stop` signals every process whose environment names the game's wine prefix. Games sharing a prefix share one wineserver, so stopping one ends the others either way. | low | Accepted (shared prefixes) |
+| The `sruman_steam` toggle and the session-token setting write only `config.toml`; changing where the tokens are kept asks first. | — | OK |

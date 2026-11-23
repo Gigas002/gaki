@@ -189,7 +189,7 @@ pub const SPECS: &[Spec] = &[
         label: "Steam on sruman's runtimes",
         default: "false",
         edit: Edit::Toggle { default: false },
-        note: Some("Saved. gaki runs `sruman steam link` before it next starts Steam."),
+        note: Some("Saved. Takes effect the next time gaki starts Steam."),
         confirm: None,
     },
     Spec {
