@@ -236,6 +236,7 @@ async fn profile_prefix_and_overrides_reach_the_proton_env() {
     let mut ctx = mock_context();
     ctx.launcher_config.steam_library_path = lib.to_string_lossy().into_owned();
     ctx.settings = Some(LaunchSettings {
+        sruman: None,
         app_id: 123,
         profile: Some("proton".into()),
         platform: None,
@@ -305,6 +306,7 @@ fn command_context(tmp: &std::path::Path, runner: &std::path::Path) -> LaunchCon
 
 fn settings_with_runner_args(args: &[&str]) -> crate::settings::LaunchSettings {
     crate::settings::LaunchSettings {
+        sruman: None,
         app_id: 123,
         profile: None,
         platform: None,

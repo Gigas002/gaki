@@ -30,8 +30,8 @@ pub use game::{Game, GamesFile};
 pub use global::{Config, SecretStoreKind};
 pub use issue::{Issue, Severity, Subject, ValidationContext, expand_tilde, validate_name};
 pub use profile::{
-    Anticheat, LibOverride, Profile, ProtonSection, Runner, SLR_UNSUPPORTED, ShaderCache, SlrMode,
-    SlrSection, SteamIntegration, is_supported, validate_dll_override, validate_profile,
+    Anticheat, LibOverride, Profile, ProtonSection, Runner, ShaderCache, SlrMode, SlrSection,
+    SteamIntegration, is_supported, launches, validate_dll_override, validate_profile,
 };
 
 pub const CONFIG_FILE: &str = "config.toml";

@@ -4,6 +4,7 @@ use super::*;
 
 fn settings() -> LaunchSettings {
     LaunchSettings {
+        sruman: None,
         app_id: 10,
         profile: None,
         platform: None,
@@ -159,4 +160,53 @@ fn proton_gets_the_transcoded_media_only_when_it_was_fetched() {
             .env
             .contains_key("STEAM_COMPAT_TRANSCODED_MEDIA_PATH")
     );
+}
+
+#[test]
+fn an_slr_profile_hands_the_game_to_sruman_inside_the_wrappers() {
+    let mut s = settings();
+    s.sruman = Some("sniper".into());
+    s.args = vec!["-novid".into()];
+    s.wrappers = vec!["gamescope -f --".into()];
+    let mut command = CommandSpec {
+        program: "/games/Game/bin/game.x86_64".into(),
+        args: vec!["-steam".into()],
+        ..CommandSpec::default()
+    };
+    apply(&s, &mut command);
+    assert_eq!(command.program, std::path::Path::new("gamescope"));
+    assert_eq!(
+        command.args,
+        [
+            "-f",
+            "--",
+            SRUMAN,
+            "execute",
+            "-p",
+            "sniper",
+            "--wait",
+            "/games/Game/bin/game.x86_64",
+            "--",
+            "-steam",
+            "-novid",
+        ]
+    );
+}
+
+#[test]
+fn sruman_is_found_in_path() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = tempfile::tempdir().unwrap();
+    let (empty, bin) = (dir.path().join("empty"), dir.path().join("bin"));
+    std::fs::create_dir_all(&empty).unwrap();
+    std::fs::create_dir_all(&bin).unwrap();
+    let path = std::env::join_paths([&empty, &bin]).unwrap();
+    assert_eq!(find_in_path(SRUMAN, Some(&path)), None);
+
+    let exe = bin.join(SRUMAN);
+    std::fs::write(&exe, "#!/bin/sh\n").unwrap();
+    assert_eq!(find_in_path(SRUMAN, Some(&path)), None, "not executable");
+    std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    assert_eq!(find_in_path(SRUMAN, Some(&path)), Some(exe));
+    assert_eq!(find_in_path(SRUMAN, None), None);
 }

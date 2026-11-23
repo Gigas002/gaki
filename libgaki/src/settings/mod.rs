@@ -83,6 +83,9 @@ pub struct LaunchSettings {
     /// Set when the launch may run under Proton. With `platform` unset it
     /// applies only if the launch picks the Windows build.
     pub proton: Option<ProtonSettings>,
+    /// The `slr` profile the native game runs in, through
+    /// `sruman execute -p <profile>`.
+    pub sruman: Option<String>,
     pub runner_args: Vec<String>,
     /// Outermost first: the profile's, then the game's.
     pub wrappers: Vec<String>,
@@ -126,10 +129,6 @@ pub enum SettingsError {
     UnknownProfile(String),
     #[error("profile `{profile}` uses runner `{runner}`, which gaki doesn't support")]
     UnsupportedRunner { profile: String, runner: Runner },
-    #[error(
-        "profile `{0}` uses runner `slr` (a Steam Linux Runtime), which gaki can't launch yet; use sruman"
-    )]
-    SlrProfile(String),
     #[error(
         "profile `{profile}` runs the {runner_platform} build, but the {platform} build was asked for"
     )]
@@ -219,14 +218,10 @@ pub fn resolve(
             let profile = catalog
                 .profile(name)
                 .ok_or_else(|| SettingsError::UnknownProfile(name.to_owned()))?;
-            if !crate::config::is_supported(profile) {
-                return Err(if profile.runner == Runner::Slr {
-                    SettingsError::SlrProfile(profile.name.clone())
-                } else {
-                    SettingsError::UnsupportedRunner {
-                        profile: profile.name.clone(),
-                        runner: profile.runner,
-                    }
+            if !crate::config::launches(profile) {
+                return Err(SettingsError::UnsupportedRunner {
+                    profile: profile.name.clone(),
+                    runner: profile.runner,
                 });
             }
             Some((profile, origin))
@@ -268,8 +263,12 @@ pub fn resolve(
     let profile = profile.map(|(profile, _)| profile);
 
     let proton = proton_settings(profile, overrides.proton.as_deref(), platform, home);
-    let mut env = profile.map(|p| p.env.clone()).unwrap_or_default();
-    let mut wrappers = profile.map(|p| p.wrappers.clone()).unwrap_or_default();
+    // sruman applies an `slr` profile's own env, wrappers, runner arguments
+    // and debug switch; gaki adds only the game's.
+    let sruman = profile.filter(|p| p.runner == Runner::Slr);
+    let own = profile.filter(|_| sruman.is_none());
+    let mut env = own.map(|p| p.env.clone()).unwrap_or_default();
+    let mut wrappers = own.map(|p| p.wrappers.clone()).unwrap_or_default();
     let mut args = Vec::new();
     if let Some(game) = game {
         env.extend(game.env.clone());
@@ -282,12 +281,13 @@ pub fn resolve(
         profile: profile.map(|p| p.name.clone()),
         platform,
         proton,
-        runner_args: profile.map(|p| p.runner_args.clone()).unwrap_or_default(),
+        sruman: sruman.map(|p| p.name.clone()),
+        runner_args: own.map(|p| p.runner_args.clone()).unwrap_or_default(),
         wrappers: wrappers
             .into_iter()
             .map(|wrapper| expand_wrapper(&wrapper, home))
             .collect(),
-        debug: profile.is_some_and(|p| p.debug),
+        debug: own.is_some_and(|p| p.debug),
         env,
         args,
         cloud_sync: config.cloud_sync,
@@ -317,7 +317,7 @@ fn expand_wrapper(wrapper: &str, home: &Path) -> String {
 /// The build a runner runs. Only called for supported runners.
 fn runner_platform(runner: Runner) -> Platform {
     match runner {
-        Runner::Native => Platform::Linux,
+        Runner::Native | Runner::Slr => Platform::Linux,
         _ => Platform::Windows,
     }
 }

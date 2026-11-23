@@ -246,15 +246,48 @@ fn unknown_and_unsupported_profiles_are_errors() {
             ..
         }
     ));
+}
 
-    catalog.config.default_profile = Some("slr".into());
-    catalog.profiles.push(Profile {
-        slr: Some(crate::config::SlrSection::new("sniper")),
-        ..Profile::new("slr", Runner::Slr)
-    });
-    let err = run(&catalog, 10, &Overrides::default()).unwrap_err();
-    assert_eq!(err, SettingsError::SlrProfile("slr".into()));
-    assert!(err.to_string().contains("use sruman"), "{err}");
+#[test]
+fn slr_profiles_run_the_linux_build_through_sruman() {
+    let mut slr = Profile::new("sniper", Runner::Slr);
+    slr.slr = Some(crate::config::SlrSection::new("sniper"));
+    slr.wrappers = vec!["mangohud".into()];
+    slr.env.insert("FROM_PROFILE".into(), "1".into());
+    slr.runner_args = vec!["--ignored".into()];
+    slr.debug = true;
+    let mut game = Game::new(10);
+    game.profile = Some("sniper".into());
+    game.wrappers = vec!["gamescope --".into()];
+    game.env.insert("FROM_GAME".into(), "1".into());
+    let mut catalog = catalog(None, vec![game]);
+    catalog.profiles.push(slr);
+
+    let settings = run(&catalog, 10, &Overrides::default()).unwrap();
+    assert_eq!(settings.sruman.as_deref(), Some("sniper"));
+    assert_eq!(settings.platform, Some(Platform::Linux));
+    assert_eq!(settings.proton, None);
+    // sruman applies the profile's own; gaki only the game's.
+    assert_eq!(settings.wrappers, ["gamescope --"]);
+    assert_eq!(settings.env.keys().collect::<Vec<_>>(), ["FROM_GAME"]);
+    assert!(settings.runner_args.is_empty());
+    assert!(!settings.debug);
+
+    // Asking for the Windows build contradicts the profile.
+    let overrides = Overrides {
+        platform: Some(Platform::Windows),
+        ..Overrides::default()
+    };
+    assert!(matches!(
+        run(&catalog, 10, &overrides).unwrap_err(),
+        SettingsError::PlatformConflict { .. }
+    ));
+    // Other profiles never go through sruman.
+    let overrides = Overrides {
+        profile: Some("native".into()),
+        ..Overrides::default()
+    };
+    assert_eq!(run(&catalog, 10, &overrides).unwrap().sruman, None);
 }
 
 #[test]
