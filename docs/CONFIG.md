@@ -139,18 +139,31 @@ comments ([GAKI-CLI.md](GAKI-CLI.md#configuration)).
 
 With an `slr` profile, gaki runs the game's Linux build through
 [sruman](https://github.com/Gigas002/sruman), in the profile's Steam Linux
-Runtime and prefix, the way Steam runs native games in its runtimes:
+Runtime and prefix, the way Steam runs native games in its runtimes. It's
+optional: nothing changes for `proton` and `native` profiles, and gaki
+needs sruman only for `slr` ones. Use **`steamrt4`**, the latest runtime,
+unless a game needs an older one:
 
 ```text
 sruman execute -p <profile> --wait <install dir>/<executable> -- <arguments>
 ```
 
 - **Install sruman** (`sruman` in `PATH`) and its runtime first
-  (`sruman install sniper`); `play` stops with the reason otherwise.
+  (`sruman install steamrt4`); `play` stops with the reason otherwise.
 - **sruman reads the profile from its own directory**
   (`~/.config/sruman/profiles/`), by name. Keep one profile in both places
   under the same name, or point gaki's `profiles_dir` at sruman's so both
-  read the same files. `sruman profiles new <name> -r sniper` makes one.
+  read the same files. `sruman profiles new <name> -r steamrt4` makes one, e.g.:
+
+  ```toml
+  # profiles/steamrt4.toml, in both gaki's and sruman's profiles directory
+  name = "steamrt4"
+  runner = "slr"
+  prefix = "~/prefixes/steamrt4"   # the game's own home: <prefix>/home
+
+  [slr]
+  runtime = "steamrt4"
+  ```
 - **sruman applies the profile's own settings**: its `env`, `wrappers`,
   `runner_args`, `debug`, prefix and `[slr]` (container or overlay mode,
   library overrides). gaki adds what's per game: the game's `env`,
