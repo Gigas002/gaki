@@ -45,6 +45,7 @@ use gaki_steam_vent_proto::steammessages_clientserver_2::{
 };
 #[cfg(feature = "library")]
 use gaki_steam_vent_proto::steammessages_clientserver_appinfo::{
+    CMsgClientPICSAccessTokenRequest, CMsgClientPICSAccessTokenResponse,
     CMsgClientPICSProductInfoRequest, CMsgClientPICSProductInfoResponse,
     cmsg_client_picsproduct_info_request,
 };
@@ -2311,6 +2312,27 @@ fn pics_cache() -> &'static PicsCache {
     CACHE.get_or_init(PicsCache::default)
 }
 
+/// The PICS access token for `appid`, `None` when Steam gives none (an app
+/// without one, or one the account has no license for) or the request fails.
+#[cfg(feature = "library")]
+async fn pics_access_token(connection: &Connection, appid: u32) -> Option<u64> {
+    let mut request = CMsgClientPICSAccessTokenRequest::new();
+    request.appids.push(appid);
+    let response: CMsgClientPICSAccessTokenResponse = match connection.job(request).await {
+        Ok(response) => response,
+        Err(err) => {
+            tracing::debug!(appid, "PICS access token request failed: {err:#}");
+            return None;
+        }
+    };
+    response
+        .app_access_tokens
+        .iter()
+        .find(|token| token.appid() == appid)
+        .map(|token| token.access_token())
+        .filter(|&token| token != 0)
+}
+
 /// One-app PICS `ProductInfo` buffer, reused for [`PICS_REUSE`].
 #[cfg(feature = "library")]
 pub(crate) async fn pics_app_buffer(
@@ -2321,11 +2343,17 @@ pub(crate) async fn pics_app_buffer(
     if let Some(buffer) = pics_cache().get(appid, Instant::now()) {
         return Ok(buffer.as_ref().clone());
     }
+    // Some apps answer without an access token with their public part only
+    // (`public_only`: no launch options, no depots). Steam's client asks for
+    // the token first; so does gaki. A failed token request still gets the
+    // public part, as before.
+    let access_token = pics_access_token(connection, appid).await;
     let mut request = CMsgClientPICSProductInfoRequest::new();
     request
         .apps
         .push(cmsg_client_picsproduct_info_request::AppInfo {
             appid: Some(appid),
+            access_token,
             ..Default::default()
         });
 

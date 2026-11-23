@@ -5,6 +5,10 @@
 use super::*;
 use rustix::process::{Pid, Signal};
 
+/// How long `stop` waits for a game to exit after SIGTERM before it kills
+/// what's left.
+const STOP_GRACE: std::time::Duration = std::time::Duration::from_secs(10);
+
 impl SteamClient {
     /// Whether the official Steam client is running on this host.
     pub fn steam_is_running() -> bool {
@@ -21,7 +25,8 @@ impl SteamClient {
     /// launch the WINEPREFIX) and terminates the process tree, then clears the
     /// record. With `force`, processes are killed immediately (SIGKILL);
     /// otherwise they are first asked to exit (SIGTERM) so the
-    /// game can shut down and save cleanly.
+    /// game can shut down and save cleanly, and killed after a 10-second grace
+    /// if they haven't.
     ///
     /// The record is reconciled first (see the recovery contract in
     /// `compat::running`): a recorded PID that now belongs to a different process
@@ -57,8 +62,50 @@ impl SteamClient {
         if owns_pid {
             kill_process_tree(record.pid, force);
         }
+        // Wine catches SIGTERM, and a wine process whose wineserver is gone
+        // (a `winedevice.exe`, say) may never act on it, which leaves
+        // `gaki-cli play` waiting for it for good. Give the game a grace period
+        // to save and exit, then kill what's left.
+        if !force {
+            let prefix = record.wineprefix.as_deref();
+            let deadline = std::time::Instant::now() + STOP_GRACE;
+            while Self::game_processes_left(app_id, prefix) && std::time::Instant::now() < deadline
+            {
+                std::thread::sleep(std::time::Duration::from_millis(250));
+            }
+            if Self::game_processes_left(app_id, prefix) {
+                tracing::warn!(
+                    app_id,
+                    "game processes ignored SIGTERM for {}s; killing them",
+                    STOP_GRACE.as_secs()
+                );
+                if let Some(prefix) = prefix {
+                    Self::kill_wine_processes_in_prefix(prefix, true);
+                }
+                Self::kill_processes_for_app(app_id, true);
+            }
+        }
         crate::compat::running::clear(app_id);
         Ok(record)
+    }
+
+    /// Whether a process of the game (by app id, or in its wine prefix) is
+    /// still alive: the same processes [`Self::stop_game`] signals.
+    fn game_processes_left(app_id: u32, wineprefix: Option<&Path>) -> bool {
+        let needle = format!("STEAM_COMPAT_APP_ID={app_id}");
+        let prefix = wineprefix.map(|p| p.to_string_lossy().into_owned());
+        Self::scan_proc_pids(|pid_path, _| {
+            let environ = std::fs::read(pid_path.join("environ")).ok()?;
+            // A zombie has an empty environ: it's gone already.
+            let by_app = environ
+                .split(|&b| b == 0)
+                .any(|entry| entry == needle.as_bytes());
+            let in_prefix = prefix
+                .as_deref()
+                .is_some_and(|p| String::from_utf8_lossy(&environ).contains(p));
+            (by_app || in_prefix).then_some(())
+        })
+        .is_some()
     }
 
     /// Terminate every process belonging to `app_id`, identified by
