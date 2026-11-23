@@ -62,6 +62,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("info_cache_ttl", KeyKind::Integer),
     ("daemon_idle_timeout", KeyKind::Integer),
     ("reauth_sensitive", KeyKind::Bool),
+    ("sruman_steam", KeyKind::Bool),
     ("secret_store", KeyKind::Text),
     ("shader_cache", KeyKind::Path),
     ("shader_precache", KeyKind::Bool),

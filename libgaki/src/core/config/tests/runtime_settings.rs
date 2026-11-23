@@ -8,6 +8,7 @@ fn runtime_settings_default_when_absent() {
             info_cache_ttl: None,
             daemon_idle_timeout: None,
             reauth_sensitive: false,
+            sruman_steam: false,
         }
     );
 }
@@ -19,4 +20,7 @@ fn runtime_settings_come_from_config_toml() {
     let settings = RuntimeSettings::from(&config);
     assert_eq!(settings.info_cache_ttl, Some(0));
     assert_eq!(settings.daemon_idle_timeout, Some(60));
+    assert!(!settings.sruman_steam);
+    let config: crate::config::Config = toml::from_str("sruman_steam = true\n").unwrap();
+    assert!(RuntimeSettings::from(&config).sruman_steam);
 }
