@@ -61,6 +61,11 @@ pub struct Config {
     /// or items: the inventory, the wallet and the market listings.
     #[serde(default)]
     pub reauth_sensitive: bool,
+    /// Before gaki starts the Steam client, run `sruman steam link` so the
+    /// client and its games run on sruman's runtimes instead of Steam's own
+    /// copies.
+    #[serde(default)]
+    pub sruman_steam: bool,
     /// Where the session's tokens are kept: `keyring` (the OS keyring) or
     /// `memory` (the running daemon only, for machines without a keyring).
     #[serde(default)]
@@ -108,6 +113,7 @@ impl Default for Config {
             info_cache_ttl: None,
             daemon_idle_timeout: None,
             reauth_sensitive: false,
+            sruman_steam: false,
             secret_store: SecretStoreKind::default(),
             shader_cache: None,
             shader_precache: true,

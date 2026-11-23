@@ -43,3 +43,8 @@ install_resume = "manual"
 # Fetch Steam's pre-built shaders into a game's shader cache after it
 # installs or updates, and compile them with fossilize_replay.
 # shader_precache = true
+
+# Before starting the Steam client (`play --steam`, a Family-Shared game),
+# run `sruman steam link`, so Steam and its games run on sruman's runtimes
+# instead of Steam's own copies. Needs sruman in PATH.
+# sruman_steam = false

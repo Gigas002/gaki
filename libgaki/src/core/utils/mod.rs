@@ -336,9 +336,42 @@ pub fn ensure_steam_running() {
     }
 }
 
+/// With `sruman_steam` on, run `sruman steam link` so the Steam client about
+/// to start runs on sruman's runtimes (links in place of Steam's own
+/// copies). Best-effort: if sruman is missing or fails, Steam starts on its
+/// own runtimes and a warning says why.
+pub fn link_steam_runtimes() {
+    if !crate::core::config::load_runtime_settings_blocking().sruman_steam {
+        return;
+    }
+    let sruman = crate::launch::stages::apply_settings::SRUMAN;
+    tracing::info!("sruman_steam: running `{sruman} steam link` before starting Steam");
+    match std::process::Command::new(sruman)
+        .args(["steam", "link"])
+        .stdin(std::process::Stdio::null())
+        .output()
+    {
+        Ok(out) if out.status.success() => {
+            for line in String::from_utf8_lossy(&out.stdout).lines() {
+                tracing::info!("sruman: {line}");
+            }
+        }
+        Ok(out) => tracing::warn!(
+            "`{sruman} steam link` failed ({}); Steam starts on its own runtimes: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        ),
+        Err(e) => tracing::warn!(
+            "could not run `{sruman} steam link` ({e}); Steam starts on its own runtimes"
+        ),
+    }
+}
+
 /// Spawn `steam -silent` fully detached (its own session, no stdio), so it
-/// outlives this process and never blocks it.
+/// outlives this process and never blocks it. With `sruman_steam`, its
+/// runtimes are linked to sruman's first ([`link_steam_runtimes`]).
 pub fn start_steam_detached() -> Result<()> {
+    link_steam_runtimes();
     let mut cmd = std::process::Command::new("steam");
     cmd.arg("-silent")
         .stdin(std::process::Stdio::null())

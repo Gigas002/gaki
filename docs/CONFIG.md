@@ -55,6 +55,7 @@ writes it, and `config unset <key>` removes one.
 | `info_cache_ttl`      | 6 hours               | seconds a cached `info` record lives; `0` turns the cache off                                                                                                         |
 | `daemon_idle_timeout` | 30 minutes            | seconds the daemon idles before it exits; `0` never                                                                                                                   |
 | `reauth_sensitive`    | `false`               | ask for a fresh sign-in before showing the inventory, wallet or market listings                                                                                       |
+| `sruman_steam`        | `false`               | start the Steam client on sruman's runtimes: see [Steam integration](#steam-integration)                                                                              |
 | `secret_store`        | `keyring`             | where tokens are kept: `keyring` or `memory`                                                                                                                          |
 | `shader_cache`        | `<cache>/shadercache` | where games' compiled shaders go: a directory that gets one `<app id>/` per game, or `off` (see [Shader caches](#shader-caches))                                      |
 | `shader_precache`     | `true`                | fetch Steam's pre-built shaders after an install or update and compile them (see [Shader pre-caching](#shader-pre-caching))                                           |
@@ -225,6 +226,16 @@ host Steam client, which Steamworks features and some DRM need:
 | `none` | never bridge                                               |
 
 Family-Shared games always bridge: they need the host Steam client.
+
+**Steam on sruman's runtimes.** With `sruman_steam = true`, gaki runs
+[`sruman steam link`](https://github.com/Gigas002/sruman/blob/master/docs/USAGE.md#steam)
+each time before it starts the Steam client (for a bridged launch, or after
+editing Steam's files). sruman replaces the Steam Linux Runtimes in Steam's
+folder (its client's and the game runtimes) with links to the same builds in
+its store, so Steam keeps no runtime of its own; a link already in place is
+left alone. A running Steam isn't touched. If sruman is missing or the link
+fails, Steam starts on its own runtimes and gaki logs a warning. Unset or
+`false`, gaki starts Steam as before.
 
 ### Shader caches
 

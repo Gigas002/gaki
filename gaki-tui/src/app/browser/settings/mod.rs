@@ -185,6 +185,14 @@ pub const SPECS: &[Spec] = &[
         confirm: None,
     },
     Spec {
+        key: "sruman_steam",
+        label: "Steam on sruman's runtimes",
+        default: "false",
+        edit: Edit::Toggle { default: false },
+        note: Some("Saved. gaki runs `sruman steam link` before it next starts Steam."),
+        confirm: None,
+    },
+    Spec {
         key: "secret_store",
         label: "Session tokens",
         default: "keyring",
