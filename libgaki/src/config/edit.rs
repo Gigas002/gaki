@@ -61,8 +61,14 @@ impl TomlFile {
 }
 
 /// Write `text` to `path` through a temporary file in the same directory, so
-/// a reader never sees half a file. Creates the directory.
+/// a reader never sees half a file. Creates the directory. A symlink is
+/// written through, so a file kept in a dotfiles repository stays linked, and
+/// the file keeps its permissions (a `0600` profile stays private).
 pub fn write_atomic(path: &Path, text: &str) -> Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let path = &symlink_target(path);
     let dir = path.parent().unwrap_or(Path::new("."));
     fs::create_dir_all(dir).with_context(|| format!("could not create {}", dir.display()))?;
     let name = path
@@ -70,8 +76,48 @@ pub fn write_atomic(path: &Path, text: &str) -> Result<()> {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     let tmp = dir.join(format!(".{name}.tmp"));
-    fs::write(&tmp, text).with_context(|| format!("could not write {}", tmp.display()))?;
+    let existing = fs::metadata(path)
+        .ok()
+        .map(|m| m.permissions().mode() & 0o7777);
+    // A fresh file, never a leftover with other permissions.
+    let _ = fs::remove_file(&tmp);
+    let written = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(existing.unwrap_or(0o666))
+        .open(&tmp)
+        .and_then(|mut file| {
+            file.write_all(text.as_bytes())?;
+            // The umask may have narrowed it; the old file's mode wins.
+            if let Some(mode) = existing {
+                file.set_permissions(fs::Permissions::from_mode(mode))?;
+            }
+            Ok(())
+        });
+    if let Err(e) = written {
+        let _ = fs::remove_file(&tmp);
+        return Err(e).with_context(|| format!("could not write {}", tmp.display()));
+    }
     fs::rename(&tmp, path).with_context(|| format!("could not replace {}", path.display()))
+}
+
+/// The file `path` ends at, following symlinks (a dangling one too); `path`
+/// itself when it isn't a symlink.
+fn symlink_target(path: &Path) -> PathBuf {
+    let mut path = path.to_path_buf();
+    // A loop of links stops somewhere; the write then fails with the reason.
+    for _ in 0..40 {
+        match fs::read_link(&path) {
+            Ok(target) => {
+                path = match path.parent() {
+                    Some(dir) => dir.join(target),
+                    None => target,
+                };
+            }
+            Err(_) => break,
+        }
+    }
+    path
 }
 
 /// Write `value` to `path` as TOML, keeping the file that's already there as

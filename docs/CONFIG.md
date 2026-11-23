@@ -91,7 +91,7 @@ file name.
 
 ```toml
 name = "proton"
-runner = "proton"                 # proton | native
+runner = "proton"                 # proton | native | slr (through sruman)
 prefix = "~/prefixes/proton"      # shared by every game using this profile
 wrappers = ["gamemoderun"]
 steam = "auto"                    # auto | host | none
@@ -109,7 +109,7 @@ winhttp = "n,b"
 | Key             | Meaning                                                                                                                                                                                                   |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`          | the profile's name, the same as its file name                                                                                                                                                             |
-| `runner`        | `proton` or `native`. `wine` and `umu` parse, so lootrs profiles load, but gaki can't launch them and `config check` says so                                                                              |
+| `runner`        | `proton`, `native`, or `slr` (a native game in a Steam Linux Runtime, through sruman; see below). `wine` and `umu` parse, so lootrs profiles load, but gaki can't launch them and `config check` says so                                                                              |
 | `prefix`        | for `proton`, the `STEAM_COMPAT_DATA_PATH` (its `pfx/` is the Wine prefix). Leave it out to give each game its own Steam `compatdata/<app id>`. For lootrs' `wine` and `umu` it is the Wine prefix itself |
 | `runner_args`   | extra arguments for the runner, before the game's own                                                                                                                                                     |
 | `wrappers`      | commands the launch is wrapped in, outermost first                                                                                                                                                        |
@@ -125,14 +125,55 @@ The format is [libgameprofiles](https://github.com/Gigas002/libgameprofiles),
 shared with lootrs and sruman, so one profile directory can serve all three.
 Other runners' fields (`dxvk`, `vkd3d`, `[wine]`, `[umu]`, `[slr]`) load,
 and `config check` warns that gaki ignores them; keys the format doesn't know
-are warnings too. `wine` and `umu` profiles are lootrs', and `slr` profiles (a
-Steam Linux Runtime) are sruman's: they load, but gaki doesn't launch them. lootrs in turn loads `proton`
+are warnings too. `wine` and `umu` profiles are lootrs': they load, but gaki
+doesn't launch them. `slr` profiles are sruman's, and gaki launches native
+games with them through sruman (below). lootrs in turn loads `proton`
 profiles, `[proton]` and `steam`, but can't launch a `proton` profile.
 `gaki-cli profiles list` and `gaki-cli profiles show <name>` show what gaki
 loaded, which games use each profile, and any problems. `gaki-cli profiles
 new|set|delete` and the TUI's Settings → Profiles tab create, change and
 delete `proton` and `native` profiles without opening the file, keeping its
 comments ([GAKI-CLI.md](GAKI-CLI.md#configuration)).
+
+### Native games in a Steam Linux Runtime (sruman)
+
+With an `slr` profile, gaki runs the game's Linux build through
+[sruman](https://github.com/Gigas002/sruman), in the profile's Steam Linux
+Runtime and prefix, the way Steam runs native games in its runtimes. It's
+optional: nothing changes for `proton` and `native` profiles, and gaki
+needs sruman only for `slr` ones. Use **`steamrt4`**, the latest runtime,
+unless a game needs an older one:
+
+```text
+sruman execute -p <profile> --wait <install dir>/<executable> -- <arguments>
+```
+
+- **Install sruman** (`sruman` in `PATH`) and its runtime first
+  (`sruman install steamrt4`); `play` stops with the reason otherwise.
+- **sruman reads the profile from its own directory**
+  (`~/.config/sruman/profiles/`), by name. Keep one profile in both places
+  under the same name, or point gaki's `profiles_dir` at sruman's so both
+  read the same files. `sruman profiles new <name> -r steamrt4` makes one, e.g.:
+
+  ```toml
+  # profiles/steamrt4.toml, in both gaki's and sruman's profiles directory
+  name = "steamrt4"
+  runner = "slr"
+  prefix = "~/prefixes/steamrt4"   # the game's own home: <prefix>/home
+
+  [slr]
+  runtime = "steamrt4"
+  ```
+- **sruman applies the profile's own settings**: its `env`, `wrappers`,
+  `runner_args`, `debug`, prefix and `[slr]` (container or overlay mode,
+  library overrides). gaki adds what's per game: the game's `env`,
+  `wrappers` and `args`, the launch options, `SteamAppId`, the `GAKI_*`
+  variables and the shader cache. The game's wrappers run outside sruman.
+- An `slr` profile always means the Linux build; `--platform windows` with
+  one is an error. The game starts in its executable's directory.
+- With a prefix, the game's home is `<prefix>/home` (sruman mounts it at the
+  usual home path inside the container), so its saves land there.
+- gaki doesn't create or edit `slr` profiles: use sruman or a text editor.
 
 ## `games.toml`
 

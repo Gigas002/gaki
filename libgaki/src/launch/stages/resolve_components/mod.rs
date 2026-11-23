@@ -55,8 +55,10 @@ impl Runner for NativeRunner {
         let program = PathBuf::from(install_path).join(&exe_rel);
         let mut env = self.build_env(ctx).await?;
 
-        // 32-bit natives need scout runtime libraries.
-        if needs_scout_libs(&program, std::path::Path::new(install_path)) {
+        // 32-bit natives need scout runtime libraries, unless sruman runs
+        // them in a runtime of their own.
+        let sruman = ctx.settings.as_ref().is_some_and(|s| s.sruman.is_some());
+        if !sruman && needs_scout_libs(&program, std::path::Path::new(install_path)) {
             if let Some(libs) = scout_library_path() {
                 let existing = env
                     .get("LD_LIBRARY_PATH")

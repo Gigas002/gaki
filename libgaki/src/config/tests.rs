@@ -310,16 +310,19 @@ fn unknown_profile_keys_are_warnings() {
 }
 
 #[test]
-fn slr_profiles_are_sruman_s() {
+fn slr_profiles_launch_through_sruman() {
     let mut profile = Profile::new("sniper", Runner::Slr);
     profile.slr = Some(SlrSection::new("sniper"));
+    // sruman's to edit, gaki's to launch.
     assert!(!is_supported(&profile));
+    assert!(launches(&profile));
     let issues = validate_profile(&profile, &ctx());
     assert!(
-        has(&issues, Severity::Error, "use sruman"),
+        !issues.iter().any(|issue| issue.severity == Severity::Error),
         "{:?}",
         messages(&issues)
     );
+    assert!(!launches(&Profile::new("wine", Runner::Wine)));
 
     // `[slr]` on `native` is ignored: the game runs as a plain native one.
     profile.runner = Runner::Native;
@@ -576,4 +579,80 @@ fn write_serialized_keeps_comments() {
         "# header\n\n# whether to check\ncheck = false # inline\n\n# regions\nregions = []\n\
          added = 3\n# commented = 2\n"
     );
+}
+
+mod atomic_writes {
+    use std::os::unix::fs::{PermissionsExt, symlink};
+
+    use super::*;
+    use crate::config::edit::write_atomic;
+
+    fn mode(path: &Path) -> u32 {
+        fs::metadata(path).unwrap().permissions().mode() & 0o777
+    }
+
+    #[test]
+    fn a_symlinked_file_stays_linked_and_private() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dots = tmp.path().join("dotfiles/profiles");
+        fs::create_dir_all(&dots).unwrap();
+        let target = dots.join("native.toml");
+        fs::write(&target, "old").unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+        let config = tmp.path().join("config");
+        fs::create_dir_all(&config).unwrap();
+        let link = config.join("native.toml");
+        symlink("../dotfiles/profiles/native.toml", &link).unwrap();
+
+        write_atomic(&link, "new").unwrap();
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+        assert_eq!(fs::read_to_string(&target).unwrap(), "new");
+        assert_eq!(mode(&target), 0o600);
+        // No temporary file left beside either.
+        assert_eq!(fs::read_dir(&config).unwrap().count(), 1);
+        assert_eq!(fs::read_dir(&dots).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn a_new_file_follows_the_umask_and_a_dangling_link_is_filled() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("a/new.toml");
+        write_atomic(&path, "x").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "x");
+        assert_eq!(mode(&path) & 0o600, 0o600);
+
+        let link = tmp.path().join("link.toml");
+        symlink("real.toml", &link).unwrap();
+        write_atomic(&link, "y").unwrap();
+        assert_eq!(
+            fs::read_to_string(tmp.path().join("real.toml")).unwrap(),
+            "y"
+        );
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink()
+        );
+    }
+
+    #[test]
+    fn a_stale_temporary_file_never_lends_its_permissions() {
+        let tmp = tempfile::tempdir().unwrap();
+        let path = tmp.path().join("games.toml");
+        fs::write(&path, "old").unwrap();
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+        let stale = tmp.path().join(".games.toml.tmp");
+        fs::write(&stale, "stale").unwrap();
+        fs::set_permissions(&stale, fs::Permissions::from_mode(0o644)).unwrap();
+        write_atomic(&path, "new").unwrap();
+        assert_eq!(fs::read_to_string(&path).unwrap(), "new");
+        assert_eq!(mode(&path), 0o600);
+        assert!(!stale.exists());
+    }
 }

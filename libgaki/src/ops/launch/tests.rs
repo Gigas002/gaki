@@ -38,6 +38,7 @@ mod choose_proton {
 
     fn settings(platform: Option<Platform>, build: Option<ProtonBuild>) -> LaunchSettings {
         LaunchSettings {
+            sruman: None,
             app_id: 1,
             profile: None,
             platform,
