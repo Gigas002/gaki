@@ -9,6 +9,8 @@
 //! daemon's own stdin. This lets one long-lived daemon process execute commands on
 //! behalf of many thin-client invocations while each still sees its own streams.
 
+pub mod style;
+
 #[cfg(feature = "authentication")]
 use std::future::Future;
 #[cfg(feature = "authentication")]
@@ -99,6 +101,14 @@ pub fn user_dir(dir: String) -> String {
 #[cfg(feature = "authentication")]
 pub async fn scoped<F: Future>(ctx: OutputCtx, fut: F) -> F::Output {
     CTX.scope(ctx, fut).await
+}
+
+/// Whether this runs inside a daemon request, whose output goes to a client.
+pub fn in_daemon() -> bool {
+    #[cfg(feature = "authentication")]
+    return CTX.try_with(|_| ()).is_ok();
+    #[cfg(not(feature = "authentication"))]
+    false
 }
 
 /// Write `s` to the given stream — to the captured channel if inside a daemon

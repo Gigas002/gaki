@@ -11,6 +11,7 @@ use libgaki::library::steam_home::{Choice, Host, Library, Placed, Plan, Step};
 
 use crate::cli::SteamLayoutArg;
 use crate::commands::common::confirm_write;
+use crate::output::style;
 
 /// `steam_library`, `~` expanded; `steam relocate` needs it set.
 fn configured_library() -> Result<Option<PathBuf>> {
@@ -24,27 +25,49 @@ fn configured_library() -> Result<Option<PathBuf>> {
 /// `steam status`.
 pub(crate) fn cmd_steam_status() -> Result<()> {
     let host = Host::locate()?;
-    cli_println!("Steam: {}", host.root.display());
-    cli_println!("library: {}", host.library()?);
-    match configured_library()? {
+    cli_println!("{} {}", style::heading("Steam:"), host.root.display());
+    let library = host.library()?;
+    let library_text = library.to_string();
+    let library_text = match library {
+        Library::InPlace => style::yellow(&library_text),
+        _ => style::green(&library_text),
+    };
+    cli_println!("{} {library_text}", style::heading("library:"));
+    let configured = match configured_library()? {
         Some(root) => {
             let layout = match host.layout_of(&root) {
                 Some(Choice::Gaki) => "gaki's layout",
                 Some(Choice::Steam) => "Steam's layout",
                 None => "empty",
             };
-            cli_println!("steam_library: {} ({layout})", root.display());
+            format!("{} ({layout})", root.display())
         }
-        None => cli_println!("steam_library: not set"),
-    }
+        None => style::yellow("not set"),
+    };
+    cli_println!("{} {configured}", style::heading("steam_library:"));
+
+    let mut rows = vec![vec![
+        "FOLDER".to_owned(),
+        "STATE".to_owned(),
+        "WHERE".to_owned(),
+    ]];
     for place in host.places() {
-        let state = match place.placed() {
-            Placed::Moved => format!("moved to {}", place.target.display()),
-            Placed::Here => "in Steam's folder".to_owned(),
-            Placed::Missing => "not there yet".to_owned(),
-            Placed::Elsewhere(at) => format!("links to {}", at.display()),
+        let (state, at) = match place.placed() {
+            Placed::Moved => (style::green("moved"), place.target.display().to_string()),
+            Placed::Here => (
+                style::yellow("in Steam's folder"),
+                place.path.display().to_string(),
+            ),
+            Placed::Missing => (
+                "not there yet".to_owned(),
+                place.target.display().to_string(),
+            ),
+            Placed::Elsewhere(at) => (style::red("links elsewhere"), at.display().to_string()),
         };
-        cli_println!("{}: {state}", place.name);
+        rows.push(vec![place.name.to_owned(), state, at]);
+    }
+    for line in style::table(&rows) {
+        cli_println!("{line}");
     }
     prefix_status()
 }
@@ -54,21 +77,20 @@ fn prefix_status() -> Result<()> {
     let prefixes = shared_prefix::Host::locate()?;
     let catalog = Catalog::load_user()?;
     let home = libgaki::core::config::home_dir()?;
-    match &catalog.config.steam_prefix {
-        Some(name) if catalog.config.experimental => {
-            cli_println!("steam_prefix: profile `{name}`");
-        }
-        Some(name) => {
-            cli_println!("steam_prefix: profile `{name}` (unused: `experimental` is off)");
-        }
-        None => cli_println!("steam_prefix: not set"),
-    }
+    let setting = match &catalog.config.steam_prefix {
+        Some(name) if catalog.config.experimental => format!("profile `{name}`"),
+        Some(name) => format!(
+            "profile `{name}` {}",
+            style::yellow("(unused: `experimental` is off)")
+        ),
+        None => "not set".to_owned(),
+    };
+    cli_println!("{} {setting}", style::heading("steam_prefix:"));
     let games = prefixes.games()?;
     if games.is_empty() {
-        cli_println!("prefixes: no game Steam runs through Proton");
+        cli_println!("No game Steam runs through Proton is installed.");
         return Ok(());
     }
-    cli_println!("prefixes:");
     // Which profile a link leads to.
     let profile_of = |target: &Path| {
         catalog.profiles.iter().find_map(|profile| {
@@ -76,22 +98,40 @@ fn prefix_status() -> Result<()> {
             shared_prefix::same_path(&prefix, target).then(|| profile.name.clone())
         })
     };
+    let mut rows = vec![vec![
+        "APPID".to_owned(),
+        "GAME".to_owned(),
+        "PREFIX".to_owned(),
+        "TOOL".to_owned(),
+        "WHERE".to_owned(),
+    ]];
     for game in &games {
-        let state = match prefixes.prefix(game)? {
-            Prefix::None => "none yet (Steam makes its own on the first launch)".to_owned(),
-            Prefix::Own => "its own".to_owned(),
+        let (state, at) = match prefixes.prefix(game)? {
+            Prefix::None => ("none yet".to_owned(), "-".to_owned()),
+            Prefix::Own => ("own".to_owned(), game.compat.display().to_string()),
             Prefix::Linked { target, ours } => {
-                let by = if ours { "" } else { ", not linked by gaki" };
-                match profile_of(&target) {
-                    Some(profile) => {
-                        format!("shared: profile `{profile}` ({}{by})", target.display())
+                let state = match (profile_of(&target), ours) {
+                    (Some(profile), true) => style::green(&format!("shared: {profile}")),
+                    (Some(profile), false) => {
+                        style::yellow(&format!("shared: {profile}, not by gaki"))
                     }
-                    None => format!("links to {}{by}", target.display()),
-                }
+                    (None, _) => style::yellow("linked, not by gaki"),
+                };
+                (state, target.display().to_string())
             }
         };
-        let tool = game.tool.as_deref().unwrap_or("Steam's default");
-        cli_println!("  {} ({}): {state}; tool {tool}", game.name, game.app_id);
+        rows.push(vec![
+            game.app_id.to_string(),
+            game.name.clone(),
+            state,
+            game.tool
+                .clone()
+                .unwrap_or_else(|| "Steam's default".to_owned()),
+            at,
+        ]);
+    }
+    for line in style::table(&rows) {
+        cli_println!("{line}");
     }
     Ok(())
 }
