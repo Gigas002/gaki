@@ -637,6 +637,12 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: MarketCommand,
     },
+    /// The Steam client's folders: where its library, caches and logs are, and
+    /// moving them out so gaki and Steam share one library.
+    Steam {
+        #[command(subcommand)]
+        command: SteamCommand,
+    },
     /// Check that this machine can run what the configuration asks for: the
     /// config files, the Steam library, the Proton builds, the wrappers, the
     /// programs some settings need (`sruman`, `steam`, `fossilize_replay`)
@@ -767,6 +773,40 @@ pub(crate) enum ConfigCommand {
         #[arg(short = 'y', long)]
         yes: bool,
     },
+}
+
+#[derive(Subcommand)]
+pub(crate) enum SteamCommand {
+    /// Where Steam's library, caches and logs are.
+    Status,
+    /// Move Steam's library into `steam_library`, so gaki and Steam share it,
+    /// its caches to `$XDG_CACHE_HOME/steam` and its logs to
+    /// `$XDG_STATE_HOME/steam`, leaving symlinks in Steam's folder. Follows
+    /// where earlier runs (or `sruman steam relocate`) moved them. Steam must
+    /// not be running. Shows what it will do and asks first.
+    Relocate {
+        /// The library's layout: `gaki` (games directly in `steam_library`,
+        /// records in gaki's state directory) or `steam`
+        /// (`steam_library/steamapps`). Default: the one `steam_library` has,
+        /// else gaki's.
+        #[arg(long, value_enum, conflicts_with = "undo")]
+        layout: Option<SteamLayoutArg>,
+        /// Move everything back into Steam's folder.
+        #[arg(long)]
+        undo: bool,
+        /// Only show what would change.
+        #[arg(short = 'n', long)]
+        dry_run: bool,
+        /// Don't ask.
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum SteamLayoutArg {
+    Gaki,
+    Steam,
 }
 
 #[derive(Subcommand)]

@@ -30,6 +30,7 @@ pub(crate) mod runtimes;
 pub(crate) mod shaders;
 #[cfg(feature = "social")]
 pub(crate) mod social;
+pub(crate) mod steam;
 #[cfg(feature = "store")]
 pub(crate) mod store;
 #[cfg(feature = "workshop")]
@@ -62,6 +63,7 @@ pub(crate) use self::profiles::*;
 pub(crate) use self::runtimes::*;
 #[cfg(feature = "social")]
 pub(crate) use self::social::*;
+pub(crate) use self::steam::*;
 #[cfg(feature = "store")]
 pub(crate) use self::store::*;
 #[cfg(feature = "workshop")]

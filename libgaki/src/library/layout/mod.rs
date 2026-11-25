@@ -164,7 +164,7 @@ fn same_path(a: &Path, b: &Path) -> bool {
 
 /// A path as one file name, the way `systemd-escape --path` does it:
 /// `/home/me/my-games` is `home-me-my\x2dgames`. [`unescape`] reverses it.
-fn escape(path: &Path) -> String {
+pub(crate) fn escape(path: &Path) -> String {
     let text = path.to_string_lossy();
     let mut out = String::new();
     for (i, byte) in text.trim_matches('/').bytes().enumerate() {
@@ -178,7 +178,7 @@ fn escape(path: &Path) -> String {
     out
 }
 
-fn unescape(name: &str) -> PathBuf {
+pub(crate) fn unescape(name: &str) -> PathBuf {
     let mut bytes = vec![b'/'];
     let raw = name.as_bytes();
     let mut i = 0;

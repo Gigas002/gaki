@@ -86,6 +86,10 @@ the new one, and the games in the others stay in the library and keep
 launching, since gaki scans every Steam library and every gaki-layout
 library it has records of.
 
+`gaki-cli steam relocate` moves the Steam client's own library into
+`steam_library`, in either layout, so both clients share it: see
+[GAKI-CLI.md](GAKI-CLI.md#sharing-the-library-with-the-steam-client).
+
 ## Profiles
 
 A profile describes one runner, one prefix and their environment, and any
