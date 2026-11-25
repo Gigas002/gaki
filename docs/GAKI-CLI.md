@@ -9,6 +9,10 @@ Some commands need a Cargo feature that default builds leave out (`store`,
 `social`, `market`, ...). [FEATURES.md](FEATURES.md) says which, and
 `gaki-cli --help` lists only the commands your build has.
 
+`steam status` and `doctor` color their states (green in place, yellow
+worth a look, red wrong) when they print to a terminal; set `NO_COLOR` to
+turn that off. Piped output is always plain.
+
 ## Commands
 
 A game can be named by its app id, or by the `name` alias its
