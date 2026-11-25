@@ -13,6 +13,7 @@ pub(crate) mod config;
 pub(crate) mod daemon;
 #[cfg(feature = "depot")]
 pub(crate) mod depot;
+pub(crate) mod doctor;
 #[cfg(feature = "library")]
 pub(crate) mod info;
 #[cfg(feature = "install")]
@@ -46,6 +47,7 @@ pub(crate) use self::config::*;
 pub(crate) use self::daemon::*;
 #[cfg(feature = "depot")]
 pub(crate) use self::depot::*;
+pub(crate) use self::doctor::*;
 #[cfg(feature = "library")]
 pub(crate) use self::info::*;
 #[cfg(feature = "install")]

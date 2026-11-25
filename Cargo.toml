@@ -116,7 +116,7 @@ rsa = { version = "0.10", default-features = false, features = [
     "pkcs1v15",
 ] }
 # Safe syscalls: kill, setsid, getuid
-rustix = { version = "1", features = ["process"] }
+rustix = { version = "1", features = ["fs", "process"] }
 # gaki-steam-cdn: Steam's VSZ (Zstandard) chunk containers
 ruzstd = "0.9"
 secrecy = "0.10"

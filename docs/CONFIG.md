@@ -3,7 +3,10 @@
 gaki is configured with TOML files, never environment variables. Every file is
 optional, and [`examples/`](../examples) has a commented copy of each. Change
 them by hand or with `gaki-cli config` commands, which keep your comments, and
-check them with `gaki-cli config check`.
+check them with `gaki-cli config check`. `gaki-cli doctor` checks the machine
+around them: that the Steam library is writable, and that the Proton builds,
+wrappers and programs the files name (`sruman`, `steam`, `fossilize_replay`)
+are installed.
 
 ## Where things live
 

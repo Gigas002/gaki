@@ -116,7 +116,7 @@ fn must_run_locally(cli: &Cli) -> bool {
     let local_disk_scan = duplicates
         || matches!(
             cli.command,
-            Command::Profiles { .. } | Command::Config { .. }
+            Command::Profiles { .. } | Command::Config { .. } | Command::Doctor
         );
 
     // With `reauth_sensitive`, an interactive sensitive read signs in again
@@ -609,6 +609,7 @@ async fn run(cli: Cli) -> Result<()> {
         Command::Tags { dump } => cmd_tags(dump).await,
         #[cfg(feature = "library")]
         Command::Appinfo { app_id } => cmd_appinfo(app_id).await,
+        Command::Doctor => cmd_doctor(),
         Command::Config { command } => match command {
             ConfigCommand::Show => cmd_config_show().await,
             ConfigCommand::Check => cmd_config_check().await,
