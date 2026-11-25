@@ -9,6 +9,7 @@ pub mod layout;
 pub mod local_library;
 pub mod platform;
 pub mod relocate;
+pub mod shared_prefix;
 pub mod steam_home;
 pub mod transfer;
 

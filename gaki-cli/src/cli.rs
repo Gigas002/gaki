@@ -777,7 +777,8 @@ pub(crate) enum ConfigCommand {
 
 #[derive(Subcommand)]
 pub(crate) enum SteamCommand {
-    /// Where Steam's library, caches and logs are.
+    /// Where Steam's library, caches and logs are, and which prefix each
+    /// game Steam runs through Proton has.
     Status,
     /// Move Steam's library into `steam_library`, so gaki and Steam share it,
     /// its caches to `$XDG_CACHE_HOME/steam` and its logs to
@@ -791,7 +792,26 @@ pub(crate) enum SteamCommand {
         /// else gaki's.
         #[arg(long, value_enum, conflicts_with = "undo")]
         layout: Option<SteamLayoutArg>,
-        /// Move everything back into Steam's folder.
+        /// Experimental: Steam's Windows games share this `proton` profile's
+        /// prefix instead of making a `compatdata/<app id>` each: the
+        /// prefix is linked there, and the game's compatibility tool becomes
+        /// the profile's build. A game's own `proton` profile in
+        /// `games.toml` wins; one without a `prefix` keeps its own. Default:
+        /// `steam_prefix`. Needs `experimental = true`.
+        #[arg(long, value_name = "PROFILE", conflicts_with = "undo")]
+        prefix: Option<String>,
+        /// With a shared prefix: also share it with games that have their
+        /// own prefix, moving theirs into gaki's state directory (never
+        /// deleted; it comes back when the game gets its own prefix again).
+        #[arg(long, conflicts_with = "undo")]
+        replace_prefixes: bool,
+        /// Every game gaki linked to a shared prefix gets its own back (the
+        /// one moved aside, if any), and its compatibility tool from before;
+        /// the library stays where it is.
+        #[arg(long, conflicts_with_all = ["prefix", "replace_prefixes", "undo"])]
+        own_prefixes: bool,
+        /// Move everything back into Steam's folder, and give every game
+        /// gaki linked its own prefix back.
         #[arg(long)]
         undo: bool,
         /// Only show what would change.

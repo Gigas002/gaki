@@ -617,10 +617,21 @@ async fn run(cli: Cli) -> Result<()> {
             SteamCommand::Status => cmd_steam_status(),
             SteamCommand::Relocate {
                 layout,
+                prefix,
+                replace_prefixes,
+                own_prefixes,
                 undo,
                 dry_run,
                 yes,
-            } => cmd_steam_relocate(layout, undo, dry_run, yes),
+            } => cmd_steam_relocate(
+                layout,
+                prefix,
+                replace_prefixes,
+                own_prefixes,
+                undo,
+                dry_run,
+                yes,
+            ),
         },
         Command::Config { command } => match command {
             ConfigCommand::Show => cmd_config_show().await,

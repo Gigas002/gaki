@@ -196,10 +196,15 @@ impl Catalog {
             message: format!("`{field}` names profile `{name}`, which doesn't exist"),
         };
 
-        if let Some(name) = &self.config.default_profile
-            && !known.contains(name.as_str())
-        {
-            issues.push(missing(Subject::Config, "default_profile", name));
+        for (field, name) in [
+            ("default_profile", &self.config.default_profile),
+            ("steam_prefix", &self.config.steam_prefix),
+        ] {
+            if let Some(name) = name
+                && !known.contains(name.as_str())
+            {
+                issues.push(missing(Subject::Config, field, name));
+            }
         }
         for profile in &self.profiles {
             issues.extend(validate_profile(profile, ctx));

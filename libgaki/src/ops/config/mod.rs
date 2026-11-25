@@ -51,6 +51,7 @@ pub const KEYS: &[(&str, KeyKind)] = &[
     ("steam_library", KeyKind::Path),
     ("profiles_dir", KeyKind::Path),
     ("default_profile", KeyKind::Text),
+    ("steam_prefix", KeyKind::Text),
     ("default_platform", KeyKind::Text),
     ("default_proton", KeyKind::Text),
     ("cloud_sync", KeyKind::Bool),

@@ -88,6 +88,14 @@ pub const SPECS: &[Spec] = &[
         confirm: None,
     },
     Spec {
+        key: "steam_prefix",
+        label: "Steam's shared prefix (experimental)",
+        default: "none",
+        edit: Edit::Profile,
+        note: Some("Saved. `gaki-cli steam relocate` links Steam's prefixes to it."),
+        confirm: None,
+    },
+    Spec {
         key: "default_platform",
         label: "Default platform",
         default: "install Windows, run what's installed",

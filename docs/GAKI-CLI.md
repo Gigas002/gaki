@@ -86,6 +86,59 @@ another, when Steam runs, or when a process uses a file that would move. A
 run cut short is finished by running it again. `--undo` puts everything back:
 from a gaki-layout library it takes only the games the records name.
 
+### One prefix for Steam's games (experimental)
+
+```bash
+gaki-cli steam relocate --prefix proton_cachyos -n   # what would change
+gaki-cli steam relocate --prefix proton_cachyos      # Steam's games share that profile's prefix
+gaki-cli steam relocate --replace-prefixes           # ... also games with their own (steam_prefix set)
+gaki-cli steam relocate --own-prefixes               # every game its own prefix again
+gaki-cli steam status                                # which prefix each game has
+```
+
+Needs `experimental = true`. The Steam client makes a Proton prefix for
+every Windows game (`compatdata/<app id>`). With `--prefix <profile>`, or
+`steam_prefix = "<profile>"` in `config.toml`, `steam relocate` makes Steam
+use the prefix of a `proton` profile instead, the one gaki's own launches
+use:
+
+- the game's `compatdata/<app id>` becomes a symlink to the profile's
+  prefix;
+- the game's compatibility tool in Steam becomes the profile's Proton build
+  (Steam's name for it, from the build's `compatibilitytool.vdf`, or
+  `proton_experimental`). Proton converts a prefix to the build that runs it,
+  so games on different builds would convert the shared prefix back and
+  forth. A build Steam has no name for is refused.
+
+Per game, the game's `profile` in `games.toml` wins when it's a `proton`
+profile, the same as for gaki's own launches: one with a `prefix` shares
+that prefix instead, one without keeps the game's own prefix (and gives a
+shared one back).
+
+It covers the installed games Steam runs through Proton: those with a
+compatibility tool set, and those whose install has Windows executables and
+no Linux ones. A game's own prefix may hold its saves, so it's left alone
+(and listed) unless `--replace-prefixes` moves it into
+`$XDG_STATE_HOME/gaki/shared-prefix/prefixes/`; nothing is deleted. gaki
+remembers the games it linked and the tool each had; only those are ever
+unlinked. `--own-prefixes`, a game's profile without a `prefix`, and
+`--undo` give a game its own prefix back (the one moved aside, if any) and
+its tool. A game installed later gets its own prefix on its first launch:
+run `steam relocate` again. Steam must not be running; a copy of
+`config.vdf` is kept as `config.vdf.gaki-backup` before it changes.
+
+`steam status` lists each game Steam runs through Proton with its prefix
+(its own, none yet, or shared and with which profile) and its tool.
+
+What was checked with the Steam client: launching keeps the link and runs
+the game in the shared prefix with the profile's build; uninstalling a game
+deletes a real `compatdata/<app id>` but leaves a link, and the shared
+prefix, alone; the tools survive Steam quitting. gaki's own `uninstall
+--delete-prefix` and `move` also treat the link as a link. Games in one
+prefix share its registry, its installed redistributables and its
+`wineserver`, so two games running at once must use the same build (they
+do, from the tool above), and a game that breaks a prefix breaks it for all.
+
 ### Moving a library to another machine
 
 ```bash
