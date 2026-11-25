@@ -7,6 +7,11 @@ steam_library = "~/.local/share/Steam"
 # The profile a game uses when games.toml names none.
 default_profile = "proton"
 
+# Experimental (needs `experimental = true`): `gaki-cli steam relocate`
+# makes Steam's Windows games share this proton profile's prefix. A game's
+# own proton profile in games.toml wins.
+# steam_prefix = "proton"
+
 # Which build to install and run when a game ships both: windows | linux.
 # `--platform` and a game's `platform` in games.toml override it.
 # Unset: install the Windows build, run whichever build is installed.

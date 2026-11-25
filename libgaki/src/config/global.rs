@@ -24,6 +24,11 @@ pub struct Config {
     /// The profile used when a game names none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_profile: Option<String>,
+    /// Experimental: the `proton` profile whose prefix `steam relocate`
+    /// makes Steam's games share. A game's own `proton` profile in
+    /// `games.toml` wins. `None` leaves Steam's prefixes alone.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steam_prefix: Option<String>,
     /// The build to install and run when a game has both. `None` installs the
     /// Windows build and runs whichever build is installed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -102,6 +107,7 @@ impl Default for Config {
             steam_library: None,
             profiles_dir: None,
             default_profile: None,
+            steam_prefix: None,
             default_platform: None,
             default_proton: None,
             cloud_sync: true,
@@ -139,7 +145,10 @@ impl Config {
                 issues.absolute(field, path, ctx.home);
             }
         }
-        if let Some(profile) = &self.default_profile {
+        for profile in [&self.default_profile, &self.steam_prefix]
+            .into_iter()
+            .flatten()
+        {
             issues.name(profile);
         }
         if let Some(shader_cache) = &self.shader_cache {

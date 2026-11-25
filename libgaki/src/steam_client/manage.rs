@@ -113,11 +113,7 @@ impl SteamClient {
         }
 
         if delete_prefix {
-            let compat = layout.compatdata(appid);
-            if compat.exists() {
-                std::fs::remove_dir_all(&compat)
-                    .with_context(|| format!("failed deleting {}", compat.display()))?;
-            }
+            crate::library::shared_prefix::remove_compat(&layout.compatdata(appid))?;
         }
 
         Ok(())
@@ -167,10 +163,23 @@ impl SteamClient {
         }
         let dest_manifest = dest_layout.manifest(appid);
 
-        // Proton prefix, if this game has one.
+        // Proton prefix, if this game has one. A link to a shared prefix
+        // (`steam relocate --prefix`) moves as a link, never as a copy of what it
+        // points to.
         let src_compat = src_layout.compatdata(appid);
-        let src_compat = src_compat.exists().then_some(src_compat);
+        let shared_compat = std::fs::symlink_metadata(&src_compat)
+            .is_ok_and(|meta| meta.file_type().is_symlink())
+            .then(|| std::fs::read_link(&src_compat).ok())
+            .flatten();
+        let src_compat = (shared_compat.is_none() && src_compat.exists()).then_some(src_compat);
         let dest_compat = src_compat.as_ref().map(|_| dest_layout.compatdata(appid));
+        let shared_compat = shared_compat.map(|target| {
+            (
+                src_layout.compatdata(appid),
+                dest_layout.compatdata(appid),
+                target,
+            )
+        });
 
         // Locate the (single) libraryfolders.vdf and warn if the destination isn't
         // a registered library — Steam won't scan an unregistered folder. A
@@ -236,6 +245,15 @@ impl SteamClient {
                         send_moving(common_bytes, copied, file);
                     })
                     .with_context(|| format!("failed moving Proton prefix to {}", dc.display()))?;
+                }
+                if let Some((from, to, target)) = &shared_compat {
+                    if let Some(parent) = to.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    std::os::unix::fs::symlink(target, to)
+                        .with_context(|| format!("failed linking {}", to.display()))?;
+                    std::fs::remove_file(from)
+                        .with_context(|| format!("failed removing the link {}", from.display()))?;
                 }
 
                 // appmanifest: copy to the new library, then remove the original so

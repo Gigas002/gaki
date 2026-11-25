@@ -726,7 +726,7 @@ fn entries(dir: &Path) -> Result<Vec<String>> {
 
 /// Renames `from` to `to`; across filesystems, copies (next to `to`, then
 /// renamed into place) and deletes `from`.
-fn move_entry(from: &Path, to: &Path) -> Result<()> {
+pub(crate) fn move_entry(from: &Path, to: &Path) -> Result<()> {
     if let Some(parent) = to.parent() {
         fs::create_dir_all(parent)?;
     }

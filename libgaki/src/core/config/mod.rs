@@ -220,6 +220,13 @@ pub fn library_records_dir() -> Result<PathBuf> {
     state_subdir("libraries")
 }
 
+/// Where `steam relocate` keeps what it needs for shared prefixes:
+/// `<state dir>/shared-prefix`, or `shared-prefix` in a config directory set
+/// with [`set_config_dir`] (see [`crate::library::shared_prefix`]).
+pub fn shared_prefix_dir() -> Result<PathBuf> {
+    state_subdir("shared-prefix")
+}
+
 /// gaki's cache directory: `$XDG_CACHE_HOME/gaki`, or `~/.cache/gaki`.
 /// Holds data that can be fetched again, such as cached art and listings.
 pub fn cache_dir() -> Result<PathBuf> {
