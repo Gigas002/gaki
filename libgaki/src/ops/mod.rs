@@ -15,6 +15,7 @@ pub mod config;
 pub mod daemon;
 #[cfg(feature = "depot")]
 pub mod depot;
+pub mod doctor;
 #[cfg(feature = "library")]
 pub mod info;
 #[cfg(feature = "install")]

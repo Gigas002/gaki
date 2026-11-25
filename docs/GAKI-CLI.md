@@ -299,6 +299,7 @@ automation Steam's rules forbid ([STEAM-RULES.md](STEAM-RULES.md)).
 ```bash
 gaki-cli config show                  # the resolved configuration
 gaki-cli config check                 # validate config.toml, the profiles and games.toml
+gaki-cli doctor                       # can this machine run it: library, Protons, wrappers, sruman, steam, login
 gaki-cli config get default_profile   # one config.toml key, as written (nothing when unset)
 gaki-cli config set default_profile proton  # set a config.toml key
 gaki-cli config unset default_profile # back to its default

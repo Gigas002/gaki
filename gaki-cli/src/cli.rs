@@ -637,6 +637,12 @@ pub(crate) enum Command {
         #[command(subcommand)]
         command: MarketCommand,
     },
+    /// Check that this machine can run what the configuration asks for: the
+    /// config files, the Steam library, the Proton builds, the wrappers, the
+    /// programs some settings need (`sruman`, `steam`, `fossilize_replay`)
+    /// and the stored login. Starts, writes and fetches nothing. Fails when
+    /// there are errors.
+    Doctor,
     /// Inspect launcher configuration.
     Config {
         #[command(subcommand)]
