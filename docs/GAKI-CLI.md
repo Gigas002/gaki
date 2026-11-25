@@ -47,6 +47,45 @@ gaki-cli libraries                    # library folders (Steam's and gaki's layo
 gaki-cli libraries use 2              # install into library 2 from now on (or give a folder)
 ```
 
+### Sharing the library with the Steam client
+
+```bash
+gaki-cli steam status                       # where Steam's library, caches and logs are
+gaki-cli steam relocate --dry-run           # what would move
+gaki-cli steam relocate                     # Steam's library into steam_library, in its layout
+gaki-cli steam relocate --layout steam      # ... as steam_library/steamapps
+gaki-cli steam relocate --undo              # everything back into Steam's folder
+```
+
+`steam relocate` moves the Steam client's library into `steam_library`, so
+gaki and Steam install, update and launch the same games, and moves its
+caches to `$XDG_CACHE_HOME/steam` and its logs to `$XDG_STATE_HOME/steam`.
+Each leaves a symlink in Steam's folder, which keeps only the client and its
+`config/`.
+
+The library takes `--layout gaki` (the default unless `steam_library` already
+has Steam's layout) or `--layout steam`:
+
+- **gaki**: the games directly in `steam_library`, the records (appmanifests,
+  `compatdata/` prefixes, `workshop/`) in gaki's records directory
+  (`$XDG_STATE_HOME/gaki/libraries/<escaped path>/`). Steam's `steamapps`
+  links to the records, whose `common` links back to `steam_library`.
+  Folders in `steam_library` that aren't Steam's games stay as they are.
+  It needs a `steam_library` path of only letters, digits, `_` and `/`:
+  the records directory's name escapes anything else with a `\`, which
+  Steam reads as a folder separator. Otherwise the default is Steam's
+  layout, and `--layout gaki` is refused.
+- **steam**: `steam_library/steamapps/`, which Steam's `steamapps` links to.
+
+Running it again with the other layout converts the library; running it
+after `steam_library` changed moves the library there. It follows the links
+any earlier run left, including `sruman steam relocate`'s, so a library moved
+that way moves on to `steam_library`. Before changing anything it lists what
+will move and asks (`-y` doesn't); it stops when a game or file would land on
+another, when Steam runs, or when a process uses a file that would move. A
+run cut short is finished by running it again. `--undo` puts everything back:
+from a gaki-layout library it takes only the games the records name.
+
 ### Moving a library to another machine
 
 ```bash

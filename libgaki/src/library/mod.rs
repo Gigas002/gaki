@@ -9,6 +9,7 @@ pub mod layout;
 pub mod local_library;
 pub mod platform;
 pub mod relocate;
+pub mod steam_home;
 pub mod transfer;
 
 use crate::core::config::load_launcher_config;
@@ -185,7 +186,32 @@ async fn expand_library_roots(roots: &[PathBuf]) -> Vec<PathBuf> {
 
     libraries.sort();
     libraries.dedup();
+    drop_linked_twins(&mut libraries);
     libraries
+}
+
+/// Drops a library whose `steamapps` is a symlink to another listed
+/// library's records: Steam's root after `steam relocate`, which would list
+/// every game twice.
+pub(crate) fn drop_linked_twins(libraries: &mut Vec<PathBuf>) {
+    let records: Vec<(PathBuf, bool)> = libraries
+        .iter()
+        .map(|root| {
+            let steamapps = layout::Layout::of(root).steamapps().to_path_buf();
+            let linked =
+                std::fs::symlink_metadata(&steamapps).is_ok_and(|m| m.file_type().is_symlink());
+            (
+                std::fs::canonicalize(&steamapps).unwrap_or(steamapps),
+                linked,
+            )
+        })
+        .collect();
+    let mut index = 0;
+    libraries.retain(|_| {
+        let (key, linked) = &records[index];
+        index += 1;
+        !(*linked && records.iter().any(|(other, real)| !real && other == key))
+    });
 }
 
 /// The places a Steam data root keeps its `libraryfolders.vdf`. Steam maintains
